@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <title>Administration - Presence CCRB</title>
+    <link rel="stylesheet" href="/styles.css?v=2" />
+  </head>
+  <body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <img src="/Media/PP CCRB.png" alt="CCRB Logo" class="navbar-logo">
+        <div class="navbar-title">
+          <h1>Presence CCRB</h1>
+          <span class="navbar-subtitle">Administration</span>
+        </div>
+      </div>
+      
+      <div class="navbar-menu">
+        <a href="/" class="navbar-link">
+          <span class="navbar-icon">🏠</span>
+          <span>Accueil Agent</span>
+        </a>
+        
+        <!-- Navigation pour tous les utilisateurs connectés -->
+        <a href="/profile.html" class="navbar-link" id="profile-link" style="display: none;">
+          <span class="navbar-icon">👤</span>
+          <span>Mon Profil</span>
+        </a>
+        
+        <!-- Navigation pour Admin et Superviseur -->
+        <a href="/dashboard.html" class="navbar-link" id="dashboard-link" style="display: none;">
+          <span class="navbar-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/agents.html" class="navbar-link" id="agents-link" style="display: none;">
+          <span class="navbar-icon">👥</span>
+          <span>Gestion Agents</span>
+        </a>
+        <a href="/reports.html" class="navbar-link" id="reports-link" style="display: none;">
+          <span class="navbar-icon">📈</span>
+          <span>Rapports</span>
+        </a>
+        
+        <!-- Navigation pour Admin uniquement -->
+        <a href="/admin.html" class="navbar-link navbar-link-active">
+          <span class="navbar-icon">⚙️</span>
+          <span>Administration</span>
+        </a>
+        
+        <div class="navbar-user" id="navbar-user" style="display: none;">
+          <span class="navbar-user-info" id="user-info">Chargement...</span>
+          <button onclick="logout()" class="navbar-logout">
+            <span class="navbar-icon">🚪</span>
+            <span>Déconnexion</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <h2>Administration du Système</h2>
+        <p>Configuration et gestion avancée du système de présence</p>
+      </div>
+
+      <!-- Tableau de bord administrateur -->
+      <div class="admin-dashboard">
+        <div class="admin-stats">
+          <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-content">
+              <div class="stat-value" id="total-users">0</div>
+              <div class="stat-label">Utilisateurs Total</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🏢</div>
+            <div class="stat-content">
+              <div class="stat-value" id="total-units">0</div>
+              <div class="stat-label">Unités Administratives</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-content">
+              <div class="stat-value" id="system-uptime">99.9%</div>
+              <div class="stat-label">Disponibilité</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">💾</div>
+            <div class="stat-content">
+              <div class="stat-value" id="storage-used">45%</div>
+              <div class="stat-label">Stockage Utilisé</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sections d'administration -->
+      <div class="admin-sections">
+        <!-- Gestion des Unités Administratives -->
+        <div class="card">
+          <h3>🏢 Unités Administratives</h3>
+          <p>Configurez les unités et départements de l'organisation</p>
+          
+          <div class="admin-actions">
+            <button class="btn-primary" onclick="openUnitModal()">
+              <span class="btn-icon">➕</span>
+              Nouvelle Unité
+            </button>
+            <button class="btn-secondary" onclick="refreshUnits()">
+              <span class="btn-icon">🔄</span>
+              Actualiser
+            </button>
+          </div>
+
+          <div class="units-list" id="units-list">
+            <div class="unit-item">
+              <div class="unit-info">
+                <h4>Direction Générale</h4>
+                <p>Direction principale de l'organisation</p>
+                <small>Code: DG | Responsable: Admin Principal</small>
+              </div>
+              <div class="unit-actions">
+                <button class="btn-icon" onclick="editUnit(1)" title="Modifier">✏️</button>
+                <button class="btn-icon" onclick="viewUnitDetails(1)" title="Détails">👁️</button>
+                <button class="btn-icon btn-danger" onclick="deleteUnit(1)" title="Supprimer">🗑️</button>
+              </div>
+            </div>
+            <div class="unit-item">
+              <div class="unit-info">
+                <h4>Ressources Humaines</h4>
+                <p>Gestion du personnel et des ressources humaines</p>
+                <small>Code: RH | Responsable: Superviseur Principal</small>
+              </div>
+              <div class="unit-actions">
+                <button class="btn-icon" onclick="editUnit(2)" title="Modifier">✏️</button>
+                <button class="btn-icon" onclick="viewUnitDetails(2)" title="Détails">👁️</button>
+                <button class="btn-icon btn-danger" onclick="deleteUnit(2)" title="Supprimer">🗑️</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Configuration Système -->
+        <div class="card">
+          <h3>⚙️ Configuration Système</h3>
+          
+          <div class="config-sections">
+            <div class="config-section">
+              <h4>Paramètres Généraux</h4>
+              <div class="config-item">
+                <label for="org-name">Nom de l'Organisation :</label>
+                <input type="text" id="org-name" value="CCRB" placeholder="Nom de l'organisation">
+              </div>
+              <div class="config-item">
+                <label for="timezone">Fuseau Horaire :</label>
+                <select id="timezone">
+                  <option value="Africa/Porto-Novo" selected>Afrique/Porto-Novo (GMT+1)</option>
+                  <option value="UTC">UTC (GMT+0)</option>
+                  <option value="Europe/Paris">Europe/Paris (GMT+1)</option>
+                </select>
+              </div>
+              <div class="config-item">
+                <label for="work-hours">Heures de Travail :</label>
+                <div class="work-hours-config">
+                  <input type="time" id="work-start" value="08:00">
+                  <span>à</span>
+                  <input type="time" id="work-end" value="17:00">
+                </div>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <h4>Paramètres de Présence</h4>
+              <div class="config-item">
+                <label for="tolerance-minutes">Tolérance de Retard (minutes) :</label>
+                <input type="number" id="tolerance-minutes" value="15" min="0" max="60">
+              </div>
+              <div class="config-item">
+                <label for="auto-checkout">Déconnexion Automatique :</label>
+                <input type="checkbox" id="auto-checkout" checked>
+                <span>Activer la déconnexion automatique en fin de journée</span>
+              </div>
+              <div class="config-item">
+                <label for="geolocation-required">Géolocalisation Obligatoire :</label>
+                <input type="checkbox" id="geolocation-required" checked>
+                <span>Exiger la géolocalisation pour marquer la présence</span>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <h4>Notifications</h4>
+              <div class="config-item">
+                <label for="email-notifications">Notifications Email :</label>
+                <input type="checkbox" id="email-notifications" checked>
+                <span>Activer les notifications par email</span>
+              </div>
+              <div class="config-item">
+                <label for="push-notifications">Notifications Push :</label>
+                <input type="checkbox" id="push-notifications" checked>
+                <span>Activer les notifications push</span>
+              </div>
+              <div class="config-item">
+                <label for="reminder-time">Heure de Rappel :</label>
+                <input type="time" id="reminder-time" value="08:30">
+              </div>
+            </div>
+          </div>
+
+          <div class="config-actions">
+            <button class="btn-primary" onclick="saveConfig()">
+              <span class="btn-icon">💾</span>
+              Sauvegarder la Configuration
+            </button>
+            <button class="btn-secondary" onclick="resetConfig()">
+              <span class="btn-icon">🔄</span>
+              Réinitialiser
+            </button>
+          </div>
+        </div>
+
+        <!-- Maintenance Système -->
+        <div class="card">
+          <h3>🔧 Maintenance Système</h3>
+          
+          <div class="maintenance-actions">
+            <div class="maintenance-item">
+              <h4>Base de Données</h4>
+              <p>Sauvegarde et maintenance de la base de données</p>
+              <div class="maintenance-buttons">
+                <button class="btn-primary" onclick="backupDatabase()">
+                  <span class="btn-icon">💾</span>
+                  Sauvegarde
+                </button>
+                <button class="btn-secondary" onclick="optimizeDatabase()">
+                  <span class="btn-icon">⚡</span>
+                  Optimiser
+                </button>
+              </div>
+            </div>
+
+            <div class="maintenance-item">
+              <h4>Logs Système</h4>
+              <p>Gestion des logs et surveillance du système</p>
+              <div class="maintenance-buttons">
+                <button class="btn-secondary" onclick="viewLogs()">
+                  <span class="btn-icon">📋</span>
+                  Voir les Logs
+                </button>
+                <button class="btn-secondary" onclick="clearLogs()">
+                  <span class="btn-icon">🗑️</span>
+                  Nettoyer
+                </button>
+              </div>
+            </div>
+
+            <div class="maintenance-item">
+              <h4>Sécurité</h4>
+              <p>Audit de sécurité et gestion des sessions</p>
+              <div class="maintenance-buttons">
+                <button class="btn-secondary" onclick="auditSecurity()">
+                  <span class="btn-icon">🔒</span>
+                  Audit Sécurité
+                </button>
+                <button class="btn-secondary" onclick="manageSessions()">
+                  <span class="btn-icon">👥</span>
+                  Sessions Actives
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Modal pour les unités administratives -->
+    <div id="unit-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="unit-modal-title">Nouvelle Unité Administrative</h2>
+          <button class="modal-close" onclick="closeUnitModal()">&times;</button>
+        </div>
+        <form id="unit-form">
+          <div class="form-group">
+            <label for="unit-name">Nom de l'Unité *</label>
+            <input type="text" id="unit-name" required>
+          </div>
+          <div class="form-group">
+            <label for="unit-code">Code de l'Unité *</label>
+            <input type="text" id="unit-code" required>
+          </div>
+          <div class="form-group">
+            <label for="unit-description">Description</label>
+            <textarea id="unit-description" rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="unit-manager">Responsable</label>
+            <select id="unit-manager">
+              <option value="">Sélectionner un responsable</option>
+              <option value="1">Admin Principal</option>
+              <option value="2">Superviseur Principal</option>
+            </select>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" onclick="closeUnitModal()">Annuler</button>
+            <button type="submit" class="btn-primary">Enregistrer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="/admin.js"></script>
+    <script>
+      // Vercel Speed Insights
+      if (typeof window !== 'undefined') {
+        import('https://unpkg.com/@vercel/speed-insights@1.2.0/dist/index.js').then(({ inject }) => {
+          inject();
+        });
+      }
+    </script>
+    <script>
+      // Vercel Analytics
+      if (typeof window !== 'undefined') {
+        import('https://unpkg.com/@vercel/analytics@1.2.0/dist/index.js').then(({ inject }) => {
+          inject();
+        });
+      }
+    </script>
+  </body>
+</html>

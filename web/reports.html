@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <title>Rapports - Presence CCRB</title>
+    <link rel="stylesheet" href="/styles.css?v=2" />
+  </head>
+  <body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <img src="/Media/PP CCRB.png" alt="CCRB Logo" class="navbar-logo">
+        <div class="navbar-title">
+          <h1>Presence CCRB</h1>
+          <span class="navbar-subtitle">Rapports</span>
+        </div>
+      </div>
+      
+      <div class="navbar-menu">
+        <a href="/" class="navbar-link">
+          <span class="navbar-icon">🏠</span>
+          <span>Accueil Agent</span>
+        </a>
+        
+        <!-- Navigation pour tous les utilisateurs connectés -->
+        <a href="/profile.html" class="navbar-link" id="profile-link" style="display: none;">
+          <span class="navbar-icon">👤</span>
+          <span>Mon Profil</span>
+        </a>
+        
+        <!-- Navigation pour Admin et Superviseur -->
+        <a href="/dashboard.html" class="navbar-link" id="dashboard-link" style="display: none;">
+          <span class="navbar-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/agents.html" class="navbar-link" id="agents-link" style="display: none;">
+          <span class="navbar-icon">👥</span>
+          <span>Gestion Agents</span>
+        </a>
+        <a href="/reports.html" class="navbar-link navbar-link-active">
+          <span class="navbar-icon">📈</span>
+          <span>Rapports</span>
+        </a>
+        
+        <!-- Navigation pour Admin uniquement -->
+        <a href="/admin.html" class="navbar-link" id="admin-link" style="display: none;">
+          <span class="navbar-icon">⚙️</span>
+          <span>Administration</span>
+        </a>
+        
+        <div class="navbar-user" id="navbar-user" style="display: none;">
+          <span class="navbar-user-info" id="user-info">Chargement...</span>
+          <button onclick="logout()" class="navbar-logout">
+            <span class="navbar-icon">🚪</span>
+            <span>Déconnexion</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <h2>Rapports et Analyses</h2>
+        <p>Générez et consultez les rapports de présence et d'activité</p>
+      </div>
+
+      <!-- Filtres de rapport -->
+      <div class="filters-section">
+        <h3>📅 Paramètres du Rapport</h3>
+        <div class="filters-grid">
+          <div class="filter-group">
+            <label for="report-type">Type de rapport :</label>
+            <select id="report-type" onchange="updateReportFilters()">
+              <option value="presence">Rapport de Présence</option>
+              <option value="activity">Rapport d'Activité</option>
+              <option value="performance">Rapport de Performance</option>
+              <option value="summary">Résumé Exécutif</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="date-range">Période :</label>
+            <select id="date-range" onchange="updateDateInputs()">
+              <option value="today">Aujourd'hui</option>
+              <option value="week">Cette semaine</option>
+              <option value="month">Ce mois</option>
+              <option value="quarter">Ce trimestre</option>
+              <option value="year">Cette année</option>
+              <option value="custom">Période personnalisée</option>
+            </select>
+          </div>
+          <div class="filter-group" id="custom-date-group" style="display: none;">
+            <label for="start-date">Date de début :</label>
+            <input type="date" id="start-date">
+          </div>
+          <div class="filter-group" id="custom-date-group-end" style="display: none;">
+            <label for="end-date">Date de fin :</label>
+            <input type="date" id="end-date">
+          </div>
+          <div class="filter-group">
+            <label for="agent-filter">Agent :</label>
+            <select id="agent-filter">
+              <option value="all">Tous les agents</option>
+              <option value="1">Admin Principal</option>
+              <option value="2">Superviseur Principal</option>
+              <option value="3">Agent Test</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-actions">
+          <button class="btn-primary" onclick="generateReport()">
+            <span class="btn-icon">📊</span>
+            Générer le Rapport
+          </button>
+          <button class="btn-secondary" onclick="exportReport()">
+            <span class="btn-icon">📤</span>
+            Exporter
+          </button>
+        </div>
+      </div>
+
+      <!-- Résultats du rapport -->
+      <div class="report-results" id="report-results" style="display: none;">
+        <div class="card">
+          <div class="report-header">
+            <h3 id="report-title">Rapport de Présence</h3>
+            <div class="report-meta">
+              <span id="report-period">Période: Aujourd'hui</span>
+              <span id="report-generated">Généré le: <span id="generated-date"></span></span>
+            </div>
+          </div>
+          
+          <!-- Métriques principales -->
+          <div class="report-metrics">
+            <div class="metric-card">
+              <div class="metric-icon">👥</div>
+              <div class="metric-content">
+                <div class="metric-value" id="total-agents">0</div>
+                <div class="metric-label">Agents concernés</div>
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon">✅</div>
+              <div class="metric-content">
+                <div class="metric-value" id="present-agents">0</div>
+                <div class="metric-label">Présents</div>
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon">❌</div>
+              <div class="metric-content">
+                <div class="metric-value" id="absent-agents">0</div>
+                <div class="metric-label">Absents</div>
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon">📊</div>
+              <div class="metric-content">
+                <div class="metric-value" id="attendance-rate">0%</div>
+                <div class="metric-label">Taux de présence</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tableau détaillé -->
+          <div class="report-table-container">
+            <table class="report-table">
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Rôle</th>
+                  <th>Statut</th>
+                  <th>Heure d'arrivée</th>
+                  <th>Heure de départ</th>
+                  <th>Durée</th>
+                  <th>Localisation</th>
+                </tr>
+              </thead>
+              <tbody id="report-table-body">
+                <!-- Données générées dynamiquement -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Graphiques -->
+          <div class="report-charts">
+            <div class="chart-container">
+              <h4>📈 Évolution de la Présence</h4>
+              <div class="chart-placeholder">
+                <p>Graphique d'évolution de la présence</p>
+                <small>Fonctionnalité de graphique à implémenter</small>
+              </div>
+            </div>
+            <div class="chart-container">
+              <h4>🥧 Répartition par Rôle</h4>
+              <div class="chart-placeholder">
+                <p>Graphique en secteurs par rôle</p>
+                <small>Fonctionnalité de graphique à implémenter</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rapports sauvegardés -->
+      <div class="card">
+        <h3>💾 Rapports Sauvegardés</h3>
+        <div class="saved-reports">
+          <div class="saved-report-item">
+            <div class="report-info">
+              <h4>Rapport Mensuel - Janvier 2024</h4>
+              <p>Rapport de présence mensuel</p>
+              <small>Créé le 31/01/2024</small>
+            </div>
+            <div class="report-actions">
+              <button class="btn-icon" onclick="viewSavedReport(1)" title="Voir">👁️</button>
+              <button class="btn-icon" onclick="downloadSavedReport(1)" title="Télécharger">📥</button>
+              <button class="btn-icon btn-danger" onclick="deleteSavedReport(1)" title="Supprimer">🗑️</button>
+            </div>
+          </div>
+          <div class="saved-report-item">
+            <div class="report-info">
+              <h4>Rapport Hebdomadaire - Semaine 4</h4>
+              <p>Rapport d'activité hebdomadaire</p>
+              <small>Créé le 28/01/2024</small>
+            </div>
+            <div class="report-actions">
+              <button class="btn-icon" onclick="viewSavedReport(2)" title="Voir">👁️</button>
+              <button class="btn-icon" onclick="downloadSavedReport(2)" title="Télécharger">📥</button>
+              <button class="btn-icon btn-danger" onclick="deleteSavedReport(2)" title="Supprimer">🗑️</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script src="/reports.js"></script>
+    <script>
+      // Vercel Speed Insights
+      if (typeof window !== 'undefined') {
+        import('https://unpkg.com/@vercel/speed-insights@1.2.0/dist/index.js').then(({ inject }) => {
+          inject();
+        });
+      }
+    </script>
+    <script>
+      // Vercel Analytics
+      if (typeof window !== 'undefined') {
+        import('https://unpkg.com/@vercel/analytics@1.2.0/dist/index.js').then(({ inject }) => {
+          inject();
+        });
+      }
+    </script>
+  </body>
+</html>
