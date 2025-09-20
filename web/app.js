@@ -68,9 +68,14 @@ async function init() {
     await loadAgentProfile();
     
     // Initialiser les sélecteurs géographiques
-    if (typeof loadDepartements === 'function') {
-      loadDepartements();
-    }
+    setTimeout(() => {
+      if (typeof initGeoSelectors === 'function') {
+        console.log('🌍 Initialisation des sélecteurs géographiques après connexion...');
+        initGeoSelectors();
+      } else {
+        console.error('❌ initGeoSelectors non disponible');
+      }
+    }, 100);
   } else { 
     show(authSection); 
     hide(appSection); 
@@ -93,9 +98,14 @@ async function init() {
       await loadAgentProfile();
       
       // Initialiser les sélecteurs géographiques après connexion
-      if (typeof loadDepartements === 'function') {
-        loadDepartements();
-      }
+      setTimeout(() => {
+        if (typeof initGeoSelectors === 'function') {
+          console.log('🌍 Initialisation des sélecteurs géographiques après connexion...');
+          initGeoSelectors();
+        } else {
+          console.error('❌ initGeoSelectors non disponible');
+        }
+      }, 100);
       
       await updateNavbar(); // Mettre à jour la navbar après connexion
     } catch (e) { 

@@ -25023,9 +25023,9 @@ window.loadVillages = function loadVillages(arrondissementId) {
   console.log('✅ Villages chargés pour', arrondissement.name + ':', villages.length);
 }
 
-// Initialisation automatique
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('🌍 Initialisation des sélecteurs géographiques...');
+// Fonction d'initialisation manuelle
+window.initGeoSelectors = function() {
+  console.log('🌍 Initialisation manuelle des sélecteurs géographiques...');
   
   // Charger les départements
   loadDepartements();
@@ -25053,5 +25053,19 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  console.log('✅ Sélecteurs géographiques initialisés');
+  console.log('✅ Sélecteurs géographiques initialisés manuellement');
+};
+
+// Initialisation automatique (pour les pages qui n'ont pas besoin de connexion)
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('🌍 DOMContentLoaded - Vérification des sélecteurs...');
+  
+  // Vérifier si les sélecteurs existent et sont visibles
+  const departementSelect = document.getElementById('departement');
+  if (departementSelect && departementSelect.offsetParent !== null) {
+    console.log('🌍 Sélecteurs visibles détectés, initialisation automatique...');
+    initGeoSelectors();
+  } else {
+    console.log('🌍 Sélecteurs non visibles, initialisation manuelle requise');
+  }
 });
