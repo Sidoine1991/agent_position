@@ -67,7 +67,10 @@ async function init() {
     show(appSection); 
     await loadAgentProfile();
     
-    // Les sélecteurs géographiques sont gérés par geo-data.js
+    // Initialiser les sélecteurs géographiques
+    if (typeof loadDepartements === 'function') {
+      loadDepartements();
+    }
   } else { 
     show(authSection); 
     hide(appSection); 
@@ -89,7 +92,10 @@ async function init() {
       hide(authSection); show(appSection);
       await loadAgentProfile();
       
-      // Les sélecteurs géographiques sont gérés par geo-data.js
+      // Initialiser les sélecteurs géographiques après connexion
+      if (typeof loadDepartements === 'function') {
+        loadDepartements();
+      }
       
       await updateNavbar(); // Mettre à jour la navbar après connexion
     } catch (e) { 

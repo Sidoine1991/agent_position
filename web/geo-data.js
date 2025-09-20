@@ -24907,7 +24907,7 @@ const geoData = {
 };
 
 // Fonction pour charger les départements
-function loadDepartements() {
+window.loadDepartements = function loadDepartements() {
   const select = document.getElementById('departement');
   if (!select) return;
   
@@ -24925,7 +24925,7 @@ function loadDepartements() {
 }
 
 // Fonction pour charger les communes
-function loadCommunes(departementId) {
+window.loadCommunes = function loadCommunes(departementId) {
   const communeSelect = document.getElementById('commune');
   const arrondissementSelect = document.getElementById('arrondissement');
   const villageSelect = document.getElementById('village');
@@ -24957,7 +24957,7 @@ function loadCommunes(departementId) {
 }
 
 // Fonction pour charger les arrondissements
-function loadArrondissements(communeId) {
+window.loadArrondissements = function loadArrondissements(communeId) {
   const arrondissementSelect = document.getElementById('arrondissement');
   const villageSelect = document.getElementById('village');
   
@@ -24992,7 +24992,7 @@ function loadArrondissements(communeId) {
 }
 
 // Fonction pour charger les villages
-function loadVillages(arrondissementId) {
+window.loadVillages = function loadVillages(arrondissementId) {
   const villageSelect = document.getElementById('village');
   
   if (!villageSelect) return;
