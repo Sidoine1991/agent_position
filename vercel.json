@@ -12,8 +12,20 @@
   ],
   "routes": [
     {
-      "src": "/api/geo/(.*)",
-      "dest": "/api/geo"
+      "src": "/api/geo/departements",
+      "dest": "/api/departements"
+    },
+    {
+      "src": "/api/geo/communes",
+      "dest": "/api/communes"
+    },
+    {
+      "src": "/api/geo/arrondissements",
+      "dest": "/api/arrondissements"
+    },
+    {
+      "src": "/api/geo/villages",
+      "dest": "/api/villages"
     },
     {
       "src": "/api/(.*)",
