@@ -192,6 +192,14 @@
         });
       }
     </script>
+    <script>
+      // Vercel Analytics
+      if (typeof window !== 'undefined') {
+        import('https://unpkg.com/@vercel/analytics@1.2.0/dist/index.js').then(({ inject }) => {
+          inject();
+        });
+      }
+    </script>
   </body>
 </html>
 
