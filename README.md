@@ -353,3 +353,5 @@ Vous disposez maintenant d'un système complet de suivi de présence des agents 
 - 🔧 Fonctions d'export désactivées → **Réactivées**
 
 **Bonne utilisation du système Presence CCRB !** 🚀
+#   F o r c e   d e p l o y m e n t  
+ 
