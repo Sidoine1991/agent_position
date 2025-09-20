@@ -37,7 +37,15 @@ async function api(path, opts={}) {
 
 function geoPromise() {
   return new Promise((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(p => resolve(p.coords), e => reject(e), { enableHighAccuracy: true, timeout: 10000 });
+    navigator.geolocation.getCurrentPosition(
+      p => resolve(p.coords), 
+      e => reject(e), 
+      { 
+        enableHighAccuracy: true, 
+        timeout: 15000,
+        maximumAge: 300000 // 5 minutes de cache
+      }
+    );
   });
 }
 
@@ -649,8 +657,8 @@ async function getCurrentLocationWithValidation() {
   try {
     const coords = await geoPromise();
     
-    // Vérifier la précision GPS
-    if (coords.accuracy > 100) {
+    // Vérifier la précision GPS (assouplie pour plus de flexibilité)
+    if (coords.accuracy > 500) {
       throw new Error('Précision GPS insuffisante. Veuillez vous déplacer vers un endroit plus ouvert.');
     }
     
