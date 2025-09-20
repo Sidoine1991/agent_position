@@ -1,4 +1,4 @@
-// API consolidée pour Vercel - Version 2.0
+// API consolidée pour Vercel - Version 2.1 - Force Deploy
 const JWT_SECRET = '29b25996d2661b1a27160901ef29e8556b997976b7651c5ca884043bf953b83de42d8ad1ee775346e23c6da8a2f0abc9c59d95d1f431e105258530e2c021f295';
 
 // Stockage en mémoire
