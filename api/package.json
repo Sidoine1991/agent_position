@@ -1,0 +1,13 @@
+{
+  "name": "presence-ccrb-api",
+  "version": "1.0.0",
+  "description": "API pour le système de présence CCRB",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {},
+  "scripts": {
+    "start": "node index.js"
+  }
+}

@@ -121,7 +121,6 @@ update-*.js
 
 # Duplicate files
 server*.js
-api/
 Data/
 
 # Documentation duplicates
