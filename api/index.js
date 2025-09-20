@@ -4,13 +4,11 @@ const morgan = require('morgan');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
 
 const app = express();
 
 // Configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
-const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({
