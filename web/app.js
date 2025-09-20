@@ -79,7 +79,9 @@ async function init() {
   };
 
   // Gestion du formulaire d'inscription
-  $('register-form').addEventListener('submit', async (ev) => {
+  const registerForm = $('register-form');
+  if (registerForm) {
+    registerForm.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const name = $('reg-name').value.trim();
     const email = $('reg-email').value.trim();
@@ -106,7 +108,8 @@ async function init() {
     } catch (e) { 
       alert('Échec de la création du compte: ' + (e.message || 'Erreur inconnue'));
     }
-  });
+    });
+  }
 
   $('start-mission').onclick = async () => {
     const status = $('status');

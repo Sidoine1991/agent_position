@@ -38,7 +38,7 @@ let currentProfile;
 
 async function getProfile() {
   try {
-    currentProfile = await api('/me/profile');
+    currentProfile = await api('/profile');
     return currentProfile;
   } catch (e) {
     throw e;
