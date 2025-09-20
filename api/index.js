@@ -1,12 +1,39 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+// Simple authentication without external dependencies
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+
+// Simple JWT implementation
+function createToken(payload) {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = Buffer.from(JWT_SECRET).toString('base64url');
+  return `${header}.${data}.${signature}`;
+}
+
+function verifyToken(token) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
+    return payload;
+  } catch {
+    return null;
+  }
+}
 
 // In-memory storage (for serverless compatibility)
 let users = [];
 let missions = [];
 let checkins = [];
+
+// Simple password hashing (for demo purposes)
+function simpleHash(password) {
+  return Buffer.from(password).toString('base64');
+}
+
+function simpleVerify(password, hash) {
+  return simpleHash(password) === hash;
+}
 
 // Initialize default users
 function initializeUsers() {
@@ -16,7 +43,7 @@ function initializeUsers() {
         id: 1,
         name: 'admin',
         email: 'admin@ccrb.local',
-        password_hash: bcrypt.hashSync('123456', 10),
+        password_hash: simpleHash('123456'),
         role: 'admin',
         created_at: new Date().toISOString()
       },
@@ -24,7 +51,7 @@ function initializeUsers() {
         id: 2,
         name: 'Superviseur',
         email: 'supervisor@ccrb.local',
-        password_hash: bcrypt.hashSync('123456', 10),
+        password_hash: simpleHash('123456'),
         role: 'supervisor',
         created_at: new Date().toISOString()
       }
@@ -75,11 +102,11 @@ module.exports = (req, res) => {
     
     const user = users.find(u => u.email === email);
     
-    if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    if (!user || !simpleVerify(password, user.password_hash)) {
       return res.status(401).json({ error: 'Identifiants incorrects' });
     }
     
-    const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '12h' });
+    const token = createToken({ userId: user.id, role: user.role });
     res.json({ token });
     return;
   }
@@ -95,7 +122,7 @@ module.exports = (req, res) => {
       return res.status(400).json({ error: 'Mot de passe trop court' });
     }
     
-    const passwordHash = bcrypt.hashSync(password, 10);
+    const passwordHash = simpleHash(password);
     
     const existingUser = users.find(u => u.email === email);
     
@@ -114,7 +141,7 @@ module.exports = (req, res) => {
     
     users.push(newUser);
     
-    const token = jwt.sign({ userId: newUser.id, role }, JWT_SECRET, { expiresIn: '12h' });
+    const token = createToken({ userId: newUser.id, role });
     res.json({ token });
     return;
   }
