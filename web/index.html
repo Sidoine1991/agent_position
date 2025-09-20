@@ -241,12 +241,32 @@
         <div class="card">
           <h2>Présence terrain</h2>
           <div class="row">
-            <select id="departement"></select>
-            <select id="commune" disabled></select>
+            <div class="geo-input-group">
+              <label for="departement">Département *</label>
+              <select id="departement"></select>
+              <input type="text" id="departement-manual" placeholder="Ou saisir manuellement..." style="display: none;">
+              <button type="button" id="toggle-departement" class="toggle-input-btn">✏️</button>
+            </div>
+            <div class="geo-input-group">
+              <label for="commune">Commune *</label>
+              <select id="commune" disabled></select>
+              <input type="text" id="commune-manual" placeholder="Ou saisir manuellement..." style="display: none;">
+              <button type="button" id="toggle-commune" class="toggle-input-btn">✏️</button>
+            </div>
           </div>
           <div class="row">
-            <select id="arrondissement" disabled></select>
-            <select id="village" disabled></select>
+            <div class="geo-input-group">
+              <label for="arrondissement">Arrondissement</label>
+              <select id="arrondissement" disabled></select>
+              <input type="text" id="arrondissement-manual" placeholder="Ou saisir manuellement..." style="display: none;">
+              <button type="button" id="toggle-arrondissement" class="toggle-input-btn">✏️</button>
+            </div>
+            <div class="geo-input-group">
+              <label for="village">Village</label>
+              <select id="village" disabled></select>
+              <input type="text" id="village-manual" placeholder="Ou saisir manuellement..." style="display: none;">
+              <button type="button" id="toggle-village" class="toggle-input-btn">✏️</button>
+            </div>
           </div>
           <div class="row">
             <input id="start-time" type="time" placeholder="Heure début (optionnel)" />

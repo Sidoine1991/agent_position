@@ -165,15 +165,29 @@ async function init() {
   $('start-mission').onclick = async () => {
     const status = $('status');
     try {
+      // Valider les champs géographiques requis
+      if (!validateGeoFields()) {
+        return;
+      }
+      
       status.textContent = 'Récupération GPS...';
       const coords = await getCurrentLocationWithValidation();
-      const villageId = Number($('village').value) || undefined;
+      
+      // Obtenir les valeurs géographiques (select ou manuel)
+      const departement = getGeoValue('departement');
+      const commune = getGeoValue('commune');
+      const arrondissement = getGeoValue('arrondissement');
+      const village = getGeoValue('village');
+      
       const startTime = $('start-time').value;
       const note = $('note').value || '';
       const file = $('photo').files[0];
 
       const fd = new FormData();
-      if (typeof villageId === 'number') fd.set('village_id', String(villageId));
+      fd.set('departement', departement);
+      fd.set('commune', commune);
+      if (arrondissement) fd.set('arrondissement', arrondissement);
+      if (village) fd.set('village', village);
       fd.set('lat', String(coords.latitude));
       fd.set('lon', String(coords.longitude));
       fd.set('note', startTime ? `[DEBUT ${startTime}] ${note}` : `DEBUT ${note}`);
@@ -859,5 +873,108 @@ async function updateNavbar() {
     }
   }
 }
+
+// Fonctions pour la saisie manuelle des unités géographiques
+function setupManualGeoInputs() {
+  console.log('🔧 Configuration de la saisie manuelle des unités géographiques...');
+  
+  // Configuration des boutons de basculement
+  const geoFields = ['departement', 'commune', 'arrondissement', 'village'];
+  
+  geoFields.forEach(field => {
+    const select = $(field);
+    const manualInput = $(`${field}-manual`);
+    const toggleBtn = $(`toggle-${field}`);
+    
+    if (select && manualInput && toggleBtn) {
+      // Gestionnaire pour le bouton de basculement
+      toggleBtn.addEventListener('click', () => {
+        const isManual = manualInput.style.display !== 'none';
+        
+        if (isManual) {
+          // Passer en mode sélection
+          select.style.display = 'block';
+          manualInput.style.display = 'none';
+          toggleBtn.textContent = '✏️';
+          toggleBtn.classList.remove('active');
+          select.disabled = false;
+        } else {
+          // Passer en mode saisie manuelle
+          select.style.display = 'none';
+          manualInput.style.display = 'block';
+          toggleBtn.textContent = '📋';
+          toggleBtn.classList.add('active');
+          select.disabled = true;
+          manualInput.focus();
+        }
+      });
+      
+      // Synchroniser les valeurs entre select et input manuel
+      select.addEventListener('change', () => {
+        if (manualInput.style.display === 'none') {
+          manualInput.value = select.options[select.selectedIndex]?.text || '';
+        }
+      });
+      
+      manualInput.addEventListener('input', () => {
+        if (select.style.display === 'none') {
+          // Trouver l'option correspondante dans le select
+          const options = Array.from(select.options);
+          const matchingOption = options.find(option => 
+            option.text.toLowerCase().includes(manualInput.value.toLowerCase())
+          );
+          
+          if (matchingOption) {
+            select.value = matchingOption.value;
+          }
+        }
+      });
+    }
+  });
+}
+
+// Fonction pour obtenir la valeur géographique (select ou manuel)
+function getGeoValue(field) {
+  const select = $(field);
+  const manualInput = $(`${field}-manual`);
+  
+  if (manualInput && manualInput.style.display !== 'none' && manualInput.value.trim()) {
+    return manualInput.value.trim();
+  } else if (select && select.value) {
+    return select.options[select.selectedIndex]?.text || select.value;
+  }
+  
+  return '';
+}
+
+// Fonction pour valider les champs géographiques requis
+function validateGeoFields() {
+  const departement = getGeoValue('departement');
+  const commune = getGeoValue('commune');
+  
+  if (!departement.trim()) {
+    alert('❌ Veuillez sélectionner ou saisir un département');
+    return false;
+  }
+  
+  if (!commune.trim()) {
+    alert('❌ Veuillez sélectionner ou saisir une commune');
+    return false;
+  }
+  
+  return true;
+}
+
+// Initialiser la saisie manuelle au chargement
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    setupManualGeoInputs();
+  }, 1000);
+});
+
+// Exposer les fonctions globalement
+window.getGeoValue = getGeoValue;
+window.validateGeoFields = validateGeoFields;
+window.setupManualGeoInputs = setupManualGeoInputs;
 
 

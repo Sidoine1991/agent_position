@@ -211,29 +211,37 @@
           <div class="form-section">
             <h3 class="form-section-title">📍 Localisation d'Intervention</h3>
             <div class="form-grid">
-              <div class="form-group">
+              <div class="geo-input-group">
                 <label for="af_departement">Département *</label>
                 <select id="af_departement" required>
                   <option value="">Sélectionner un département...</option>
                 </select>
+                <input type="text" id="af_departement-manual" placeholder="Ou saisir manuellement..." style="display: none;">
+                <button type="button" id="toggle-af_departement" class="toggle-input-btn">✏️</button>
               </div>
-              <div class="form-group">
+              <div class="geo-input-group">
                 <label for="af_commune">Commune</label>
                 <select id="af_commune" disabled>
                   <option value="">Sélectionner une commune...</option>
                 </select>
+                <input type="text" id="af_commune-manual" placeholder="Ou saisir manuellement..." style="display: none;">
+                <button type="button" id="toggle-af_commune" class="toggle-input-btn">✏️</button>
               </div>
-              <div class="form-group">
+              <div class="geo-input-group">
                 <label for="af_arrondissement">Arrondissement</label>
                 <select id="af_arrondissement" disabled>
                   <option value="">Sélectionner un arrondissement...</option>
                 </select>
+                <input type="text" id="af_arrondissement-manual" placeholder="Ou saisir manuellement..." style="display: none;">
+                <button type="button" id="toggle-af_arrondissement" class="toggle-input-btn">✏️</button>
               </div>
-              <div class="form-group">
+              <div class="geo-input-group">
                 <label for="af_village">Village</label>
                 <select id="af_village" disabled>
                   <option value="">Sélectionner un village...</option>
                 </select>
+                <input type="text" id="af_village-manual" placeholder="Ou saisir manuellement..." style="display: none;">
+                <button type="button" id="toggle-af_village" class="toggle-input-btn">✏️</button>
               </div>
             </div>
           </div>

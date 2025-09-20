@@ -337,6 +337,11 @@ async function loadAfDepartements(villagePath){
 async function onAgentSubmit(ev){
   ev.preventDefault();
   
+  // Valider les champs géographiques requis
+  if (!validateGeoFieldsDashboard()) {
+    return;
+  }
+  
   // Validation des mots de passe
   const password = $('af_password').value.trim();
   const passwordConfirm = $('af_password_confirm').value.trim();
@@ -360,6 +365,11 @@ async function onAgentSubmit(ev){
     project_description: $('af_project_description').value.trim() || undefined,
     planning_start_date: $('af_plan_start').value || undefined,
     planning_end_date: $('af_plan_end').value || undefined,
+    // Utiliser les valeurs géographiques (select ou manuel)
+    departement: getGeoValueDashboard('af_departement'),
+    commune: getGeoValueDashboard('af_commune'),
+    arrondissement: getGeoValueDashboard('af_arrondissement'),
+    village: getGeoValueDashboard('af_village'),
     village_id: $('af_village').value ? Number($('af_village').value) : undefined,
     expected_days_per_month: $('af_expected_days').value ? Number($('af_expected_days').value) : undefined,
     expected_hours_per_month: $('af_expected_hours').value ? Number($('af_expected_hours').value) : undefined,
@@ -706,5 +716,102 @@ async function checkDashboardAccess() {
     return false;
   }
 }
+
+// Fonctions pour la saisie manuelle des unités géographiques (Dashboard)
+function setupManualGeoInputsDashboard() {
+  console.log('🔧 Configuration de la saisie manuelle des unités géographiques (Dashboard)...');
+  
+  // Configuration des boutons de basculement pour les champs agent
+  const geoFields = ['af_departement', 'af_commune', 'af_arrondissement', 'af_village'];
+  
+  geoFields.forEach(field => {
+    const select = $(field);
+    const manualInput = $(`${field}-manual`);
+    const toggleBtn = $(`toggle-${field}`);
+    
+    if (select && manualInput && toggleBtn) {
+      // Gestionnaire pour le bouton de basculement
+      toggleBtn.addEventListener('click', () => {
+        const isManual = manualInput.style.display !== 'none';
+        
+        if (isManual) {
+          // Passer en mode sélection
+          select.style.display = 'block';
+          manualInput.style.display = 'none';
+          toggleBtn.textContent = '✏️';
+          toggleBtn.classList.remove('active');
+          select.disabled = false;
+        } else {
+          // Passer en mode saisie manuelle
+          select.style.display = 'none';
+          manualInput.style.display = 'block';
+          toggleBtn.textContent = '📋';
+          toggleBtn.classList.add('active');
+          select.disabled = true;
+          manualInput.focus();
+        }
+      });
+      
+      // Synchroniser les valeurs entre select et input manuel
+      select.addEventListener('change', () => {
+        if (manualInput.style.display === 'none') {
+          manualInput.value = select.options[select.selectedIndex]?.text || '';
+        }
+      });
+      
+      manualInput.addEventListener('input', () => {
+        if (select.style.display === 'none') {
+          // Trouver l'option correspondante dans le select
+          const options = Array.from(select.options);
+          const matchingOption = options.find(option => 
+            option.text.toLowerCase().includes(manualInput.value.toLowerCase())
+          );
+          
+          if (matchingOption) {
+            select.value = matchingOption.value;
+          }
+        }
+      });
+    }
+  });
+}
+
+// Fonction pour obtenir la valeur géographique (select ou manuel) - Dashboard
+function getGeoValueDashboard(field) {
+  const select = $(field);
+  const manualInput = $(`${field}-manual`);
+  
+  if (manualInput && manualInput.style.display !== 'none' && manualInput.value.trim()) {
+    return manualInput.value.trim();
+  } else if (select && select.value) {
+    return select.options[select.selectedIndex]?.text || select.value;
+  }
+  
+  return '';
+}
+
+// Fonction pour valider les champs géographiques requis - Dashboard
+function validateGeoFieldsDashboard() {
+  const departement = getGeoValueDashboard('af_departement');
+  
+  if (!departement.trim()) {
+    alert('❌ Veuillez sélectionner ou saisir un département');
+    return false;
+  }
+  
+  return true;
+}
+
+// Initialiser la saisie manuelle au chargement du dashboard
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    setupManualGeoInputsDashboard();
+  }, 1000);
+});
+
+// Exposer les fonctions globalement
+window.getGeoValueDashboard = getGeoValueDashboard;
+window.validateGeoFieldsDashboard = validateGeoFieldsDashboard;
+window.setupManualGeoInputsDashboard = setupManualGeoInputsDashboard;
 
 init();
