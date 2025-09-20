@@ -7,7 +7,9 @@
     "build": "echo 'Build completed'",
     "start": "echo 'Server started'"
   },
-  "dependencies": {},
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
   "engines": {
     "node": ">=18.0.0"
   }
