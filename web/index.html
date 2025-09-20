@@ -184,6 +184,14 @@
       </section>
     </main>
     <script src="/app.js?v=2" type="module"></script>
+    <script>
+      // Vercel Speed Insights
+      if (typeof window !== 'undefined') {
+        import('https://unpkg.com/@vercel/speed-insights@1.2.0/dist/index.js').then(({ inject }) => {
+          inject();
+        });
+      }
+    </script>
   </body>
 </html>
 
