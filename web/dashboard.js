@@ -51,7 +51,7 @@ async function ensureAuth() {
     const password = prompt('Mot de passe ?');
     if (!email || !password) {
       alert('Connexion annulée');
-      window.location.href = '/';
+      window.location.href = window.location.origin + '/';
       return;
     }
     try {
@@ -59,7 +59,7 @@ async function ensureAuth() {
       jwt = data.token; localStorage.setItem('jwt', jwt);
     } catch (e) {
       alert('Erreur de connexion: ' + e.message);
-      window.location.href = '/';
+      window.location.href = window.location.origin + '/';
     }
   }
   // Verify role
@@ -68,12 +68,12 @@ async function ensureAuth() {
     if (!profile || (profile.role !== 'admin' && profile.role !== 'supervisor')) {
       alert('Accès refusé: veuillez vous connecter en tant que superviseur ou admin.');
       localStorage.removeItem('jwt');
-      window.location.href = '/';
+      window.location.href = window.location.origin + '/';
     }
   } catch (e) {
     alert('Session invalide. Veuillez vous reconnecter.');
     localStorage.removeItem('jwt');
-    window.location.href = '/';
+    window.location.href = window.location.origin + '/';
   }
 }
 
@@ -607,7 +607,7 @@ if (typeof window !== 'undefined') {
 function logout() {
   if (confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) {
     localStorage.removeItem('jwt');
-    window.location.href = '/';
+    window.location.href = window.location.origin + '/';
   }
 }
 
@@ -690,14 +690,14 @@ async function checkDashboardAccess() {
     if (!profile || (profile.role !== 'admin' && profile.role !== 'supervisor')) {
       alert('Accès refusé: Cette page est réservée aux superviseurs et administrateurs.');
       localStorage.removeItem('jwt');
-      window.location.href = '/';
+      window.location.href = window.location.origin + '/';
       return false;
     }
     return true;
   } catch (e) {
     alert('Session invalide. Veuillez vous reconnecter.');
     localStorage.removeItem('jwt');
-    window.location.href = '/';
+    window.location.href = window.location.origin + '/';
     return false;
   }
 }
