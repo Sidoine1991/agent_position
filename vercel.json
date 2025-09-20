@@ -1,21 +1,7 @@
 {
   "name": "presence-ccrb-system",
   "version": 2,
-  "builds": [
-    {
-      "src": "web/**",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "api/**/*.js",
-      "use": "@vercel/node"
-    }
-  ],
   "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
     {
       "src": "/(.*)",
       "dest": "/web/$1"
