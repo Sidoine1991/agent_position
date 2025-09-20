@@ -1,24 +1,7 @@
 {
   "name": "presence-ccrb-system",
   "version": 2,
-  "functions": {
-    "api/**/*.js": {
-      "runtime": "nodejs18.x"
-    }
-  },
   "routes": [
-    {
-      "src": "/api/health",
-      "dest": "/api/health.js"
-    },
-    {
-      "src": "/api/auth/login",
-      "dest": "/api/auth/login.js"
-    },
-    {
-      "src": "/api/auth/register",
-      "dest": "/api/auth/register.js"
-    },
     {
       "src": "/(.*)",
       "dest": "/web/$1"
