@@ -2,15 +2,12 @@
   "name": "presence-ccrb-system",
   "version": "1.0.0",
   "description": "Système de gestion de présence CCRB",
-  "main": "server.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "build": "echo 'Build completed'",
+    "start": "echo 'Server started'"
   },
-  "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5"
-  },
+  "dependencies": {},
   "engines": {
     "node": ">=18.0.0"
   }

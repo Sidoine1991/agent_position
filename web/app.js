@@ -329,16 +329,9 @@ async function loadDepartements() {
     const dep = $('departement'); dep.innerHTML = '';
     console.log('🌍 Chargement des départements...');
     
-    // Essayer d'abord l'endpoint de test
-    let rows;
-    try {
-      rows = await api('/departements-test');
-      console.log('✅ Départements chargés via departements-test:', rows);
-    } catch (e) {
-      console.log('⚠️ Departements-test échoué, essai avec geo/departements...');
-      rows = await api('/geo/departements');
-      console.log('✅ Départements chargés via geo/departements:', rows);
-    }
+    // Charger les départements via l'API géographique
+    const rows = await api('/geo/departements');
+    console.log('✅ Départements chargés:', rows);
     
     dep.append(new Option('Département...', ''));
     for (const r of rows) dep.append(new Option(r.name, r.id));
