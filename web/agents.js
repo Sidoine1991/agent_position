@@ -2,6 +2,7 @@
 let jwt = localStorage.getItem('jwt') || '';
 let agents = [];
 let currentUser = null;
+let adminUnits = [];
 
 function $(id) { return document.getElementById(id); }
 
@@ -62,37 +63,8 @@ async function checkAuth() {
 // Charger la liste des agents
 async function loadAgents() {
   try {
-    // Simuler le chargement des agents (à remplacer par une vraie API)
-    agents = [
-      {
-        id: 1,
-        name: 'Admin Principal',
-        email: 'admin@ccrb.local',
-        role: 'admin',
-        status: 'active',
-        lastActivity: new Date().toISOString(),
-        phone: '+229 12 34 56 78'
-      },
-      {
-        id: 2,
-        name: 'Superviseur Principal',
-        email: 'supervisor@ccrb.local',
-        role: 'supervisor',
-        status: 'active',
-        lastActivity: new Date(Date.now() - 3600000).toISOString(),
-        phone: '+229 12 34 56 79'
-      },
-      {
-        id: 3,
-        name: 'Agent Test',
-        email: 'agent@test.com',
-        role: 'agent',
-        status: 'active',
-        lastActivity: new Date(Date.now() - 7200000).toISOString(),
-        phone: '+229 12 34 56 80'
-      }
-    ];
-    
+    // Charger les agents depuis l'API
+    agents = await api('/users');
     displayAgents();
     updateStatistics();
     
@@ -102,12 +74,51 @@ async function loadAgents() {
   }
 }
 
+// Charger les unités administratives
+async function loadAdminUnits() {
+  try {
+    adminUnits = await api('/admin-units');
+    populateAdminUnitsSelect();
+  } catch (error) {
+    console.error('Erreur lors du chargement des unités administratives:', error);
+    // Utiliser des unités par défaut en cas d'erreur
+    adminUnits = [
+      { id: 1, name: 'Direction Générale', code: 'DG' },
+      { id: 2, name: 'Direction des Opérations', code: 'DO' },
+      { id: 3, name: 'Direction Administrative et Financière', code: 'DAF' },
+      { id: 4, name: 'Service Ressources Humaines', code: 'SRH' },
+      { id: 5, name: 'Service Comptabilité', code: 'SC' },
+      { id: 6, name: 'Service Logistique', code: 'SL' },
+      { id: 7, name: 'Service Sécurité', code: 'SS' },
+      { id: 8, name: 'Service Informatique', code: 'SI' },
+      { id: 9, name: 'Service Communication', code: 'SCOM' },
+      { id: 10, name: 'Service Juridique', code: 'SJ' }
+    ];
+    populateAdminUnitsSelect();
+  }
+}
+
+// Remplir le select des unités administratives
+function populateAdminUnitsSelect() {
+  const select = $('agent-admin-unit');
+  if (!select) return;
+  
+  select.innerHTML = '<option value="">Sélectionner une unité administrative</option>';
+  
+  adminUnits.forEach(unit => {
+    const option = document.createElement('option');
+    option.value = unit.name;
+    option.textContent = `${unit.name} (${unit.code})`;
+    select.appendChild(option);
+  });
+}
+
 // Afficher les agents dans le tableau
 function displayAgents() {
   const tbody = $('agents-table-body');
   
   if (agents.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="no-data">Aucun agent trouvé</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="no-data">Aucun agent trouvé</td></tr>';
     return;
   }
   
@@ -119,6 +130,7 @@ function displayAgents() {
       <td>${agent.name}</td>
       <td>${agent.email}</td>
       <td><span class="role-badge role-${agent.role}">${getRoleText(agent.role)}</span></td>
+      <td>${agent.adminUnit || 'Non assigné'}</td>
       <td><span class="status-badge status-${agent.status}">${getStatusText(agent.status)}</span></td>
       <td>${formatDate(agent.lastActivity)}</td>
       <td>
@@ -171,7 +183,7 @@ function filterAgents() {
   // Afficher les agents filtrés
   const tbody = $('agents-table-body');
   if (filteredAgents.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="no-data">Aucun agent ne correspond aux critères</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="no-data">Aucun agent ne correspond aux critères</td></tr>';
     return;
   }
   
@@ -183,6 +195,7 @@ function filterAgents() {
       <td>${agent.name}</td>
       <td>${agent.email}</td>
       <td><span class="role-badge role-${agent.role}">${getRoleText(agent.role)}</span></td>
+      <td>${agent.adminUnit || 'Non assigné'}</td>
       <td><span class="status-badge status-${agent.status}">${getStatusText(agent.status)}</span></td>
       <td>${formatDate(agent.lastActivity)}</td>
       <td>
@@ -227,6 +240,7 @@ function editAgent(agentId) {
   $('agent-role').value = agent.role;
   $('agent-phone').value = agent.phone || '';
   $('agent-status').value = agent.status;
+  $('agent-admin-unit').value = agent.adminUnit || '';
   $('agent-password').value = '';
   $('agent-password').required = false;
   
@@ -238,7 +252,7 @@ function viewAgent(agentId) {
   const agent = agents.find(a => a.id === agentId);
   if (!agent) return;
   
-  alert(`Détails de l'agent:\n\nNom: ${agent.name}\nEmail: ${agent.email}\nRôle: ${getRoleText(agent.role)}\nStatut: ${getStatusText(agent.status)}\nTéléphone: ${agent.phone || 'Non renseigné'}\nDernière activité: ${formatDate(agent.lastActivity)}`);
+  alert(`Détails de l'agent:\n\nNom: ${agent.name}\nEmail: ${agent.email}\nRôle: ${getRoleText(agent.role)}\nUnit Administrative: ${agent.adminUnit || 'Non assigné'}\nStatut: ${getStatusText(agent.status)}\nTéléphone: ${agent.phone || 'Non renseigné'}\nDernière activité: ${formatDate(agent.lastActivity)}`);
 }
 
 // Supprimer un agent
@@ -270,7 +284,8 @@ async function handleAgentForm(e) {
     email: $('agent-email').value.trim(),
     role: $('agent-role').value,
     phone: $('agent-phone').value.trim(),
-    status: $('agent-status').value
+    status: $('agent-status').value,
+    adminUnit: $('agent-admin-unit').value
   };
   
   if ($('agent-password').value.trim()) {
@@ -278,22 +293,19 @@ async function handleAgentForm(e) {
   }
   
   try {
-    // À implémenter : API pour créer/modifier un agent
     const isEdit = $('modal-title').textContent.includes('Modifier');
     
     if (isEdit) {
       alert('Fonctionnalité de modification à implémenter');
     } else {
-      // Simuler la création d'un nouvel agent
-      const newAgent = {
-        id: Math.max(...agents.map(a => a.id)) + 1,
-        ...formData,
-        lastActivity: new Date().toISOString()
-      };
+      // Créer un nouvel agent via l'API
+      const newAgent = await api('/users', {
+        method: 'POST',
+        body: formData
+      });
       
-      agents.push(newAgent);
-      displayAgents();
-      updateStatistics();
+      // Recharger la liste des agents
+      await loadAgents();
       closeAgentModal();
       alert('Agent créé avec succès');
     }
@@ -413,6 +425,7 @@ async function updateNavbar() {
 document.addEventListener('DOMContentLoaded', async () => {
   const isAuthenticated = await checkAuth();
   if (isAuthenticated) {
+    await loadAdminUnits();
     await loadAgents();
     await updateNavbar();
     
