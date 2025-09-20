@@ -1,4 +1,5 @@
 // Variables globales
+const apiBase = window.location.hostname === 'localhost' ? 'https://presenceccrb-ozgc9p3zc-yebadokpo-sidoines-projects.vercel.app/api' : '/api';
 let allAgents = [];
 let filteredAgents = [];
 let currentPage = 1;
@@ -19,7 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Vérifier le rôle admin
     try {
-        const response = await fetch('/api/profile', {
+        const response = await fetch(apiBase + '/profile', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         const user = await response.json();
@@ -62,7 +63,7 @@ async function loadAgents() {
     try {
         console.log('📥 Chargement des agents...');
         const token = localStorage.getItem('jwt') || localStorage.getItem('token');
-        const response = await fetch('/api/admin/agents', {
+        const response = await fetch(apiBase + '/admin/agents', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -87,7 +88,7 @@ async function loadAgents() {
 // Charger les départements pour les filtres
 async function loadDepartements() {
     try {
-        const response = await fetch('/api/geo/departements');
+        const response = await fetch(apiBase + '/geo/departements');
         const departements = await response.json();
         
         const select = document.getElementById('filter-departement');
@@ -327,7 +328,7 @@ async function confirmDelete() {
         console.log(`🗑️ Suppression agent ID: ${agentToDelete}`);
         
         const token = localStorage.getItem('jwt') || localStorage.getItem('token');
-        const response = await fetch(`/api/admin/agents/${agentToDelete}`, {
+        const response = await fetch(`${apiBase}/admin/agents/${agentToDelete}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -484,7 +485,7 @@ document.getElementById('agent-form').addEventListener('submit', async (ev) => {
         }
 
         const token = localStorage.getItem('token');
-        const url = agentId ? `/api/admin/agents/${agentId}` : '/api/admin/agents';
+        const url = agentId ? `${apiBase}/admin/agents/${agentId}` : `${apiBase}/admin/agents`;
         const method = agentId ? 'PUT' : 'POST';
 
         console.log(`📤 Envoi ${method} vers ${url}:`, payload);

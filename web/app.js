@@ -1,4 +1,4 @@
-const apiBase = '/api';
+const apiBase = window.location.hostname === 'localhost' ? 'https://presenceccrb-ozgc9p3zc-yebadokpo-sidoines-projects.vercel.app/api' : '/api';
 let jwt = localStorage.getItem('jwt') || '';
 let currentMissionId = null;
 let currentCalendarDate = new Date();
