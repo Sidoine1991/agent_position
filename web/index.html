@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <title>Presence CCRB - Agent</title>
+    <link rel="stylesheet" href="/styles.css?v=2" />
+  </head>
+  <body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <img src="/Media/PP CCRB.png" alt="CCRB Logo" class="navbar-logo">
+        <div class="navbar-title">
+          <h1>Presence CCRB</h1>
+          <span class="navbar-subtitle">Système de Gestion de Présence</span>
+        </div>
+      </div>
+      
+      <div class="navbar-menu">
+        <a href="/" class="navbar-link navbar-link-active">
+          <span class="navbar-icon">🏠</span>
+          <span>Accueil Agent</span>
+        </a>
+        <a href="/dashboard.html" class="navbar-link" id="dashboard-link" style="display: none;">
+          <span class="navbar-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <div class="navbar-user" id="navbar-user" style="display: none;">
+          <span class="navbar-user-info" id="user-info">Chargement...</span>
+          <button onclick="logout()" class="navbar-logout">
+            <span class="navbar-icon">🚪</span>
+            <span>Déconnexion</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <h2>Suivi des Agents</h2>
+        <p>Système de géolocalisation et de suivi des missions</p>
+      </div>
+      <section id="auth-section">
+        <h2>Connexion</h2>
+        <form id="login-form" autocomplete="on">
+          <input id="email" name="email" type="email" placeholder="Email" autocomplete="email" required />
+          <input id="password" name="password" type="password" placeholder="Mot de passe" autocomplete="current-password" required />
+          <button id="login-btn" type="submit">Se connecter</button>
+        </form>
+        <p><small>Pas de compte ? <a href="#" id="register-link">Créer un compte</a></small></p>
+      </section>
+
+      <section id="app-section" class="hidden">
+        <!-- Profil de l'agent -->
+        <div id="agent-profile" class="agent-profile hidden">
+          <img id="agent-avatar" src="/Media/default-avatar.png" alt="Photo de profil" class="agent-avatar">
+          <div class="agent-info">
+            <h3 id="agent-name">Nom de l'agent</h3>
+            <div class="agent-details">
+              <div class="detail-item">
+                <strong>Téléphone:</strong>
+                <span id="agent-phone">-</span>
+              </div>
+              <div class="detail-item">
+                <strong>Statut:</strong>
+                <span id="agent-role">-</span>
+              </div>
+              <div class="detail-item">
+                <strong>Projet:</strong>
+                <span id="agent-project">-</span>
+              </div>
+              <div class="detail-item">
+                <strong>Période:</strong>
+                <span id="agent-planning">-</span>
+              </div>
+              <div class="detail-item">
+                <strong>Zone:</strong>
+                <span id="agent-zone">-</span>
+              </div>
+              <div class="detail-item">
+                <strong>Jours/mois:</strong>
+                <span id="agent-expected-days">-</span>
+              </div>
+            </div>
+          </div>
+          <img src="/Media/PP CCRB.png" alt="Logo organisation" class="org-logo" onerror="this.style.display='none'">
+        </div>
+        <!-- Tableau de bord des métriques -->
+        <div class="card">
+          <h2>📊 Tableau de Bord</h2>
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-icon">📅</div>
+              <div class="metric-content">
+                <div class="metric-value" id="days-worked">-</div>
+                <div class="metric-label">Jours travaillés ce mois</div>
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon">⏰</div>
+              <div class="metric-content">
+                <div class="metric-value" id="hours-worked">-</div>
+                <div class="metric-label">Heures travaillées</div>
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon">🎯</div>
+              <div class="metric-content">
+                <div class="metric-value" id="attendance-rate">-</div>
+                <div class="metric-label">Taux de présence</div>
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon">📍</div>
+              <div class="metric-content">
+                <div class="metric-value" id="current-location">-</div>
+                <div class="metric-label">Position actuelle</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Calendrier de présence -->
+        <div class="card">
+          <h2>📅 Calendrier de Présence</h2>
+          <div class="calendar-container">
+            <div class="calendar-header">
+              <button id="prev-month" class="calendar-nav-btn">‹</button>
+              <h3 id="current-month-year"></h3>
+              <button id="next-month" class="calendar-nav-btn">›</button>
+            </div>
+            <div class="calendar-grid" id="calendar-grid">
+              <!-- Le calendrier sera généré dynamiquement -->
+            </div>
+            <div class="calendar-legend">
+              <div class="legend-item">
+                <span class="legend-color present"></span>
+                <span>Présent</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color absent"></span>
+                <span>Absent</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-color today"></span>
+                <span>Aujourd'hui</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Présence terrain</h2>
+          <div class="row">
+            <select id="departement"></select>
+            <select id="commune" disabled></select>
+          </div>
+          <div class="row">
+            <select id="arrondissement" disabled></select>
+            <select id="village" disabled></select>
+          </div>
+          <div class="row">
+            <input id="start-time" type="time" placeholder="Heure début (optionnel)" />
+            <input id="end-time" type="time" placeholder="Heure fin (optionnel)" />
+          </div>
+          <button id="start-mission">Marquer présence (début)</button>
+          <button id="end-mission" disabled>Quitter le terrain (fin)</button>
+        </div>
+        <div class="card">
+          <h2>Note et photo</h2>
+          <input id="note" placeholder="Observations (optionnel)" />
+          <input id="photo" type="file" accept="image/*" capture="environment" />
+          <button id="checkin-btn" disabled>Envoyer check-in</button>
+          <div id="status"></div>
+        </div>
+        <div class="card">
+          <h2>Historique (mission courante)</h2>
+          <ul id="checkins"></ul>
+        </div>
+      </section>
+    </main>
+    <script src="/app.js?v=2" type="module"></script>
+  </body>
+</html>
+
+

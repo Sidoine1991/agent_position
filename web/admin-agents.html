@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des Agents - CCRB</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <img src="/Media/PP CCRB.png" alt="CCRB Logo" class="navbar-logo">
+            <div class="navbar-title">
+                <h1>CCRB</h1>
+                <span class="navbar-subtitle">Centre de Coordination et de Réponse aux Crises du Bénin</span>
+            </div>
+        </div>
+        
+        <div class="navbar-menu">
+            <a href="/index.html" class="navbar-link">Accueil Agent</a>
+            <a href="/dashboard.html" class="navbar-link">Dashboard</a>
+            <a href="/admin-agents.html" class="navbar-link navbar-link-active">Gestion Agents</a>
+        </div>
+        
+        <div class="navbar-user">
+            <span id="user-info">Chargement...</span>
+            <button onclick="logout()" class="navbar-logout">Déconnexion</button>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="page-header">
+            <h2>👥 Gestion des Agents</h2>
+            <p>Administrer les agents du système CCRB</p>
+        </div>
+
+        <!-- Barre d'actions -->
+        <div class="admin-actions">
+        <button onclick="openAgentModal()" class="btn-success">
+            ➕ Nouvel Agent
+        </button>
+            <button onclick="refreshAgents()" class="btn-primary">
+                🔄 Actualiser
+            </button>
+            <button onclick="exportAgents()" class="btn-secondary">
+                📊 Exporter
+            </button>
+        </div>
+
+        <!-- Filtres et recherche -->
+        <div class="filters-section">
+            <div class="filter-group">
+                <label for="search-agent">🔍 Rechercher :</label>
+                <input type="text" id="search-agent" placeholder="Nom, email, téléphone..." onkeyup="filterAgents()">
+            </div>
+            <div class="filter-group">
+                <label for="filter-role">Rôle :</label>
+                <select id="filter-role" onchange="filterAgents()">
+                    <option value="">Tous les rôles</option>
+                    <option value="agent">Agent</option>
+                    <option value="supervisor">Superviseur</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="filter-departement">Département :</label>
+                <select id="filter-departement" onchange="filterAgents()">
+                    <option value="">Tous les départements</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Statistiques -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="total-agents">0</div>
+                <div class="stat-label">Total Agents</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="active-agents">0</div>
+                <div class="stat-label">Actifs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="supervisors">0</div>
+                <div class="stat-label">Superviseurs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="admins">0</div>
+                <div class="stat-label">Admins</div>
+            </div>
+        </div>
+
+        <!-- Tableau des agents -->
+        <div class="agents-table-container">
+            <table class="agents-table">
+                <thead>
+                    <tr>
+                        <th>Photo</th>
+                        <th>Nom</th>
+                        <th>Email</th>
+                        <th>Rôle</th>
+                        <th>Téléphone</th>
+                        <th>Département</th>
+                        <th>Projet</th>
+                        <th>Statut</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="agents-table-body">
+                    <tr>
+                        <td colspan="9" class="loading">Chargement des agents...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination">
+            <button onclick="previousPage()" id="prev-btn" disabled>← Précédent</button>
+            <span id="page-info">Page 1 sur 1</span>
+            <button onclick="nextPage()" id="next-btn" disabled>Suivant →</button>
+        </div>
+    </main>
+
+    <!-- Modal Agent (réutilisé du dashboard) -->
+    <div id="agent-modal" class="hidden" style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.4); z-index:9999;">
+      <div style="background:#fff; padding:24px; border-radius:12px; width: min(900px, 95vw); max-height:90vh; overflow:auto;">
+        <h2 id="agent-modal-title">Créer/Modifier un Agent</h2>
+        <form id="agent-form">
+          
+          <!-- Section Informations Personnelles -->
+          <div class="form-section">
+            <h3 class="form-section-title">👤 Informations Personnelles</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="af_name">Nom complet *</label>
+                <input id="af_name" placeholder="Ex: Jean Dupont" required />
+              </div>
+              <div class="form-group">
+                <label for="af_email">Email *</label>
+                <input id="af_email" type="email" placeholder="jean.dupont@ccrb.bj" required />
+              </div>
+              <div class="form-group">
+                <label for="af_first_name">Prénom</label>
+                <input id="af_first_name" placeholder="Jean" />
+              </div>
+              <div class="form-group">
+                <label for="af_last_name">Nom de famille</label>
+                <input id="af_last_name" placeholder="Dupont" />
+              </div>
+              <div class="form-group">
+                <label for="af_phone">Téléphone</label>
+                <input id="af_phone" placeholder="+229 12 34 56 78" />
+              </div>
+              <div class="form-group">
+                <label for="af_role">Rôle *</label>
+                <select id="af_role" required>
+                  <option value="agent">Agent</option>
+                  <option value="supervisor">Superviseur</option>
+                  <option value="admin">Administrateur</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section Photo de Profil -->
+          <div class="form-section">
+            <h3 class="form-section-title">📷 Photo de Profil</h3>
+            <div class="photo-upload-container">
+              <div class="photo-preview" id="photo-preview">
+                <img id="photo-preview-img" src="/Media/default-avatar.svg" alt="Aperçu photo" />
+                <div class="photo-placeholder" id="photo-placeholder">
+                  <span class="photo-icon">📷</span>
+                  <span>Aucune photo</span>
+                </div>
+              </div>
+              <div class="photo-upload-controls">
+                <input type="file" id="af_photo" accept="image/*" style="display: none;" />
+                <button type="button" onclick="document.getElementById('af_photo').click()" class="btn-photo-upload">
+                  📁 Choisir une photo
+                </button>
+                <button type="button" onclick="removePhoto()" class="btn-photo-remove" style="display: none;">
+                  🗑️ Supprimer
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section Projet et Planification -->
+          <div class="form-section">
+            <h3 class="form-section-title">📋 Projet et Planification</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="af_project">Nom du projet</label>
+                <input id="af_project" placeholder="Ex: Sensibilisation Santé Publique" />
+              </div>
+              <div class="form-group">
+                <label for="af_project_description">Description du projet</label>
+                <textarea id="af_project_description" placeholder="Description détaillée du projet..." rows="3"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="af_plan_start">Début de planification</label>
+                <input id="af_plan_start" type="date" />
+              </div>
+              <div class="form-group">
+                <label for="af_plan_end">Fin de planification</label>
+                <input id="af_plan_end" type="date" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Section Localisation -->
+          <div class="form-section">
+            <h3 class="form-section-title">📍 Localisation d'Intervention</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="af_departement">Département *</label>
+                <select id="af_departement" required>
+                  <option value="">Sélectionner un département...</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="af_commune">Commune</label>
+                <select id="af_commune" disabled>
+                  <option value="">Sélectionner une commune...</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="af_arrondissement">Arrondissement</label>
+                <select id="af_arrondissement" disabled>
+                  <option value="">Sélectionner un arrondissement...</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="af_village">Village</label>
+                <select id="af_village" disabled>
+                  <option value="">Sélectionner un village...</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section Paramètres de Travail -->
+          <div class="form-section">
+            <h3 class="form-section-title">⏰ Paramètres de Travail</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="af_expected_days">Jours de travail attendus/mois</label>
+                <input id="af_expected_days" type="number" min="1" max="31" placeholder="Ex: 20" />
+                <small>Nombre moyen de jours de travail par mois</small>
+              </div>
+              <div class="form-group">
+                <label for="af_expected_hours">Heures de travail attendues/mois</label>
+                <input id="af_expected_hours" type="number" min="1" max="744" placeholder="Ex: 160" />
+                <small>Nombre moyen d'heures de travail par mois</small>
+              </div>
+              <div class="form-group">
+                <label for="af_work_schedule">Horaires de travail</label>
+                <input id="af_work_schedule" placeholder="Ex: 8h00 - 17h00" />
+                <small>Horaires habituels de travail</small>
+              </div>
+              <div class="form-group">
+                <label for="af_contract_type">Type de contrat</label>
+                <select id="af_contract_type">
+                  <option value="">Sélectionner...</option>
+                  <option value="cdd">CDD</option>
+                  <option value="cdi">CDI</option>
+                  <option value="stage">Stage</option>
+                  <option value="benevolat">Bénévolat</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section Paramètres GPS -->
+          <div class="form-section">
+            <h3 class="form-section-title">🌍 Paramètres GPS</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="af_ref_lat">Latitude de référence</label>
+                <input id="af_ref_lat" type="number" step="0.000001" placeholder="Ex: 6.3729" />
+                <small>Coordonnée GPS de référence pour la validation de présence</small>
+              </div>
+              <div class="form-group">
+                <label for="af_ref_lon">Longitude de référence</label>
+                <input id="af_ref_lon" type="number" step="0.000001" placeholder="Ex: 2.3543" />
+                <small>Coordonnée GPS de référence pour la validation de présence</small>
+              </div>
+              <div class="form-group">
+                <label for="af_tolerance">Rayon de tolérance (mètres)</label>
+                <input id="af_tolerance" type="number" min="10" max="10000" placeholder="Ex: 100" />
+                <small>Distance maximale autorisée du point de référence</small>
+              </div>
+              <div class="form-group">
+                <label for="af_gps_accuracy">Précision GPS requise</label>
+                <select id="af_gps_accuracy">
+                  <option value="high">Haute (≤ 5m)</option>
+                  <option value="medium">Moyenne (≤ 20m)</option>
+                  <option value="low">Faible (≤ 100m)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section Sécurité -->
+          <div class="form-section">
+            <h3 class="form-section-title">🔐 Sécurité</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="af_password">Mot de passe</label>
+                <input id="af_password" type="password" placeholder="Laissez vide pour générer automatiquement" />
+                <small>Minimum 6 caractères. Généré automatiquement si vide.</small>
+              </div>
+              <div class="form-group">
+                <label for="af_password_confirm">Confirmer le mot de passe</label>
+                <input id="af_password_confirm" type="password" placeholder="Confirmer le mot de passe" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Section Observations -->
+          <div class="form-section">
+            <h3 class="form-section-title">📝 Observations et Notes</h3>
+            <div class="form-group">
+              <label for="af_observations">Observations pertinentes</label>
+              <textarea id="af_observations" placeholder="Notes importantes sur l'agent, compétences particulières, remarques..." rows="4"></textarea>
+            </div>
+          </div>
+
+          <!-- Boutons d'action -->
+          <div class="form-actions">
+            <button type="button" onclick="closeAgentModal()" class="btn-cancel">Annuler</button>
+            <button type="submit" class="btn-success">Enregistrer l'Agent</button>
+          </div>
+          
+          <input type="hidden" id="af_id" />
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal de confirmation de suppression -->
+    <div id="delete-modal" class="hidden" style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.4); z-index:9999;">
+      <div style="background:#fff; padding:24px; border-radius:12px; width: min(400px, 95vw);">
+        <h3>🗑️ Confirmer la suppression</h3>
+        <p id="delete-message">Êtes-vous sûr de vouloir supprimer cet agent ?</p>
+        <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:20px;">
+          <button onclick="cancelDelete()" class="btn-cancel">Annuler</button>
+          <button onclick="confirmDelete()" class="btn-danger">Supprimer</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/dashboard.js"></script>
+    <script src="/admin-agents.js"></script>
+</body>
+</html>

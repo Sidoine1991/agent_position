@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Unités Administratives</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .form-group { margin: 10px 0; }
+        select { padding: 8px; width: 300px; }
+        .log { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Test des Unités Administratives</h1>
+    
+    <div class="form-group">
+        <label for="af_departement">Département *</label>
+        <select id="af_departement" required>
+            <option value="">Sélectionner un département...</option>
+        </select>
+    </div>
+    
+    <div class="form-group">
+        <label for="af_commune">Commune</label>
+        <select id="af_commune" disabled>
+            <option value="">Sélectionner une commune...</option>
+        </select>
+    </div>
+    
+    <div class="form-group">
+        <label for="af_arrondissement">Arrondissement</label>
+        <select id="af_arrondissement" disabled>
+            <option value="">Sélectionner un arrondissement...</option>
+        </select>
+    </div>
+    
+    <div class="form-group">
+        <label for="af_village">Village</label>
+        <select id="af_village" disabled>
+            <option value="">Sélectionner un village...</option>
+        </select>
+    </div>
+    
+    <div class="log" id="log"></div>
+    
+    <button onclick="testLoadDepartements()">Tester Chargement</button>
+    <button onclick="testApi()">Tester API</button>
+    
+    <script>
+        const apiBase = '/api';
+        let jwt = localStorage.getItem('jwt') || '';
+        
+        function $(id) { return document.getElementById(id); }
+        
+        function log(message) {
+            const logDiv = $('log');
+            logDiv.innerHTML += '<div>' + new Date().toLocaleTimeString() + ': ' + message + '</div>';
+        }
+        
+        async function api(path, opts={}) {
+            const headers = opts.headers || {};
+            headers['Content-Type'] = 'application/json';
+            if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
+            const res = await fetch(apiBase + path, {
+                method: opts.method || 'GET',
+                headers,
+                body: opts.body ? JSON.stringify(opts.body) : undefined,
+            });
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`HTTP ${res.status}: ${text}`);
+            }
+            return res.json();
+        }
+        
+        async function loadAfDepartements(villagePath){
+            log('🌍 Chargement des départements...');
+            log('🔍 Recherche de l\'élément af_departement...');
+            
+            const depSel = $('af_departement'); 
+            if (!depSel) {
+                log('❌ Élément af_departement non trouvé');
+                log('🔍 Éléments disponibles avec "af_": ' + document.querySelectorAll('[id^="af_"]').length);
+                return;
+            }
+            
+            log('✅ Élément af_departement trouvé: ' + depSel.tagName);
+            depSel.innerHTML='';
+            
+            try {
+                log('🌐 Appel API /geo/departements...');
+                const deps = await api('/geo/departements');
+                log('✅ Départements chargés: ' + deps.length + ' départements');
+                
+                depSel.append(new Option('Sélectionner un département...', ''));
+                for(const d of deps) {
+                    const option = new Option(d.name, d.id);
+                    depSel.append(option);
+                    log('➕ Option ajoutée: ' + d.name + ' (ID: ' + d.id + ')');
+                }
+                
+                log('✅ Total options dans le select: ' + depSel.options.length);
+                
+                // Activer le select
+                depSel.disabled = false;
+                
+            } catch (error) {
+                log('❌ Erreur lors du chargement des départements: ' + error.message);
+            }
+            
+            // Reset other selects
+            $('af_commune').innerHTML = '<option value="">Sélectionner une commune...</option>';
+            $('af_arrondissement').innerHTML = '<option value="">Sélectionner un arrondissement...</option>';
+            $('af_village').innerHTML = '<option value="">Sélectionner un village...</option>';
+            $('af_commune').disabled = true; 
+            $('af_arrondissement').disabled = true; 
+            $('af_village').disabled = true;
+        }
+        
+        async function testLoadDepartements() {
+            log('🧪 Test manuel du chargement des départements...');
+            await loadAfDepartements();
+        }
+        
+        async function testApi() {
+            log('🧪 Test de l\'API...');
+            try {
+                const result = await api('/geo/departements');
+                log('✅ API fonctionne: ' + result.length + ' départements reçus');
+                log('📋 Premiers départements: ' + result.slice(0, 3).map(d => d.name).join(', '));
+            } catch (error) {
+                log('❌ Erreur API: ' + error.message);
+            }
+        }
+        
+        // Chargement automatique au démarrage
+        window.onload = function() {
+            log('🚀 Page chargée, test automatique...');
+            setTimeout(() => {
+                loadAfDepartements();
+            }, 500);
+        };
+    </script>
+</body>
+</html>
