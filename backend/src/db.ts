@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import sqlite3 from 'sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
 
@@ -9,10 +9,10 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-export const db = new Database(dbFile);
+export const db = new sqlite3.Database(dbFile);
 
 export function migrate(): void {
-  db.exec(`
+  const sql = `
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
     
@@ -137,49 +137,15 @@ export function migrate(): void {
       details TEXT,
       FOREIGN KEY(user_id) REFERENCES users(id)
     );
-  `);
+  `;
 
-  // Post-creation migrations: add missing columns on existing databases
-  // Utility: check if a column exists on a table
-  const hasColumn = (table: string, column: string): boolean => {
-    const stmt = db.prepare(`PRAGMA table_info(${table})`);
-    const rows = stmt.all() as Array<{ name: string }>;
-    return rows.some(r => r.name === column);
-  };
-
-  // users table expected columns
-  const userColumnsToAdd: Array<{ name: string; ddl: string }> = [
-    { name: 'first_name', ddl: "ALTER TABLE users ADD COLUMN first_name TEXT" },
-    { name: 'last_name', ddl: "ALTER TABLE users ADD COLUMN last_name TEXT" },
-    { name: 'phone', ddl: "ALTER TABLE users ADD COLUMN phone TEXT" },
-    { name: 'photo_path', ddl: "ALTER TABLE users ADD COLUMN photo_path TEXT" },
-    { name: 'project_name', ddl: "ALTER TABLE users ADD COLUMN project_name TEXT" },
-    { name: 'project_description', ddl: "ALTER TABLE users ADD COLUMN project_description TEXT" },
-    { name: 'planning_start_date', ddl: "ALTER TABLE users ADD COLUMN planning_start_date TEXT" },
-    { name: 'planning_end_date', ddl: "ALTER TABLE users ADD COLUMN planning_end_date TEXT" },
-    { name: 'expected_days_per_month', ddl: "ALTER TABLE users ADD COLUMN expected_days_per_month INTEGER DEFAULT 20" },
-    { name: 'expected_hours_per_month', ddl: "ALTER TABLE users ADD COLUMN expected_hours_per_month INTEGER DEFAULT 160" },
-    { name: 'work_schedule', ddl: "ALTER TABLE users ADD COLUMN work_schedule TEXT" },
-    { name: 'contract_type', ddl: "ALTER TABLE users ADD COLUMN contract_type TEXT" },
-    { name: 'gps_accuracy', ddl: "ALTER TABLE users ADD COLUMN gps_accuracy TEXT DEFAULT 'medium'" },
-    { name: 'observations', ddl: "ALTER TABLE users ADD COLUMN observations TEXT" },
-    { name: 'village_id', ddl: "ALTER TABLE users ADD COLUMN village_id INTEGER" },
-    { name: 'reference_lat', ddl: "ALTER TABLE users ADD COLUMN reference_lat REAL" },
-    { name: 'reference_lon', ddl: "ALTER TABLE users ADD COLUMN reference_lon REAL" },
-    { name: 'tolerance_radius_meters', ddl: "ALTER TABLE users ADD COLUMN tolerance_radius_meters INTEGER DEFAULT 100" },
-    { name: 'consent_signed_at', ddl: "ALTER TABLE users ADD COLUMN consent_signed_at TEXT" },
-  ];
-
-  for (const col of userColumnsToAdd) {
-    if (!hasColumn('users', col.name)) {
-      try { db.exec(col.ddl); } catch { /* noop: older SQLite may restrict some DDL */ }
+  db.exec(sql, (err) => {
+    if (err) {
+      console.error('Erreur lors de la migration:', err);
+    } else {
+      console.log('✅ Migration de la base de données terminée');
     }
-  }
-
-  // missions table expected columns
-  if (!hasColumn('missions', 'village_id')) {
-    try { db.exec("ALTER TABLE missions ADD COLUMN village_id INTEGER"); } catch {}
-  }
+  });
 }
 
 
