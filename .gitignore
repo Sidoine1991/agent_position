@@ -96,3 +96,36 @@ Thumbs.db
 dist/
 build/
 .vercel
+
+# Test files
+test-*.html
+create-test-*.html
+*test*.html
+
+# Deployment scripts
+deploy*.ps1
+deploy*.sh
+
+# Temporary data files
+hierarchy-data*.json
+*.db
+*.db-shm
+*.db-wal
+
+# Migration scripts
+check-*.js
+create-*.js
+extract-*.js
+fix-*.js
+update-*.js
+
+# Duplicate files
+server*.js
+api/
+Data/
+
+# Documentation duplicates
+README_*.md
+DEPLOY*.md
+MODERNIZATION*.md
+QUICK_*.md

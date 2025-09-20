@@ -342,53 +342,17 @@
     </div>
 
     <!-- Modal de confirmation de suppression -->
-    <div id="delete-modal" class="modal hidden">
-      <div class="modal-content">
+    <div id="delete-modal" class="hidden" style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.4); z-index:9999;">
+      <div style="background:#fff; padding:24px; border-radius:12px; width: min(400px, 95vw);">
         <h3>🗑️ Confirmer la suppression</h3>
         <p id="delete-message">Êtes-vous sûr de vouloir supprimer cet agent ?</p>
-        <div class="modal-actions">
-          <button type="button" id="delete-cancel-btn" class="btn-cancel">Annuler</button>
-          <button type="button" id="delete-confirm-btn" class="btn-danger">Supprimer</button>
+        <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:20px;">
+          <button onclick="cancelDelete()" class="btn-cancel">Annuler</button>
+          <button onclick="confirmDelete()" class="btn-danger">Supprimer</button>
         </div>
       </div>
     </div>
 
-    <script>
-// Données géographiques du Bénin (intégrées)
-const geoData = {
-  "departements": [
-    {"id": 1, "name": "Atlantique"},
-    {"id": 2, "name": "Borgou"},
-    {"id": 3, "name": "Collines"},
-    {"id": 4, "name": "Couffo"},
-    {"id": 5, "name": "Donga"},
-    {"id": 6, "name": "Littoral"},
-    {"id": 7, "name": "Mono"},
-    {"id": 8, "name": "Ouémé"},
-    {"id": 9, "name": "Plateau"},
-    {"id": 10, "name": "Zou"}
-  ],
-  "communes": {},
-  "arrondissements": {},
-  "villages": {}
-};
-
-// Fonction pour charger les départements
-window.loadDepartements = function loadDepartements() {
-  const select = document.getElementById('filter-departement');
-  if (!select) return;
-  
-  select.innerHTML = '<option value="">Tous les départements</option>';
-  geoData.departements.forEach(dept => {
-    const option = document.createElement('option');
-    option.value = dept.name;
-    option.textContent = dept.name;
-    select.appendChild(option);
-  });
-  
-  console.log('✅ Départements chargés pour les filtres:', geoData.departements.length);
-};
-    </script>
     <script src="/dashboard.js"></script>
     <script src="/admin-agents.js"></script>
 </body>

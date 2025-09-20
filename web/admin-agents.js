@@ -1,5 +1,4 @@
 // Variables globales
-const apiBase = '/api';
 let allAgents = [];
 let filteredAgents = [];
 let currentPage = 1;
@@ -20,7 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Vérifier le rôle admin
     try {
-        const response = await fetch(apiBase + '/profile', {
+        const response = await fetch('/api/me/profile', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         const user = await response.json();
@@ -44,8 +43,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('agent-modal').classList.add('hidden');
     document.getElementById('delete-modal').classList.add('hidden');
     
-    // Réinitialiser les variables
-    agentToDelete = null;
+    // Forcer la fermeture des modals avec des styles
+    document.getElementById('agent-modal').style.display = 'none';
+    document.getElementById('delete-modal').style.display = 'none';
     
     // Ajouter des gestionnaires d'événements pour les boutons
     setupModalEventListeners();
@@ -62,7 +62,7 @@ async function loadAgents() {
     try {
         console.log('📥 Chargement des agents...');
         const token = localStorage.getItem('jwt') || localStorage.getItem('token');
-        const response = await fetch(apiBase + '/admin/agents', {
+        const response = await fetch('/api/admin/agents', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -87,22 +87,18 @@ async function loadAgents() {
 // Charger les départements pour les filtres
 async function loadDepartements() {
     try {
-        // Utiliser les données statiques de geo-data.js
-        if (typeof geoData !== 'undefined' && geoData.departements) {
-            const select = document.getElementById('filter-departement');
-            select.innerHTML = '<option value="">Tous les départements</option>';
-            
-            geoData.departements.forEach(dept => {
-                const option = document.createElement('option');
-                option.value = dept.name;
-                option.textContent = dept.name;
-                select.appendChild(option);
-            });
-            
-            console.log('✅ Départements chargés pour les filtres:', geoData.departements.length);
-        } else {
-            console.error('❌ geoData non disponible');
-        }
+        const response = await fetch('/api/geo/departements');
+        const departements = await response.json();
+        
+        const select = document.getElementById('filter-departement');
+        select.innerHTML = '<option value="">Tous les départements</option>';
+        
+        departements.forEach(dept => {
+            const option = document.createElement('option');
+            option.value = dept.nom;
+            option.textContent = dept.nom;
+            select.appendChild(option);
+        });
         
     } catch (error) {
         console.error('❌ Erreur chargement départements:', error);
@@ -320,12 +316,7 @@ function deleteAgent(agentId) {
     agentToDelete = agentId;
     document.getElementById('delete-message').textContent = 
         `Êtes-vous sûr de vouloir supprimer l'agent "${agent.name}" ?\n\nCette action est irréversible.`;
-    
-    // Ouvrir le modal
-    const modal = document.getElementById('delete-modal');
-    modal.classList.remove('hidden');
-    
-    console.log('✅ Modal de suppression ouvert pour agent:', agent.name);
+    document.getElementById('delete-modal').classList.remove('hidden');
 }
 
 // Confirmer la suppression
@@ -336,7 +327,7 @@ async function confirmDelete() {
         console.log(`🗑️ Suppression agent ID: ${agentToDelete}`);
         
         const token = localStorage.getItem('jwt') || localStorage.getItem('token');
-        const response = await fetch(`${apiBase}/admin/agents/${agentToDelete}`, {
+        const response = await fetch(`/api/admin/agents/${agentToDelete}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -362,6 +353,8 @@ function closeDeleteModal() {
     const modal = document.getElementById('delete-modal');
     if (modal) {
         modal.classList.add('hidden');
+        modal.style.display = 'none';
+        modal.style.visibility = 'hidden';
         console.log('✅ Modal de suppression fermé');
     } else {
         console.error('❌ Modal de suppression non trouvé');
@@ -491,7 +484,7 @@ document.getElementById('agent-form').addEventListener('submit', async (ev) => {
         }
 
         const token = localStorage.getItem('token');
-        const url = agentId ? `${apiBase}/admin/agents/${agentId}` : `${apiBase}/admin/agents`;
+        const url = agentId ? `/api/admin/agents/${agentId}` : '/api/admin/agents';
         const method = agentId ? 'PUT' : 'POST';
 
         console.log(`📤 Envoi ${method} vers ${url}:`, payload);
@@ -575,12 +568,6 @@ window.cancelDelete = cancelDelete;
 function setupModalEventListeners() {
     console.log('🔧 Configuration des gestionnaires d\'événements...');
     
-    // Debug: vérifier que les éléments existent
-    console.log('🔍 Vérification des éléments du modal de suppression:');
-    console.log('  - Modal:', document.getElementById('delete-modal'));
-    console.log('  - Bouton Annuler:', document.querySelector('#delete-modal .btn-cancel'));
-    console.log('  - Bouton Supprimer:', document.querySelector('#delete-modal .btn-danger'));
-    
     // Gestionnaire pour le bouton Annuler du modal d'agent
     const agentCancelBtn = document.querySelector('#agent-modal .btn-cancel');
     if (agentCancelBtn) {
@@ -593,13 +580,9 @@ function setupModalEventListeners() {
     }
     
     // Gestionnaire pour le bouton Annuler du modal de suppression
-    const deleteCancelBtn = document.getElementById('delete-cancel-btn');
+    const deleteCancelBtn = document.querySelector('#delete-modal .btn-cancel');
     if (deleteCancelBtn) {
-        // Supprimer les anciens gestionnaires
-        deleteCancelBtn.replaceWith(deleteCancelBtn.cloneNode(true));
-        const newCancelBtn = document.getElementById('delete-cancel-btn');
-        
-        newCancelBtn.addEventListener('click', function(e) {
+        deleteCancelBtn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
             console.log('🔄 Clic sur Annuler (modal suppression)');
@@ -608,13 +591,9 @@ function setupModalEventListeners() {
     }
     
     // Gestionnaire pour le bouton Supprimer du modal de suppression
-    const deleteConfirmBtn = document.getElementById('delete-confirm-btn');
+    const deleteConfirmBtn = document.querySelector('#delete-modal .btn-danger');
     if (deleteConfirmBtn) {
-        // Supprimer les anciens gestionnaires
-        deleteConfirmBtn.replaceWith(deleteConfirmBtn.cloneNode(true));
-        const newConfirmBtn = document.getElementById('delete-confirm-btn');
-        
-        newConfirmBtn.addEventListener('click', function(e) {
+        deleteConfirmBtn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
             console.log('🔄 Clic sur Supprimer');
