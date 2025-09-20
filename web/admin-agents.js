@@ -48,6 +48,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('agent-modal').style.display = 'none';
     document.getElementById('delete-modal').style.display = 'none';
     
+    // Réinitialiser les variables
+    agentToDelete = null;
+    
     // Ajouter des gestionnaires d'événements pour les boutons
     setupModalEventListeners();
     
