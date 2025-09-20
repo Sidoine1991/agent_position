@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Vercel Deployment</title>
+</head>
+<body>
+    <h1>Test de déploiement Vercel</h1>
+    
+    <h2>Test des sélecteurs géographiques</h2>
+    <div>
+        <select id="departement"></select>
+        <select id="commune" disabled></select>
+        <select id="arrondissement" disabled></select>
+        <select id="village" disabled></select>
+    </div>
+    
+    <h2>Logs de test</h2>
+    <div id="logs"></div>
+    
+    <script>
+        function log(message) {
+            const logs = document.getElementById('logs');
+            logs.innerHTML += '<div>' + new Date().toLocaleTimeString() + ': ' + message + '</div>';
+            console.log(message);
+        }
+        
+        log('🚀 Test de déploiement démarré...');
+        
+        // Test de chargement de geo-data.js
+        const script = document.createElement('script');
+        script.src = '/geo-data.js';
+        script.onload = function() {
+            log('✅ geo-data.js chargé avec succès');
+            
+            // Test des fonctions
+            if (typeof geoData !== 'undefined') {
+                log('✅ geoData disponible: ' + geoData.departements.length + ' départements');
+            } else {
+                log('❌ geoData non disponible');
+            }
+            
+            if (typeof loadDepartements === 'function') {
+                log('✅ loadDepartements disponible');
+            } else {
+                log('❌ loadDepartements non disponible');
+            }
+            
+            if (typeof initGeoSelectors === 'function') {
+                log('✅ initGeoSelectors disponible');
+            } else {
+                log('❌ initGeoSelectors non disponible');
+            }
+            
+            // Test d'initialisation
+            setTimeout(() => {
+                if (typeof initGeoSelectors === 'function') {
+                    log('🌍 Tentative d\'initialisation des sélecteurs...');
+                    initGeoSelectors();
+                    
+                    setTimeout(() => {
+                        const deptSelect = document.getElementById('departement');
+                        if (deptSelect && deptSelect.options.length > 1) {
+                            log('✅ Sélecteurs initialisés: ' + deptSelect.options.length + ' options');
+                        } else {
+                            log('❌ Sélecteurs non initialisés');
+                        }
+                    }, 100);
+                }
+            }, 100);
+        };
+        script.onerror = function() {
+            log('❌ Erreur de chargement de geo-data.js');
+        };
+        document.head.appendChild(script);
+    </script>
+</body>
+</html>
