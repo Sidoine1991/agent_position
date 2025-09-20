@@ -332,10 +332,10 @@ async function loadDepartements() {
     // Essayer d'abord l'endpoint de test
     let rows;
     try {
-      rows = await api('/test-geo');
-      console.log('✅ Départements chargés via test-geo:', rows);
+      rows = await api('/departements-test');
+      console.log('✅ Départements chargés via departements-test:', rows);
     } catch (e) {
-      console.log('⚠️ Test-geo échoué, essai avec geo/departements...');
+      console.log('⚠️ Departements-test échoué, essai avec geo/departements...');
       rows = await api('/geo/departements');
       console.log('✅ Départements chargés via geo/departements:', rows);
     }
