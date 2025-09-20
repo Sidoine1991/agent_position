@@ -1,5 +1,5 @@
 // Variables globales
-const apiBase = window.location.hostname === 'localhost' ? 'https://presenceccrb-ozgc9p3zc-yebadokpo-sidoines-projects.vercel.app/api' : '/api';
+const apiBase = '/api';
 let allAgents = [];
 let filteredAgents = [];
 let currentPage = 1;
