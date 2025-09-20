@@ -1,47 +1,40 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const sqlite3 = require('sqlite3').verbose();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 
-// Database setup
-const db = new sqlite3.Database(':memory:');
+// In-memory storage (for serverless compatibility)
+let users = [];
+let missions = [];
+let checkins = [];
 
-// Initialize database
-function initializeDatabase() {
-  // Create users table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      role TEXT DEFAULT 'agent',
-      first_name TEXT,
-      last_name TEXT,
-      phone TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // Create default admin user
-  const adminPassword = bcrypt.hashSync('123456', 10);
-  db.run(`
-    INSERT OR IGNORE INTO users (name, email, password_hash, role) 
-    VALUES ('admin', 'admin@ccrb.local', ?, 'admin')
-  `, [adminPassword]);
-
-  // Create default supervisor user
-  const supervisorPassword = bcrypt.hashSync('123456', 10);
-  db.run(`
-    INSERT OR IGNORE INTO users (name, email, password_hash, role) 
-    VALUES ('Superviseur', 'supervisor@ccrb.local', ?, 'supervisor')
-  `, [supervisorPassword]);
+// Initialize default users
+function initializeUsers() {
+  if (users.length === 0) {
+    users = [
+      {
+        id: 1,
+        name: 'admin',
+        email: 'admin@ccrb.local',
+        password_hash: bcrypt.hashSync('123456', 10),
+        role: 'admin',
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 2,
+        name: 'Superviseur',
+        email: 'supervisor@ccrb.local',
+        password_hash: bcrypt.hashSync('123456', 10),
+        role: 'supervisor',
+        created_at: new Date().toISOString()
+      }
+    ];
+  }
 }
 
 module.exports = (req, res) => {
-  // Initialize database
-  initializeDatabase();
+  // Initialize users
+  initializeUsers();
   
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -80,18 +73,14 @@ module.exports = (req, res) => {
       return res.status(400).json({ error: 'Email et mot de passe requis' });
     }
     
-    db.get('SELECT id, password_hash, role FROM users WHERE email = ?', [email], (err, user) => {
-      if (err) {
-        return res.status(500).json({ error: 'Erreur base de données' });
-      }
-      
-      if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-        return res.status(401).json({ error: 'Identifiants incorrects' });
-      }
-      
-      const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '12h' });
-      res.json({ token });
-    });
+    const user = users.find(u => u.email === email);
+    
+    if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+      return res.status(401).json({ error: 'Identifiants incorrects' });
+    }
+    
+    const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '12h' });
+    res.json({ token });
     return;
   }
   
@@ -108,28 +97,25 @@ module.exports = (req, res) => {
     
     const passwordHash = bcrypt.hashSync(password, 10);
     
-    db.get('SELECT id FROM users WHERE email = ?', [email], (err, row) => {
-      if (err) {
-        return res.status(500).json({ error: 'Erreur base de données' });
-      }
-      
-      if (row) {
-        return res.status(409).json({ error: 'Email déjà utilisé' });
-      }
-      
-      db.run(
-        'INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)',
-        [name, email, passwordHash, role],
-        function(err) {
-          if (err) {
-            return res.status(500).json({ error: 'Erreur création utilisateur' });
-          }
-          
-          const token = jwt.sign({ userId: this.lastID, role }, JWT_SECRET, { expiresIn: '12h' });
-          res.json({ token });
-        }
-      );
-    });
+    const existingUser = users.find(u => u.email === email);
+    
+    if (existingUser) {
+      return res.status(409).json({ error: 'Email déjà utilisé' });
+    }
+    
+    const newUser = {
+      id: users.length + 1,
+      name,
+      email,
+      password_hash: passwordHash,
+      role,
+      created_at: new Date().toISOString()
+    };
+    
+    users.push(newUser);
+    
+    const token = jwt.sign({ userId: newUser.id, role }, JWT_SECRET, { expiresIn: '12h' });
+    res.json({ token });
     return;
   }
   
