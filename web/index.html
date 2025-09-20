@@ -66,6 +66,43 @@
       <div class="page-header">
         <h2>Suivi des Agents</h2>
         <p>Système de géolocalisation et de suivi des missions</p>
+        
+        <!-- Boutons d'accès rapide -->
+        <div class="quick-access-buttons" id="quick-access" style="display: none;">
+          <button class="btn-primary" onclick="window.location.href='/dashboard.html'">
+            <span class="btn-icon">📊</span>
+            Accéder au Dashboard
+          </button>
+          <button class="btn-secondary" onclick="window.location.href='/profile.html'">
+            <span class="btn-icon">👤</span>
+            Mon Profil
+          </button>
+          <button class="btn-secondary" onclick="window.location.href='/agents.html'">
+            <span class="btn-icon">👥</span>
+            Gestion Agents
+          </button>
+        </div>
+        
+        <!-- Informations pour les utilisateurs non connectés -->
+        <div class="welcome-info" id="welcome-info">
+          <div class="info-cards">
+            <div class="info-card">
+              <div class="info-icon">🔐</div>
+              <h3>Connexion</h3>
+              <p>Connectez-vous avec vos identifiants pour accéder à votre espace personnel</p>
+            </div>
+            <div class="info-card">
+              <div class="info-icon">📝</div>
+              <h3>Inscription</h3>
+              <p>Créez votre compte agent pour commencer à utiliser le système</p>
+            </div>
+            <div class="info-card">
+              <div class="info-icon">📱</div>
+              <h3>Géolocalisation</h3>
+              <p>Marquez votre présence avec précision grâce à la géolocalisation</p>
+            </div>
+          </div>
+        </div>
       </div>
       <section id="auth-section">
         <div class="auth-tabs">
