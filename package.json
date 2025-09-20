@@ -1,5 +1,5 @@
 {
-  "name": "presence-ccrb",
+  "name": "presence-ccrb-system",
   "version": "1.0.0",
   "description": "Système de gestion de présence CCRB",
   "main": "backend/src/index.ts",
