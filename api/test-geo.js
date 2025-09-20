@@ -1,24 +1,29 @@
 module.exports = (req, res) => {
-  // Set CORS headers
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   
-  // Handle OPTIONS preflight request
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
 
-  res.json({ 
-    message: 'API géographique fonctionne !',
-    timestamp: new Date().toISOString(),
-    endpoints: [
-      '/api/geo/departements',
-      '/api/geo/communes',
-      '/api/geo/arrondissements', 
-      '/api/geo/villages',
-      '/api/init-geo-data'
-    ]
-  });
+  // Données de test pour les départements
+  const testDepartements = [
+    { id: 1, name: "Atlantique" },
+    { id: 2, name: "Borgou" },
+    { id: 3, name: "Collines" },
+    { id: 4, name: "Couffo" },
+    { id: 5, name: "Donga" },
+    { id: 6, name: "Littoral" },
+    { id: 7, name: "Mono" },
+    { id: 8, name: "Ouémé" },
+    { id: 9, name: "Plateau" },
+    { id: 10, name: "Zou" },
+    { id: 11, name: "Alibori" },
+    { id: 12, name: "Atacora" }
+  ];
+
+  res.json(testDepartements);
 };

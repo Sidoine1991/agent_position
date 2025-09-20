@@ -66,6 +66,12 @@ async function init() {
     hide(authSection); 
     show(appSection); 
     await loadAgentProfile();
+    await loadDepartements();
+    
+    // Gestionnaires pour les sélecteurs géographiques
+    $('departement').onchange = () => loadCommunes(Number($('departement').value));
+    $('commune').onchange = () => loadArrondissements(Number($('commune').value));
+    $('arrondissement').onchange = () => loadVillages(Number($('arrondissement').value));
   } else { 
     show(authSection); 
     hide(appSection); 
@@ -86,6 +92,13 @@ async function init() {
       jwt = data.token; localStorage.setItem('jwt', jwt);
       hide(authSection); show(appSection);
       await loadAgentProfile();
+      await loadDepartements();
+      
+      // Gestionnaires pour les sélecteurs géographiques
+      $('departement').onchange = () => loadCommunes(Number($('departement').value));
+      $('commune').onchange = () => loadArrondissements(Number($('commune').value));
+      $('arrondissement').onchange = () => loadVillages(Number($('arrondissement').value));
+      
       await updateNavbar(); // Mettre à jour la navbar après connexion
     } catch (e) { 
       console.error('Erreur de connexion:', e);
@@ -314,13 +327,27 @@ async function loadAgentProfile() {
 async function loadDepartements() {
   try {
     const dep = $('departement'); dep.innerHTML = '';
-    const rows = await api('/geo/departements');
+    console.log('🌍 Chargement des départements...');
+    
+    // Essayer d'abord l'endpoint de test
+    let rows;
+    try {
+      rows = await api('/test-geo');
+      console.log('✅ Départements chargés via test-geo:', rows);
+    } catch (e) {
+      console.log('⚠️ Test-geo échoué, essai avec geo/departements...');
+      rows = await api('/geo/departements');
+      console.log('✅ Départements chargés via geo/departements:', rows);
+    }
+    
     dep.append(new Option('Département...', ''));
     for (const r of rows) dep.append(new Option(r.name, r.id));
     $('commune').disabled = true; $('arrondissement').disabled = true; $('village').disabled = true;
+    
+    console.log('✅ Sélecteur département initialisé avec', dep.options.length, 'options');
   } catch (e) {
-    console.error('Error loading departements:', e);
-    $('status').textContent = 'Erreur chargement départements';
+    console.error('❌ Error loading departements:', e);
+    $('status').textContent = 'Erreur chargement départements: ' + e.message;
   }
 }
 
