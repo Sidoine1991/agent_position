@@ -1,4 +1,4 @@
-// Simple login endpoint
+// Simple register endpoint
 let users = [
   {
     id: 1,
@@ -31,28 +31,42 @@ module.exports = (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
   }
   
-  const { email, password } = req.body;
+  const { name, email, password, role = 'agent' } = req.body;
   
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email et mot de passe requis' });
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'Nom, email et mot de passe requis' });
   }
   
-  const user = users.find(u => u.email === email && u.password === password);
-  
-  if (!user) {
-    return res.status(401).json({ error: 'Identifiants incorrects' });
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Mot de passe trop court (minimum 6 caractères)' });
   }
+  
+  const existingUser = users.find(u => u.email === email);
+  
+  if (existingUser) {
+    return res.status(409).json({ error: 'Email déjà utilisé' });
+  }
+  
+  const newUser = {
+    id: users.length + 1,
+    name,
+    email,
+    password,
+    role
+  };
+  
+  users.push(newUser);
   
   // Simple token (just user info encoded)
-  const token = Buffer.from(JSON.stringify({ userId: user.id, role: user.role })).toString('base64');
+  const token = Buffer.from(JSON.stringify({ userId: newUser.id, role })).toString('base64');
   
   res.json({ 
     token,
     user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email,
+      role: newUser.role
     }
   });
 };

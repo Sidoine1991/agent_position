@@ -55,7 +55,7 @@ async function init() {
     try {
       const email = $('email').value.trim();
       const password = $('password').value.trim();
-      const data = await api('/auth/login', { method: 'POST', body: { email, password } });
+      const data = await api('/login', { method: 'POST', body: { email, password } });
       jwt = data.token; localStorage.setItem('jwt', jwt);
       hide(authSection); show(appSection);
       await loadAgentProfile();
