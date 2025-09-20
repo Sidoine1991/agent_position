@@ -16,22 +16,32 @@ if (typeof window !== 'undefined') {
 
 async function api(path, opts={}) {
   const headers = opts.headers || {};
-  headers['Content-Type'] = 'application/json';
+  if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
   if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
+  
+  console.log('API call:', apiBase + path, { method: opts.method || 'GET', headers, body: opts.body });
+  
   const res = await fetch(apiBase + path, {
     method: opts.method || 'GET',
     headers,
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
+    body: opts.body instanceof FormData ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined),
   });
+  
+  console.log('API response:', res.status, res.statusText);
+  
   if (!res.ok) {
-    const text = await res.text();
+    const errorText = await res.text();
+    console.error('API error:', errorText);
     if (res.status === 401 || res.status === 403) {
-      // Clear bad token and surface error
       try { localStorage.removeItem('jwt'); } catch {}
     }
-    throw new Error(text);
+    throw new Error(errorText || res.statusText);
   }
-  return res.json();
+  
+  const ct = res.headers.get('content-type') || '';
+  const result = ct.includes('application/json') ? await res.json() : await res.text();
+  console.log('API result:', result);
+  return result;
 }
 
 let currentProfile;

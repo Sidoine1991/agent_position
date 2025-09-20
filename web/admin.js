@@ -6,20 +6,29 @@ function $(id) { return document.getElementById(id); }
 
 async function api(path, opts = {}) {
   const headers = opts.headers || {};
-  headers['Content-Type'] = 'application/json';
+  if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
   if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
   
-  const response = await fetch('/api' + path, {
-    ...opts,
-    headers
+  console.log('API call:', '/api' + path, { method: opts.method || 'GET', headers, body: opts.body });
+  
+  const res = await fetch('/api' + path, {
+    method: opts.method || 'GET',
+    headers,
+    body: opts.body instanceof FormData ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined),
   });
   
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
-    throw new Error(error.error || 'Erreur API');
+  console.log('API response:', res.status, res.statusText);
+  
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error('API error:', errorText);
+    throw new Error(errorText || res.statusText);
   }
   
-  return response.json();
+  const ct = res.headers.get('content-type') || '';
+  const result = ct.includes('application/json') ? await res.json() : await res.text();
+  console.log('API result:', result);
+  return result;
 }
 
 // Vérifier l'authentification et les permissions

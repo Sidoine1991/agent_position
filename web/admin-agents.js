@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Vérifier le rôle admin
     try {
-        const response = await fetch('/api/me/profile', {
+        const response = await fetch('/api/profile', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         const user = await response.json();

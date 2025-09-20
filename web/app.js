@@ -280,7 +280,7 @@ init();
 
 async function loadAgentProfile() {
   try {
-    const profile = await api('/me/profile');
+    const profile = await api('/profile');
     if (profile) {
       $('agent-name').textContent = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.name;
       $('agent-phone').textContent = profile.phone || '-';
