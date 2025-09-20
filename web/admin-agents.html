@@ -353,7 +353,42 @@
       </div>
     </div>
 
-    <script src="/geo-data.js?v=4"></script>
+    <script>
+// Données géographiques du Bénin (intégrées)
+const geoData = {
+  "departements": [
+    {"id": 1, "name": "Atlantique"},
+    {"id": 2, "name": "Borgou"},
+    {"id": 3, "name": "Collines"},
+    {"id": 4, "name": "Couffo"},
+    {"id": 5, "name": "Donga"},
+    {"id": 6, "name": "Littoral"},
+    {"id": 7, "name": "Mono"},
+    {"id": 8, "name": "Ouémé"},
+    {"id": 9, "name": "Plateau"},
+    {"id": 10, "name": "Zou"}
+  ],
+  "communes": {},
+  "arrondissements": {},
+  "villages": {}
+};
+
+// Fonction pour charger les départements
+window.loadDepartements = function loadDepartements() {
+  const select = document.getElementById('filter-departement');
+  if (!select) return;
+  
+  select.innerHTML = '<option value="">Tous les départements</option>';
+  geoData.departements.forEach(dept => {
+    const option = document.createElement('option');
+    option.value = dept.name;
+    option.textContent = dept.name;
+    select.appendChild(option);
+  });
+  
+  console.log('✅ Départements chargés pour les filtres:', geoData.departements.length);
+};
+    </script>
     <script src="/dashboard.js"></script>
     <script src="/admin-agents.js"></script>
 </body>
