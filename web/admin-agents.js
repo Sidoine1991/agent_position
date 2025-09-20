@@ -44,13 +44,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('agent-modal').classList.add('hidden');
     document.getElementById('delete-modal').classList.add('hidden');
     
-    // Forcer la fermeture des modals avec des styles
-    document.getElementById('agent-modal').style.display = 'none';
-    document.getElementById('delete-modal').style.display = 'none';
-    document.getElementById('delete-modal').style.visibility = 'hidden';
-    document.getElementById('delete-modal').style.opacity = '0';
-    document.getElementById('delete-modal').style.pointerEvents = 'none';
-    
     // Réinitialiser les variables
     agentToDelete = null;
     
@@ -328,13 +321,9 @@ function deleteAgent(agentId) {
     document.getElementById('delete-message').textContent = 
         `Êtes-vous sûr de vouloir supprimer l'agent "${agent.name}" ?\n\nCette action est irréversible.`;
     
-    // Ouvrir le modal avec tous les styles
+    // Ouvrir le modal
     const modal = document.getElementById('delete-modal');
     modal.classList.remove('hidden');
-    modal.style.display = 'flex';
-    modal.style.visibility = 'visible';
-    modal.style.opacity = '1';
-    modal.style.pointerEvents = 'auto';
     
     console.log('✅ Modal de suppression ouvert pour agent:', agent.name);
 }
@@ -373,10 +362,6 @@ function closeDeleteModal() {
     const modal = document.getElementById('delete-modal');
     if (modal) {
         modal.classList.add('hidden');
-        modal.style.display = 'none';
-        modal.style.visibility = 'hidden';
-        modal.style.opacity = '0';
-        modal.style.pointerEvents = 'none';
         console.log('✅ Modal de suppression fermé');
     } else {
         console.error('❌ Modal de suppression non trouvé');
@@ -608,11 +593,11 @@ function setupModalEventListeners() {
     }
     
     // Gestionnaire pour le bouton Annuler du modal de suppression
-    const deleteCancelBtn = document.querySelector('#delete-modal .btn-cancel');
+    const deleteCancelBtn = document.getElementById('delete-cancel-btn');
     if (deleteCancelBtn) {
         // Supprimer les anciens gestionnaires
         deleteCancelBtn.replaceWith(deleteCancelBtn.cloneNode(true));
-        const newCancelBtn = document.querySelector('#delete-modal .btn-cancel');
+        const newCancelBtn = document.getElementById('delete-cancel-btn');
         
         newCancelBtn.addEventListener('click', function(e) {
             e.preventDefault();
@@ -623,11 +608,11 @@ function setupModalEventListeners() {
     }
     
     // Gestionnaire pour le bouton Supprimer du modal de suppression
-    const deleteConfirmBtn = document.querySelector('#delete-modal .btn-danger');
+    const deleteConfirmBtn = document.getElementById('delete-confirm-btn');
     if (deleteConfirmBtn) {
         // Supprimer les anciens gestionnaires
         deleteConfirmBtn.replaceWith(deleteConfirmBtn.cloneNode(true));
-        const newConfirmBtn = document.querySelector('#delete-modal .btn-danger');
+        const newConfirmBtn = document.getElementById('delete-confirm-btn');
         
         newConfirmBtn.addEventListener('click', function(e) {
             e.preventDefault();
