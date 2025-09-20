@@ -220,18 +220,21 @@ async function loadAfDepartements(villagePath){
   depSel.innerHTML='';
   
   try {
-    console.log('🌐 Appel API /geo/departements...');
-    const deps = await api('/geo/departements');
-    console.log('✅ Départements chargés:', deps);
+    console.log('🌐 Chargement des départements depuis geo-data.js...');
     
-    depSel.append(new Option('Sélectionner un département...', ''));
-    for(const d of deps) {
-      const option = new Option(d.name, d.id);
-      depSel.append(option);
-      console.log('➕ Option ajoutée:', d.name, d.id);
+    if (typeof geoData !== 'undefined' && geoData.departements) {
+      depSel.append(new Option('Sélectionner un département...', ''));
+      for(const d of geoData.departements) {
+        const option = new Option(d.name, d.id);
+        depSel.append(option);
+        console.log('➕ Option ajoutée:', d.name, d.id);
+      }
+      
+      console.log('✅ Total options dans le select:', depSel.options.length);
+    } else {
+      console.error('❌ geoData non disponible');
+      alert('Erreur: Données géographiques non disponibles');
     }
-    
-    console.log('✅ Total options dans le select:', depSel.options.length);
   } catch (error) {
     console.error('❌ Erreur lors du chargement des départements:', error);
     alert('Erreur lors du chargement des départements: ' + error.message);
@@ -257,11 +260,15 @@ async function loadAfDepartements(villagePath){
       return; 
     }
     try {
-      const cs = await api('/geo/communes?departement_id='+id);
-      for(const c of cs) comSel.append(new Option(c.name, c.id));
-      comSel.disabled=false; 
-      $('af_arrondissement').disabled=true; 
-      $('af_village').disabled=true;
+      // Utiliser les données statiques
+      const departement = geoData.departements.find(d => d.id == id);
+      if (departement && geoData.communes[departement.name]) {
+        const communes = geoData.communes[departement.name];
+        for(const c of communes) comSel.append(new Option(c.name, c.id));
+        comSel.disabled=false; 
+        $('af_arrondissement').disabled=true; 
+        $('af_village').disabled=true;
+      }
     } catch(e) {
       console.error('Error loading communes:', e);
       alert('Erreur lors du chargement des communes');
@@ -279,10 +286,19 @@ async function loadAfDepartements(villagePath){
       return; 
     }
     try {
-      const arrs = await api('/geo/arrondissements?commune_id='+id);
-      for(const a of arrs) arrSel.append(new Option(a.name, a.id));
-      arrSel.disabled=false; 
-      $('af_village').disabled=true;
+      // Utiliser les données statiques
+      let commune = null;
+      for (const [deptName, communes] of Object.entries(geoData.communes)) {
+        commune = communes.find(c => c.id == id);
+        if (commune) break;
+      }
+      
+      if (commune && geoData.arrondissements[commune.name]) {
+        const arrondissements = geoData.arrondissements[commune.name];
+        for(const a of arrondissements) arrSel.append(new Option(a.name, a.id));
+        arrSel.disabled=false; 
+        $('af_village').disabled=true;
+      }
     } catch(e) {
       console.error('Error loading arrondissements:', e);
       alert('Erreur lors du chargement des arrondissements');
@@ -299,9 +315,18 @@ async function loadAfDepartements(villagePath){
       return; 
     }
     try {
-      const vils = await api('/geo/villages?arrondissement_id='+id);
-      for(const v of vils) vilSel.append(new Option(v.name, v.id));
-      vilSel.disabled=false;
+      // Utiliser les données statiques
+      let arrondissement = null;
+      for (const [communeName, arrondissements] of Object.entries(geoData.arrondissements)) {
+        arrondissement = arrondissements.find(a => a.id == id);
+        if (arrondissement) break;
+      }
+      
+      if (arrondissement && geoData.villages[arrondissement.name]) {
+        const villages = geoData.villages[arrondissement.name];
+        for(const v of villages) vilSel.append(new Option(v.name, v.id));
+        vilSel.disabled=false;
+      }
     } catch(e) {
       console.error('Error loading villages:', e);
       alert('Erreur lors du chargement des villages');
@@ -387,37 +412,7 @@ async function onAgentSubmit(ev){
   }
 }
 
-async function loadDepartements() {
-  const dep = $('departement'); dep.innerHTML = '';
-  const rows = await api('/geo/departements');
-  dep.append(new Option('Département...', ''));
-  for (const r of rows) dep.append(new Option(r.name, r.id));
-  $('commune').disabled = true; $('arrondissement').disabled = true; $('village').disabled = true;
-}
-async function loadCommunes(departementId) {
-  const com = $('commune'); com.innerHTML = '';
-  if (!departementId) { $('commune').disabled = true; return; }
-  const rows = await api('/geo/communes?departement_id=' + departementId);
-  com.append(new Option('Commune...', ''));
-  for (const r of rows) com.append(new Option(r.name, r.id));
-  $('commune').disabled = false; $('arrondissement').disabled = true; $('village').disabled = true;
-}
-async function loadArrondissements(communeId) {
-  const arr = $('arrondissement'); arr.innerHTML = '';
-  if (!communeId) { $('arrondissement').disabled = true; return; }
-  const rows = await api('/geo/arrondissements?commune_id=' + communeId);
-  arr.append(new Option('Arrondissement...', ''));
-  for (const r of rows) arr.append(new Option(r.name, r.id));
-  $('arrondissement').disabled = false; $('village').disabled = true;
-}
-async function loadVillages(arrondissementId) {
-  const vil = $('village'); vil.innerHTML = '';
-  if (!arrondissementId) { $('village').disabled = true; return; }
-  const rows = await api('/geo/villages?arrondissement_id=' + arrondissementId);
-  vil.append(new Option('Village...', ''));
-  for (const r of rows) vil.append(new Option(r.name, r.id));
-  $('village').disabled = false;
-}
+// Les fonctions de chargement géographique sont maintenant dans geo-data.js
 
 async function refresh() {
   markersLayer.clearLayers();

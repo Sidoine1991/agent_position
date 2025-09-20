@@ -91,18 +91,22 @@ async function loadAgents() {
 // Charger les départements pour les filtres
 async function loadDepartements() {
     try {
-        const response = await fetch(apiBase + '/geo/departements');
-        const departements = await response.json();
-        
-        const select = document.getElementById('filter-departement');
-        select.innerHTML = '<option value="">Tous les départements</option>';
-        
-        departements.forEach(dept => {
-            const option = document.createElement('option');
-            option.value = dept.nom;
-            option.textContent = dept.nom;
-            select.appendChild(option);
-        });
+        // Utiliser les données statiques de geo-data.js
+        if (typeof geoData !== 'undefined' && geoData.departements) {
+            const select = document.getElementById('filter-departement');
+            select.innerHTML = '<option value="">Tous les départements</option>';
+            
+            geoData.departements.forEach(dept => {
+                const option = document.createElement('option');
+                option.value = dept.name;
+                option.textContent = dept.name;
+                select.appendChild(option);
+            });
+            
+            console.log('✅ Départements chargés pour les filtres:', geoData.departements.length);
+        } else {
+            console.error('❌ geoData non disponible');
+        }
         
     } catch (error) {
         console.error('❌ Erreur chargement départements:', error);
