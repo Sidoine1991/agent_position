@@ -672,7 +672,7 @@ if (typeof window !== 'undefined') {
   window.updatePhotoPreview = updatePhotoPreview;
   window.removePhoto = removePhoto;
   window.testLoadDepartements = loadAfDepartements;
-  window.testApi = () => api('/geo/departements');
+  window.testApi = () => console.log('geoData disponible:', typeof geoData !== 'undefined');
 }
 
 // Mettre à jour les informations utilisateur dans la navbar
