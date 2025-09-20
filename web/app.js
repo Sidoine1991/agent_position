@@ -63,19 +63,50 @@ async function init() {
     } catch (e) { alert('Connexion échouée'); }
   });
 
-  $('register-link').onclick = async (ev) => {
-    ev.preventDefault();
-    const email = prompt('Email ?');
-    const name = prompt('Nom ?');
-    const password = prompt('Mot de passe (>=6) ?');
-    if (!email || !name || !password) return;
-    try {
-      const data = await api('/auth/register', { method: 'POST', body: { email, name, password } });
-      jwt = data.token; localStorage.setItem('jwt', jwt);
-      alert('Compte créé. Connecté.');
-      hide(authSection); show(appSection);
-    } catch { alert('Échec création.'); }
+  // Gestion des onglets d'authentification
+  window.showLoginForm = () => {
+    $('login-form-container').style.display = 'block';
+    $('register-form-container').style.display = 'none';
+    document.querySelectorAll('.auth-tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelector('.auth-tab[onclick="showLoginForm()"]').classList.add('active');
   };
+
+  window.showRegisterForm = () => {
+    $('login-form-container').style.display = 'none';
+    $('register-form-container').style.display = 'block';
+    document.querySelectorAll('.auth-tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelector('.auth-tab[onclick="showRegisterForm()"]').classList.add('active');
+  };
+
+  // Gestion du formulaire d'inscription
+  $('register-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const name = $('reg-name').value.trim();
+    const email = $('reg-email').value.trim();
+    const password = $('reg-password').value.trim();
+    const confirmPassword = $('reg-confirm-password').value.trim();
+    
+    if (password !== confirmPassword) {
+      alert('Les mots de passe ne correspondent pas');
+      return;
+    }
+    
+    if (password.length < 6) {
+      alert('Le mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
+    
+    try {
+      const data = await api('/register', { method: 'POST', body: { name, email, password, role: 'agent' } });
+      jwt = data.token; localStorage.setItem('jwt', jwt);
+      alert('Compte créé avec succès ! Vous êtes maintenant connecté.');
+      hide(authSection); show(appSection);
+      await loadAgentProfile();
+      await updateNavbar();
+    } catch (e) { 
+      alert('Échec de la création du compte: ' + (e.message || 'Erreur inconnue'));
+    }
+  });
 
   $('start-mission').onclick = async () => {
     const status = $('status');
@@ -732,26 +763,49 @@ async function getLocationName(lat, lon) {
 
 // Mettre à jour la navbar selon l'état de connexion et le rôle
 async function updateNavbar() {
+  const profileLink = $('profile-link');
   const dashboardLink = $('dashboard-link');
+  const agentsLink = $('agents-link');
+  const reportsLink = $('reports-link');
+  const adminLink = $('admin-link');
   const navbarUser = $('navbar-user');
   const userInfo = $('user-info');
   
   if (jwt) {
     try {
       // Récupérer le profil utilisateur
-      const profile = await api('/me/profile');
+      const profile = await api('/profile');
       
-      // Afficher le lien dashboard pour les superviseurs et admins
+      // Afficher le profil pour tous les utilisateurs connectés
+      if (profileLink) profileLink.style.display = 'flex';
+      
+      // Navigation pour Admin et Superviseur
       if (profile && (profile.role === 'admin' || profile.role === 'supervisor')) {
         if (dashboardLink) dashboardLink.style.display = 'flex';
+        if (agentsLink) agentsLink.style.display = 'flex';
+        if (reportsLink) reportsLink.style.display = 'flex';
       } else {
         if (dashboardLink) dashboardLink.style.display = 'none';
+        if (agentsLink) agentsLink.style.display = 'none';
+        if (reportsLink) reportsLink.style.display = 'none';
+      }
+      
+      // Navigation pour Admin uniquement
+      if (profile && profile.role === 'admin') {
+        if (adminLink) adminLink.style.display = 'flex';
+      } else {
+        if (adminLink) adminLink.style.display = 'none';
       }
       
       // Afficher les informations utilisateur
       if (navbarUser) navbarUser.style.display = 'flex';
       if (userInfo && profile) {
-        userInfo.textContent = `${profile.name} (${profile.role})`;
+        const roleText = {
+          'admin': 'Administrateur',
+          'supervisor': 'Superviseur',
+          'agent': 'Agent'
+        };
+        userInfo.textContent = `${profile.name} (${roleText[profile.role] || profile.role})`;
       }
     } catch (e) {
       console.error('Error updating navbar:', e);

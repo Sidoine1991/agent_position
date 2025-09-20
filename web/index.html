@@ -24,10 +24,33 @@
           <span class="navbar-icon">🏠</span>
           <span>Accueil Agent</span>
         </a>
+        
+        <!-- Navigation pour tous les utilisateurs connectés -->
+        <a href="/profile.html" class="navbar-link" id="profile-link" style="display: none;">
+          <span class="navbar-icon">👤</span>
+          <span>Mon Profil</span>
+        </a>
+        
+        <!-- Navigation pour Admin et Superviseur -->
         <a href="/dashboard.html" class="navbar-link" id="dashboard-link" style="display: none;">
           <span class="navbar-icon">📊</span>
           <span>Dashboard</span>
         </a>
+        <a href="/agents.html" class="navbar-link" id="agents-link" style="display: none;">
+          <span class="navbar-icon">👥</span>
+          <span>Gestion Agents</span>
+        </a>
+        <a href="/reports.html" class="navbar-link" id="reports-link" style="display: none;">
+          <span class="navbar-icon">📈</span>
+          <span>Rapports</span>
+        </a>
+        
+        <!-- Navigation pour Admin uniquement -->
+        <a href="/admin.html" class="navbar-link" id="admin-link" style="display: none;">
+          <span class="navbar-icon">⚙️</span>
+          <span>Administration</span>
+        </a>
+        
         <div class="navbar-user" id="navbar-user" style="display: none;">
           <span class="navbar-user-info" id="user-info">Chargement...</span>
           <button onclick="logout()" class="navbar-logout">
@@ -45,13 +68,30 @@
         <p>Système de géolocalisation et de suivi des missions</p>
       </div>
       <section id="auth-section">
-        <h2>Connexion</h2>
-        <form id="login-form" autocomplete="on">
-          <input id="email" name="email" type="email" placeholder="Email" autocomplete="email" required />
-          <input id="password" name="password" type="password" placeholder="Mot de passe" autocomplete="current-password" required />
-          <button id="login-btn" type="submit">Se connecter</button>
-        </form>
-        <p><small>Pas de compte ? <a href="#" id="register-link">Créer un compte</a></small></p>
+        <div class="auth-tabs">
+          <button class="auth-tab active" onclick="showLoginForm()">Connexion</button>
+          <button class="auth-tab" onclick="showRegisterForm()">Inscription Agent</button>
+        </div>
+        
+        <div id="login-form-container">
+          <h2>Connexion</h2>
+          <form id="login-form" autocomplete="on">
+            <input id="email" name="email" type="email" placeholder="Email" autocomplete="email" required />
+            <input id="password" name="password" type="password" placeholder="Mot de passe" autocomplete="current-password" required />
+            <button id="login-btn" type="submit">Se connecter</button>
+          </form>
+        </div>
+        
+        <div id="register-form-container" style="display: none;">
+          <h2>Inscription Agent</h2>
+          <form id="register-form" autocomplete="on">
+            <input id="reg-name" name="name" type="text" placeholder="Nom complet" required />
+            <input id="reg-email" name="email" type="email" placeholder="Email" autocomplete="email" required />
+            <input id="reg-password" name="password" type="password" placeholder="Mot de passe (min 6 caractères)" autocomplete="new-password" required />
+            <input id="reg-confirm-password" name="confirm-password" type="password" placeholder="Confirmer le mot de passe" autocomplete="new-password" required />
+            <button type="submit">Créer mon compte</button>
+          </form>
+        </div>
       </section>
 
       <section id="app-section" class="hidden">
