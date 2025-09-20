@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "backend/src/index.ts",
+      "src": "backend/package.json",
       "use": "@vercel/node",
       "config": {
         "includeFiles": ["backend/data/**", "web/**", "Media/**"]
