@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <title>Gestion des Agents - Presence CCRB</title>
+    <link rel="stylesheet" href="/styles.css?v=2" />
+  </head>
+  <body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <img src="/Media/PP CCRB.png" alt="CCRB Logo" class="navbar-logo">
+        <div class="navbar-title">
+          <h1>Presence CCRB</h1>
+          <span class="navbar-subtitle">Gestion des Agents</span>
+        </div>
+      </div>
+      
+      <div class="navbar-menu">
+        <a href="/" class="navbar-link">
+          <span class="navbar-icon">🏠</span>
+          <span>Accueil Agent</span>
+        </a>
+        
+        <!-- Navigation pour tous les utilisateurs connectés -->
+        <a href="/profile.html" class="navbar-link" id="profile-link" style="display: none;">
+          <span class="navbar-icon">👤</span>
+          <span>Mon Profil</span>
+        </a>
+        
+        <!-- Navigation pour Admin et Superviseur -->
+        <a href="/dashboard.html" class="navbar-link" id="dashboard-link" style="display: none;">
+          <span class="navbar-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/agents.html" class="navbar-link navbar-link-active">
+          <span class="navbar-icon">👥</span>
+          <span>Gestion Agents</span>
+        </a>
+        <a href="/reports.html" class="navbar-link" id="reports-link" style="display: none;">
+          <span class="navbar-icon">📈</span>
+          <span>Rapports</span>
+        </a>
+        
+        <!-- Navigation pour Admin uniquement -->
+        <a href="/admin.html" class="navbar-link" id="admin-link" style="display: none;">
+          <span class="navbar-icon">⚙️</span>
+          <span>Administration</span>
+        </a>
+        
+        <div class="navbar-user" id="navbar-user" style="display: none;">
+          <span class="navbar-user-info" id="user-info">Chargement...</span>
+          <button onclick="logout()" class="navbar-logout">
+            <span class="navbar-icon">🚪</span>
+            <span>Déconnexion</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <h2>Gestion des Agents</h2>
+        <p>Administrez les agents et leurs permissions</p>
+      </div>
+
+      <!-- Actions d'administration -->
+      <div class="admin-actions">
+        <button class="btn-primary" onclick="openCreateAgentModal()">
+          <span class="btn-icon">➕</span>
+          Nouvel Agent
+        </button>
+        <button class="btn-secondary" onclick="exportAgents()">
+          <span class="btn-icon">📤</span>
+          Exporter
+        </button>
+        <button class="btn-secondary" onclick="refreshAgents()">
+          <span class="btn-icon">🔄</span>
+          Actualiser
+        </button>
+      </div>
+
+      <!-- Filtres et recherche -->
+      <div class="filters-section">
+        <div class="filters-grid">
+          <div class="filter-group">
+            <label for="search-agents">Rechercher :</label>
+            <input type="text" id="search-agents" placeholder="Nom, email..." onkeyup="filterAgents()">
+          </div>
+          <div class="filter-group">
+            <label for="filter-role">Rôle :</label>
+            <select id="filter-role" onchange="filterAgents()">
+              <option value="">Tous les rôles</option>
+              <option value="admin">Administrateur</option>
+              <option value="supervisor">Superviseur</option>
+              <option value="agent">Agent</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="filter-status">Statut :</label>
+            <select id="filter-status" onchange="filterAgents()">
+              <option value="">Tous les statuts</option>
+              <option value="active">Actif</option>
+              <option value="inactive">Inactif</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Liste des agents -->
+      <div class="card">
+        <h3>👥 Liste des Agents</h3>
+        <div class="agents-table-container">
+          <table class="agents-table">
+            <thead>
+              <tr>
+                <th>Photo</th>
+                <th>Nom</th>
+                <th>Email</th>
+                <th>Rôle</th>
+                <th>Statut</th>
+                <th>Dernière activité</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="agents-table-body">
+              <tr>
+                <td colspan="7" class="loading">Chargement des agents...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Statistiques des agents -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">👥</div>
+          <div class="stat-content">
+            <div class="stat-value" id="total-agents">0</div>
+            <div class="stat-label">Total Agents</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">✅</div>
+          <div class="stat-content">
+            <div class="stat-value" id="active-agents">0</div>
+            <div class="stat-label">Agents Actifs</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">👑</div>
+          <div class="stat-content">
+            <div class="stat-value" id="admin-count">0</div>
+            <div class="stat-label">Administrateurs</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">👨‍💼</div>
+          <div class="stat-content">
+            <div class="stat-value" id="supervisor-count">0</div>
+            <div class="stat-label">Superviseurs</div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Modal de création/modification d'agent -->
+    <div id="agent-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modal-title">Créer un Agent</h2>
+          <button class="modal-close" onclick="closeAgentModal()">&times;</button>
+        </div>
+        <form id="agent-form">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="agent-name">Nom complet *</label>
+              <input type="text" id="agent-name" required>
+            </div>
+            <div class="form-group">
+              <label for="agent-email">Email *</label>
+              <input type="email" id="agent-email" required>
+            </div>
+            <div class="form-group">
+              <label for="agent-role">Rôle *</label>
+              <select id="agent-role" required>
+                <option value="agent">Agent</option>
+                <option value="supervisor">Superviseur</option>
+                <option value="admin">Administrateur</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="agent-password">Mot de passe *</label>
+              <input type="password" id="agent-password" required>
+            </div>
+            <div class="form-group">
+              <label for="agent-phone">Téléphone</label>
+              <input type="tel" id="agent-phone">
+            </div>
+            <div class="form-group">
+              <label for="agent-status">Statut</label>
+              <select id="agent-status">
+                <option value="active">Actif</option>
+                <option value="inactive">Inactif</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" onclick="closeAgentModal()">Annuler</button>
+            <button type="submit" class="btn-primary">Enregistrer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="/agents.js"></script>
+    <script>
+      // Vercel Speed Insights
+      if (typeof window !== 'undefined') {
+        import('https://unpkg.com/@vercel/speed-insights@1.2.0/dist/index.js').then(({ inject }) => {
+          inject();
+        });
+      }
+    </script>
+    <script>
+      // Vercel Analytics
+      if (typeof window !== 'undefined') {
+        import('https://unpkg.com/@vercel/analytics@1.2.0/dist/index.js').then(({ inject }) => {
+          inject();
+        });
+      }
+    </script>
+  </body>
+</html>
