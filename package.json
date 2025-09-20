@@ -2,24 +2,13 @@
   "name": "presence-ccrb-system",
   "version": "1.0.0",
   "description": "Système de gestion de présence CCRB",
+  "main": "index.js",
   "scripts": {
-    "deploy": "vercel --prod",
-    "preview": "vercel"
+    "build": "echo 'Build completed'",
+    "start": "echo 'Server started'"
   },
-  "keywords": [
-    "presence",
-    "gestion",
-    "ccrb",
-    "geolocalisation"
-  ],
-  "author": "CCRB",
-  "license": "MIT",
+  "dependencies": {},
   "engines": {
     "node": ">=18.0.0"
-  },
-  "dependencies": {
-    "@vercel/analytics": "^1.5.0",
-    "@vercel/speed-insights": "^1.2.0"
-  },
-  "devDependencies": {}
+  }
 }

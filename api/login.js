@@ -1,67 +1,52 @@
-// Simple login endpoint
-let users = [
-  {
-    id: 1,
-    name: 'admin',
-    email: 'admin@ccrb.local',
-    password: '123456',
-    role: 'admin'
-  },
-  {
-    id: 2,
-    name: 'Superviseur',
-    email: 'supervisor@ccrb.local',
-    password: '123456',
-    role: 'supervisor'
-  }
-];
-
 module.exports = (req, res) => {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   
-  // Log pour débogage
-  console.log('Login API called:', req.method, req.body);
-  
+  // Handle OPTIONS preflight request
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
-  
+
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ error: 'Méthode non autorisée' });
   }
-  
-  const { email, password } = req.body;
-  
-  console.log('Login attempt:', { email, password: password ? '***' : 'missing' });
-  
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email et mot de passe requis' });
+
+  try {
+    // Lire le body de la requête
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+
+    req.on('end', () => {
+      try {
+        const { email, password } = JSON.parse(body);
+        
+        // Vérifier les credentials
+        if (email === 'admin@ccrb.local' && password === '123456') {
+          // Générer un token simple (en production, utiliser JWT)
+          const token = 'admin-token-' + Date.now();
+          
+          res.json({
+            token: token,
+            user: {
+              id: 1,
+              name: 'Admin Principal',
+              email: 'admin@ccrb.local',
+              role: 'admin'
+            }
+          });
+        } else {
+          res.status(401).json({ error: 'Identifiants invalides' });
+        }
+      } catch (parseError) {
+        res.status(400).json({ error: 'Données invalides' });
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur serveur' });
   }
-  
-  const user = users.find(u => u.email === email && u.password === password);
-  
-  console.log('User found:', user ? 'Yes' : 'No');
-  
-  if (!user) {
-    return res.status(401).json({ error: 'Identifiants incorrects' });
-  }
-  
-  // Simple token (just user info encoded)
-  const token = Buffer.from(JSON.stringify({ userId: user.id, role: user.role })).toString('base64');
-  
-  console.log('Login successful for:', user.email);
-  
-  res.json({ 
-    token,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role
-    }
-  });
 };

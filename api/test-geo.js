@@ -11,14 +11,14 @@ module.exports = (req, res) => {
   }
 
   res.json({ 
-    message: 'API fonctionne !',
+    message: 'API géographique fonctionne !',
     timestamp: new Date().toISOString(),
     endpoints: [
-      '/api/test',
       '/api/geo/departements',
-      '/api/geo/communes?departement_id=1',
-      '/api/geo/arrondissements?commune_id=1',
-      '/api/geo/villages?arrondissement_id=1'
+      '/api/geo/communes',
+      '/api/geo/arrondissements', 
+      '/api/geo/villages',
+      '/api/init-geo-data'
     ]
   });
 };

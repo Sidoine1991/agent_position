@@ -13,6 +13,16 @@ module.exports = (req, res) => {
   res.json({ 
     ok: true, 
     message: 'Backend CCRB opérationnel',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    endpoints: [
+      '/api/health',
+      '/api/test',
+      '/api/login',
+      '/api/profile',
+      '/api/geo/departements',
+      '/api/geo/communes',
+      '/api/geo/arrondissements',
+      '/api/geo/villages'
+    ]
   });
 };
