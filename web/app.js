@@ -12,14 +12,27 @@ async function api(path, opts={}) {
   const headers = opts.headers || {};
   if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
   if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
+  
+  console.log('API call:', apiBase + path, { method: opts.method || 'GET', headers, body: opts.body });
+  
   const res = await fetch(apiBase + path, {
     method: opts.method || 'GET',
     headers,
     body: opts.body instanceof FormData ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined),
   });
-  if (!res.ok) throw new Error((await res.text()) || res.statusText);
+  
+  console.log('API response:', res.status, res.statusText);
+  
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error('API error:', errorText);
+    throw new Error(errorText || res.statusText);
+  }
+  
   const ct = res.headers.get('content-type') || '';
-  return ct.includes('application/json') ? res.json() : res.text();
+  const result = ct.includes('application/json') ? await res.json() : await res.text();
+  console.log('API result:', result);
+  return result;
 }
 
 function geoPromise() {
