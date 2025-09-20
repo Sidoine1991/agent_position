@@ -55,12 +55,21 @@ async function init() {
     try {
       const email = $('email').value.trim();
       const password = $('password').value.trim();
+      
+      console.log('Tentative de connexion avec:', { email, password: password ? '***' : 'missing' });
+      
       const data = await api('/login', { method: 'POST', body: { email, password } });
+      
+      console.log('Réponse de l\'API:', data);
+      
       jwt = data.token; localStorage.setItem('jwt', jwt);
       hide(authSection); show(appSection);
       await loadAgentProfile();
       await updateNavbar(); // Mettre à jour la navbar après connexion
-    } catch (e) { alert('Connexion échouée'); }
+    } catch (e) { 
+      console.error('Erreur de connexion:', e);
+      alert('Connexion échouée: ' + e.message); 
+    }
   });
 
   // Gestion des onglets d'authentification
