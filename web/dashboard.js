@@ -55,7 +55,7 @@ async function ensureAuth() {
       return;
     }
     try {
-      const data = await api('/auth/login', { method: 'POST', body: { email, password } });
+      const data = await api('/login', { method: 'POST', body: { email, password } });
       jwt = data.token; localStorage.setItem('jwt', jwt);
     } catch (e) {
       alert('Erreur de connexion: ' + e.message);
