@@ -1,0 +1,7 @@
+{
+  "name": "presence-ccrb-api",
+  "version": "1.0.0",
+  "description": "API Backend pour le système de présence CCRB",
+  "main": "index.js",
+  "dependencies": {}
+}
