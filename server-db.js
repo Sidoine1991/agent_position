@@ -16,7 +16,7 @@ const pool = new Pool({
 });
 
 // Configuration email (à configurer avec vos paramètres SMTP)
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
   service: 'gmail', // ou votre fournisseur email
   auth: {
     user: process.env.EMAIL_USER,
