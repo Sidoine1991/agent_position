@@ -457,8 +457,8 @@ input:focus, select:focus, textarea:focus {
   pointer-events: none;
 }
 
-/* Carousel Hero */
-.hero-carousel {
+/* Image Hero Section */
+.hero-image-section {
   width: 100%;
   max-width: 1200px;
   margin: 2rem auto;
@@ -471,7 +471,7 @@ input:focus, select:focus, textarea:focus {
   padding: 4px;
 }
 
-.hero-carousel::before {
+.hero-image-section::before {
   content: '';
   position: absolute;
   top: 0;
@@ -487,7 +487,7 @@ input:focus, select:focus, textarea:focus {
   animation: shimmer 3s infinite;
 }
 
-.carousel-container {
+.hero-image-container {
   position: relative;
   width: 100%;
   height: 400px;
@@ -496,50 +496,19 @@ input:focus, select:focus, textarea:focus {
   background: white;
 }
 
-.carousel-slides {
-  display: flex;
-  width: 500%;
-  height: 100%;
-  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: transform;
-}
-
-.carousel-slides.transitioning {
-  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.carousel-slide {
-  position: relative;
-  width: 20%;
-  height: 100%;
-  flex-shrink: 0;
-  opacity: 0;
-  transform: scale(0.9);
-  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.carousel-slide.active {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.carousel-image {
+.hero-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
   object-position: center;
   transition: transform 0.8s ease;
   filter: brightness(0.9) contrast(1.1);
+  animation: subtleZoom 8s ease-in-out infinite;
 }
 
-.carousel-slide:hover .carousel-image {
+.hero-image-section:hover .hero-image {
   transform: scale(1.05);
   filter: brightness(1) contrast(1.2);
-}
-
-.carousel-slide.active .carousel-image {
-  filter: brightness(1) contrast(1.1);
-  animation: subtleZoom 8s ease-in-out infinite;
 }
 
 @keyframes subtleZoom {
@@ -547,7 +516,7 @@ input:focus, select:focus, textarea:focus {
   50% { transform: scale(1.02); }
 }
 
-.carousel-overlay {
+.hero-overlay {
   position: absolute;
   bottom: 0;
   left: 0;
@@ -555,238 +524,79 @@ input:focus, select:focus, textarea:focus {
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
   color: white;
   padding: 2rem;
-  transform: translateY(100%);
-  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: slideInUp 0.8s ease-out;
 }
 
-.carousel-slide.active .carousel-overlay {
-  transform: translateY(0);
-}
-
-.carousel-overlay h3 {
-  font-size: 1.8rem;
+.hero-overlay h2 {
+  font-size: 2rem;
   font-weight: 700;
   margin: 0 0 0.5rem 0;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
-.carousel-overlay p {
-  font-size: 1.1rem;
-  margin: 0;
+.hero-overlay p {
+  font-size: 1.2rem;
+  margin: 0 0 1rem 0;
   opacity: 0.9;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
-/* Effet de particules flottantes */
-.carousel-slide::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: 
-    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
-    radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
-    radial-gradient(circle at 40% 60%, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
-  background-size: 50px 50px, 80px 80px, 60px 60px;
-  animation: float 6s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.carousel-slide.active::before {
-  animation: float 6s ease-in-out infinite, shimmer 4s infinite;
-}
-
-/* Contrôles du carousel */
-.carousel-btn {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(255, 255, 255, 0.9);
-  border: none;
-  border-radius: 50%;
-  width: 50px;
-  height: 50px;
-  display: flex;
+.hero-badge {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all var(--animation-duration) var(--animation-easing);
-  z-index: 10;
-  box-shadow: var(--shadow-lg);
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(10px);
+  padding: 0.5rem 1rem;
+  border-radius: 25px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 0.9rem;
+  font-weight: 600;
+  animation: float 3s ease-in-out infinite;
 }
 
-.carousel-btn:hover {
-  background: rgba(255, 255, 255, 1);
-  transform: translateY(-50%) scale(1.1);
-  box-shadow: var(--shadow-xl);
-}
-
-.carousel-prev {
-  left: 20px;
-}
-
-.carousel-next {
-  right: 20px;
-}
-
-.carousel-btn .btn-icon {
+.badge-icon {
   font-size: 1.2rem;
-  color: var(--primary);
-  font-weight: bold;
+  animation: pulse 2s infinite;
 }
 
-/* Indicateurs */
-.carousel-indicators {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 8px;
-  z-index: 10;
-}
-
-.indicator {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.5);
-  cursor: pointer;
-  transition: all var(--animation-duration) var(--animation-easing);
-  border: 2px solid transparent;
-}
-
-.indicator:hover {
-  background: rgba(255, 255, 255, 0.8);
-  transform: scale(1.2);
-}
-
-.indicator.active {
-  background: var(--primary);
-  border-color: white;
-  transform: scale(1.3);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3);
-}
-
-/* Animation de transition entre slides */
-@keyframes slideInFromRight {
-  from {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes slideInFromLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-/* Responsive pour le carousel */
+/* Responsive pour l'image hero */
 @media (max-width: 768px) {
-  .hero-carousel {
+  .hero-image-section {
     margin: 1rem auto;
     border-radius: 12px;
   }
   
-  .carousel-container {
+  .hero-image-container {
     height: 250px;
   }
   
-  .carousel-overlay {
+  .hero-overlay {
     padding: 1rem;
   }
   
-  .carousel-overlay h3 {
-    font-size: 1.4rem;
+  .hero-overlay h2 {
+    font-size: 1.5rem;
   }
   
-  .carousel-overlay p {
+  .hero-overlay p {
     font-size: 1rem;
   }
   
-  .carousel-btn {
-    width: 40px;
-    height: 40px;
-  }
-  
-  .carousel-prev {
-    left: 10px;
-  }
-  
-  .carousel-next {
-    right: 10px;
-  }
-  
-  .indicator {
-    width: 10px;
-    height: 10px;
+  .hero-badge {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
   }
 }
 
-/* Indicateur de chargement du carousel */
-.carousel-loading {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 20;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 20px;
-  border-radius: 12px;
-  backdrop-filter: blur(10px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-
-.carousel-loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid var(--border-light);
-  border-top: 4px solid var(--primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-.carousel-loading-text {
-  font-weight: 600;
-  color: var(--text);
-  font-size: 0.9rem;
-}
-
-/* Animation de chargement des images */
-.carousel-image {
+/* Animation de chargement de l'image hero */
+.hero-image {
   opacity: 0;
   transition: opacity 0.5s ease;
 }
 
-.carousel-image.loaded {
+.hero-image.loaded {
   opacity: 1;
-}
-
-/* Effet de parallaxe pour le carousel */
-.carousel-slide {
-  transform-style: preserve-3d;
-}
-
-.carousel-image {
-  transform: translateZ(0);
-  will-change: transform;
 }
 
 * { box-sizing: border-box; }

@@ -102,211 +102,22 @@ function addScrollAnimations() {
   });
 }
 
-// Variables globales pour le carousel
-let currentSlideIndex = 0;
-let slideInterval;
-const totalSlides = 5;
-
-// Fonctions du carousel
-function showSlide(index) {
-  const slides = document.querySelectorAll('.carousel-slide');
-  const indicators = document.querySelectorAll('.indicator');
-  const slidesContainer = document.querySelector('.carousel-slides');
+// Fonction pour initialiser l'image hero
+function initHeroImage() {
+  console.log('🖼️ Initialisation de l\'image hero...');
   
-  // Ajouter la classe de transition
-  if (slidesContainer) {
-    slidesContainer.classList.add('transitioning');
-  }
-  
-  // Masquer toutes les slides
-  slides.forEach(slide => slide.classList.remove('active'));
-  indicators.forEach(indicator => indicator.classList.remove('active'));
-  
-  // Afficher la slide courante
-  if (slides[index]) {
-    slides[index].classList.add('active');
-  }
-  if (indicators[index]) {
-    indicators[index].classList.add('active');
-  }
-  
-  // Animer la transition
-  if (slidesContainer) {
-    slidesContainer.style.transform = `translateX(-${index * 20}%)`;
-    
-    // Retirer la classe de transition après l'animation
-    setTimeout(() => {
-      slidesContainer.classList.remove('transitioning');
-    }, 800);
-  }
-  
-  // Ajouter un effet de particules pour la slide active
-  if (slides[index]) {
-    animateElement(slides[index], 'scaleIn', 300);
-  }
-}
-
-function changeSlide(direction) {
-  currentSlideIndex += direction;
-  
-  if (currentSlideIndex >= totalSlides) {
-    currentSlideIndex = 0;
-  } else if (currentSlideIndex < 0) {
-    currentSlideIndex = totalSlides - 1;
-  }
-  
-  showSlide(currentSlideIndex);
-  resetSlideInterval();
-}
-
-function currentSlide(index) {
-  currentSlideIndex = index - 1;
-  showSlide(currentSlideIndex);
-  resetSlideInterval();
-}
-
-function nextSlide() {
-  changeSlide(1);
-}
-
-function resetSlideInterval() {
-  clearInterval(slideInterval);
-  slideInterval = setInterval(nextSlide, 5000); // Change de slide toutes les 5 secondes
-}
-
-function preloadCarouselImages() {
-  const imageUrls = [
-    './Media/PP CCRB.png',
-    './Media/siege_CCRB.png',
-    './Media/parcelle_riz.jpg',
-    './Media/paarce2_riz.png',
-    './Media/riz.png'
-  ];
-  
-  let loadedImages = 0;
-  const totalImages = imageUrls.length;
-  
-  // Afficher l'indicateur de chargement
-  const carousel = document.getElementById('hero-carousel');
-  if (carousel) {
-    const loadingIndicator = document.createElement('div');
-    loadingIndicator.className = 'carousel-loading';
-    loadingIndicator.innerHTML = `
-      <div class="carousel-loading-spinner"></div>
-      <div class="carousel-loading-text">Chargement des images...</div>
-    `;
-    carousel.appendChild(loadingIndicator);
-  }
-  
-  imageUrls.forEach((url, index) => {
+  const heroImage = document.querySelector('.hero-image');
+  if (heroImage) {
+    // Précharger l'image
     const img = new Image();
     img.onload = () => {
-      loadedImages++;
-      console.log(`Image ${index + 1} chargée: ${url}`);
-      
-      // Marquer l'image comme chargée dans le DOM
-      const carouselImages = document.querySelectorAll('.carousel-image');
-      if (carouselImages[index]) {
-        carouselImages[index].classList.add('loaded');
-      }
-      
-      // Masquer l'indicateur de chargement quand toutes les images sont chargées
-      if (loadedImages === totalImages) {
-        setTimeout(() => {
-          const loadingIndicator = carousel?.querySelector('.carousel-loading');
-          if (loadingIndicator) {
-            loadingIndicator.style.animation = 'fadeOut 0.5s ease-out';
-            setTimeout(() => loadingIndicator.remove(), 500);
-          }
-        }, 500);
-      }
+      console.log('✅ Image hero chargée avec succès');
+      heroImage.classList.add('loaded');
     };
     img.onerror = () => {
-      console.warn(`Erreur de chargement de l'image: ${url}`);
-      loadedImages++;
-      
-      // Masquer l'indicateur même en cas d'erreur
-      if (loadedImages === totalImages) {
-        const loadingIndicator = carousel?.querySelector('.carousel-loading');
-        if (loadingIndicator) {
-          loadingIndicator.remove();
-        }
-      }
+      console.warn('❌ Erreur de chargement de l\'image hero');
     };
-    img.src = url;
-  });
-}
-
-function initCarousel() {
-  console.log('🎠 Initialisation du carousel...');
-  
-  // Vérifier que les éléments existent
-  const carousel = document.getElementById('hero-carousel');
-  const slides = document.querySelectorAll('.carousel-slide');
-  const indicators = document.querySelectorAll('.indicator');
-  
-  console.log('Carousel trouvé:', !!carousel);
-  console.log('Slides trouvées:', slides.length);
-  console.log('Indicateurs trouvés:', indicators.length);
-  
-  if (!carousel || slides.length === 0) {
-    console.error('❌ Carousel non trouvé ou slides manquantes');
-    return;
-  }
-  
-  // Précharger les images
-  preloadCarouselImages();
-  
-  // Initialiser le carousel
-  showSlide(0);
-  resetSlideInterval();
-  
-  console.log('✅ Carousel initialisé avec succès');
-  
-  // Pause au survol
-  if (carousel) {
-    carousel.addEventListener('mouseenter', () => {
-      clearInterval(slideInterval);
-    });
-    
-    carousel.addEventListener('mouseleave', () => {
-      resetSlideInterval();
-    });
-  }
-  
-  // Navigation au clavier
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft') {
-      changeSlide(-1);
-    } else if (e.key === 'ArrowRight') {
-      changeSlide(1);
-    }
-  });
-  
-  // Swipe pour mobile
-  let startX = 0;
-  let endX = 0;
-  
-  carousel.addEventListener('touchstart', (e) => {
-    startX = e.touches[0].clientX;
-  });
-  
-  carousel.addEventListener('touchend', (e) => {
-    endX = e.changedTouches[0].clientX;
-    handleSwipe();
-  });
-  
-  function handleSwipe() {
-    const threshold = 50;
-    const diff = startX - endX;
-    
-    if (Math.abs(diff) > threshold) {
-      if (diff > 0) {
-        changeSlide(1); // Swipe gauche - slide suivante
-      } else {
-        changeSlide(-1); // Swipe droite - slide précédente
-      }
-    }
+    img.src = heroImage.src;
   }
 }
 
@@ -765,9 +576,9 @@ async function init() {
     btn.addEventListener('click', createRippleEffect);
   });
   
-  // Initialiser le carousel
+  // Initialiser l'image hero
   setTimeout(() => {
-    initCarousel();
+    initHeroImage();
   }, 100);
 }
 
