@@ -667,7 +667,7 @@ async function calculateMonthlyStats() {
     const month = currentDate.getMonth() + 1;
     
     // Récupérer les données de présence du mois
-    const response = await api(`presence/stats?year=${year}&month=${month}`);
+    const response = await api(`/presence/stats?year=${year}&month=${month}`);
     
     if (response.success) {
       const stats = response.stats;
@@ -728,11 +728,11 @@ async function checkDailyAbsences() {
     
     // Si on est après 18h et qu'aucune présence n'a été marquée aujourd'hui
     if (hour >= 18) {
-      const response = await api('presence/check-today');
+      const response = await api('/presence/check-today');
       
       if (response.success && !response.has_presence) {
         // Marquer comme absent pour aujourd'hui
-        await api('presence/mark-absent', {
+        await api('/presence/mark-absent', {
           method: 'POST',
           body: { date: today.toISOString().split('T')[0] }
         });

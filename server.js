@@ -796,9 +796,9 @@ app.post('/api/presence/end', async (req, res) => {
     // Mettre à jour la mission
     await pool.query(`
       UPDATE missions 
-      SET end_time = $1, end_lat = $2, end_lon = $3, note = CONCAT(note, ' | ', $4), status = 'completed'
+      SET end_time = $1, end_lat = $2, end_lon = $3, note = CONCAT(COALESCE(note, ''), ' | ', $4), status = 'completed'
       WHERE id = (SELECT id FROM missions WHERE user_id = $5 AND status = 'active' ORDER BY start_time DESC LIMIT 1)
-    `, [end_time || new Date().toISOString(), lat, lon, note, 1]);
+    `, [end_time || new Date().toISOString(), lat, lon, note || '', userId]);
 
     res.json({
       success: true,
