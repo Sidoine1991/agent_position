@@ -756,6 +756,35 @@ app.get('/api/me/missions', async (req, res) => {
   }
 });
 
+// Route temporaire pour effacer toutes les données (À SUPPRIMER APRÈS USAGE)
+app.post('/api/admin/clear-all-data', async (req, res) => {
+  try {
+    console.log('🗑️ Suppression de toutes les données...');
+    
+    // Supprimer toutes les données dans l'ordre des dépendances
+    await pool.query('DELETE FROM checkins');
+    console.log('✅ Check-ins supprimés');
+    
+    await pool.query('DELETE FROM missions');
+    console.log('✅ Missions supprimées');
+    
+    await pool.query('DELETE FROM users');
+    console.log('✅ Utilisateurs supprimés');
+    
+    res.json({
+      success: true,
+      message: 'Toutes les données ont été supprimées avec succès'
+    });
+    
+  } catch (error) {
+    console.error('❌ Erreur lors de la suppression:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la suppression: ' + error.message
+    });
+  }
+});
+
 // Démarrer le serveur
 app.listen(PORT, () => {
   console.log(`Serveur démarré sur le port ${PORT}`);
