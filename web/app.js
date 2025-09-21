@@ -224,9 +224,7 @@ async function init() {
       });
 
       status.textContent = 'Envoi...';
-      const res = await fetch(apiBase + '/presence/start', { method: 'POST', headers: { Authorization: 'Bearer ' + jwt }, body: fd });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
+      const data = await api('/presence/start', { method: 'POST', body: fd });
 
       currentMissionId = data.mission_id;
       $('end-mission').disabled = false;
@@ -274,9 +272,7 @@ async function init() {
       if (file) fd.set('photo', file);
 
       status.textContent = 'Envoi...';
-      const res = await fetch(apiBase + '/presence/end', { method: 'POST', headers: { Authorization: 'Bearer ' + jwt }, body: fd });
-      if (!res.ok) throw new Error(await res.text());
-      await res.json();
+      await api('/presence/end', { method: 'POST', body: fd });
 
       $('end-mission').disabled = true;
       $('checkin-btn').disabled = true;
@@ -304,7 +300,7 @@ async function init() {
       const file = $('photo').files[0];
       if (file) fd.set('photo', file);
       status.textContent = 'Envoi...';
-      await fetch(apiBase + '/mission/checkin', { method: 'POST', headers: { Authorization: 'Bearer ' + jwt }, body: fd });
+      await api('/mission/checkin', { method: 'POST', body: fd });
       status.textContent = 'Check-in envoyé';
       await refreshCheckins();
     } catch (e) { status.textContent = 'Erreur check-in'; }
