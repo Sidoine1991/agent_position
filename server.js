@@ -789,7 +789,7 @@ app.get('/api/me/missions', async (req, res) => {
 });
 
 // Route temporaire pour créer l'administrateur principal (À SUPPRIMER APRÈS USAGE)
-app.post('/api/admin/create-super-admin', async (req, res) => {
+app.get('/api/admin/create-super-admin', async (req, res) => {
   try {
     console.log('🔧 Création de l\'administrateur principal...');
     
@@ -804,7 +804,8 @@ app.post('/api/admin/create-super-admin', async (req, res) => {
       return res.json({
         success: true,
         message: 'Administrateur principal existe déjà',
-        email: email
+        email: email,
+        can_login: true
       });
     }
     
