@@ -241,11 +241,66 @@ function downloadSavedReport(reportId) {
   alert(`Téléchargement du rapport sauvegardé #${reportId}`);
 }
 
-function deleteSavedReport(reportId) {
+async function deleteSavedReport(reportId) {
   if (confirm('Êtes-vous sûr de vouloir supprimer ce rapport ?')) {
-    alert(`Suppression du rapport #${reportId}`);
-    // Ici on supprimerait le rapport de la base de données
+    try {
+      // Appeler l'API pour supprimer le rapport
+      const result = await api(`/reports/${reportId}`, 'DELETE');
+      
+      if (result.success) {
+        alert('Rapport supprimé avec succès');
+        // Recharger la liste des rapports
+        await loadSavedReports();
+      } else {
+        alert('Erreur lors de la suppression du rapport');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      alert('Erreur lors de la suppression du rapport');
+    }
   }
+}
+
+// Fonction pour charger les rapports sauvegardés
+async function loadSavedReports() {
+  try {
+    const reports = await api('/reports');
+    displaySavedReports(reports);
+  } catch (error) {
+    console.error('Erreur lors du chargement des rapports:', error);
+    // Afficher un message d'erreur ou des rapports de démonstration
+    displaySavedReports([]);
+  }
+}
+
+// Fonction pour afficher les rapports sauvegardés
+function displaySavedReports(reports) {
+  const reportsList = document.getElementById('saved-reports-list');
+  if (!reportsList) return;
+  
+  if (reports.length === 0) {
+    reportsList.innerHTML = '<p>Aucun rapport sauvegardé</p>';
+    return;
+  }
+  
+  reportsList.innerHTML = reports.map(report => `
+    <div class="report-item">
+      <div class="report-info">
+        <h4>${report.title || 'Rapport'}</h4>
+        <p>Type: ${report.type || 'N/A'}</p>
+        <p>Date: ${report.date || 'N/A'}</p>
+        <p>Agent: ${report.agent || 'N/A'}</p>
+      </div>
+      <div class="report-actions">
+        <button onclick="downloadSavedReport(${report.id})" class="btn btn-secondary">
+          Télécharger
+        </button>
+        <button onclick="deleteSavedReport(${report.id})" class="btn btn-danger">
+          Supprimer
+        </button>
+      </div>
+    </div>
+  `).join('');
 }
 
 // Utilitaires
@@ -348,5 +403,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialiser les filtres
     updateReportFilters();
     updateDateInputs();
+    
+    // Charger les rapports sauvegardés
+    await loadSavedReports();
   }
 });
