@@ -160,7 +160,7 @@ async function updateNavbar() {
       if (profileLink) profileLink.style.display = 'flex';
       
       // Navigation pour Admin et Superviseur
-      if (profile && (profile.role === 'admin' || profile.role === 'supervisor')) {
+      if (profile && (profile.role === 'admin' || profile.role === 'superviseur')) {
         if (dashboardLink) dashboardLink.style.display = 'flex';
         if (agentsLink) agentsLink.style.display = 'flex';
         if (reportsLink) reportsLink.style.display = 'flex';
@@ -182,7 +182,7 @@ async function updateNavbar() {
       if (userInfo && profile) {
         const roleText = {
           'admin': 'Administrateur',
-          'supervisor': 'Superviseur',
+          'superviseur': 'Superviseur',
           'agent': 'Agent'
         };
         userInfo.textContent = `${profile.name} (${roleText[profile.role] || profile.role})`;

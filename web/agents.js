@@ -391,7 +391,7 @@ async function updateNavbar() {
     if (profileLink) profileLink.style.display = 'flex';
     
     // Navigation pour Admin et Superviseur
-    if (currentUser.role === 'admin' || currentUser.role === 'supervisor') {
+    if (currentUser.role === 'admin' || currentUser.role === 'superviseur') {
       if (dashboardLink) dashboardLink.style.display = 'flex';
       if (agentsLink) agentsLink.style.display = 'flex';
       if (reportsLink) reportsLink.style.display = 'flex';
@@ -411,11 +411,11 @@ async function updateNavbar() {
     // Afficher les informations utilisateur
     if (navbarUser) navbarUser.style.display = 'flex';
     if (userInfo) {
-      const roleText = {
-        'admin': 'Administrateur',
-        'supervisor': 'Superviseur',
-        'agent': 'Agent'
-      };
+        const roleText = {
+          'admin': 'Administrateur',
+          'superviseur': 'Superviseur',
+          'agent': 'Agent'
+        };
       userInfo.textContent = `${currentUser.name} (${roleText[currentUser.role] || currentUser.role})`;
     }
   }

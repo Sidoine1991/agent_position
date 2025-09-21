@@ -384,11 +384,11 @@ async function updateNavbar() {
     // Afficher les informations utilisateur
     if (navbarUser) navbarUser.style.display = 'flex';
     if (userInfo) {
-      const roleText = {
-        'admin': 'Administrateur',
-        'supervisor': 'Superviseur',
-        'agent': 'Agent'
-      };
+        const roleText = {
+          'admin': 'Administrateur',
+          'superviseur': 'Superviseur',
+          'agent': 'Agent'
+        };
       userInfo.textContent = `${currentUser.name} (${roleText[currentUser.role] || currentUser.role})`;
     }
   }

@@ -142,6 +142,44 @@ app.get('/reports.html', (req, res) => {
 
 // API Routes
 
+// Route pour récupérer le profil utilisateur
+app.get('/api/profile', async (req, res) => {
+  try {
+    // Pour l'instant, simulation basée sur l'email
+    // Dans une vraie app, on vérifierait le JWT
+    const email = req.query.email || 'admin@ccrb.local';
+    
+    const result = await pool.query('SELECT id, email, name, role, phone, is_verified FROM users WHERE email = $1', [email]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
+    }
+    
+    const user = result.rows[0];
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        phone: user.phone,
+        is_verified: user.is_verified
+      }
+    });
+    
+  } catch (error) {
+    console.error('Erreur récupération profil:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération du profil'
+    });
+  }
+});
+
 // Inscription avec envoi de code de validation
 app.post('/api/register', async (req, res) => {
   try {
