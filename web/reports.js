@@ -40,19 +40,36 @@ async function checkAuth() {
   }
   
   try {
-    currentUser = await api('/profile');
+    // Utiliser les données de connexion stockées dans localStorage
+    const loginData = JSON.parse(localStorage.getItem('loginData') || '{}');
+    const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+    
+    // Utiliser les données de connexion si disponibles, sinon essayer l'API
+    if (loginData.role) {
+      currentUser = loginData;
+    } else if (userProfile.role) {
+      currentUser = userProfile;
+    } else {
+      currentUser = await api('/profile');
+    }
+    
+    console.log('Utilisateur actuel:', currentUser);
     
     // Vérifier que l'utilisateur est admin ou superviseur
     if (currentUser.role !== 'admin' && currentUser.role !== 'superviseur') {
       alert('Accès refusé. Cette page est réservée aux administrateurs et superviseurs.');
+      console.log('Rôle utilisateur:', currentUser.role);
       window.location.href = window.location.origin + '/';
       return false;
     }
     
     return true;
   } catch (error) {
+    console.error('Erreur d\'authentification:', error);
     alert('Session expirée. Veuillez vous reconnecter.');
     localStorage.removeItem('jwt');
+    localStorage.removeItem('loginData');
+    localStorage.removeItem('userProfile');
     window.location.href = window.location.origin + '/';
     return false;
   }
