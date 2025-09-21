@@ -5,9 +5,13 @@ const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Configuration multer pour les fichiers
+const upload = multer({ dest: 'uploads/' });
 
 // Configuration de la base de données
 const pool = new Pool({
@@ -403,15 +407,20 @@ app.get('/api/health', (req, res) => {
 // ===== ROUTES DE PRÉSENCE =====
 
 // Démarrer une mission de présence
-app.post('/api/presence/start', async (req, res) => {
+app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
   try {
+    // Multer parse automatiquement les données FormData
     const { lat, lon, departement, commune, arrondissement, village, start_time, note } = req.body;
+    
+    console.log('Données reçues:', { lat, lon, departement, commune, arrondissement, village, start_time, note });
+    console.log('Fichier photo:', req.file);
     
     // Validation des données requises
     if (!lat || !lon || !departement || !commune) {
       return res.status(400).json({
         success: false,
-        message: 'Données GPS et géographiques requises'
+        message: 'Données GPS et géographiques requises',
+        received: { lat, lon, departement, commune, arrondissement, village }
       });
     }
 
