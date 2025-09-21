@@ -1,40 +1,57 @@
-// Données géographiques pour le frontend
+// Données géographiques pour le frontend - Mises à jour avec les 12 départements du Bénin
 window.geoData = {
   departements: [
-    { id: 1, name: "Atlantique" },
-    { id: 2, name: "Borgou" },
-    { id: 3, name: "Collines" },
-    { id: 4, name: "Couffo" },
-    { id: 5, name: "Donga" },
-    { id: 6, name: "Littoral" },
-    { id: 7, name: "Mono" },
-    { id: 8, name: "Ouémé" },
-    { id: 9, name: "Plateau" },
-    { id: 10, name: "Zou" },
-    { id: 11, name: "Alibori" },
-    { id: 12, name: "Atacora" }
+    { id: 1, name: "Alibori" },
+    { id: 2, name: "Atacora" },
+    { id: 3, name: "Atlantique" },
+    { id: 4, name: "Borgou" },
+    { id: 5, name: "Collines" },
+    { id: 6, name: "Couffo" },
+    { id: 7, name: "Donga" },
+    { id: 8, name: "Littoral" },
+    { id: 9, name: "Mono" },
+    { id: 10, name: "Ouémé" },
+    { id: 11, name: "Plateau" },
+    { id: 12, name: "Zou" }
   ],
   
   communes: {
-    1: [ // Atlantique
-      { id: 1, name: "Abomey-Calavi" },
-      { id: 2, name: "Allada" },
-      { id: 3, name: "Kpomassè" },
-      { id: 4, name: "Ouidah" },
-      { id: 5, name: "Sô-Ava" },
-      { id: 6, name: "Toffo" },
-      { id: 7, name: "Tori-Bossito" },
-      { id: 8, name: "Zè" }
+    1: [ // Alibori
+      { id: 1, name: "Banikoara" },
+      { id: 2, name: "Gogounou" },
+      { id: 3, name: "Kandi" },
+      { id: 4, name: "Karimama" },
+      { id: 5, name: "Malanville" },
+      { id: 6, name: "Segbana" }
     ],
-    2: [ // Borgou
-      { id: 9, name: "Bembèrèkè" },
-      { id: 10, name: "Kalalé" },
-      { id: 11, name: "N'Dali" },
-      { id: 12, name: "Nikki" },
-      { id: 13, name: "Parakou" },
-      { id: 14, name: "Pèrèrè" },
-      { id: 15, name: "Sinendé" },
-      { id: 16, name: "Tchaourou" }
+    2: [ // Atacora
+      { id: 7, name: "Kérou" },
+      { id: 8, name: "Kouandé" },
+      { id: 9, name: "Matéri" },
+      { id: 10, name: "Natitingou" },
+      { id: 11, name: "Péhunco" },
+      { id: 12, name: "Tanguiéta" },
+      { id: 13, name: "Toucountouna" }
+    ],
+    3: [ // Atlantique
+      { id: 14, name: "Abomey-Calavi" },
+      { id: 15, name: "Allada" },
+      { id: 16, name: "Kpomassè" },
+      { id: 17, name: "Ouidah" },
+      { id: 18, name: "Sô-Ava" },
+      { id: 19, name: "Toffo" },
+      { id: 20, name: "Tori-Bossito" },
+      { id: 21, name: "Zè" }
+    ],
+    4: [ // Borgou
+      { id: 22, name: "Bembèrèkè" },
+      { id: 23, name: "Kalalé" },
+      { id: 24, name: "N'Dali" },
+      { id: 25, name: "Nikki" },
+      { id: 26, name: "Parakou" },
+      { id: 27, name: "Pèrèrè" },
+      { id: 28, name: "Sinendé" },
+      { id: 29, name: "Tchaourou" }
     ],
     3: [ // Collines
       { id: 17, name: "Bantè" },
