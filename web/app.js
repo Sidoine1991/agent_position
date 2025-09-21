@@ -235,7 +235,7 @@ async function init() {
         console.warn('⚠️ Ancien token détecté (longueur:', jwt.length, '). Reconnexion nécessaire.');
         alert('Session expirée. Veuillez vous reconnecter pour utiliser les nouvelles fonctionnalités.');
         setTimeout(() => {
-          window.location.href = '/login.html';
+          window.location.href = '/';
         }, 1000);
         return;
       }
@@ -270,7 +270,7 @@ async function init() {
           errorMessage = 'Session expirée. Veuillez vous reconnecter.';
           // Rediriger vers la page de connexion
           setTimeout(() => {
-            window.location.href = '/login.html';
+            window.location.href = '/';
           }, 2000);
         } else if (e.message.includes('timeout')) {
           errorMessage = 'Timeout GPS: Veuillez vous déplacer vers un endroit plus ouvert';
@@ -335,7 +335,7 @@ async function init() {
           errorMessage = 'Session expirée. Veuillez vous reconnecter.';
           // Rediriger vers la page de connexion
           setTimeout(() => {
-            window.location.href = '/login.html';
+            window.location.href = '/';
           }, 2000);
         } else {
           errorMessage = e.message;
@@ -1299,7 +1299,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.warn('⚠️ Ancien token détecté au chargement (longueur:', jwt.length, '). Reconnexion nécessaire.');
     alert('Session expirée. Veuillez vous reconnecter pour utiliser les nouvelles fonctionnalités.');
     setTimeout(() => {
-      window.location.href = '/login.html';
+      window.location.href = '/';
     }, 1000);
     return;
   }
