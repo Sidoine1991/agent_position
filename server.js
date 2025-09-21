@@ -631,7 +631,7 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
       INSERT INTO missions (user_id, start_time, start_lat, start_lon, departement, commune, arrondissement, village, note, status)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')
       RETURNING id
-    `, [1, start_time || new Date().toISOString(), lat, lon, departement, commune, arrondissement, village, note]);
+    `, [userId, start_time || new Date().toISOString(), lat, lon, departement, commune, arrondissement, village, note]);
 
     res.json({
       success: true,

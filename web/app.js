@@ -645,7 +645,8 @@ async function loadPresenceData() {
     
     // Simuler des données de présence (à remplacer par un appel API réel)
     // Pour l'instant, on va charger les missions existantes
-    const missions = await api('/me/missions');
+    const missionsResponse = await api('/me/missions');
+    const missions = missionsResponse.missions || [];
     
     // Traiter les données de présence
     presenceData = {};
@@ -847,7 +848,8 @@ function showLocationInfo(coords) {
 async function loadDashboardMetrics() {
   try {
     // Charger les données de présence pour le mois actuel
-    const missions = await api('/me/missions');
+    const missionsResponse = await api('/me/missions');
+    const missions = missionsResponse.missions || [];
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
     
