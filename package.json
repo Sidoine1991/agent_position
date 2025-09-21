@@ -1,28 +1,16 @@
 {
-  "name": "presence-ccrb-system",
+  "name": "presence-ccrb",
   "version": "2.0.0",
-  "description": "Système de suivi de présence des agents CCRB",
-  "main": "api/index.js",
+  "description": "Système de présence CCRB",
+  "main": "server.js",
   "scripts": {
-    "dev": "echo 'Utilisez Vercel pour le développement'",
-    "build": "echo 'Build automatique par Vercel'",
-    "start": "echo 'Déployé sur Vercel'"
-  },
-  "keywords": [
-    "presence",
-    "tracking",
-    "gps",
-    "agents",
-    "ccrb",
-    "vercel"
-  ],
-  "author": "CCRB Development Team",
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.0.0"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
   "dependencies": {
-    "@vercel/analytics": "^1.2.0",
-    "@vercel/speed-insights": "^1.2.0"
+    "express": "^4.21.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
