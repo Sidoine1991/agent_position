@@ -75,6 +75,35 @@ async function createTables() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Table des missions
+    CREATE TABLE IF NOT EXISTS missions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        start_time TIMESTAMP NOT NULL,
+        end_time TIMESTAMP,
+        start_lat DECIMAL(10, 8),
+        start_lon DECIMAL(11, 8),
+        end_lat DECIMAL(10, 8),
+        end_lon DECIMAL(11, 8),
+        departement VARCHAR(100),
+        commune VARCHAR(100),
+        arrondissement VARCHAR(100),
+        village VARCHAR(100),
+        note TEXT,
+        status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Table des check-ins
+    CREATE TABLE IF NOT EXISTS checkins (
+        id SERIAL PRIMARY KEY,
+        mission_id INTEGER REFERENCES missions(id),
+        lat DECIMAL(10, 8),
+        lon DECIMAL(11, 8),
+        note TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Table des rapports
     CREATE TABLE IF NOT EXISTS reports (
         id SERIAL PRIMARY KEY,
@@ -369,6 +398,139 @@ app.get('/api/health', (req, res) => {
     message: 'API is running',
     database: 'connected'
   });
+});
+
+// ===== ROUTES DE PRÉSENCE =====
+
+// Démarrer une mission de présence
+app.post('/api/presence/start', async (req, res) => {
+  try {
+    const { lat, lon, departement, commune, arrondissement, village, start_time, note } = req.body;
+    
+    // Validation des données requises
+    if (!lat || !lon || !departement || !commune) {
+      return res.status(400).json({
+        success: false,
+        message: 'Données GPS et géographiques requises'
+      });
+    }
+
+    // Insérer la mission dans la base de données
+    const result = await pool.query(`
+      INSERT INTO missions (user_id, start_time, start_lat, start_lon, departement, commune, arrondissement, village, note, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')
+      RETURNING id
+    `, [1, start_time || new Date().toISOString(), lat, lon, departement, commune, arrondissement, village, note]);
+
+    res.json({
+      success: true,
+      message: 'Mission démarrée avec succès',
+      mission_id: result.rows[0].id
+    });
+  } catch (error) {
+    console.error('Erreur démarrage mission:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors du démarrage de la mission'
+    });
+  }
+});
+
+// Terminer une mission de présence
+app.post('/api/presence/end', async (req, res) => {
+  try {
+    const { lat, lon, end_time, note } = req.body;
+    
+    // Mettre à jour la mission
+    await pool.query(`
+      UPDATE missions 
+      SET end_time = $1, end_lat = $2, end_lon = $3, note = CONCAT(note, ' | ', $4), status = 'completed'
+      WHERE id = (SELECT id FROM missions WHERE user_id = $5 AND status = 'active' ORDER BY start_time DESC LIMIT 1)
+    `, [end_time || new Date().toISOString(), lat, lon, note, 1]);
+
+    res.json({
+      success: true,
+      message: 'Mission terminée avec succès'
+    });
+  } catch (error) {
+    console.error('Erreur fin mission:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la fin de la mission'
+    });
+  }
+});
+
+// Check-in pendant une mission
+app.post('/api/mission/checkin', async (req, res) => {
+  try {
+    const { mission_id, lat, lon, note } = req.body;
+    
+    // Insérer le check-in
+    await pool.query(`
+      INSERT INTO checkins (mission_id, lat, lon, note, timestamp)
+      VALUES ($1, $2, $3, $4, NOW())
+    `, [mission_id, lat, lon, note]);
+
+    res.json({
+      success: true,
+      message: 'Check-in enregistré avec succès'
+    });
+  } catch (error) {
+    console.error('Erreur check-in:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors du check-in'
+    });
+  }
+});
+
+// Obtenir l'historique des missions
+app.get('/api/missions/history', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, start_time, end_time, departement, commune, arrondissement, village, status
+      FROM missions 
+      WHERE user_id = $1 
+      ORDER BY start_time DESC 
+      LIMIT 50
+    `, [1]);
+
+    res.json({
+      success: true,
+      missions: result.rows
+    });
+  } catch (error) {
+    console.error('Erreur historique missions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération de l\'historique'
+    });
+  }
+});
+
+// Obtenir les check-ins d'une mission
+app.get('/api/missions/:id/checkins', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(`
+      SELECT lat, lon, note, timestamp
+      FROM checkins 
+      WHERE mission_id = $1 
+      ORDER BY timestamp DESC
+    `, [id]);
+
+    res.json({
+      success: true,
+      checkins: result.rows
+    });
+  } catch (error) {
+    console.error('Erreur check-ins mission:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des check-ins'
+    });
+  }
 });
 
 // Démarrer le serveur
