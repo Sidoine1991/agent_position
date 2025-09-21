@@ -2,10 +2,10 @@
   "name": "presence-ccrb",
   "version": "2.0.0",
   "description": "Système de présence CCRB",
-  "main": "server-db.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node server-db.js",
-    "dev": "node server-db.js",
+    "start": "node server.js",
+    "dev": "node server.js",
     "build": "echo 'No build step needed'",
     "postinstall": "echo 'Dependencies installed successfully'"
   },

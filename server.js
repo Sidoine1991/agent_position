@@ -1,10 +1,144 @@
-// Serveur ultra-simple pour Railway
+// Serveur avec base de données PostgreSQL
 const express = require('express');
 const path = require('path');
-const app = express();
+const { Pool } = require('pg');
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
-// Servir les fichiers statiques
-app.use(express.static('web'));
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Configuration de la base de données
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/presence_ccrb',
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+// Test de connexion à la base de données et création des tables
+pool.query('SELECT NOW()', async (err, result) => {
+  if (err) {
+    console.error('❌ Erreur de connexion à la base de données:', err.message);
+  } else {
+    console.log('✅ Connexion à la base de données réussie:', result.rows[0].now);
+    
+    // Créer les tables si elles n'existent pas
+    try {
+      await createTables();
+      console.log('✅ Tables de base de données vérifiées/créées');
+    } catch (error) {
+      console.error('❌ Erreur lors de la création des tables:', error.message);
+    }
+  }
+});
+
+// Fonction pour créer les tables
+async function createTables() {
+  const schema = `
+    -- Table des utilisateurs
+    CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'superviseur', 'agent')),
+        phone VARCHAR(20),
+        is_verified BOOLEAN DEFAULT FALSE,
+        verification_code VARCHAR(6),
+        verification_expires TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Table des codes de validation
+    CREATE TABLE IF NOT EXISTS verification_codes (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        code VARCHAR(6) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Table des présences
+    CREATE TABLE IF NOT EXISTS presences (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        start_time TIMESTAMP NOT NULL,
+        end_time TIMESTAMP,
+        location_lat DECIMAL(10, 8),
+        location_lng DECIMAL(11, 8),
+        location_name VARCHAR(255),
+        notes TEXT,
+        photo_url VARCHAR(500),
+        status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Table des missions
+    CREATE TABLE IF NOT EXISTS missions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        start_time TIMESTAMP NOT NULL,
+        end_time TIMESTAMP,
+        start_lat DECIMAL(10, 8),
+        start_lon DECIMAL(11, 8),
+        end_lat DECIMAL(10, 8),
+        end_lon DECIMAL(11, 8),
+        departement VARCHAR(100),
+        commune VARCHAR(100),
+        arrondissement VARCHAR(100),
+        village VARCHAR(100),
+        note TEXT,
+        status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Table des check-ins
+    CREATE TABLE IF NOT EXISTS checkins (
+        id SERIAL PRIMARY KEY,
+        mission_id INTEGER REFERENCES missions(id),
+        lat DECIMAL(10, 8),
+        lon DECIMAL(11, 8),
+        note TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Table des rapports
+    CREATE TABLE IF NOT EXISTS reports (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        title VARCHAR(255) NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        content TEXT,
+        data JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Index pour les performances
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+    CREATE INDEX IF NOT EXISTS idx_presences_user_id ON presences(user_id);
+    CREATE INDEX IF NOT EXISTS idx_presences_start_time ON presences(start_time);
+    CREATE INDEX IF NOT EXISTS idx_reports_user_id ON reports(user_id);
+    CREATE INDEX IF NOT EXISTS idx_verification_codes_email ON verification_codes(email);
+  `;
+  
+  await pool.query(schema);
+}
+
+// Configuration email (à configurer avec vos paramètres SMTP)
+const transporter = nodemailer.createTransport({
+  service: 'gmail', // ou votre fournisseur email
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+// Middleware
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'web')));
 
 // Routes pour toutes les pages HTML
 app.get('/', (req, res) => {
@@ -35,165 +169,371 @@ app.get('/reports.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'web', 'reports.html'));
 });
 
-// Middleware pour parser JSON
-app.use(express.json());
+// API Routes
 
-// Routes API
-app.post('/api/login', (req, res) => {
-  const { email, password } = req.body;
-  
-  // Simulation d'authentification avec gestion des rôles
-  if (email && password) {
-    const token = 'demo-token-' + Date.now();
+// Route pour récupérer le profil utilisateur
+app.get('/api/profile', async (req, res) => {
+  try {
+    // Pour l'instant, simulation basée sur l'email
+    // Dans une vraie app, on vérifierait le JWT
+    const email = req.query.email || 'admin@ccrb.local';
     
-    // Déterminer le rôle selon l'email
-    let role = 'agent';
-    let name = 'Agent Demo';
+    const result = await pool.query('SELECT id, email, name, role, phone, is_verified FROM users WHERE email = $1', [email]);
     
-    if (email.includes('admin') || email === 'admin@ccrb.local') {
-      role = 'admin';
-      name = 'Administrateur';
-    } else if (email.includes('sup') || email.includes('superviseur') || email === 'superviseur@ccrb.local') {
-      role = 'superviseur';
-      name = 'Superviseur';
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
     }
     
-    res.json({ 
-      success: true, 
+    const user = result.rows[0];
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        phone: user.phone,
+        is_verified: user.is_verified
+      }
+    });
+    
+  } catch (error) {
+    console.error('Erreur récupération profil:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération du profil'
+    });
+  }
+});
+
+// Inscription avec envoi de code de validation
+app.post('/api/register', async (req, res) => {
+  try {
+    console.log('=== DÉBUT INSCRIPTION ===');
+    const { email, password, name, role, phone } = req.body;
+    console.log('Données reçues:', { email, name, role, phone });
+    
+    // Vérifier si l'email existe déjà
+    console.log('Vérification email existant...');
+    const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existingUser.rows.length > 0) {
+      console.log('Email déjà utilisé');
+      return res.status(400).json({
+        success: false,
+        message: 'Cet email est déjà utilisé'
+      });
+    }
+    
+    // Générer un code de validation
+    const verificationCode = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    console.log('Code généré:', verificationCode);
+    
+    // Hacher le mot de passe
+    console.log('Hachage du mot de passe...');
+    const passwordHash = await bcrypt.hash(password, 10);
+    
+    // Créer l'utilisateur (non vérifié)
+    console.log('Création de l\'utilisateur en base...');
+    await pool.query(`
+      INSERT INTO users (email, password_hash, name, role, phone, verification_code, verification_expires)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [email, passwordHash, name, role, phone, verificationCode, expiresAt]);
+    console.log('Utilisateur créé avec succès');
+    
+    // Envoyer l'email de validation
+    console.log('Envoi de l\'email de validation...');
+    console.log('EMAIL_USER:', process.env.EMAIL_USER ? 'Défini' : 'Non défini');
+    console.log('EMAIL_PASS:', process.env.EMAIL_PASS ? 'Défini' : 'Non défini');
+    
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Code de validation - Presence CCRB',
+      html: `
+        <h2>Validation de votre compte</h2>
+        <p>Bonjour ${name},</p>
+        <p>Votre code de validation est : <strong>${verificationCode}</strong></p>
+        <p>Ce code expire dans 15 minutes.</p>
+        <p>Utilisez ce code pour valider votre inscription sur la plateforme.</p>
+      `
+    });
+    console.log('Email envoyé avec succès');
+    
+    res.json({
+      success: true,
+      message: 'Code de validation envoyé par email'
+    });
+    
+  } catch (error) {
+    console.error('=== ERREUR INSCRIPTION ===');
+    console.error('Type d\'erreur:', error.constructor.name);
+    console.error('Message:', error.message);
+    console.error('Stack:', error.stack);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de l\'inscription: ' + error.message
+    });
+  }
+});
+
+// Validation du code d'inscription
+app.post('/api/verify', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    
+    // Vérifier le code
+    const result = await pool.query(`
+      SELECT id, verification_expires FROM users 
+      WHERE email = $1 AND verification_code = $2 AND is_verified = FALSE
+    `, [email, code]);
+    
+    if (result.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Code invalide ou expiré'
+      });
+    }
+    
+    const user = result.rows[0];
+    
+    // Vérifier l'expiration
+    if (new Date() > new Date(user.verification_expires)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Code expiré'
+      });
+    }
+    
+    // Valider l'utilisateur
+    await pool.query(`
+      UPDATE users 
+      SET is_verified = TRUE, verification_code = NULL, verification_expires = NULL
+      WHERE id = $1
+    `, [user.id]);
+    
+    res.json({
+      success: true,
+      message: 'Compte validé avec succès'
+    });
+    
+  } catch (error) {
+    console.error('Erreur validation:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la validation'
+    });
+  }
+});
+
+// Connexion
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    // Récupérer l'utilisateur
+    const result = await pool.query(`
+      SELECT id, email, password_hash, name, role, phone, is_verified
+      FROM users WHERE email = $1
+    `, [email]);
+    
+    if (result.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email ou mot de passe incorrect'
+      });
+    }
+    
+    const user = result.rows[0];
+    
+    // Vérifier si le compte est validé
+    if (!user.is_verified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Compte non validé. Vérifiez votre email.'
+      });
+    }
+    
+    // Vérifier le mot de passe
+    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    if (!isValidPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email ou mot de passe incorrect'
+      });
+    }
+    
+    // Générer un token (simulation)
+    const token = 'jwt-token-' + Date.now();
+    
+    res.json({
+      success: true,
       message: 'Connexion réussie',
       token: token,
       user: {
-        id: 1,
-        name: name,
-        email: email,
-        role: role
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone
       }
     });
-  } else {
-    res.status(400).json({
+    
+  } catch (error) {
+    console.error('Erreur connexion:', error);
+    res.status(500).json({
       success: false,
-      message: 'Email et mot de passe requis'
+      message: 'Erreur lors de la connexion'
     });
   }
 });
 
-app.post('/api/register', (req, res) => {
-  const { name, email, password } = req.body;
-  
-  if (name && email && password) {
-    res.json({ 
-      success: true, 
-      message: 'Inscription réussie',
-      user: {
-        id: Date.now(),
-        name: name,
-        email: email,
-        role: 'agent'
-      }
-    });
-  } else {
-    res.status(400).json({
-      success: false,
-      message: 'Tous les champs sont requis'
-    });
-  }
-});
-
-// Routes de présence
-app.post('/api/presence/start', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Présence (début) enregistrée avec succès',
-    mission_id: Date.now(),
-    checkin_id: Date.now() + 1
-  });
-});
-
-app.post('/api/presence/end', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Présence (fin) enregistrée avec succès'
-  });
-});
-
-app.get('/api/me/missions', (req, res) => {
-  res.json({
-    success: true,
-    missions: [
-      {
-        id: 1,
-        date_start: new Date().toISOString(),
-        status: 'active',
-        village_name: 'Village Demo'
-      }
-    ]
-  });
-});
-
-// Route pour récupérer le profil utilisateur
-app.get('/api/profile', (req, res) => {
-  // Récupérer les données de connexion depuis le localStorage côté client
-  // Pour l'instant, on simule selon l'email dans l'en-tête
-  const authHeader = req.headers.authorization;
-  
-  // Simulation basée sur l'email (en réalité, décoder le JWT)
-  let role = 'agent';
-  let name = 'Utilisateur Demo';
-  let email = 'demo@ccrb.com';
-  
-  // Vérifier si c'est un admin
-  if (authHeader && authHeader.includes('demo-token')) {
-    // En réalité, on décoderait le JWT ici
-    // Pour la démo, on simule selon l'email
-    role = 'admin';
-    name = 'Administrateur';
-    email = 'admin@ccrb.local';
-  }
-  
-  res.json({
-    success: true,
-    id: 1,
-    name: name,
-    email: email,
-    role: role,
-    first_name: name.split(' ')[0] || 'Demo',
-    last_name: name.split(' ')[1] || 'User',
-    phone: '+237 6XX XX XX XX',
-    project_name: 'Projet CCRB',
-    planning_start_date: '2024-01-01',
-    planning_end_date: '2024-12-31',
-    zone_name: 'Zone Centre',
-    expected_days_per_month: 22
-  });
-});
-
-// Route pour supprimer un rapport
-app.delete('/api/reports/:id', (req, res) => {
-  const reportId = req.params.id;
-  
-  // Simulation de la suppression
-  // En réalité, vous supprimeriez le rapport de la base de données
-  console.log(`Suppression du rapport ${reportId}`);
-  
-  res.json({
-    success: true,
-    message: `Rapport ${reportId} supprimé avec succès`
-  });
-});
-
+// Health check
 app.get('/api/health', (req, res) => {
   res.json({ 
     success: true, 
     message: 'API is running',
-    timestamp: new Date().toISOString()
+    database: 'connected'
   });
 });
 
-// Démarrage
-const port = process.env.PORT || 3001;
-app.listen(port, '0.0.0.0', () => {
-  console.log(`🚀 Serveur démarré sur le port ${port}`);
-  console.log(`✅ Application prête !`);
+// ===== ROUTES DE PRÉSENCE =====
+
+// Démarrer une mission de présence
+app.post('/api/presence/start', async (req, res) => {
+  try {
+    const { lat, lon, departement, commune, arrondissement, village, start_time, note } = req.body;
+    
+    // Validation des données requises
+    if (!lat || !lon || !departement || !commune) {
+      return res.status(400).json({
+        success: false,
+        message: 'Données GPS et géographiques requises'
+      });
+    }
+
+    // Insérer la mission dans la base de données
+    const result = await pool.query(`
+      INSERT INTO missions (user_id, start_time, start_lat, start_lon, departement, commune, arrondissement, village, note, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')
+      RETURNING id
+    `, [1, start_time || new Date().toISOString(), lat, lon, departement, commune, arrondissement, village, note]);
+
+    res.json({
+      success: true,
+      message: 'Mission démarrée avec succès',
+      mission_id: result.rows[0].id
+    });
+  } catch (error) {
+    console.error('Erreur démarrage mission:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors du démarrage de la mission'
+    });
+  }
 });
 
-module.exports = app;
+// Terminer une mission de présence
+app.post('/api/presence/end', async (req, res) => {
+  try {
+    const { lat, lon, end_time, note } = req.body;
+    
+    // Mettre à jour la mission
+    await pool.query(`
+      UPDATE missions 
+      SET end_time = $1, end_lat = $2, end_lon = $3, note = CONCAT(note, ' | ', $4), status = 'completed'
+      WHERE id = (SELECT id FROM missions WHERE user_id = $5 AND status = 'active' ORDER BY start_time DESC LIMIT 1)
+    `, [end_time || new Date().toISOString(), lat, lon, note, 1]);
+
+    res.json({
+      success: true,
+      message: 'Mission terminée avec succès'
+    });
+  } catch (error) {
+    console.error('Erreur fin mission:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la fin de la mission'
+    });
+  }
+});
+
+// Check-in pendant une mission
+app.post('/api/mission/checkin', async (req, res) => {
+  try {
+    const { mission_id, lat, lon, note } = req.body;
+    
+    // Insérer le check-in
+    await pool.query(`
+      INSERT INTO checkins (mission_id, lat, lon, note, timestamp)
+      VALUES ($1, $2, $3, $4, NOW())
+    `, [mission_id, lat, lon, note]);
+
+    res.json({
+      success: true,
+      message: 'Check-in enregistré avec succès'
+    });
+  } catch (error) {
+    console.error('Erreur check-in:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors du check-in'
+    });
+  }
+});
+
+// Obtenir l'historique des missions
+app.get('/api/missions/history', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, start_time, end_time, departement, commune, arrondissement, village, status
+      FROM missions 
+      WHERE user_id = $1 
+      ORDER BY start_time DESC 
+      LIMIT 50
+    `, [1]);
+
+    res.json({
+      success: true,
+      missions: result.rows
+    });
+  } catch (error) {
+    console.error('Erreur historique missions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération de l\'historique'
+    });
+  }
+});
+
+// Obtenir les check-ins d'une mission
+app.get('/api/missions/:id/checkins', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(`
+      SELECT lat, lon, note, timestamp
+      FROM checkins 
+      WHERE mission_id = $1 
+      ORDER BY timestamp DESC
+    `, [id]);
+
+    res.json({
+      success: true,
+      checkins: result.rows
+    });
+  } catch (error) {
+    console.error('Erreur check-ins mission:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des check-ins'
+    });
+  }
+});
+
+// Démarrer le serveur
+app.listen(PORT, () => {
+  console.log(`Serveur démarré sur le port ${PORT}`);
+});
