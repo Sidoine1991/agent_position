@@ -134,12 +134,7 @@ async function init() {
     document.querySelector('.auth-tab[onclick="showLoginForm()"]').classList.add('active');
   };
 
-  window.showRegisterForm = () => {
-    $('login-form-container').style.display = 'none';
-    $('register-form-container').style.display = 'block';
-    document.querySelectorAll('.auth-tab').forEach(tab => tab.classList.remove('active'));
-    document.querySelector('.auth-tab[onclick="showRegisterForm()"]').classList.add('active');
-  };
+  // Fonction showRegisterForm supprimée - redirection directe vers /register.html
 
   // Gestion du formulaire d'inscription
   const registerForm = $('register-form');
