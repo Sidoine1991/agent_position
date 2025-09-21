@@ -404,6 +404,100 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ===== ROUTES GÉOGRAPHIQUES =====
+
+// Route pour obtenir les départements
+app.get('/api/geo/departements', (req, res) => {
+  const departements = [
+    { id: 1, nom: 'Littoral' },
+    { id: 2, nom: 'Centre' },
+    { id: 3, nom: 'Ouest' },
+    { id: 4, nom: 'Nord-Ouest' },
+    { id: 5, nom: 'Sud-Ouest' },
+    { id: 6, nom: 'Adamaoua' },
+    { id: 7, nom: 'Est' },
+    { id: 8, nom: 'Extrême-Nord' },
+    { id: 9, nom: 'Nord' },
+    { id: 10, nom: 'Sud' }
+  ];
+  res.json(departements);
+});
+
+// Route pour obtenir les communes d'un département
+app.get('/api/geo/communes/:departementId', (req, res) => {
+  const departementId = parseInt(req.params.departementId);
+  const communes = {
+    1: [ // Littoral
+      { id: 1, nom: 'Douala' },
+      { id: 2, nom: 'Edéa' },
+      { id: 3, nom: 'Nkongsamba' }
+    ],
+    2: [ // Centre
+      { id: 4, nom: 'Yaoundé' },
+      { id: 5, nom: 'Mbalmayo' },
+      { id: 6, nom: 'Monatélé' }
+    ],
+    3: [ // Ouest
+      { id: 7, nom: 'Bafoussam' },
+      { id: 8, nom: 'Bangangté' },
+      { id: 9, nom: 'Dschang' }
+    ]
+  };
+  res.json(communes[departementId] || []);
+});
+
+// Route pour obtenir les arrondissements d'une commune
+app.get('/api/geo/arrondissements/:communeId', (req, res) => {
+  const communeId = parseInt(req.params.communeId);
+  const arrondissements = {
+    1: [ // Douala
+      { id: 1, nom: 'Douala I' },
+      { id: 2, nom: 'Douala II' },
+      { id: 3, nom: 'Douala III' },
+      { id: 4, nom: 'Douala IV' },
+      { id: 5, nom: 'Douala V' }
+    ],
+    4: [ // Yaoundé
+      { id: 6, nom: 'Yaoundé I' },
+      { id: 7, nom: 'Yaoundé II' },
+      { id: 8, nom: 'Yaoundé III' },
+      { id: 9, nom: 'Yaoundé IV' },
+      { id: 10, nom: 'Yaoundé V' },
+      { id: 11, nom: 'Yaoundé VI' },
+      { id: 12, nom: 'Yaoundé VII' }
+    ],
+    7: [ // Bafoussam
+      { id: 13, nom: 'Bafoussam I' },
+      { id: 14, nom: 'Bafoussam II' },
+      { id: 15, nom: 'Bafoussam III' }
+    ]
+  };
+  res.json(arrondissements[communeId] || []);
+});
+
+// Route pour obtenir les villages d'un arrondissement
+app.get('/api/geo/villages/:arrondissementId', (req, res) => {
+  const arrondissementId = parseInt(req.params.arrondissementId);
+  const villages = {
+    1: [ // Douala I
+      { id: 1, nom: 'Akwa' },
+      { id: 2, nom: 'Bonanjo' },
+      { id: 3, nom: 'Deido' }
+    ],
+    2: [ // Douala II
+      { id: 4, nom: 'New Bell' },
+      { id: 5, nom: 'Logpom' },
+      { id: 6, nom: 'Pk8' }
+    ],
+    6: [ // Yaoundé I
+      { id: 7, nom: 'Bastos' },
+      { id: 8, nom: 'Essos' },
+      { id: 9, nom: 'Mvog-Ada' }
+    ]
+  };
+  res.json(villages[arrondissementId] || []);
+});
+
 // ===== ROUTES DE PRÉSENCE =====
 
 // Démarrer une mission de présence

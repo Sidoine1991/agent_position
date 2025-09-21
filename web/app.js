@@ -195,6 +195,9 @@ async function init() {
       const arrondissement = getGeoValue('arrondissement');
       const village = getGeoValue('village');
       
+      console.log('Valeurs géographiques récupérées:', { departement, commune, arrondissement, village });
+      console.log('Coordonnées GPS:', coords);
+      
       const startTime = $('start-time').value;
       const note = $('note').value || '';
       const file = $('photo').files[0];
@@ -208,6 +211,15 @@ async function init() {
       fd.set('lon', String(coords.longitude));
       fd.set('note', startTime ? `[DEBUT ${startTime}] ${note}` : `DEBUT ${note}`);
       if (file) fd.set('photo', file);
+      
+      console.log('FormData préparé:', {
+        departement: fd.get('departement'),
+        commune: fd.get('commune'),
+        arrondissement: fd.get('arrondissement'),
+        village: fd.get('village'),
+        lat: fd.get('lat'),
+        lon: fd.get('lon')
+      });
 
       status.textContent = 'Envoi...';
       const res = await fetch(apiBase + '/presence/start', { method: 'POST', headers: { Authorization: 'Bearer ' + jwt }, body: fd });
