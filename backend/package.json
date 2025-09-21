@@ -6,9 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc && npm run copy:assets",
+    "build": "echo 'No build step needed'",
     "copy:assets": "cp -r src/templates dist/ && cp -r src/public dist/",
-    "start": "node dist/index.js",
+    "start": "tsx src/index.ts",
     "vercel-build": "echo 'No build step needed for Vercel'",
     "vercel-start": "tsx src/index.ts",
     "test": "vitest",
