@@ -223,7 +223,24 @@ async function init() {
     } catch (e) {
       console.error('Presence start error:', e);
       status.textContent = 'Erreur début présence';
-      alert('Échec début présence: ' + (e.message || 'Erreur inconnue'));
+      
+      // Gestion d'erreur plus robuste
+      let errorMessage = 'Erreur inconnue';
+      if (e.message) {
+        if (e.message.includes('timeout')) {
+          errorMessage = 'Timeout GPS: Veuillez vous déplacer vers un endroit plus ouvert';
+        } else if (e.message.includes('denied')) {
+          errorMessage = 'Accès GPS refusé: Autorisez la géolocalisation';
+        } else if (e.message.includes('unavailable')) {
+          errorMessage = 'GPS indisponible: Vérifiez vos paramètres';
+        } else if (e.message.includes('<!DOCTYPE html>')) {
+          errorMessage = 'Erreur serveur: Veuillez réessayer plus tard';
+        } else {
+          errorMessage = e.message;
+        }
+      }
+      
+      alert('Échec début présence: ' + errorMessage);
     }
   };
 
@@ -675,6 +692,20 @@ function showNotification(title, message) {
 
 async function getCurrentLocationWithValidation() {
   try {
+    // Vérifier d'abord que le serveur répond
+    try {
+      const healthCheck = await fetch(apiBase + '/health', { 
+        method: 'GET',
+        timeout: 5000 
+      });
+      if (!healthCheck.ok) {
+        throw new Error('Serveur indisponible');
+      }
+    } catch (serverError) {
+      console.warn('Serveur non accessible:', serverError);
+      // Continuer quand même pour le GPS local
+    }
+    
     const coords = await geoPromise();
     
     // Vérifier la précision GPS selon le paramètre choisi
@@ -696,6 +727,14 @@ async function getCurrentLocationWithValidation() {
     
     // Afficher les informations de localisation
     showLocationInfo(coords);
+    
+    // Stocker les coordonnées localement en cas de problème serveur
+    localStorage.setItem('lastGPS', JSON.stringify({
+      lat: coords.latitude,
+      lon: coords.longitude,
+      accuracy: coords.accuracy,
+      timestamp: Date.now()
+    }));
     
     return coords;
   } catch (error) {
