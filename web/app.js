@@ -195,6 +195,7 @@ async function init() {
       localStorage.setItem('jwt', jwt);
       localStorage.setItem('loginData', JSON.stringify(data.user));
       localStorage.setItem('userProfile', JSON.stringify(data.user));
+      localStorage.setItem('userEmail', data.user.email || email);
       
       hide(authSection); show(appSection);
       await loadAgentProfile();
@@ -599,7 +600,10 @@ init();
 
 async function loadAgentProfile() {
   try {
-    const profile = await api('/profile');
+    // Récupérer l'email depuis l'URL ou le localStorage
+    const urlParams = new URLSearchParams(window.location.search);
+    const email = urlParams.get('email') || localStorage.getItem('userEmail') || 'admin@ccrb.local';
+    const profile = await api(`/profile?email=${encodeURIComponent(email)}`);
     if (profile) {
       $('agent-name').textContent = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.name;
       $('agent-phone').textContent = profile.phone || '-';
@@ -1142,7 +1146,9 @@ async function updateNavbar() {
       // Si pas de profil en cache, essayer l'API
       if (!profile.id) {
         try {
-          profile = await api('/profile');
+          const urlParams = new URLSearchParams(window.location.search);
+          const email = urlParams.get('email') || localStorage.getItem('userEmail') || 'admin@ccrb.local';
+          profile = await api(`/profile?email=${encodeURIComponent(email)}`);
           localStorage.setItem('userProfile', JSON.stringify(profile));
         } catch (e) {
           console.log('API profile non disponible, utilisation des données de connexion');
