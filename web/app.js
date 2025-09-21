@@ -623,8 +623,8 @@ function showNotification(title, message) {
   if (Notification.permission === 'granted') {
     const notification = new Notification(title, {
       body: message,
-      icon: '/Media/PP CCRB.png',
-      badge: '/Media/PP CCRB.png',
+      icon: '/web/Media/logo-ccrb.png',
+      badge: '/web/Media/logo-ccrb.png',
       tag: 'presence-reminder',
       requireInteraction: true,
       actions: [
