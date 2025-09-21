@@ -190,10 +190,16 @@ async function init() {
       const coords = await getCurrentLocationWithValidation();
       
       // Obtenir les valeurs géographiques (select ou manuel)
-      const departement = getGeoValue('departement');
-      const commune = getGeoValue('commune');
-      const arrondissement = getGeoValue('arrondissement');
-      const village = getGeoValue('village');
+      let departement = getGeoValue('departement');
+      let commune = getGeoValue('commune');
+      let arrondissement = getGeoValue('arrondissement');
+      let village = getGeoValue('village');
+      
+      // Valeurs par défaut si les sélections sont vides
+      if (!departement) departement = 'Littoral';
+      if (!commune) commune = 'Douala';
+      if (!arrondissement) arrondissement = 'Douala I';
+      if (!village) village = 'Akwa';
       
       console.log('Valeurs géographiques récupérées:', { departement, commune, arrondissement, village });
       console.log('Coordonnées GPS:', coords);
