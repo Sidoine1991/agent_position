@@ -1156,10 +1156,21 @@ async function loadDepartements() {
 
 async function loadCommunes(departementId) {
   try {
+    console.log('🔍 loadCommunes appelée avec departementId:', departementId);
     const communeSelect = $('commune');
-    if (!communeSelect) return;
+    if (!communeSelect) {
+      console.error('❌ Élément commune non trouvé');
+      return;
+    }
     
     communeSelect.innerHTML = '<option value="">Sélectionner une commune</option>';
+    
+    console.log('🔍 Vérification de window.geoData:', !!window.geoData);
+    if (window.geoData) {
+      console.log('🔍 window.geoData.communes:', !!window.geoData.communes);
+      console.log('🔍 Clés disponibles dans communes:', Object.keys(window.geoData.communes || {}));
+      console.log('🔍 Communes pour departementId', departementId, ':', window.geoData.communes[departementId]);
+    }
     
     // Utiliser les données de geo-data.js qui utilisent des IDs numériques
     if (window.geoData && window.geoData.communes && window.geoData.communes[departementId]) {
