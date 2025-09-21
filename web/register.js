@@ -6,10 +6,14 @@ const registerForm = document.getElementById('registrationForm');
 const verificationForm = document.getElementById('verificationForm');
 const registerFormDiv = document.getElementById('register-form');
 const verificationFormDiv = document.getElementById('verification-form');
-const successMessageDiv = document.getElementById('success-message');
-const userEmailSpan = document.getElementById('user-email');
-const resendCodeBtn = document.getElementById('resend-code');
-const changeEmailBtn = document.getElementById('change-email');
+const successContainer = document.getElementById('success-container');
+const successMessage = document.getElementById('success-message');
+const errorMessage = document.getElementById('error-message');
+const submitBtn = document.getElementById('submitBtn');
+const verifyBtn = document.getElementById('verifyBtn');
+const btnText = document.getElementById('btnText');
+const verifyBtnText = document.getElementById('verifyBtnText');
+const resendBtn = document.getElementById('resendBtn');
 
 // Fonction utilitaire pour les requêtes API
 async function api(endpoint, method = 'GET', data = null) {
@@ -28,57 +32,95 @@ async function api(endpoint, method = 'GET', data = null) {
   return await response.json();
 }
 
+// Fonction pour afficher les messages
+function showMessage(message, type = 'success') {
+  // Cacher tous les messages
+  successMessage.style.display = 'none';
+  errorMessage.style.display = 'none';
+  
+  if (type === 'success') {
+    successMessage.textContent = message;
+    successMessage.style.display = 'block';
+  } else {
+    errorMessage.textContent = message;
+    errorMessage.style.display = 'block';
+  }
+  
+  // Auto-masquer après 5 secondes
+  setTimeout(() => {
+    successMessage.style.display = 'none';
+    errorMessage.style.display = 'none';
+  }, 5000);
+}
+
+// Fonction pour basculer entre les formulaires
+function showForm(formType) {
+  registerFormDiv.style.display = formType === 'register' ? 'block' : 'none';
+  verificationFormDiv.style.display = formType === 'verification' ? 'block' : 'none';
+  successContainer.style.display = formType === 'success' ? 'block' : 'none';
+}
+
 // Gestion de l'inscription
 registerForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   
   const formData = new FormData(registerForm);
-  const data = Object.fromEntries(formData);
+  const data = {
+    name: formData.get('name'),
+    email: formData.get('email'),
+    phone: formData.get('phone'),
+    role: formData.get('role'),
+    password: formData.get('password')
+  };
   
   // Validation côté client
-  if (data.password !== data.confirmPassword) {
-    alert('Les mots de passe ne correspondent pas');
+  if (data.password !== formData.get('confirmPassword')) {
+    showMessage('Les mots de passe ne correspondent pas', 'error');
     return;
   }
   
   if (data.password.length < 6) {
-    alert('Le mot de passe doit contenir au moins 6 caractères');
+    showMessage('Le mot de passe doit contenir au moins 6 caractères', 'error');
     return;
   }
   
   try {
     // Afficher un indicateur de chargement
-    const submitBtn = registerForm.querySelector('button[type="submit"]');
-    const originalText = submitBtn.textContent;
-    submitBtn.textContent = '⏳ Envoi en cours...';
+    btnText.innerHTML = '<span class="loading"></span> Création en cours...';
     submitBtn.disabled = true;
     
     // Envoyer la requête d'inscription
-    const result = await api('/register', 'POST', {
-      name: data.name,
-      email: data.email,
-      phone: data.phone,
-      role: data.role,
-      password: data.password
-    });
+    const result = await api('/register', 'POST', data);
     
     if (result.success) {
-      // Afficher le formulaire de validation
-      currentEmail = data.email;
-      userEmailSpan.textContent = data.email;
-      registerFormDiv.style.display = 'none';
-      verificationFormDiv.style.display = 'block';
+      if (result.admin_created) {
+        // Admin principal créé
+        showMessage('Administrateur principal créé avec succès ! Vous pouvez maintenant vous connecter.', 'success');
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 3000);
+      } else if (result.admin_exists) {
+        // Admin existe déjà
+        showMessage('Administrateur principal existe déjà. Vous pouvez vous connecter.', 'success');
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 3000);
+      } else {
+        // Utilisateur normal - validation par email requise
+        currentEmail = data.email;
+        showForm('verification');
+        showMessage('Code de validation envoyé par email. Vérifiez votre boîte mail.', 'success');
+      }
     } else {
-      alert(result.message || 'Erreur lors de l\'inscription');
+      showMessage(result.message || 'Erreur lors de l\'inscription', 'error');
     }
     
   } catch (error) {
     console.error('Erreur inscription:', error);
-    alert('Erreur lors de l\'inscription. Veuillez réessayer.');
+    showMessage('Erreur lors de l\'inscription. Veuillez réessayer.', 'error');
   } finally {
     // Restaurer le bouton
-    const submitBtn = registerForm.querySelector('button[type="submit"]');
-    submitBtn.textContent = originalText;
+    btnText.textContent = '📝 Créer mon compte';
     submitBtn.disabled = false;
   }
 });
@@ -90,12 +132,15 @@ verificationForm.addEventListener('submit', async (e) => {
   const formData = new FormData(verificationForm);
   const code = formData.get('code');
   
+  if (!code || code.length !== 6) {
+    showMessage('Veuillez entrer un code à 6 chiffres', 'error');
+    return;
+  }
+  
   try {
     // Afficher un indicateur de chargement
-    const submitBtn = verificationForm.querySelector('button[type="submit"]');
-    const originalText = submitBtn.textContent;
-    submitBtn.textContent = '⏳ Validation...';
-    submitBtn.disabled = true;
+    verifyBtnText.innerHTML = '<span class="loading"></span> Validation...';
+    verifyBtn.disabled = true;
     
     // Envoyer la requête de validation
     const result = await api('/verify', 'POST', {
@@ -104,78 +149,82 @@ verificationForm.addEventListener('submit', async (e) => {
     });
     
     if (result.success) {
-      // Afficher le message de succès
-      verificationFormDiv.style.display = 'none';
-      successMessageDiv.style.display = 'block';
+      showForm('success');
     } else {
-      alert(result.message || 'Code invalide ou expiré');
+      showMessage(result.message || 'Code invalide ou expiré', 'error');
     }
     
   } catch (error) {
     console.error('Erreur validation:', error);
-    alert('Erreur lors de la validation. Veuillez réessayer.');
+    showMessage('Erreur lors de la validation. Veuillez réessayer.', 'error');
   } finally {
     // Restaurer le bouton
-    const submitBtn = verificationForm.querySelector('button[type="submit"]');
-    submitBtn.textContent = originalText;
-    submitBtn.disabled = false;
+    verifyBtnText.textContent = '✅ Valider mon compte';
+    verifyBtn.disabled = false;
   }
 });
 
-// Renvoyer le code
-resendCodeBtn.addEventListener('click', async () => {
+// Gestion du renvoi de code
+resendBtn.addEventListener('click', async () => {
   try {
-    resendCodeBtn.textContent = '⏳ Renvoi...';
-    resendCodeBtn.disabled = true;
+    resendBtn.textContent = '⏳ Envoi...';
+    resendBtn.disabled = true;
     
     // Renvoyer le code (même endpoint que l'inscription)
     const result = await api('/register', 'POST', {
       email: currentEmail,
-      resend: true
+      name: 'Resend',
+      role: 'agent',
+      password: 'resend123'
     });
     
     if (result.success) {
-      alert('Code renvoyé par email');
+      showMessage('Nouveau code envoyé par email', 'success');
     } else {
-      alert(result.message || 'Erreur lors du renvoi');
+      showMessage('Erreur lors du renvoi du code', 'error');
     }
     
   } catch (error) {
     console.error('Erreur renvoi:', error);
-    alert('Erreur lors du renvoi. Veuillez réessayer.');
+    showMessage('Erreur lors du renvoi du code', 'error');
   } finally {
-    resendCodeBtn.textContent = '🔄 Renvoyer le code';
-    resendCodeBtn.disabled = false;
+    resendBtn.textContent = 'Renvoyer le code';
+    resendBtn.disabled = false;
   }
 });
 
-// Changer l'email
-changeEmailBtn.addEventListener('click', () => {
-  verificationFormDiv.style.display = 'none';
-  registerFormDiv.style.display = 'block';
-  registerForm.reset();
-  currentEmail = '';
-});
-
-// Auto-format du code de validation
-document.getElementById('verification-code').addEventListener('input', (e) => {
+// Validation en temps réel du code
+document.getElementById('code').addEventListener('input', function(e) {
   // Ne garder que les chiffres
   e.target.value = e.target.value.replace(/\D/g, '');
   
-  // Limiter à 6 chiffres
+  // Limiter à 6 caractères
   if (e.target.value.length > 6) {
     e.target.value = e.target.value.slice(0, 6);
   }
 });
 
 // Validation en temps réel du mot de passe
-document.getElementById('confirmPassword').addEventListener('input', (e) => {
+document.getElementById('confirmPassword').addEventListener('input', function(e) {
   const password = document.getElementById('password').value;
   const confirmPassword = e.target.value;
   
   if (confirmPassword && password !== confirmPassword) {
-    e.target.setCustomValidity('Les mots de passe ne correspondent pas');
+    e.target.style.borderColor = '#ef4444';
   } else {
-    e.target.setCustomValidity('');
+    e.target.style.borderColor = '#e5e7eb';
   }
+});
+
+// Animation d'entrée
+document.addEventListener('DOMContentLoaded', function() {
+  const container = document.querySelector('.register-container');
+  container.style.opacity = '0';
+  container.style.transform = 'translateY(20px)';
+  
+  setTimeout(() => {
+    container.style.transition = 'all 0.6s ease';
+    container.style.opacity = '1';
+    container.style.transform = 'translateY(0)';
+  }, 100);
 });
