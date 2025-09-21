@@ -46,7 +46,7 @@ body::before {
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
-  opacity: 0.02;
+  opacity: 0.01;
   z-index: -1;
   pointer-events: none;
   transform: rotate(-15deg);

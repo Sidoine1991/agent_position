@@ -39,11 +39,23 @@ function geoPromise() {
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
       p => resolve(p.coords), 
-      e => reject(e), 
+      e => {
+        console.warn('Erreur GPS:', e);
+        // En cas d'erreur, essayer avec des paramètres plus permissifs
+        navigator.geolocation.getCurrentPosition(
+          p => resolve(p.coords),
+          e2 => reject(new Error(`GPS indisponible: ${e2.message}`)),
+          { 
+            enableHighAccuracy: false,
+            timeout: 60000, // 60 secondes
+            maximumAge: 300000 // 5 minutes de cache
+          }
+        );
+      }, 
       { 
-        enableHighAccuracy: false, // Moins strict pour plus de flexibilité
-        timeout: 30000, // Plus de temps pour obtenir la position
-        maximumAge: 600000 // 10 minutes de cache
+        enableHighAccuracy: true, // Essayer d'abord avec haute précision
+        timeout: 45000, // 45 secondes
+        maximumAge: 300000 // 5 minutes de cache
       }
     );
   });
@@ -688,7 +700,18 @@ async function getCurrentLocationWithValidation() {
     return coords;
   } catch (error) {
     console.error('Erreur de géolocalisation:', error);
-    throw error;
+    
+    // Messages d'erreur plus clairs
+    let errorMessage = 'Erreur de géolocalisation';
+    if (error.message.includes('timeout')) {
+      errorMessage = 'Timeout GPS: Veuillez vous déplacer vers un endroit plus ouvert et réessayer';
+    } else if (error.message.includes('denied')) {
+      errorMessage = 'Accès GPS refusé: Veuillez autoriser la géolocalisation dans les paramètres du navigateur';
+    } else if (error.message.includes('unavailable')) {
+      errorMessage = 'GPS indisponible: Vérifiez que la géolocalisation est activée sur votre appareil';
+    }
+    
+    throw new Error(errorMessage);
   }
 }
 
