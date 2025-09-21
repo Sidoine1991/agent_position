@@ -224,6 +224,10 @@ async function init() {
       hide(authSection); show(appSection);
       await loadAgentProfile();
       
+      // Charger les données après connexion
+      await loadPresenceData();
+      await loadDashboardMetrics();
+      
       // Initialiser les sélecteurs géographiques après connexion
       setTimeout(() => {
         if (typeof initGeoSelectors === 'function') {
@@ -566,10 +570,12 @@ async function init() {
 
   // Initialize calendar
   await initializeCalendar();
-  await loadPresenceData();
   
-  // Initialize dashboard metrics
-  await loadDashboardMetrics();
+  // Ne charger les données que si l'utilisateur est connecté
+  if (jwt && jwt.length > 20) {
+    await loadPresenceData();
+    await loadDashboardMetrics();
+  }
   
   // Initialiser les animations de scroll
   addScrollAnimations();
