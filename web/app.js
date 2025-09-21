@@ -255,7 +255,13 @@ async function init() {
       // Gestion d'erreur plus robuste
       let errorMessage = 'Erreur inconnue';
       if (e.message) {
-        if (e.message.includes('timeout')) {
+        if (e.message.includes('Token d\'authentification invalide') || e.message.includes('Token d\'authentification requis')) {
+          errorMessage = 'Session expirée. Veuillez vous reconnecter.';
+          // Rediriger vers la page de connexion
+          setTimeout(() => {
+            window.location.href = '/login.html';
+          }, 2000);
+        } else if (e.message.includes('timeout')) {
           errorMessage = 'Timeout GPS: Veuillez vous déplacer vers un endroit plus ouvert';
         } else if (e.message.includes('denied')) {
           errorMessage = 'Accès GPS refusé: Autorisez la géolocalisation';
@@ -310,7 +316,22 @@ async function init() {
       await loadPresenceData(); // Mettre à jour le calendrier
     } catch (e) {
       console.error('Presence end error:', e);
-      alert('Échec fin présence: ' + (e.message || 'Erreur inconnue'));
+      
+      // Gestion d'erreur pour la fin de mission
+      let errorMessage = 'Erreur inconnue';
+      if (e.message) {
+        if (e.message.includes('Token d\'authentification invalide') || e.message.includes('Token d\'authentification requis')) {
+          errorMessage = 'Session expirée. Veuillez vous reconnecter.';
+          // Rediriger vers la page de connexion
+          setTimeout(() => {
+            window.location.href = '/login.html';
+          }, 2000);
+        } else {
+          errorMessage = e.message;
+        }
+      }
+      
+      alert('Échec fin présence: ' + errorMessage);
     }
   };
 

@@ -370,8 +370,12 @@ app.post('/api/login', async (req, res) => {
       });
     }
     
-    // Générer un token (simulation)
-    const token = 'jwt-token-' + Date.now();
+    // Générer un vrai JWT
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
     
     res.json({
       success: true,
