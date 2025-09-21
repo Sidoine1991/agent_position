@@ -514,7 +514,9 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Données GPS et géographiques requises',
-        received: { lat, lon, departement, commune, arrondissement, village }
+        received: { lat, lon, departement, commune, arrondissement, village },
+        body: req.body,
+        headers: req.headers
       });
     }
 
