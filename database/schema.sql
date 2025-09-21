@@ -41,6 +41,16 @@ CREATE TABLE presences (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Table des absences
+CREATE TABLE absences (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    date DATE NOT NULL,
+    reason VARCHAR(255) DEFAULT 'Non marquage de présence avant 18h',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, date)
+);
+
 -- Table des rapports
 CREATE TABLE reports (
     id SERIAL PRIMARY KEY,

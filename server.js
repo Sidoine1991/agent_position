@@ -217,6 +217,125 @@ app.get('/api/profile', async (req, res) => {
   }
 });
 
+// API pour les statistiques de présence mensuelles
+app.get('/api/presence/stats', async (req, res) => {
+  try {
+    const { year, month } = req.query;
+    const email = req.query.email || 'admin@ccrb.local';
+    
+    // Récupérer l'ID de l'utilisateur
+    const userResult = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+    }
+    
+    const userId = userResult.rows[0].id;
+    const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+    const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+    
+    // Compter les jours de présence
+    const presenceResult = await pool.query(`
+      SELECT COUNT(DISTINCT DATE(timestamp)) as days_worked,
+             COUNT(*) as total_checkins
+      FROM checkins 
+      WHERE user_id = $1 
+      AND DATE(timestamp) BETWEEN $2 AND $3
+    `, [userId, startDate, endDate]);
+    
+    // Calculer les heures travaillées (approximation)
+    const hoursResult = await pool.query(`
+      SELECT 
+        COUNT(*) * 8 as estimated_hours
+      FROM (
+        SELECT DISTINCT DATE(timestamp) 
+        FROM checkins 
+        WHERE user_id = $1 
+        AND DATE(timestamp) BETWEEN $2 AND $3
+      ) as work_days
+    `, [userId, startDate, endDate]);
+    
+    // Récupérer la position actuelle (dernière position)
+    const positionResult = await pool.query(`
+      SELECT lat, lon, accuracy
+      FROM checkins 
+      WHERE user_id = $1 
+      ORDER BY timestamp DESC 
+      LIMIT 1
+    `, [userId]);
+    
+    const stats = {
+      days_worked: parseInt(presenceResult.rows[0].days_worked) || 0,
+      hours_worked: parseInt(hoursResult.rows[0].estimated_hours) || 0,
+      expected_days: 22, // Jours ouvrables moyens
+      current_position: positionResult.rows.length > 0 
+        ? `${positionResult.rows[0].lat.toFixed(4)}, ${positionResult.rows[0].lon.toFixed(4)}`
+        : 'Non disponible'
+    };
+    
+    res.json({ success: true, stats });
+  } catch (error) {
+    console.error('Error fetching presence stats:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// API pour vérifier la présence d'aujourd'hui
+app.get('/api/presence/check-today', async (req, res) => {
+  try {
+    const email = req.query.email || 'admin@ccrb.local';
+    const today = new Date().toISOString().split('T')[0];
+    
+    const userResult = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+    }
+    
+    const userId = userResult.rows[0].id;
+    
+    const presenceResult = await pool.query(`
+      SELECT COUNT(*) as count
+      FROM checkins 
+      WHERE user_id = $1 
+      AND DATE(timestamp) = $2
+    `, [userId, today]);
+    
+    res.json({ 
+      success: true, 
+      has_presence: parseInt(presenceResult.rows[0].count) > 0 
+    });
+  } catch (error) {
+    console.error('Error checking today presence:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// API pour marquer une absence
+app.post('/api/presence/mark-absent', async (req, res) => {
+  try {
+    const { date } = req.body;
+    const email = req.query.email || 'admin@ccrb.local';
+    
+    const userResult = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+    }
+    
+    const userId = userResult.rows[0].id;
+    
+    // Insérer l'absence dans la table des absences
+    await pool.query(`
+      INSERT INTO absences (user_id, date, reason, created_at)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (user_id, date) DO NOTHING
+    `, [userId, date, 'Non marquage de présence avant 18h']);
+    
+    res.json({ success: true, message: 'Absence enregistrée' });
+  } catch (error) {
+    console.error('Error marking absence:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // Inscription avec envoi de code de validation
 app.post('/api/register', async (req, res) => {
   try {

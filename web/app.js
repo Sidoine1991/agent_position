@@ -554,6 +554,12 @@ async function init() {
     btn.addEventListener('click', createRippleEffect);
   });
   
+  // Charger les statistiques mensuelles
+  await calculateMonthlyStats();
+  
+  // Vérifier les absences quotidiennes
+  await checkDailyAbsences();
+  
   // Initialiser l'image hero
   setTimeout(() => {
     initHeroImage();
@@ -626,6 +632,93 @@ async function loadAgentProfile() {
     }
   } catch (e) {
     console.error('Error loading agent profile:', e);
+  }
+}
+
+// Fonction pour calculer les statistiques de présence mensuelles
+async function calculateMonthlyStats() {
+  try {
+    const currentDate = new Date();
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1;
+    
+    // Récupérer les données de présence du mois
+    const response = await api(`/api/presence/stats?year=${year}&month=${month}`);
+    
+    if (response.success) {
+      const stats = response.stats;
+      
+      // Calculer les jours travaillés
+      const daysWorked = stats.days_worked || 0;
+      
+      // Calculer les heures travaillées (approximation basée sur les check-ins)
+      const hoursWorked = stats.hours_worked || 0;
+      
+      // Calculer le taux de présence
+      const expectedDays = stats.expected_days || 22; // Jours ouvrables moyens
+      const presenceRate = expectedDays > 0 ? Math.round((daysWorked / expectedDays) * 100) : 0;
+      
+      // Mettre à jour l'interface
+      updateDashboardStats({
+        daysWorked,
+        hoursWorked,
+        presenceRate,
+        currentPosition: stats.current_position || 'Non disponible'
+      });
+      
+      return stats;
+    }
+  } catch (e) {
+    console.error('Erreur calcul statistiques:', e);
+  }
+}
+
+// Fonction pour mettre à jour les statistiques du dashboard
+function updateDashboardStats(stats) {
+  const daysElement = document.querySelector('.stat-days .stat-value');
+  const hoursElement = document.querySelector('.stat-hours .stat-value');
+  const rateElement = document.querySelector('.stat-rate .stat-value');
+  const positionElement = document.querySelector('.stat-position .stat-value');
+  
+  if (daysElement) daysElement.textContent = stats.daysWorked;
+  if (hoursElement) hoursElement.textContent = `${stats.hoursWorked}h`;
+  if (rateElement) {
+    rateElement.textContent = `${stats.presenceRate}%`;
+    // Colorer selon le taux
+    if (stats.presenceRate >= 80) {
+      rateElement.style.color = '#10b981'; // Vert
+    } else if (stats.presenceRate >= 60) {
+      rateElement.style.color = '#f59e0b'; // Orange
+    } else {
+      rateElement.style.color = '#ef4444'; // Rouge
+    }
+  }
+  if (positionElement) positionElement.textContent = stats.currentPosition;
+}
+
+// Fonction pour vérifier les absences quotidiennes
+async function checkDailyAbsences() {
+  try {
+    const today = new Date();
+    const hour = today.getHours();
+    
+    // Si on est après 18h et qu'aucune présence n'a été marquée aujourd'hui
+    if (hour >= 18) {
+      const response = await api('/api/presence/check-today');
+      
+      if (response.success && !response.has_presence) {
+        // Marquer comme absent pour aujourd'hui
+        await api('/api/presence/mark-absent', {
+          method: 'POST',
+          body: { date: today.toISOString().split('T')[0] }
+        });
+        
+        // Afficher une notification
+        showNotification('Absence enregistrée', 'Vous n\'avez pas marqué votre présence aujourd\'hui', 'warning');
+      }
+    }
+  } catch (e) {
+    console.error('Erreur vérification absences:', e);
   }
 }
 
