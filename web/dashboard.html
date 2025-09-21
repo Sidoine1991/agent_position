@@ -25289,7 +25289,7 @@ window.loadCommunes = function loadCommunes(departementId) {
   const departement = geoData.departements.find(d => d.id == departementId);
   if (!departement) return;
   
-  const communes = geoData.communes[departement.name] || [];
+  const communes = geoData.communes[departementId] || [];
   communes.forEach(commune => {
     const option = document.createElement('option');
     option.value = commune.id;
@@ -25316,14 +25316,14 @@ window.loadArrondissements = function loadArrondissements(communeId) {
   if (!communeId) return;
   
   let commune = null;
-  for (const [deptName, communes] of Object.entries(geoData.communes)) {
+  for (const [deptId, communes] of Object.entries(geoData.communes)) {
     commune = communes.find(c => c.id == communeId);
     if (commune) break;
   }
   
   if (!commune) return;
   
-  const arrondissements = geoData.arrondissements[commune.name] || [];
+  const arrondissements = geoData.arrondissements[communeId] || [];
   arrondissements.forEach(arrondissement => {
     const option = document.createElement('option');
     option.value = arrondissement.id;
@@ -25347,14 +25347,14 @@ window.loadVillages = function loadVillages(arrondissementId) {
   if (!arrondissementId) return;
   
   let arrondissement = null;
-  for (const [communeName, arrondissements] of Object.entries(geoData.arrondissements)) {
+  for (const [communeId, arrondissements] of Object.entries(geoData.arrondissements)) {
     arrondissement = arrondissements.find(a => a.id == arrondissementId);
     if (arrondissement) break;
   }
   
   if (!arrondissement) return;
   
-  const villages = geoData.villages[arrondissement.name] || [];
+  const villages = geoData.villages[arrondissementId] || [];
   villages.forEach(village => {
     const option = document.createElement('option');
     option.value = village.id;
