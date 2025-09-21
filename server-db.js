@@ -15,6 +15,15 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
+// Test de connexion à la base de données
+pool.query('SELECT NOW()', (err, result) => {
+  if (err) {
+    console.error('❌ Erreur de connexion à la base de données:', err.message);
+  } else {
+    console.log('✅ Connexion à la base de données réussie:', result.rows[0].now);
+  }
+});
+
 // Configuration email (à configurer avec vos paramètres SMTP)
 const transporter = nodemailer.createTransport({
   service: 'gmail', // ou votre fournisseur email
@@ -62,11 +71,15 @@ app.get('/reports.html', (req, res) => {
 // Inscription avec envoi de code de validation
 app.post('/api/register', async (req, res) => {
   try {
+    console.log('=== DÉBUT INSCRIPTION ===');
     const { email, password, name, role, phone } = req.body;
+    console.log('Données reçues:', { email, name, role, phone });
     
     // Vérifier si l'email existe déjà
+    console.log('Vérification email existant...');
     const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existingUser.rows.length > 0) {
+      console.log('Email déjà utilisé');
       return res.status(400).json({
         success: false,
         message: 'Cet email est déjà utilisé'
@@ -76,17 +89,25 @@ app.post('/api/register', async (req, res) => {
     // Générer un code de validation
     const verificationCode = crypto.randomInt(100000, 999999).toString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    console.log('Code généré:', verificationCode);
     
     // Hacher le mot de passe
+    console.log('Hachage du mot de passe...');
     const passwordHash = await bcrypt.hash(password, 10);
     
     // Créer l'utilisateur (non vérifié)
+    console.log('Création de l\'utilisateur en base...');
     await pool.query(`
       INSERT INTO users (email, password_hash, name, role, phone, verification_code, verification_expires)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
     `, [email, passwordHash, name, role, phone, verificationCode, expiresAt]);
+    console.log('Utilisateur créé avec succès');
     
     // Envoyer l'email de validation
+    console.log('Envoi de l\'email de validation...');
+    console.log('EMAIL_USER:', process.env.EMAIL_USER ? 'Défini' : 'Non défini');
+    console.log('EMAIL_PASS:', process.env.EMAIL_PASS ? 'Défini' : 'Non défini');
+    
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
@@ -99,6 +120,7 @@ app.post('/api/register', async (req, res) => {
         <p>Utilisez ce code pour valider votre inscription sur la plateforme.</p>
       `
     });
+    console.log('Email envoyé avec succès');
     
     res.json({
       success: true,
@@ -106,10 +128,13 @@ app.post('/api/register', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Erreur inscription:', error);
+    console.error('=== ERREUR INSCRIPTION ===');
+    console.error('Type d\'erreur:', error.constructor.name);
+    console.error('Message:', error.message);
+    console.error('Stack:', error.stack);
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de l\'inscription'
+      message: 'Erreur lors de l\'inscription: ' + error.message
     });
   }
 });
