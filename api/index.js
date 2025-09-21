@@ -1,5 +1,5 @@
-// API consolidée pour Vercel - Version 2.2 - Configuration Vercel
-const JWT_SECRET = process.env.JWT_SECRET || '3fc6fb0fdb066cfc829a6ff25b05c14c2fd491c3c2b64762363dc23604153285ef8eb3d4afa70bdfae3e506cd26b9b9ebf44be7c8d7871f685b73b66e157551a';
+// API consolidée pour Vercel - Version 2.3 - Sécurité
+const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://agent-position.vercel.app';
 
 // Stockage en mémoire

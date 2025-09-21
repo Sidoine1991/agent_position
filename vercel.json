@@ -29,9 +29,6 @@
     }
   ],
   "env": {
-    "VERCEL_PROJECT_ID": "prj_FuhngVbz3oLxi1tTn3bshjO2XXg4",
-    "JWT_SECRET": "3fc6fb0fdb066cfc829a6ff25b05c14c2fd491c3c2b64762363dc23604153285ef8eb3d4afa70bdfae3e506cd26b9b9ebf44be7c8d7871f685b73b66e157551a",
-    "CORS_ORIGIN": "https://agent-position.vercel.app",
     "NODE_ENV": "production"
   }
 }
