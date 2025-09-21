@@ -1083,7 +1083,7 @@ async function loadDepartements() {
       window.geoData.departements.forEach(d => {
         const opt = document.createElement('option');
         opt.value = d.id;
-        opt.textContent = d.nom;
+        opt.textContent = d.name; // Utiliser 'name' au lieu de 'nom'
         deptSelect.appendChild(opt);
       });
       console.log('✅ Départements chargés depuis les données locales:', window.geoData.departements.length);
@@ -1102,18 +1102,27 @@ async function loadCommunes(departementId) {
     
     communeSelect.innerHTML = '<option value="">Sélectionner une commune</option>';
     
+    // Trouver le nom du département à partir de l'ID
+    let departementName = null;
+    if (window.geoData && window.geoData.departements) {
+      const departement = window.geoData.departements.find(d => d.id == departementId);
+      if (departement) {
+        departementName = departement.name;
+      }
+    }
+    
     // Utiliser les données locales qui fonctionnent
-    if (window.geoData && window.geoData.communes && window.geoData.communes[departementId]) {
-      const communes = window.geoData.communes[departementId];
+    if (departementName && window.geoData && window.geoData.communes && window.geoData.communes[departementName]) {
+      const communes = window.geoData.communes[departementName];
       communes.forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.id;
         opt.textContent = c.name;
         communeSelect.appendChild(opt);
       });
-      console.log('✅ Communes chargées depuis les données locales:', communes.length);
+      console.log('✅ Communes chargées depuis les données locales:', communes.length, 'pour', departementName);
     } else {
-      console.error('❌ Communes non disponibles pour le département:', departementId);
+      console.error('❌ Communes non disponibles pour le département:', departementId, 'ou nom:', departementName);
     }
     
     // Réinitialiser les niveaux suivants
