@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "build": "echo 'No build step needed'",
+    "postinstall": "echo 'Dependencies installed successfully'"
   },
   "dependencies": {
     "express": "^4.21.2"
