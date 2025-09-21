@@ -25397,6 +25397,117 @@ window.initGeoSelectors = function() {
   console.log('✅ Sélecteurs géographiques initialisés manuellement');
 };
 
+// Fonctions pour la saisie manuelle des unités géographiques
+function setupManualGeoInputs() {
+  console.log('🔧 Configuration de la saisie manuelle géographique...');
+  
+  // Basculement département
+  const toggleDepartement = document.getElementById('toggle-departement');
+  const departementSelect = document.getElementById('departement');
+  const departementManual = document.getElementById('departement-manual');
+  
+  if (toggleDepartement && departementSelect && departementManual) {
+    toggleDepartement.addEventListener('click', function() {
+      if (departementSelect.style.display !== 'none') {
+        // Passer en mode manuel
+        departementSelect.style.display = 'none';
+        departementManual.style.display = 'block';
+        departementManual.required = true;
+        departementSelect.required = false;
+        this.textContent = '📋';
+        this.title = 'Revenir à la sélection';
+      } else {
+        // Revenir en mode sélection
+        departementSelect.style.display = 'block';
+        departementManual.style.display = 'none';
+        departementManual.required = false;
+        departementSelect.required = true;
+        this.textContent = '✏️';
+        this.title = 'Saisir manuellement';
+        departementManual.value = '';
+      }
+    });
+  }
+  
+  // Basculement commune
+  const toggleCommune = document.getElementById('toggle-commune');
+  const communeSelect = document.getElementById('commune');
+  const communeManual = document.getElementById('commune-manual');
+  
+  if (toggleCommune && communeSelect && communeManual) {
+    toggleCommune.addEventListener('click', function() {
+      if (communeSelect.style.display !== 'none') {
+        // Passer en mode manuel
+        communeSelect.style.display = 'none';
+        communeManual.style.display = 'block';
+        communeManual.required = true;
+        communeSelect.required = false;
+        this.textContent = '📋';
+        this.title = 'Revenir à la sélection';
+      } else {
+        // Revenir en mode sélection
+        communeSelect.style.display = 'block';
+        communeManual.style.display = 'none';
+        communeManual.required = false;
+        communeSelect.required = true;
+        this.textContent = '✏️';
+        this.title = 'Saisir manuellement';
+        communeManual.value = '';
+      }
+    });
+  }
+  
+  // Basculement arrondissement
+  const toggleArrondissement = document.getElementById('toggle-arrondissement');
+  const arrondissementSelect = document.getElementById('arrondissement');
+  const arrondissementManual = document.getElementById('arrondissement-manual');
+  
+  if (toggleArrondissement && arrondissementSelect && arrondissementManual) {
+    toggleArrondissement.addEventListener('click', function() {
+      if (arrondissementSelect.style.display !== 'none') {
+        // Passer en mode manuel
+        arrondissementSelect.style.display = 'none';
+        arrondissementManual.style.display = 'block';
+        this.textContent = '📋';
+        this.title = 'Revenir à la sélection';
+      } else {
+        // Revenir en mode sélection
+        arrondissementSelect.style.display = 'block';
+        arrondissementManual.style.display = 'none';
+        this.textContent = '✏️';
+        this.title = 'Saisir manuellement';
+        arrondissementManual.value = '';
+      }
+    });
+  }
+  
+  // Basculement village
+  const toggleVillage = document.getElementById('toggle-village');
+  const villageSelect = document.getElementById('village');
+  const villageManual = document.getElementById('village-manual');
+  
+  if (toggleVillage && villageSelect && villageManual) {
+    toggleVillage.addEventListener('click', function() {
+      if (villageSelect.style.display !== 'none') {
+        // Passer en mode manuel
+        villageSelect.style.display = 'none';
+        villageManual.style.display = 'block';
+        this.textContent = '📋';
+        this.title = 'Revenir à la sélection';
+      } else {
+        // Revenir en mode sélection
+        villageSelect.style.display = 'block';
+        villageManual.style.display = 'none';
+        this.textContent = '✏️';
+        this.title = 'Saisir manuellement';
+        villageManual.value = '';
+      }
+    });
+  }
+  
+  console.log('✅ Saisie manuelle géographique configurée');
+}
+
 // Initialisation automatique
 document.addEventListener('DOMContentLoaded', function() {
   console.log('🌍 DOMContentLoaded - Vérification des sélecteurs...');
@@ -25405,6 +25516,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (departementSelect && departementSelect.offsetParent !== null) {
     console.log('🌍 Sélecteurs visibles détectés, initialisation automatique...');
     initGeoSelectors();
+    setupManualGeoInputs();
   } else {
     console.log('🌍 Sélecteurs non visibles, initialisation manuelle requise');
   }
