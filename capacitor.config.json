@@ -1,0 +1,21 @@
+{
+  "appId": "com.ccrb.presence",
+  "appName": "Presence CCRB",
+  "webDir": "web",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://your-railway-app.railway.app",
+    "cleartext": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#0b1220",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "dark",
+      "backgroundColor": "#0b1220"
+    }
+  }
+}

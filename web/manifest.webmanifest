@@ -1,11 +1,37 @@
 {
-  "name": "Presence CCRB",
-  "short_name": "Presence",
+  "name": "Presence CCRB - Système de Présence",
+  "short_name": "Presence CCRB",
+  "description": "Application de gestion de présence pour les agents CCRB",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#0b1220",
   "theme_color": "#0ea5e9",
-  "icons": []
+  "scope": "/",
+  "lang": "fr",
+  "categories": ["productivity", "business"],
+  "icons": [
+    {
+      "src": "Media/logo-ccrb.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "Media/logo-ccrb.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "Media/default-avatar.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ]
 }
 
 
