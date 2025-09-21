@@ -75,7 +75,13 @@
             </button>
           </div>
         </div>
-        <div class="navbar-user">
+        <!-- Bouton d'inscription pour les utilisateurs non connectés -->
+        <a href="/register.html" class="navbar-link" id="register-link" style="display: none;">
+          <span class="navbar-icon">📝</span>
+          <span>S'inscrire</span>
+        </a>
+        
+        <div class="navbar-user" id="navbar-user">
           <span class="navbar-user-info" id="user-info">Chargement...</span>
           <button onclick="logout()" class="navbar-logout">
             <span class="navbar-icon">🚪</span>

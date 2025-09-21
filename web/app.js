@@ -953,6 +953,12 @@ async function updateNavbar() {
         userInfo.textContent = `${profile.name} (${roleText[profile.role] || profile.role})`;
       }
       
+      // Cacher le bouton d'inscription pour les utilisateurs connectés
+      const registerLink = $('register-link');
+      if (registerLink) {
+        registerLink.style.display = 'none';
+      }
+      
       // Afficher les boutons d'accès rapide
       const quickAccess = $('quick-access');
       if (quickAccess) {
@@ -974,6 +980,12 @@ async function updateNavbar() {
     // Utilisateur non connecté
     if (dashboardLink) dashboardLink.style.display = 'none';
     if (navbarUser) navbarUser.style.display = 'none';
+    
+    // Afficher le bouton d'inscription
+    const registerLink = $('register-link');
+    if (registerLink) {
+      registerLink.style.display = 'flex';
+    }
     
     // Masquer les boutons d'accès rapide
     const quickAccess = $('quick-access');
