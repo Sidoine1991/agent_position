@@ -81,12 +81,8 @@ async function init() {
     
     // Initialiser les sélecteurs géographiques
     setTimeout(() => {
-      if (typeof initGeoSelectors === 'function') {
-        console.log('🌍 Initialisation des sélecteurs géographiques après connexion...');
-        initGeoSelectors();
-      } else {
-        console.error('❌ initGeoSelectors non disponible');
-      }
+      console.log('🌍 Initialisation des sélecteurs géographiques après connexion...');
+      initGeoSelectorsLocal();
     }, 100);
   } else { 
     show(authSection); 
@@ -1077,23 +1073,23 @@ function getGeoValue(field) {
 // Fonctions de chargement des données géographiques
 async function loadDepartements() {
   try {
-    let departements;
-    try {
-      departements = await api('/geo/departements');
-      console.log('Départements chargés via API:', departements);
-    } catch (apiError) {
-      console.log('API non disponible, utilisation des données locales');
-      departements = window.getDepartements ? window.getDepartements() : [];
-    }
-    
     const deptSelect = $('departement');
+    if (!deptSelect) return;
+    
     deptSelect.innerHTML = '<option value="">Sélectionner un département</option>';
-    departements.forEach(d => {
-      const opt = document.createElement('option');
-      opt.value = d.id;
-      opt.textContent = d.name;
-      deptSelect.appendChild(opt);
-    });
+    
+    // Utiliser les données locales qui fonctionnent
+    if (window.geoData && window.geoData.departements) {
+      window.geoData.departements.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.id;
+        opt.textContent = d.nom;
+        deptSelect.appendChild(opt);
+      });
+      console.log('✅ Départements chargés depuis les données locales:', window.geoData.departements.length);
+    } else {
+      console.error('❌ Données géographiques locales non disponibles');
+    }
   } catch (error) {
     console.error('Erreur chargement départements:', error);
   }
@@ -1101,23 +1097,24 @@ async function loadDepartements() {
 
 async function loadCommunes(departementId) {
   try {
-    let communes;
-    try {
-      communes = await api(`/geo/communes/${departementId}`);
-      console.log('Communes chargées via API:', communes);
-    } catch (apiError) {
-      console.log('API non disponible, utilisation des données locales');
-      communes = window.getCommunes ? window.getCommunes(departementId) : [];
-    }
-    
     const communeSelect = $('commune');
+    if (!communeSelect) return;
+    
     communeSelect.innerHTML = '<option value="">Sélectionner une commune</option>';
-    communes.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c.id;
-      opt.textContent = c.name;
-      communeSelect.appendChild(opt);
-    });
+    
+    // Utiliser les données locales qui fonctionnent
+    if (window.geoData && window.geoData.communes && window.geoData.communes[departementId]) {
+      const communes = window.geoData.communes[departementId];
+      communes.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        communeSelect.appendChild(opt);
+      });
+      console.log('✅ Communes chargées depuis les données locales:', communes.length);
+    } else {
+      console.error('❌ Communes non disponibles pour le département:', departementId);
+    }
     
     // Réinitialiser les niveaux suivants
     $('arrondissement').innerHTML = '<option value="">Sélectionner un arrondissement</option>';
@@ -1129,23 +1126,24 @@ async function loadCommunes(departementId) {
 
 async function loadArrondissements(communeId) {
   try {
-    let arrondissements;
-    try {
-      arrondissements = await api(`/geo/arrondissements/${communeId}`);
-      console.log('Arrondissements chargés via API:', arrondissements);
-    } catch (apiError) {
-      console.log('API non disponible, utilisation des données locales');
-      arrondissements = window.getArrondissements ? window.getArrondissements(communeId) : [];
-    }
-    
     const arrSelect = $('arrondissement');
+    if (!arrSelect) return;
+    
     arrSelect.innerHTML = '<option value="">Sélectionner un arrondissement</option>';
-    arrondissements.forEach(a => {
-      const opt = document.createElement('option');
-      opt.value = a.id;
-      opt.textContent = a.name;
-      arrSelect.appendChild(opt);
-    });
+    
+    // Utiliser les données locales qui fonctionnent
+    if (window.geoData && window.geoData.arrondissements && window.geoData.arrondissements[communeId]) {
+      const arrondissements = window.geoData.arrondissements[communeId];
+      arrondissements.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a.id;
+        opt.textContent = a.name;
+        arrSelect.appendChild(opt);
+      });
+      console.log('✅ Arrondissements chargés depuis les données locales:', arrondissements.length);
+    } else {
+      console.error('❌ Arrondissements non disponibles pour la commune:', communeId);
+    }
     
     // Réinitialiser le niveau suivant
     $('village').innerHTML = '<option value="">Sélectionner un village</option>';
@@ -1156,23 +1154,24 @@ async function loadArrondissements(communeId) {
 
 async function loadVillages(arrondissementId) {
   try {
-    let villages;
-    try {
-      villages = await api(`/geo/villages/${arrondissementId}`);
-      console.log('Villages chargés via API:', villages);
-    } catch (apiError) {
-      console.log('API non disponible, utilisation des données locales');
-      villages = window.getVillages ? window.getVillages(arrondissementId) : [];
-    }
-    
     const villageSelect = $('village');
+    if (!villageSelect) return;
+    
     villageSelect.innerHTML = '<option value="">Sélectionner un village</option>';
-    villages.forEach(v => {
-      const opt = document.createElement('option');
-      opt.value = v.id;
-      opt.textContent = v.name;
-      villageSelect.appendChild(opt);
-    });
+    
+    // Utiliser les données locales qui fonctionnent
+    if (window.geoData && window.geoData.villages && window.geoData.villages[arrondissementId]) {
+      const villages = window.geoData.villages[arrondissementId];
+      villages.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.id;
+        opt.textContent = v.name;
+        villageSelect.appendChild(opt);
+      });
+      console.log('✅ Villages chargés depuis les données locales:', villages.length);
+    } else {
+      console.error('❌ Villages non disponibles pour l\'arrondissement:', arrondissementId);
+    }
   } catch (error) {
     console.error('Erreur chargement villages:', error);
   }
@@ -1194,6 +1193,39 @@ function validateGeoFields() {
   }
   
   return true;
+}
+
+// Fonction d'initialisation locale des sélecteurs géographiques
+function initGeoSelectorsLocal() {
+  console.log('🌍 Initialisation locale des sélecteurs géographiques...');
+  
+  // Charger les départements
+  loadDepartements();
+  
+  // Ajouter les événements
+  const departementSelect = $('departement');
+  const communeSelect = $('commune');
+  const arrondissementSelect = $('arrondissement');
+  
+  if (departementSelect) {
+    departementSelect.addEventListener('change', function() {
+      loadCommunes(this.value);
+    });
+  }
+  
+  if (communeSelect) {
+    communeSelect.addEventListener('change', function() {
+      loadArrondissements(this.value);
+    });
+  }
+  
+  if (arrondissementSelect) {
+    arrondissementSelect.addEventListener('change', function() {
+      loadVillages(this.value);
+    });
+  }
+  
+  console.log('✅ Sélecteurs géographiques initialisés localement');
 }
 
 // Initialiser la saisie manuelle au chargement
