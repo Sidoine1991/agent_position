@@ -503,6 +503,29 @@ app.get('/api/geo/villages/:arrondissementId', (req, res) => {
 // Démarrer une mission de présence
 app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
   try {
+    // Vérification de l'authentification
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification requis'
+      });
+    }
+    
+    const token = authHeader.substring(7);
+    let userId;
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      userId = decoded.userId;
+    } catch (jwtError) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification invalide'
+      });
+    }
+    
+    console.log('Utilisateur authentifié:', userId);
+    
     // Multer parse automatiquement les données FormData
     let { lat, lon, departement, commune, arrondissement, village, start_time, note } = req.body;
     
@@ -564,6 +587,28 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
 // Terminer une mission de présence
 app.post('/api/presence/end', async (req, res) => {
   try {
+    // Vérification de l'authentification
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification requis'
+      });
+    }
+    
+    const token = authHeader.substring(7);
+    let userId;
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      userId = decoded.userId;
+    } catch (jwtError) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification invalide'
+      });
+    }
+    
+    console.log('Utilisateur authentifié pour fin mission:', userId);
     const { lat, lon, end_time, note } = req.body;
     
     // Mettre à jour la mission

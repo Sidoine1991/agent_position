@@ -224,6 +224,22 @@ async function init() {
       });
 
       status.textContent = 'Envoi...';
+      
+      // Logs de diagnostic
+      console.log('🔍 Diagnostic API présence:');
+      console.log('- JWT disponible:', !!jwt);
+      console.log('- JWT longueur:', jwt ? jwt.length : 0);
+      console.log('- FormData contenu:', {
+        departement: fd.get('departement'),
+        commune: fd.get('commune'),
+        arrondissement: fd.get('arrondissement'),
+        village: fd.get('village'),
+        lat: fd.get('lat'),
+        lon: fd.get('lon'),
+        note: fd.get('note'),
+        photo: fd.get('photo') ? 'Fichier présent' : 'Aucun fichier'
+      });
+      
       const data = await api('/presence/start', { method: 'POST', body: fd });
 
       currentMissionId = data.mission_id;
@@ -272,6 +288,18 @@ async function init() {
       if (file) fd.set('photo', file);
 
       status.textContent = 'Envoi...';
+      
+      // Logs de diagnostic
+      console.log('🔍 Diagnostic API fin présence:');
+      console.log('- JWT disponible:', !!jwt);
+      console.log('- Mission ID:', currentMissionId);
+      console.log('- FormData contenu:', {
+        lat: fd.get('lat'),
+        lon: fd.get('lon'),
+        note: fd.get('note'),
+        photo: fd.get('photo') ? 'Fichier présent' : 'Aucun fichier'
+      });
+      
       await api('/presence/end', { method: 'POST', body: fd });
 
       $('end-mission').disabled = true;
