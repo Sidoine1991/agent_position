@@ -408,7 +408,7 @@ async function refreshCheckins() {
   if (!currentMissionId) return;
   const list = $('checkins');
   list.innerHTML = '';
-  const items = await api(`/mission/${currentMissionId}/checkins`);
+  const items = await api(`/missions/${currentMissionId}/checkins`);
   for (const c of items) {
     const li = document.createElement('li');
     const when = new Date(c.timestamp + 'Z').toLocaleString();
