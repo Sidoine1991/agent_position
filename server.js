@@ -368,15 +368,22 @@ app.post('/api/verify', async (req, res) => {
 // Connexion
 app.post('/api/login', async (req, res) => {
   try {
+    console.log('🔐 Tentative de connexion reçue');
     const { email, password } = req.body;
+    console.log('📧 Email:', email);
+    console.log('🔑 Mot de passe fourni:', password ? 'OUI' : 'NON');
     
     // Récupérer l'utilisateur
+    console.log('🔍 Recherche de l\'utilisateur dans la base...');
     const result = await pool.query(`
       SELECT id, email, password_hash, name, role, phone, is_verified
       FROM users WHERE email = $1
     `, [email]);
     
+    console.log('📊 Nombre d\'utilisateurs trouvés:', result.rows.length);
+    
     if (result.rows.length === 0) {
+      console.log('❌ Aucun utilisateur trouvé pour:', email);
       return res.status(400).json({
         success: false,
         message: 'Email ou mot de passe incorrect'
@@ -384,9 +391,17 @@ app.post('/api/login', async (req, res) => {
     }
     
     const user = result.rows[0];
+    console.log('👤 Utilisateur trouvé:', {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      is_verified: user.is_verified
+    });
     
     // Vérifier si le compte est validé
     if (!user.is_verified) {
+      console.log('⚠️ Compte non validé pour:', email);
       return res.status(400).json({
         success: false,
         message: 'Compte non validé. Vérifiez votre email.'
@@ -394,8 +409,12 @@ app.post('/api/login', async (req, res) => {
     }
     
     // Vérifier le mot de passe
+    console.log('🔐 Vérification du mot de passe...');
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    console.log('✅ Mot de passe valide:', isValidPassword);
+    
     if (!isValidPassword) {
+      console.log('❌ Mot de passe incorrect pour:', email);
       return res.status(400).json({
         success: false,
         message: 'Email ou mot de passe incorrect'
@@ -403,12 +422,14 @@ app.post('/api/login', async (req, res) => {
     }
     
     // Générer un vrai JWT
+    console.log('🎫 Génération du JWT...');
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
     
+    console.log('✅ Connexion réussie pour:', email);
     res.json({
       success: true,
       message: 'Connexion réussie',
@@ -423,10 +444,12 @@ app.post('/api/login', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Erreur connexion:', error);
+    console.error('💥 Erreur connexion détaillée:', error);
+    console.error('📋 Stack trace:', error.stack);
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de la connexion'
+      message: 'Erreur lors de la connexion',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
