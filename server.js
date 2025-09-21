@@ -220,6 +220,38 @@ app.post('/api/register', async (req, res) => {
     const { email, password, name, role, phone } = req.body;
     console.log('Données reçues:', { email, name, role, phone });
     
+    // Création automatique de l'admin principal
+    if (email === 'syebadokpo@gmail.com') {
+      console.log('🔧 Création automatique de l\'administrateur principal...');
+      
+      // Vérifier si l'admin existe déjà
+      const existingAdmin = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+      if (existingAdmin.rows.length > 0) {
+        return res.json({
+          success: true,
+          message: 'Administrateur principal existe déjà. Vous pouvez vous connecter.',
+          admin_exists: true
+        });
+      }
+      
+      // Hacher le mot de passe
+      const passwordHash = await bcrypt.hash(password, 10);
+      
+      // Créer l'administrateur principal (vérifié automatiquement)
+      await pool.query(`
+        INSERT INTO users (email, password_hash, name, role, phone, is_verified)
+        VALUES ($1, $2, $3, $4, $5, TRUE)
+      `, [email, passwordHash, 'Admin Principal', 'admin', phone || '+229 12345678']);
+      
+      console.log('✅ Administrateur principal créé avec succès');
+      
+      return res.json({
+        success: true,
+        message: 'Administrateur principal créé avec succès. Vous pouvez maintenant vous connecter.',
+        admin_created: true
+      });
+    }
+    
     // Vérifier si l'email existe déjà
     console.log('Vérification email existant...');
     const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
