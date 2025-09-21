@@ -756,6 +756,56 @@ app.get('/api/me/missions', async (req, res) => {
   }
 });
 
+// Route temporaire pour créer l'administrateur principal (À SUPPRIMER APRÈS USAGE)
+app.post('/api/admin/create-super-admin', async (req, res) => {
+  try {
+    console.log('🔧 Création de l\'administrateur principal...');
+    
+    const email = 'syebadokpo@gmail.com';
+    const password = '123456';
+    const name = 'Admin Principal';
+    const role = 'admin';
+    
+    // Vérifier si l'admin existe déjà
+    const existingAdmin = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existingAdmin.rows.length > 0) {
+      return res.json({
+        success: true,
+        message: 'Administrateur principal existe déjà',
+        email: email
+      });
+    }
+    
+    // Hacher le mot de passe
+    const passwordHash = await bcrypt.hash(password, 10);
+    
+    // Créer l'administrateur principal (vérifié automatiquement)
+    await pool.query(`
+      INSERT INTO users (email, password_hash, name, role, phone, is_verified)
+      VALUES ($1, $2, $3, $4, $5, TRUE)
+    `, [email, passwordHash, name, role, '+229 12345678']);
+    
+    console.log('✅ Administrateur principal créé avec succès');
+    
+    res.json({
+      success: true,
+      message: 'Administrateur principal créé avec succès',
+      credentials: {
+        email: email,
+        password: password,
+        role: 'admin'
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Erreur lors de la création de l\'admin:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la création: ' + error.message
+    });
+  }
+});
+
 // Démarrer le serveur
 app.listen(PORT, () => {
   console.log(`Serveur démarré sur le port ${PORT}`);
