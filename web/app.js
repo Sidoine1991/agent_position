@@ -30,7 +30,31 @@ function removeLoadingState(element) {
   }
 }
 
-// Fonction showNotification déjà définie plus haut, on la supprime ici pour éviter la duplication
+// Fonction pour afficher des notifications toast
+function showNotification(message, type = 'info', duration = 3000) {
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
+  notification.textContent = message;
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 16px 24px;
+    background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#3b82f6'};
+    color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10000;
+    animation: slideInRight 0.3s ease-out;
+  `;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.style.animation = 'slideInRight 0.3s ease-out reverse';
+    setTimeout(() => notification.remove(), 300);
+  }, duration);
+}
 
 function createRippleEffect(event) {
   const button = event.currentTarget;
@@ -643,7 +667,7 @@ async function calculateMonthlyStats() {
     const month = currentDate.getMonth() + 1;
     
     // Récupérer les données de présence du mois
-    const response = await api(`/api/presence/stats?year=${year}&month=${month}`);
+    const response = await api(`presence/stats?year=${year}&month=${month}`);
     
     if (response.success) {
       const stats = response.stats;
@@ -704,11 +728,11 @@ async function checkDailyAbsences() {
     
     // Si on est après 18h et qu'aucune présence n'a été marquée aujourd'hui
     if (hour >= 18) {
-      const response = await api('/api/presence/check-today');
+      const response = await api('presence/check-today');
       
       if (response.success && !response.has_presence) {
         // Marquer comme absent pour aujourd'hui
-        await api('/api/presence/mark-absent', {
+        await api('presence/mark-absent', {
           method: 'POST',
           body: { date: today.toISOString().split('T')[0] }
         });
