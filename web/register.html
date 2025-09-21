@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inscription - Presence CCRB</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" href="Media/default-avatar.png">
+</head>
+<body>
+    <div class="container">
+        <div class="auth-container">
+            <div class="auth-header">
+                <img src="Media/default-avatar.png" alt="CCRB Logo" class="logo">
+                <h1>Inscription</h1>
+                <p>Créez votre compte et validez-le par email</p>
+            </div>
+
+            <!-- Formulaire d'inscription -->
+            <div id="register-form" class="auth-form">
+                <form id="registrationForm">
+                    <div class="form-group">
+                        <label for="name">Nom complet *</label>
+                        <input type="text" id="name" name="name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">Email *</label>
+                        <input type="email" id="email" name="email" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="phone">Téléphone</label>
+                        <input type="tel" id="phone" name="phone">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="role">Rôle *</label>
+                        <select id="role" name="role" required>
+                            <option value="">Sélectionnez votre rôle</option>
+                            <option value="agent">Agent</option>
+                            <option value="superviseur">Superviseur</option>
+                            <option value="admin">Administrateur</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Mot de passe *</label>
+                        <input type="password" id="password" name="password" required minlength="6">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirmer le mot de passe *</label>
+                        <input type="password" id="confirmPassword" name="confirmPassword" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        📝 Créer mon compte
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    <p>Déjà un compte ? <a href="index.html">Se connecter</a></p>
+                </div>
+            </div>
+
+            <!-- Formulaire de validation -->
+            <div id="verification-form" class="auth-form" style="display: none;">
+                <div class="verification-info">
+                    <h2>📧 Code de validation</h2>
+                    <p>Un code de validation a été envoyé à <strong id="user-email"></strong></p>
+                    <p>Vérifiez votre boîte email et entrez le code ci-dessous :</p>
+                </div>
+
+                <form id="verificationForm">
+                    <div class="form-group">
+                        <label for="verification-code">Code de validation (6 chiffres) *</label>
+                        <input type="text" id="verification-code" name="code" required 
+                               maxlength="6" pattern="[0-9]{6}" 
+                               placeholder="123456">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        ✅ Valider mon compte
+                    </button>
+                </form>
+
+                <div class="verification-actions">
+                    <button id="resend-code" class="btn btn-secondary">
+                        🔄 Renvoyer le code
+                    </button>
+                    <button id="change-email" class="btn btn-outline">
+                        ✏️ Changer l'email
+                    </button>
+                </div>
+            </div>
+
+            <!-- Message de succès -->
+            <div id="success-message" class="success-message" style="display: none;">
+                <h2>🎉 Compte créé avec succès !</h2>
+                <p>Votre compte a été validé. Vous pouvez maintenant vous connecter.</p>
+                <a href="index.html" class="btn btn-primary">Se connecter</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="register.js"></script>
+</body>
+</html>

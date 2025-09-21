@@ -123,7 +123,7 @@ fix-*.js
 update-*.js
 
 # Duplicate files
-server*.js
+# server*.js  # Commenté pour permettre server.js principal
 Data/
 
 # Documentation duplicates
