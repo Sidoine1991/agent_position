@@ -4,12 +4,64 @@
     {
       "src": "server.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "web/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
       "dest": "server.js"
+    },
+    {
+      "src": "/web/(.*)",
+      "dest": "/web/$1"
+    },
+    {
+      "src": "/styles.css",
+      "dest": "/web/styles.css"
+    },
+    {
+      "src": "/manifest.webmanifest",
+      "dest": "/web/manifest.webmanifest"
+    },
+    {
+      "src": "/geo-data.js",
+      "dest": "/web/geo-data.js"
+    },
+    {
+      "src": "/app.js",
+      "dest": "/web/app.js"
+    },
+    {
+      "src": "/dashboard.js",
+      "dest": "/web/dashboard.js"
+    },
+    {
+      "src": "/agents.js",
+      "dest": "/web/agents.js"
+    },
+    {
+      "src": "/reports.js",
+      "dest": "/web/reports.js"
+    },
+    {
+      "src": "/admin.js",
+      "dest": "/web/admin.js"
+    },
+    {
+      "src": "/profile.js",
+      "dest": "/web/profile.js"
+    },
+    {
+      "src": "/register.js",
+      "dest": "/web/register.js"
+    },
+    {
+      "src": "/Media/(.*)",
+      "dest": "/web/Media/$1"
     },
     {
       "src": "/(.*)",
