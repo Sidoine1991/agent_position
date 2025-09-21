@@ -1102,27 +1102,19 @@ async function loadCommunes(departementId) {
     
     communeSelect.innerHTML = '<option value="">Sélectionner une commune</option>';
     
-    // Trouver le nom du département à partir de l'ID
-    let departementName = null;
-    if (window.geoData && window.geoData.departements) {
-      const departement = window.geoData.departements.find(d => d.id == departementId);
-      if (departement) {
-        departementName = departement.name;
-      }
-    }
-    
-    // Utiliser les données locales qui fonctionnent
-    if (departementName && window.geoData && window.geoData.communes && window.geoData.communes[departementName]) {
-      const communes = window.geoData.communes[departementName];
+    // Utiliser les données de geo-data.js qui utilisent des IDs numériques
+    if (window.geoData && window.geoData.communes && window.geoData.communes[departementId]) {
+      const communes = window.geoData.communes[departementId];
       communes.forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.id;
         opt.textContent = c.name;
         communeSelect.appendChild(opt);
       });
-      console.log('✅ Communes chargées depuis les données locales:', communes.length, 'pour', departementName);
+      console.log('✅ Communes chargées depuis geo-data.js:', communes.length, 'pour département ID:', departementId);
     } else {
-      console.error('❌ Communes non disponibles pour le département:', departementId, 'ou nom:', departementName);
+      console.error('❌ Communes non disponibles pour le département ID:', departementId);
+      console.log('Données disponibles:', window.geoData ? Object.keys(window.geoData.communes || {}) : 'geoData non disponible');
     }
     
     // Réinitialiser les niveaux suivants
@@ -1140,7 +1132,7 @@ async function loadArrondissements(communeId) {
     
     arrSelect.innerHTML = '<option value="">Sélectionner un arrondissement</option>';
     
-    // Utiliser les données locales qui fonctionnent
+    // Utiliser les données de geo-data.js qui utilisent des IDs numériques
     if (window.geoData && window.geoData.arrondissements && window.geoData.arrondissements[communeId]) {
       const arrondissements = window.geoData.arrondissements[communeId];
       arrondissements.forEach(a => {
@@ -1149,9 +1141,10 @@ async function loadArrondissements(communeId) {
         opt.textContent = a.name;
         arrSelect.appendChild(opt);
       });
-      console.log('✅ Arrondissements chargés depuis les données locales:', arrondissements.length);
+      console.log('✅ Arrondissements chargés depuis geo-data.js:', arrondissements.length, 'pour commune ID:', communeId);
     } else {
-      console.error('❌ Arrondissements non disponibles pour la commune:', communeId);
+      console.error('❌ Arrondissements non disponibles pour la commune ID:', communeId);
+      console.log('Données disponibles:', window.geoData ? Object.keys(window.geoData.arrondissements || {}) : 'geoData non disponible');
     }
     
     // Réinitialiser le niveau suivant
@@ -1168,7 +1161,7 @@ async function loadVillages(arrondissementId) {
     
     villageSelect.innerHTML = '<option value="">Sélectionner un village</option>';
     
-    // Utiliser les données locales qui fonctionnent
+    // Utiliser les données de geo-data.js qui utilisent des IDs numériques
     if (window.geoData && window.geoData.villages && window.geoData.villages[arrondissementId]) {
       const villages = window.geoData.villages[arrondissementId];
       villages.forEach(v => {
@@ -1177,9 +1170,10 @@ async function loadVillages(arrondissementId) {
         opt.textContent = v.name;
         villageSelect.appendChild(opt);
       });
-      console.log('✅ Villages chargés depuis les données locales:', villages.length);
+      console.log('✅ Villages chargés depuis geo-data.js:', villages.length, 'pour arrondissement ID:', arrondissementId);
     } else {
-      console.error('❌ Villages non disponibles pour l\'arrondissement:', arrondissementId);
+      console.error('❌ Villages non disponibles pour l\'arrondissement ID:', arrondissementId);
+      console.log('Données disponibles:', window.geoData ? Object.keys(window.geoData.villages || {}) : 'geoData non disponible');
     }
   } catch (error) {
     console.error('Erreur chargement villages:', error);
