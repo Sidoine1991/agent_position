@@ -126,20 +126,63 @@ window.geoData = {
       { id: 4, name: "Hêvié" },
       { id: 5, name: "Kpanroun" }
     ],
+    2: [ // Allada
+      { id: 6, name: "Allada Centre" },
+      { id: 7, name: "Sékou" },
+      { id: 8, name: "Togba" }
+    ],
+    3: [ // Kpomassè
+      { id: 9, name: "Kpomassè Centre" },
+      { id: 10, name: "Avlékété" }
+    ],
+    4: [ // Ouidah
+      { id: 11, name: "Ouidah Centre" },
+      { id: 12, name: "Djègbadji" },
+      { id: 13, name: "Sèhouè" }
+    ],
+    5: [ // Sô-Ava
+      { id: 14, name: "Sô-Ava Centre" },
+      { id: 15, name: "Ganvié" }
+    ],
+    6: [ // Toffo
+      { id: 16, name: "Toffo Centre" },
+      { id: 17, name: "Dodji-Bata" }
+    ],
+    7: [ // Tori-Bossito
+      { id: 18, name: "Tori-Bossito Centre" },
+      { id: 19, name: "Avamè" }
+    ],
+    8: [ // Zè
+      { id: 20, name: "Zè Centre" },
+      { id: 21, name: "Djidja" }
+    ],
     32: [ // Cotonou
-      { id: 6, name: "1er Arrondissement" },
-      { id: 7, name: "2ème Arrondissement" },
-      { id: 8, name: "3ème Arrondissement" },
-      { id: 9, name: "4ème Arrondissement" },
-      { id: 10, name: "5ème Arrondissement" },
-      { id: 11, name: "6ème Arrondissement" },
-      { id: 12, name: "7ème Arrondissement" },
-      { id: 13, name: "8ème Arrondissement" },
-      { id: 14, name: "9ème Arrondissement" },
-      { id: 15, name: "10ème Arrondissement" },
-      { id: 16, name: "11ème Arrondissement" },
-      { id: 17, name: "12ème Arrondissement" },
-      { id: 18, name: "13ème Arrondissement" }
+      { id: 22, name: "1er Arrondissement" },
+      { id: 23, name: "2ème Arrondissement" },
+      { id: 24, name: "3ème Arrondissement" },
+      { id: 25, name: "4ème Arrondissement" },
+      { id: 26, name: "5ème Arrondissement" },
+      { id: 27, name: "6ème Arrondissement" },
+      { id: 28, name: "7ème Arrondissement" },
+      { id: 29, name: "8ème Arrondissement" },
+      { id: 30, name: "9ème Arrondissement" },
+      { id: 31, name: "10ème Arrondissement" },
+      { id: 32, name: "11ème Arrondissement" },
+      { id: 33, name: "12ème Arrondissement" },
+      { id: 34, name: "13ème Arrondissement" }
+    ],
+    46: [ // Porto-Novo
+      { id: 35, name: "Porto-Novo Centre" },
+      { id: 36, name: "Adjarra" },
+      { id: 37, name: "Akpro-Missérété" }
+    ],
+    53: [ // Abomey
+      { id: 38, name: "Abomey Centre" },
+      { id: 39, name: "Agbangnizoun" }
+    ],
+    55: [ // Bohicon
+      { id: 40, name: "Bohicon Centre" },
+      { id: 41, name: "Covè" }
     ]
   },
   
@@ -149,10 +192,78 @@ window.geoData = {
       { id: 2, name: "Akassato" },
       { id: 3, name: "Godomey" }
     ],
-    6: [ // 1er Arrondissement Cotonou
-      { id: 4, name: "Cotonou Centre" },
-      { id: 5, name: "Ganhi" },
-      { id: 6, name: "Gbegamey" }
+    2: [ // Akassato
+      { id: 4, name: "Akassato Centre" },
+      { id: 5, name: "Hêvié" }
+    ],
+    3: [ // Godomey
+      { id: 6, name: "Godomey Centre" },
+      { id: 7, name: "Kpanroun" }
+    ],
+    6: [ // Allada Centre
+      { id: 8, name: "Allada Centre" },
+      { id: 9, name: "Sékou" }
+    ],
+    7: [ // Sékou
+      { id: 10, name: "Sékou Centre" },
+      { id: 11, name: "Togba" }
+    ],
+    9: [ // Kpomassè Centre
+      { id: 12, name: "Kpomassè Centre" },
+      { id: 13, name: "Avlékété" }
+    ],
+    11: [ // Ouidah Centre
+      { id: 14, name: "Ouidah Centre" },
+      { id: 15, name: "Djègbadji" }
+    ],
+    12: [ // Djègbadji
+      { id: 16, name: "Djègbadji Centre" },
+      { id: 17, name: "Sèhouè" }
+    ],
+    14: [ // Sô-Ava Centre
+      { id: 18, name: "Sô-Ava Centre" },
+      { id: 19, name: "Ganvié" }
+    ],
+    16: [ // Toffo Centre
+      { id: 20, name: "Toffo Centre" },
+      { id: 21, name: "Dodji-Bata" }
+    ],
+    18: [ // Tori-Bossito Centre
+      { id: 22, name: "Tori-Bossito Centre" },
+      { id: 23, name: "Avamè" }
+    ],
+    20: [ // Zè Centre
+      { id: 24, name: "Zè Centre" },
+      { id: 25, name: "Djidja" }
+    ],
+    22: [ // 1er Arrondissement Cotonou
+      { id: 26, name: "Cotonou Centre" },
+      { id: 27, name: "Ganhi" },
+      { id: 28, name: "Gbegamey" }
+    ],
+    23: [ // 2ème Arrondissement Cotonou
+      { id: 29, name: "Cadjehoun" },
+      { id: 30, name: "Fidjrossè" }
+    ],
+    24: [ // 3ème Arrondissement Cotonou
+      { id: 31, name: "Gbegamey" },
+      { id: 32, name: "Houéyiho" }
+    ],
+    35: [ // Porto-Novo Centre
+      { id: 33, name: "Porto-Novo Centre" },
+      { id: 34, name: "Adjarra" }
+    ],
+    36: [ // Adjarra
+      { id: 35, name: "Adjarra Centre" },
+      { id: 36, name: "Akpro-Missérété" }
+    ],
+    38: [ // Abomey Centre
+      { id: 37, name: "Abomey Centre" },
+      { id: 38, name: "Agbangnizoun" }
+    ],
+    40: [ // Bohicon Centre
+      { id: 39, name: "Bohicon Centre" },
+      { id: 40, name: "Covè" }
     ]
   }
 };
