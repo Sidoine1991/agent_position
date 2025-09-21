@@ -107,10 +107,12 @@ async function init() {
   markersLayer = L.layerGroup().addTo(map);
 
   await loadAgents();
-  await loadDepartements();
-  $('departement').onchange = () => loadCommunes(Number($('departement').value));
-  $('commune').onchange = () => loadArrondissements(Number($('commune').value));
-  $('arrondissement').onchange = () => loadVillages(Number($('arrondissement').value));
+  
+  // Initialiser les sélecteurs géographiques avec les bonnes fonctions
+  setTimeout(() => {
+    console.log('🌍 Initialisation des sélecteurs géographiques dans dashboard...');
+    initGeoSelectorsLocal();
+  }, 100);
 
   // Test de chargement des départements au démarrage
   console.log('🚀 Test de chargement des départements au démarrage...');
@@ -422,7 +424,145 @@ async function onAgentSubmit(ev){
   }
 }
 
-// Les fonctions de chargement géographique sont maintenant dans geo-data.js
+// Fonction d'initialisation locale des sélecteurs géographiques
+function initGeoSelectorsLocal() {
+  console.log('🌍 Initialisation locale des sélecteurs géographiques dans dashboard...');
+  
+  // Charger les départements
+  loadDepartements();
+  
+  // Ajouter les événements
+  const departementSelect = $('departement');
+  const communeSelect = $('commune');
+  const arrondissementSelect = $('arrondissement');
+  
+  if (departementSelect) {
+    departementSelect.addEventListener('change', function() {
+      loadCommunes(this.value);
+    });
+  }
+  
+  if (communeSelect) {
+    communeSelect.addEventListener('change', function() {
+      loadArrondissements(this.value);
+    });
+  }
+  
+  if (arrondissementSelect) {
+    arrondissementSelect.addEventListener('change', function() {
+      loadVillages(this.value);
+    });
+  }
+  
+  console.log('✅ Sélecteurs géographiques initialisés localement dans dashboard');
+}
+
+// Fonctions de chargement des données géographiques
+async function loadDepartements() {
+  try {
+    const deptSelect = $('departement');
+    if (!deptSelect) return;
+    
+    deptSelect.innerHTML = '<option value="">Sélectionner un département</option>';
+    
+    // Utiliser les données de geo-data.js
+    if (window.geoData && window.geoData.departements) {
+      window.geoData.departements.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.id;
+        opt.textContent = d.name;
+        deptSelect.appendChild(opt);
+      });
+      console.log('✅ Départements chargés depuis geo-data.js:', window.geoData.departements.length);
+    } else {
+      console.error('❌ Données géographiques locales non disponibles');
+    }
+  } catch (error) {
+    console.error('Erreur chargement départements:', error);
+  }
+}
+
+async function loadCommunes(departementId) {
+  try {
+    const communeSelect = $('commune');
+    if (!communeSelect) return;
+    
+    communeSelect.innerHTML = '<option value="">Sélectionner une commune</option>';
+    
+    // Utiliser les données de geo-data.js qui utilisent des IDs numériques
+    if (window.geoData && window.geoData.communes && window.geoData.communes[departementId]) {
+      const communes = window.geoData.communes[departementId];
+      communes.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        communeSelect.appendChild(opt);
+      });
+      console.log('✅ Communes chargées depuis geo-data.js:', communes.length, 'pour département ID:', departementId);
+    } else {
+      console.error('❌ Communes non disponibles pour le département ID:', departementId);
+    }
+    
+    // Réinitialiser les niveaux suivants
+    $('arrondissement').innerHTML = '<option value="">Sélectionner un arrondissement</option>';
+    $('village').innerHTML = '<option value="">Sélectionner un village</option>';
+  } catch (error) {
+    console.error('Erreur chargement communes:', error);
+  }
+}
+
+async function loadArrondissements(communeId) {
+  try {
+    const arrSelect = $('arrondissement');
+    if (!arrSelect) return;
+    
+    arrSelect.innerHTML = '<option value="">Sélectionner un arrondissement</option>';
+    
+    // Utiliser les données de geo-data.js qui utilisent des IDs numériques
+    if (window.geoData && window.geoData.arrondissements && window.geoData.arrondissements[communeId]) {
+      const arrondissements = window.geoData.arrondissements[communeId];
+      arrondissements.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a.id;
+        opt.textContent = a.name;
+        arrSelect.appendChild(opt);
+      });
+      console.log('✅ Arrondissements chargés depuis geo-data.js:', arrondissements.length, 'pour commune ID:', communeId);
+    } else {
+      console.error('❌ Arrondissements non disponibles pour la commune ID:', communeId);
+    }
+    
+    // Réinitialiser le niveau suivant
+    $('village').innerHTML = '<option value="">Sélectionner un village</option>';
+  } catch (error) {
+    console.error('Erreur chargement arrondissements:', error);
+  }
+}
+
+async function loadVillages(arrondissementId) {
+  try {
+    const villageSelect = $('village');
+    if (!villageSelect) return;
+    
+    villageSelect.innerHTML = '<option value="">Sélectionner un village</option>';
+    
+    // Utiliser les données de geo-data.js qui utilisent des IDs numériques
+    if (window.geoData && window.geoData.villages && window.geoData.villages[arrondissementId]) {
+      const villages = window.geoData.villages[arrondissementId];
+      villages.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.id;
+        opt.textContent = v.name;
+        villageSelect.appendChild(opt);
+      });
+      console.log('✅ Villages chargés depuis geo-data.js:', villages.length, 'pour arrondissement ID:', arrondissementId);
+    } else {
+      console.error('❌ Villages non disponibles pour l\'arrondissement ID:', arrondissementId);
+    }
+  } catch (error) {
+    console.error('Erreur chargement villages:', error);
+  }
+}
 
 async function refresh() {
   markersLayer.clearLayers();
