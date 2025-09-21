@@ -93,7 +93,11 @@ async function init() {
       
       console.log('Réponse de l\'API:', data);
       
-      jwt = data.token; localStorage.setItem('jwt', jwt);
+      jwt = data.token; 
+      localStorage.setItem('jwt', jwt);
+      localStorage.setItem('loginData', JSON.stringify(data.user));
+      localStorage.setItem('userProfile', JSON.stringify(data.user));
+      
       hide(authSection); show(appSection);
       await loadAgentProfile();
       
@@ -803,14 +807,26 @@ async function updateNavbar() {
   
   if (jwt) {
     try {
-      // Récupérer le profil utilisateur
-      const profile = await api('/profile');
+      // Récupérer le profil utilisateur depuis le localStorage ou l'API
+      let profile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+      
+      // Si pas de profil en cache, essayer l'API
+      if (!profile.id) {
+        try {
+          profile = await api('/profile');
+          localStorage.setItem('userProfile', JSON.stringify(profile));
+        } catch (e) {
+          console.log('API profile non disponible, utilisation des données de connexion');
+          // Utiliser les données de connexion stockées
+          profile = JSON.parse(localStorage.getItem('loginData') || '{}');
+        }
+      }
       
       // Afficher le profil pour tous les utilisateurs connectés
       if (profileLink) profileLink.style.display = 'flex';
       
       // Navigation pour Admin et Superviseur
-      if (profile && (profile.role === 'admin' || profile.role === 'supervisor')) {
+      if (profile && (profile.role === 'admin' || profile.role === 'superviseur')) {
         if (dashboardLink) dashboardLink.style.display = 'flex';
         if (agentsLink) agentsLink.style.display = 'flex';
         if (reportsLink) reportsLink.style.display = 'flex';
@@ -832,7 +848,7 @@ async function updateNavbar() {
       if (userInfo && profile) {
         const roleText = {
           'admin': 'Administrateur',
-          'supervisor': 'Superviseur',
+          'superviseur': 'Superviseur',
           'agent': 'Agent'
         };
         userInfo.textContent = `${profile.name} (${roleText[profile.role] || profile.role})`;
