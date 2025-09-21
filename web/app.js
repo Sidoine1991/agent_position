@@ -696,7 +696,14 @@ async function calculateMonthlyStats() {
       return stats;
     }
   } catch (e) {
-    console.error('Erreur calcul statistiques:', e);
+    console.warn('⚠️ APIs de statistiques non disponibles, utilisation de données par défaut');
+    // Utiliser des données par défaut si les APIs ne fonctionnent pas
+    updateDashboardStats({
+      daysWorked: 0,
+      hoursWorked: 0,
+      presenceRate: 0,
+      currentPosition: 'Non disponible'
+    });
   }
 }
 
@@ -747,7 +754,8 @@ async function checkDailyAbsences() {
       }
     }
   } catch (e) {
-    console.error('Erreur vérification absences:', e);
+    console.warn('⚠️ Système de vérification des absences non disponible');
+    // Ne pas afficher d'erreur, juste un avertissement silencieux
   }
 }
 
