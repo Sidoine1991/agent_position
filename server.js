@@ -6,9 +6,13 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const multer = require('multer');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Configuration JWT
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
 
 // Configuration multer pour les fichiers
 const upload = multer({ dest: 'uploads/' });
