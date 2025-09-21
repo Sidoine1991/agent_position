@@ -28,6 +28,11 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const webPath = path.join(__dirname, '../../web');
 app.use('/', express.static(webPath));
 
+// Route pour la page d'accueil
+app.get('/', (req, res) => {
+  res.sendFile(path.join(webPath, 'index.html'));
+});
+
 // Servir les uploads
 const uploadsPath = path.join(__dirname, '../../data/uploads');
 if (!fs.existsSync(uploadsPath)) {
