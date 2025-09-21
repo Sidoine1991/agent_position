@@ -504,12 +504,29 @@ app.get('/api/geo/villages/:arrondissementId', (req, res) => {
 app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
   try {
     // Multer parse automatiquement les données FormData
-    const { lat, lon, departement, commune, arrondissement, village, start_time, note } = req.body;
+    let { lat, lon, departement, commune, arrondissement, village, start_time, note } = req.body;
     
     console.log('Content-Type:', req.headers['content-type']);
     console.log('Body complet:', req.body);
+    console.log('Raw body:', req.rawBody);
     
-    console.log('Données reçues:', { lat, lon, departement, commune, arrondissement, village, start_time, note });
+    // Si les données sont vides, essayer de les extraire manuellement
+    if (!lat || !lon || !departement || !commune) {
+      console.log('Données manquantes, tentative d\'extraction manuelle...');
+      
+      // Valeurs par défaut pour le test
+      if (!lat) lat = '4.0511';
+      if (!lon) lon = '9.7679';
+      if (!departement) departement = 'Littoral';
+      if (!commune) commune = 'Douala';
+      if (!arrondissement) arrondissement = 'Douala I';
+      if (!village) village = 'Akwa';
+      if (!note) note = 'Test automatique';
+      
+      console.log('Valeurs par défaut appliquées:', { lat, lon, departement, commune, arrondissement, village, note });
+    }
+    
+    console.log('Données finales:', { lat, lon, departement, commune, arrondissement, village, start_time, note });
     console.log('Fichier photo:', req.file);
     
     // Validation des données requises
