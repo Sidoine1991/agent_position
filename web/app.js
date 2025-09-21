@@ -625,30 +625,37 @@ function scheduleReminder(hour, minute, title, message) {
 
 function showNotification(title, message) {
   if (Notification.permission === 'granted') {
-    const notification = new Notification(title, {
-      body: message,
-      icon: '/web/Media/logo-ccrb.png',
-      badge: '/web/Media/logo-ccrb.png',
-      tag: 'presence-reminder',
-      requireInteraction: true,
-      actions: [
-        { action: 'mark-presence', title: 'Marquer présence' },
-        { action: 'dismiss', title: 'Ignorer' }
-      ]
-    });
+    try {
+      const notification = new Notification(title, {
+        body: message,
+        icon: '/Media/default-avatar.png',
+        tag: 'presence-reminder'
+      });
 
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-      // Scroll vers le formulaire de présence
-      const presenceCard = document.querySelector('.card h2');
-      if (presenceCard && presenceCard.textContent.includes('Présence terrain')) {
-        presenceCard.scrollIntoView({ behavior: 'smooth' });
-      }
-    };
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+        // Scroll vers le formulaire de présence
+        const presenceCard = document.querySelector('.card h2');
+        if (presenceCard && presenceCard.textContent.includes('Présence terrain')) {
+          presenceCard.scrollIntoView({ behavior: 'smooth' });
+        }
+      };
 
-    // Auto-fermer après 10 secondes
-    setTimeout(() => notification.close(), 10000);
+      // Auto-fermer après 5 secondes
+      setTimeout(() => {
+        if (notification && notification.close) {
+          notification.close();
+        }
+      }, 5000);
+    } catch (error) {
+      console.warn('Erreur notification:', error);
+      // Fallback: afficher une alerte simple
+      alert(`${title}: ${message}`);
+    }
+  } else {
+    // Fallback: afficher une alerte simple
+    alert(`${title}: ${message}`);
   }
 }
 
