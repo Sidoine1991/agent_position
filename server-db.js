@@ -84,7 +84,7 @@ app.post('/api/register', async (req, res) => {
     await pool.query(`
       INSERT INTO users (email, password_hash, name, role, phone, verification_code, verification_expires)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
-    ``, [email, passwordHash, name, role, phone, verificationCode, expiresAt]);
+    `, [email, passwordHash, name, role, phone, verificationCode, expiresAt]);
     
     // Envoyer l'email de validation
     await transporter.sendMail({
