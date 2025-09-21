@@ -1289,6 +1289,10 @@ function initGeoSelectorsLocal() {
 
 // Initialiser la saisie manuelle au chargement
 document.addEventListener('DOMContentLoaded', () => {
+  // Effacer la console au chargement
+  console.clear();
+  console.log('🚀 Application chargée - Console effacée');
+  
   // Vérifier le token au chargement
   const jwt = localStorage.getItem('jwt');
   if (jwt && jwt.length < 50) {
