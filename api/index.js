@@ -1,4 +1,4 @@
-// API consolidée pour Vercel - Version 2.3 - Sécurité
+// API consolidée pour Vercel - Version 2.4 - Force Deploy
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://agent-position.vercel.app';
 
