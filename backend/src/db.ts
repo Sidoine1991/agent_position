@@ -1,6 +1,6 @@
 import sqlite3 from 'sqlite3';
-import path from 'node:path';
-import fs from 'node:fs';
+import path from 'path';
+import fs from 'fs';
 
 const dataDir = path.join(process.cwd(), 'data');
 const dbFile = path.join(dataDir, 'app.db');

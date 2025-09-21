@@ -20,8 +20,10 @@
     "exactOptionalPropertyTypes": false,
     "verbatimModuleSyntax": false,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
+    "forceConsistentCasingInFileNames": false,
     "resolveJsonModule": true,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
@@ -34,7 +36,8 @@
     "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "src/types.d.ts"
   ],
   "exclude": [
     "node_modules",

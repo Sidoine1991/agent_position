@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from './db.js';
 import { signToken, comparePassword, hashPassword, verifyToken } from './auth.js';
 import { upload, getPublicPhotoPath } from './storage.js';
+import { getDepartements, getCommunes, getArrondissements, getVillages } from './db-cloud.js';
 
 export const router = express.Router();
 
@@ -166,27 +167,23 @@ router.get('/admin/agents', requireAuth, requireRole(['admin', 'supervisor']), (
 
 // Geo endpoints
 router.get('/geo/departements', (req, res) => {
-  const { getDepartements } = require('./db-cloud.js');
   const departements = getDepartements();
   res.json(departements);
 });
 
 router.get('/geo/communes/:departementId', (req, res) => {
-  const { getCommunes } = require('./db-cloud.js');
   const departementId = parseInt(req.params.departementId);
   const communes = getCommunes(departementId);
   res.json(communes);
 });
 
 router.get('/geo/arrondissements/:communeId', (req, res) => {
-  const { getArrondissements } = require('./db-cloud.js');
   const communeId = parseInt(req.params.communeId);
   const arrondissements = getArrondissements(communeId);
   res.json(arrondissements);
 });
 
 router.get('/geo/villages/:arrondissementId', (req, res) => {
-  const { getVillages } = require('./db-cloud.js');
   const arrondissementId = parseInt(req.params.arrondissementId);
   const villages = getVillages(arrondissementId);
   res.json(villages);
