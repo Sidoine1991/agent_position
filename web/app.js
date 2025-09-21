@@ -163,9 +163,14 @@ async function init() {
     
     try {
       const data = await api('/register', { method: 'POST', body: { name, email, password, role: 'agent' } });
-      jwt = data.token; localStorage.setItem('jwt', jwt);
-      alert('Compte créé avec succès ! Vous êtes maintenant connecté.');
-      hide(authSection); show(appSection);
+      
+      if (data.success) {
+        alert('Code de validation envoyé par email. Veuillez vérifier votre boîte mail et utiliser le code pour activer votre compte.');
+        // Rediriger vers la page de validation
+        window.location.href = '/register.html';
+      } else {
+        alert(data.message || 'Erreur lors de l\'inscription');
+      }
       await loadAgentProfile();
       await updateNavbar();
     } catch (e) { 
