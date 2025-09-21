@@ -355,8 +355,8 @@ async function init() {
       console.log('- JWT disponible:', !!jwt);
       console.log('- JWT longueur:', jwt ? jwt.length : 0);
       
-      // Vérifier si c'est un ancien token simple (moins de 50 caractères)
-      if (jwt && jwt.length < 50) {
+      // Vérifier si c'est un ancien token simple (moins de 20 caractères)
+      if (jwt && jwt.length < 20) {
         console.warn('⚠️ Ancien token détecté (longueur:', jwt.length, '). Suppression du token.');
         localStorage.removeItem('jwt');
         localStorage.removeItem('loginData');
@@ -451,6 +451,7 @@ async function init() {
       // Logs de diagnostic
       console.log('🔍 Diagnostic API fin présence:');
       console.log('- JWT disponible:', !!jwt);
+      console.log('- JWT longueur:', jwt ? jwt.length : 0);
       console.log('- Mission ID:', currentMissionId);
       console.log('- FormData contenu:', {
         lat: fd.get('lat'),
@@ -667,7 +668,9 @@ async function calculateMonthlyStats() {
     const month = currentDate.getMonth() + 1;
     
     // Récupérer les données de présence du mois
-    const response = await api(`/presence/stats?year=${year}&month=${month}`);
+    const urlParams = new URLSearchParams(window.location.search);
+    const email = urlParams.get('email') || localStorage.getItem('userEmail') || 'admin@ccrb.local';
+    const response = await api(`/presence/stats?year=${year}&month=${month}&email=${encodeURIComponent(email)}`);
     
     if (response.success) {
       const stats = response.stats;
@@ -728,11 +731,13 @@ async function checkDailyAbsences() {
     
     // Si on est après 18h et qu'aucune présence n'a été marquée aujourd'hui
     if (hour >= 18) {
-      const response = await api('/presence/check-today');
+      const urlParams = new URLSearchParams(window.location.search);
+      const email = urlParams.get('email') || localStorage.getItem('userEmail') || 'admin@ccrb.local';
+      const response = await api(`/presence/check-today?email=${encodeURIComponent(email)}`);
       
       if (response.success && !response.has_presence) {
         // Marquer comme absent pour aujourd'hui
-        await api('/presence/mark-absent', {
+        await api(`/presence/mark-absent?email=${encodeURIComponent(email)}`, {
           method: 'POST',
           body: { date: today.toISOString().split('T')[0] }
         });
@@ -1617,7 +1622,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Vérifier le token au chargement
   const jwt = localStorage.getItem('jwt');
-  if (jwt && jwt.length < 50) {
+  if (jwt && jwt.length < 20) {
     console.warn('⚠️ Ancien token détecté au chargement (longueur:', jwt.length, '). Suppression du token.');
     localStorage.removeItem('jwt');
     localStorage.removeItem('loginData');
