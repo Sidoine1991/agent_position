@@ -20,6 +20,773 @@
   --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   --gradient-success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
   --gradient-warning: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  
+  /* Nouvelles variables pour les animations */
+  --animation-duration: 0.3s;
+  --animation-duration-slow: 0.6s;
+  --animation-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --animation-easing-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.2);
+}
+
+/* Animations et keyframes */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes bounce {
+  0%, 20%, 53%, 80%, 100% { transform: translate3d(0,0,0); }
+  40%, 43% { transform: translate3d(0, -8px, 0); }
+  70% { transform: translate3d(0, -4px, 0); }
+  90% { transform: translate3d(0, -2px, 0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(37, 99, 235, 0.5); }
+  50% { box-shadow: 0 0 20px rgba(37, 99, 235, 0.8), 0 0 30px rgba(37, 99, 235, 0.6); }
+}
+
+@keyframes ripple {
+  0% { transform: scale(0); opacity: 1; }
+  100% { transform: scale(4); opacity: 0; }
+}
+
+@keyframes loading-dots {
+  0%, 20% { color: rgba(0,0,0,0); text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0); }
+  40% { color: var(--text); text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0); }
+  60% { text-shadow: .25em 0 0 var(--text), .5em 0 0 rgba(0,0,0,0); }
+  80%, 100% { text-shadow: .25em 0 0 var(--text), .5em 0 0 var(--text); }
+}
+
+/* Styles généraux pour les boutons avec animations */
+.btn-primary, .btn-secondary, button {
+  position: relative;
+  overflow: hidden;
+  transition: all var(--animation-duration) var(--animation-easing);
+  cursor: pointer;
+  border: none;
+  outline: none;
+  user-select: none;
+}
+
+.btn-primary:active, .btn-secondary:active, button:active {
+  transform: scale(0.98);
+}
+
+/* Effet ripple pour les boutons */
+.btn-primary::before, .btn-secondary::before, button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn-primary:active::before, .btn-secondary:active::before, button:active::before {
+  width: 300px;
+  height: 300px;
+}
+
+/* Animation de chargement pour les boutons */
+.btn-loading {
+  position: relative;
+  color: transparent !important;
+}
+
+.btn-loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Animations pour les formulaires */
+.form-group {
+  animation: slideInLeft var(--animation-duration) var(--animation-easing);
+}
+
+.form-group:nth-child(1) { animation-delay: 0.1s; }
+.form-group:nth-child(2) { animation-delay: 0.2s; }
+.form-group:nth-child(3) { animation-delay: 0.3s; }
+.form-group:nth-child(4) { animation-delay: 0.4s; }
+
+/* Animations pour les inputs */
+input, select, textarea {
+  transition: all var(--animation-duration) var(--animation-easing);
+}
+
+input:focus, select:focus, textarea:focus {
+  transform: scale(1.02);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Skeleton loading */
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-text {
+  height: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-text:last-child {
+  width: 60%;
+}
+
+/* Animations pour les listes */
+.list-item {
+  animation: slideInRight var(--animation-duration) var(--animation-easing);
+  transition: all var(--animation-duration) var(--animation-easing);
+}
+
+.list-item:hover {
+  transform: translateX(8px);
+  background: var(--bg-light);
+}
+
+/* Animations pour les icônes */
+.icon {
+  transition: all var(--animation-duration) var(--animation-easing);
+}
+
+.icon:hover {
+  transform: scale(1.2) rotate(5deg);
+}
+
+/* Animations pour les notifications */
+.notification {
+  animation: slideInRight var(--animation-duration) var(--animation-easing);
+}
+
+.notification.success {
+  animation: slideInRight var(--animation-duration) var(--animation-easing), glow 2s infinite;
+}
+
+.notification.error {
+  animation: slideInRight var(--animation-duration) var(--animation-easing), pulse 1s infinite;
+}
+
+/* Styles pour les éléments de check-in */
+.checkin-item {
+  padding: 12px;
+  background: var(--bg-light);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  border-left: 4px solid var(--primary);
+  transition: all var(--animation-duration) var(--animation-easing);
+}
+
+.checkin-item:hover {
+  transform: translateX(8px);
+  box-shadow: var(--shadow);
+}
+
+.checkin-time {
+  font-weight: 600;
+  color: var(--primary);
+  font-size: 0.9rem;
+}
+
+.checkin-coords {
+  color: var(--text-light);
+  font-size: 0.8rem;
+  font-family: monospace;
+  margin: 4px 0;
+}
+
+.checkin-note {
+  color: var(--text);
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
+/* Amélioration des listes */
+#checkins {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+#checkins li {
+  margin-bottom: 8px;
+  animation: slideInRight var(--animation-duration) var(--animation-easing);
+}
+
+/* Indicateur GPS */
+.gps-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.gps-icon {
+  font-size: 2rem;
+  animation: pulse 1.5s infinite;
+}
+
+.gps-text {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.gps-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.gps-dots span {
+  width: 8px;
+  height: 8px;
+  background: var(--primary);
+  border-radius: 50%;
+  animation: loading-dots 1.4s infinite;
+}
+
+.gps-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.gps-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Animation fadeOut */
+@keyframes fadeOut {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+}
+
+/* Amélioration du feedback GPS */
+.gps-feedback {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow-lg);
+  z-index: 10000;
+  animation: slideInRight var(--animation-duration) var(--animation-easing);
+}
+
+.gps-feedback.success {
+  border-left: 4px solid var(--success);
+}
+
+.gps-feedback.warning {
+  border-left: 4px solid var(--warning);
+}
+
+.gps-feedback.error {
+  border-left: 4px solid var(--danger);
+}
+
+/* Amélioration des formulaires */
+.form-group {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--text);
+  transition: color var(--animation-duration) var(--animation-easing);
+}
+
+.form-group input:focus + label,
+.form-group select:focus + label {
+  color: var(--primary);
+}
+
+/* Effet de focus amélioré */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  transform: scale(1.02);
+}
+
+/* Amélioration des sélecteurs géographiques */
+.geo-selector {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.geo-selector::after {
+  content: '📍';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 1.2rem;
+  opacity: 0.6;
+}
+
+/* Animation pour les éléments qui apparaissent */
+.fade-in {
+  animation: fadeIn var(--animation-duration-slow) var(--animation-easing);
+}
+
+.slide-in-left {
+  animation: slideInLeft var(--animation-duration-slow) var(--animation-easing);
+}
+
+.slide-in-right {
+  animation: slideInRight var(--animation-duration-slow) var(--animation-easing);
+}
+
+.scale-in {
+  animation: scaleIn var(--animation-duration-slow) var(--animation-easing);
+}
+
+/* Effet de survol pour les cartes */
+.card:hover .card-header {
+  transform: translateY(-2px);
+}
+
+.card-header {
+  transition: transform var(--animation-duration) var(--animation-easing);
+}
+
+/* Amélioration des boutons avec des gradients */
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.btn-primary:hover::before {
+  left: 100%;
+}
+
+/* Animation pour les icônes dans les boutons */
+.btn-icon {
+  transition: transform var(--animation-duration) var(--animation-easing);
+}
+
+.btn-primary:hover .btn-icon,
+.btn-secondary:hover .btn-icon {
+  transform: scale(1.1) rotate(5deg);
+}
+
+/* Effet de particules pour les succès */
+.success-particles {
+  position: relative;
+  overflow: hidden;
+}
+
+.success-particles::after {
+  content: '✨';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.5rem;
+  animation: float 2s infinite;
+  pointer-events: none;
+}
+
+/* Carousel Hero */
+.hero-carousel {
+  width: 100%;
+  max-width: 1200px;
+  margin: 2rem auto;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow-xl);
+  position: relative;
+  animation: fadeIn var(--animation-duration-slow) var(--animation-easing);
+  background: linear-gradient(135deg, var(--primary-light), var(--primary-dark));
+  padding: 4px;
+}
+
+.hero-carousel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, 
+    rgba(37, 99, 235, 0.1) 0%, 
+    rgba(5, 150, 105, 0.1) 50%, 
+    rgba(37, 99, 235, 0.1) 100%);
+  border-radius: 20px;
+  z-index: -1;
+  animation: shimmer 3s infinite;
+}
+
+.carousel-container {
+  position: relative;
+  width: 100%;
+  height: 400px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: white;
+}
+
+.carousel-slides {
+  display: flex;
+  width: 500%;
+  height: 100%;
+  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
+.carousel-slides.transitioning {
+  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.carousel-slide {
+  position: relative;
+  width: 20%;
+  height: 100%;
+  flex-shrink: 0;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.carousel-slide.active {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.carousel-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform 0.8s ease;
+  filter: brightness(0.9) contrast(1.1);
+}
+
+.carousel-slide:hover .carousel-image {
+  transform: scale(1.05);
+  filter: brightness(1) contrast(1.2);
+}
+
+.carousel-slide.active .carousel-image {
+  filter: brightness(1) contrast(1.1);
+  animation: subtleZoom 8s ease-in-out infinite;
+}
+
+@keyframes subtleZoom {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+.carousel-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  color: white;
+  padding: 2rem;
+  transform: translateY(100%);
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.carousel-slide.active .carousel-overlay {
+  transform: translateY(0);
+}
+
+.carousel-overlay h3 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.carousel-overlay p {
+  font-size: 1.1rem;
+  margin: 0;
+  opacity: 0.9;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Effet de particules flottantes */
+.carousel-slide::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+    radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+    radial-gradient(circle at 40% 60%, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 50px 50px, 80px 80px, 60px 60px;
+  animation: float 6s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.carousel-slide.active::before {
+  animation: float 6s ease-in-out infinite, shimmer 4s infinite;
+}
+
+/* Contrôles du carousel */
+.carousel-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--animation-duration) var(--animation-easing);
+  z-index: 10;
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(10px);
+}
+
+.carousel-btn:hover {
+  background: rgba(255, 255, 255, 1);
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: var(--shadow-xl);
+}
+
+.carousel-prev {
+  left: 20px;
+}
+
+.carousel-next {
+  right: 20px;
+}
+
+.carousel-btn .btn-icon {
+  font-size: 1.2rem;
+  color: var(--primary);
+  font-weight: bold;
+}
+
+/* Indicateurs */
+.carousel-indicators {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+
+.indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all var(--animation-duration) var(--animation-easing);
+  border: 2px solid transparent;
+}
+
+.indicator:hover {
+  background: rgba(255, 255, 255, 0.8);
+  transform: scale(1.2);
+}
+
+.indicator.active {
+  background: var(--primary);
+  border-color: white;
+  transform: scale(1.3);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3);
+}
+
+/* Animation de transition entre slides */
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Responsive pour le carousel */
+@media (max-width: 768px) {
+  .hero-carousel {
+    margin: 1rem auto;
+    border-radius: 12px;
+  }
+  
+  .carousel-container {
+    height: 250px;
+  }
+  
+  .carousel-overlay {
+    padding: 1rem;
+  }
+  
+  .carousel-overlay h3 {
+    font-size: 1.4rem;
+  }
+  
+  .carousel-overlay p {
+    font-size: 1rem;
+  }
+  
+  .carousel-btn {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .carousel-prev {
+    left: 10px;
+  }
+  
+  .carousel-next {
+    right: 10px;
+  }
+  
+  .indicator {
+    width: 10px;
+    height: 10px;
+  }
+}
+
+/* Indicateur de chargement du carousel */
+.carousel-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 20px;
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.carousel-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border-light);
+  border-top: 4px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.carousel-loading-text {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+/* Animation de chargement des images */
+.carousel-image {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.carousel-image.loaded {
+  opacity: 1;
+}
+
+/* Effet de parallaxe pour le carousel */
+.carousel-slide {
+  transform-style: preserve-3d;
+}
+
+.carousel-image {
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 * { box-sizing: border-box; }
@@ -81,6 +848,9 @@ body::after {
   overflow: visible;
   border-bottom: 3px solid rgba(255, 255, 255, 0.1);
   z-index: 1000;
+  animation: slideInLeft var(--animation-duration) var(--animation-easing);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .navbar-brand {
@@ -650,6 +1420,15 @@ main {
   position: relative;
   overflow: hidden;
   transform: translateY(0);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: fadeIn var(--animation-duration-slow) var(--animation-easing);
+}
+
+.card:hover {
+  transform: translateY(-8px);
+  box-shadow: var(--shadow-xl);
+  border-color: var(--primary-light);
 }
 
 .card::before {

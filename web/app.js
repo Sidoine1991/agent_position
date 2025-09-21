@@ -8,6 +8,291 @@ function $(id) { return document.getElementById(id); }
 function show(el) { el.classList.remove('hidden'); }
 function hide(el) { el.classList.add('hidden'); }
 
+// Fonctions d'animation et d'effets visuels
+function addLoadingState(element, text = 'Chargement...') {
+  if (!element) return;
+  
+  element.classList.add('btn-loading');
+  element.disabled = true;
+  element.setAttribute('data-original-text', element.textContent);
+  element.textContent = text;
+}
+
+function removeLoadingState(element) {
+  if (!element) return;
+  
+  element.classList.remove('btn-loading');
+  element.disabled = false;
+  const originalText = element.getAttribute('data-original-text');
+  if (originalText) {
+    element.textContent = originalText;
+    element.removeAttribute('data-original-text');
+  }
+}
+
+function showNotification(message, type = 'info', duration = 3000) {
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
+  notification.textContent = message;
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 16px 24px;
+    background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+    color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10000;
+    animation: slideInRight 0.3s ease-out;
+  `;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.style.animation = 'slideInRight 0.3s ease-out reverse';
+    setTimeout(() => notification.remove(), 300);
+  }, duration);
+}
+
+function createRippleEffect(event) {
+  const button = event.currentTarget;
+  const rect = button.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height);
+  const x = event.clientX - rect.left - size / 2;
+  const y = event.clientY - rect.top - size / 2;
+  
+  const ripple = document.createElement('span');
+  ripple.style.cssText = `
+    position: absolute;
+    width: ${size}px;
+    height: ${size}px;
+    left: ${x}px;
+    top: ${y}px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    transform: scale(0);
+    animation: ripple 0.6s linear;
+    pointer-events: none;
+  `;
+  
+  button.appendChild(ripple);
+  setTimeout(() => ripple.remove(), 600);
+}
+
+function animateElement(element, animation, duration = 300) {
+  element.style.animation = `${animation} ${duration}ms ease-out`;
+  setTimeout(() => {
+    element.style.animation = '';
+  }, duration);
+}
+
+function addScrollAnimations() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.style.animation = 'fadeIn 0.6s ease-out';
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  
+  document.querySelectorAll('.card, .form-group, .list-item').forEach(el => {
+    observer.observe(el);
+  });
+}
+
+// Variables globales pour le carousel
+let currentSlideIndex = 0;
+let slideInterval;
+const totalSlides = 5;
+
+// Fonctions du carousel
+function showSlide(index) {
+  const slides = document.querySelectorAll('.carousel-slide');
+  const indicators = document.querySelectorAll('.indicator');
+  const slidesContainer = document.querySelector('.carousel-slides');
+  
+  // Ajouter la classe de transition
+  if (slidesContainer) {
+    slidesContainer.classList.add('transitioning');
+  }
+  
+  // Masquer toutes les slides
+  slides.forEach(slide => slide.classList.remove('active'));
+  indicators.forEach(indicator => indicator.classList.remove('active'));
+  
+  // Afficher la slide courante
+  if (slides[index]) {
+    slides[index].classList.add('active');
+  }
+  if (indicators[index]) {
+    indicators[index].classList.add('active');
+  }
+  
+  // Animer la transition
+  if (slidesContainer) {
+    slidesContainer.style.transform = `translateX(-${index * 20}%)`;
+    
+    // Retirer la classe de transition après l'animation
+    setTimeout(() => {
+      slidesContainer.classList.remove('transitioning');
+    }, 800);
+  }
+  
+  // Ajouter un effet de particules pour la slide active
+  if (slides[index]) {
+    animateElement(slides[index], 'scaleIn', 300);
+  }
+}
+
+function changeSlide(direction) {
+  currentSlideIndex += direction;
+  
+  if (currentSlideIndex >= totalSlides) {
+    currentSlideIndex = 0;
+  } else if (currentSlideIndex < 0) {
+    currentSlideIndex = totalSlides - 1;
+  }
+  
+  showSlide(currentSlideIndex);
+  resetSlideInterval();
+}
+
+function currentSlide(index) {
+  currentSlideIndex = index - 1;
+  showSlide(currentSlideIndex);
+  resetSlideInterval();
+}
+
+function nextSlide() {
+  changeSlide(1);
+}
+
+function resetSlideInterval() {
+  clearInterval(slideInterval);
+  slideInterval = setInterval(nextSlide, 5000); // Change de slide toutes les 5 secondes
+}
+
+function preloadCarouselImages() {
+  const imageUrls = [
+    '/Media/PP CCRB.png',
+    '/Media/siege_CCRB.png',
+    '/Media/parcelle_riz.jpg',
+    '/Media/paarce2_riz.png',
+    '/Media/riz.png'
+  ];
+  
+  let loadedImages = 0;
+  const totalImages = imageUrls.length;
+  
+  // Afficher l'indicateur de chargement
+  const carousel = document.getElementById('hero-carousel');
+  if (carousel) {
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'carousel-loading';
+    loadingIndicator.innerHTML = `
+      <div class="carousel-loading-spinner"></div>
+      <div class="carousel-loading-text">Chargement des images...</div>
+    `;
+    carousel.appendChild(loadingIndicator);
+  }
+  
+  imageUrls.forEach((url, index) => {
+    const img = new Image();
+    img.onload = () => {
+      loadedImages++;
+      console.log(`Image ${index + 1} chargée: ${url}`);
+      
+      // Marquer l'image comme chargée dans le DOM
+      const carouselImages = document.querySelectorAll('.carousel-image');
+      if (carouselImages[index]) {
+        carouselImages[index].classList.add('loaded');
+      }
+      
+      // Masquer l'indicateur de chargement quand toutes les images sont chargées
+      if (loadedImages === totalImages) {
+        setTimeout(() => {
+          const loadingIndicator = carousel?.querySelector('.carousel-loading');
+          if (loadingIndicator) {
+            loadingIndicator.style.animation = 'fadeOut 0.5s ease-out';
+            setTimeout(() => loadingIndicator.remove(), 500);
+          }
+        }, 500);
+      }
+    };
+    img.onerror = () => {
+      console.warn(`Erreur de chargement de l'image: ${url}`);
+      loadedImages++;
+      
+      // Masquer l'indicateur même en cas d'erreur
+      if (loadedImages === totalImages) {
+        const loadingIndicator = carousel?.querySelector('.carousel-loading');
+        if (loadingIndicator) {
+          loadingIndicator.remove();
+        }
+      }
+    };
+    img.src = url;
+  });
+}
+
+function initCarousel() {
+  // Précharger les images
+  preloadCarouselImages();
+  
+  // Initialiser le carousel
+  showSlide(0);
+  resetSlideInterval();
+  
+  // Pause au survol
+  const carousel = document.getElementById('hero-carousel');
+  if (carousel) {
+    carousel.addEventListener('mouseenter', () => {
+      clearInterval(slideInterval);
+    });
+    
+    carousel.addEventListener('mouseleave', () => {
+      resetSlideInterval();
+    });
+  }
+  
+  // Navigation au clavier
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') {
+      changeSlide(-1);
+    } else if (e.key === 'ArrowRight') {
+      changeSlide(1);
+    }
+  });
+  
+  // Swipe pour mobile
+  let startX = 0;
+  let endX = 0;
+  
+  carousel.addEventListener('touchstart', (e) => {
+    startX = e.touches[0].clientX;
+  });
+  
+  carousel.addEventListener('touchend', (e) => {
+    endX = e.changedTouches[0].clientX;
+    handleSwipe();
+  });
+  
+  function handleSwipe() {
+    const threshold = 50;
+    const diff = startX - endX;
+    
+    if (Math.abs(diff) > threshold) {
+      if (diff > 0) {
+        changeSlide(1); // Swipe gauche - slide suivante
+      } else {
+        changeSlide(-1); // Swipe droite - slide précédente
+      }
+    }
+  }
+}
+
 async function api(path, opts={}) {
   const headers = opts.headers || {};
   if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
@@ -176,9 +461,18 @@ async function init() {
 
   $('start-mission').onclick = async () => {
     const status = $('status');
+    const startBtn = $('start-mission');
+    
+    // Ajouter l'effet ripple
+    createRippleEffect({ currentTarget: startBtn, clientX: 0, clientY: 0 });
+    
+    // État de chargement
+    addLoadingState(startBtn, 'Récupération GPS...');
+    
     try {
       // Valider les champs géographiques requis
       if (!validateGeoFields()) {
+        removeLoadingState(startBtn);
         return;
       }
       
@@ -224,6 +518,7 @@ async function init() {
       });
 
       status.textContent = 'Envoi...';
+      addLoadingState(startBtn, 'Envoi...');
       
       // Logs de diagnostic
       console.log('🔍 Diagnostic API présence:');
@@ -260,6 +555,11 @@ async function init() {
       $('end-mission').disabled = false;
       $('checkin-btn').disabled = false;
       status.textContent = 'Présence (début) enregistrée';
+      
+      // Animation de succès
+      animateElement(status, 'bounce');
+      showNotification('Mission démarrée avec succès !', 'success');
+      
       await refreshCheckins();
       await loadPresenceData(); // Mettre à jour le calendrier
     } catch (e) {
@@ -288,12 +588,20 @@ async function init() {
         }
       }
       
-      alert('Échec début présence: ' + errorMessage);
+      showNotification('Échec début présence: ' + errorMessage, 'error');
+    } finally {
+      removeLoadingState(startBtn);
     }
   };
 
   $('end-mission').onclick = async () => {
     const status = $('status');
+    const endBtn = $('end-mission');
+    
+    // Ajouter l'effet ripple
+    createRippleEffect({ currentTarget: endBtn, clientX: 0, clientY: 0 });
+    addLoadingState(endBtn, 'Récupération GPS...');
+    
     try {
       status.textContent = 'Récupération GPS...';
       const coords = await getCurrentLocationWithValidation();
@@ -308,6 +616,7 @@ async function init() {
       if (file) fd.set('photo', file);
 
       status.textContent = 'Envoi...';
+      addLoadingState(endBtn, 'Envoi...');
       
       // Logs de diagnostic
       console.log('🔍 Diagnostic API fin présence:');
@@ -327,6 +636,11 @@ async function init() {
       currentMissionId = null;
       $('checkins').innerHTML = '';
       status.textContent = 'Présence (fin) enregistrée';
+      
+      // Animation de succès
+      animateElement(status, 'bounce');
+      showNotification('Mission terminée avec succès !', 'success');
+      
       await loadPresenceData(); // Mettre à jour le calendrier
     } catch (e) {
       console.error('Presence end error:', e);
@@ -345,15 +659,27 @@ async function init() {
         }
       }
       
-      alert('Échec fin présence: ' + errorMessage);
+      showNotification('Échec fin présence: ' + errorMessage, 'error');
+    } finally {
+      removeLoadingState(endBtn);
     }
   };
 
   $('checkin-btn').onclick = async () => {
-    if (!currentMissionId) { alert('Démarrer une mission d\'abord'); return; }
+    if (!currentMissionId) { 
+      showNotification('Démarrer une mission d\'abord', 'error');
+      return; 
+    }
+    
     const status = $('status');
-    status.textContent = 'Récupération GPS...';
+    const checkinBtn = $('checkin-btn');
+    
+    // Ajouter l'effet ripple
+    createRippleEffect({ currentTarget: checkinBtn, clientX: 0, clientY: 0 });
+    addLoadingState(checkinBtn, 'Récupération GPS...');
+    
     try {
+      status.textContent = 'Récupération GPS...';
       const coords = await getCurrentLocationWithValidation();
       const fd = new FormData();
       fd.set('mission_id', String(currentMissionId));
@@ -362,11 +688,22 @@ async function init() {
       fd.set('note', $('note').value || '');
       const file = $('photo').files[0];
       if (file) fd.set('photo', file);
+      
       status.textContent = 'Envoi...';
+      addLoadingState(checkinBtn, 'Envoi...');
       await api('/mission/checkin', { method: 'POST', body: fd });
+      
       status.textContent = 'Check-in envoyé';
+      animateElement(status, 'bounce');
+      showNotification('Check-in enregistré avec succès !', 'success');
+      
       await refreshCheckins();
-    } catch (e) { status.textContent = 'Erreur check-in'; }
+    } catch (e) { 
+      status.textContent = 'Erreur check-in';
+      showNotification('Erreur lors du check-in: ' + e.message, 'error');
+    } finally {
+      removeLoadingState(checkinBtn);
+    }
   };
 
   // Restore current mission
@@ -402,22 +739,48 @@ async function init() {
   
   // Initialize dashboard metrics
   await loadDashboardMetrics();
+  
+  // Initialiser les animations de scroll
+  addScrollAnimations();
+  
+  // Ajouter les effets ripple aux boutons
+  document.querySelectorAll('button, .btn-primary, .btn-secondary').forEach(btn => {
+    btn.addEventListener('click', createRippleEffect);
+  });
+  
+  // Initialiser le carousel
+  initCarousel();
 }
 
 async function refreshCheckins() {
   if (!currentMissionId) return;
   const list = $('checkins');
   list.innerHTML = '';
-  const items = await api(`/missions/${currentMissionId}/checkins`);
-  for (const c of items) {
+  const response = await api(`/missions/${currentMissionId}/checkins`);
+  const items = response.checkins || [];
+  
+  for (let i = 0; i < items.length; i++) {
+    const c = items[i];
     const li = document.createElement('li');
+    li.className = 'list-item';
+    li.style.animationDelay = `${i * 0.1}s`;
+    
     const when = new Date(c.timestamp + 'Z').toLocaleString();
-    li.textContent = `${when} → (${c.lat.toFixed(5)}, ${c.lon.toFixed(5)}) ${c.note || ''}`;
+    li.innerHTML = `
+      <div class="checkin-item">
+        <div class="checkin-time">${when}</div>
+        <div class="checkin-coords">(${c.lat.toFixed(5)}, ${c.lon.toFixed(5)})</div>
+        <div class="checkin-note">${c.note || ''}</div>
+      </div>
+    `;
+    
     if (c.photo_path) {
       const img = document.createElement('img');
-      img.src = c.photo_path; img.style.maxWidth = '120px'; img.style.display = 'block'; img.style.marginTop = '4px';
+      img.src = c.photo_path; 
+      img.style.cssText = 'max-width: 120px; display: block; margin-top: 8px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);';
       li.appendChild(img);
     }
+    
     list.appendChild(li);
   }
   

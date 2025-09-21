@@ -89,6 +89,66 @@
           </button>
         </div>
         
+        <!-- Carousel d'images -->
+        <div class="hero-carousel" id="hero-carousel">
+          <div class="carousel-container">
+            <div class="carousel-slides">
+              <div class="carousel-slide active">
+                <img src="/Media/PP CCRB.png" alt="Présentation CCRB" class="carousel-image">
+                <div class="carousel-overlay">
+                  <h3>CCRB - Centre de Coordination du Riz du Bénin</h3>
+                  <p>Excellence dans la production et la commercialisation du riz</p>
+                </div>
+              </div>
+              <div class="carousel-slide">
+                <img src="/Media/siege_CCRB.png" alt="Siège CCRB" class="carousel-image">
+                <div class="carousel-overlay">
+                  <h3>Notre Siège</h3>
+                  <p>Centre administratif et de coordination</p>
+                </div>
+              </div>
+              <div class="carousel-slide">
+                <img src="/Media/parcelle_riz.jpg" alt="Parcelle de riz" class="carousel-image">
+                <div class="carousel-overlay">
+                  <h3>Parcelles de Riz</h3>
+                  <p>Production de qualité supérieure</p>
+                </div>
+              </div>
+              <div class="carousel-slide">
+                <img src="/Media/paarce2_riz.png" alt="Parcelle riz 2" class="carousel-image">
+                <div class="carousel-overlay">
+                  <h3>Agriculture Moderne</h3>
+                  <p>Techniques avancées de culture</p>
+                </div>
+              </div>
+              <div class="carousel-slide">
+                <img src="/Media/riz.png" alt="Riz" class="carousel-image">
+                <div class="carousel-overlay">
+                  <h3>Riz de Qualité</h3>
+                  <p>Produit fini de haute qualité</p>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Contrôles du carousel -->
+            <button class="carousel-btn carousel-prev" onclick="changeSlide(-1)">
+              <span class="btn-icon">❮</span>
+            </button>
+            <button class="carousel-btn carousel-next" onclick="changeSlide(1)">
+              <span class="btn-icon">❯</span>
+            </button>
+            
+            <!-- Indicateurs -->
+            <div class="carousel-indicators">
+              <span class="indicator active" onclick="currentSlide(1)"></span>
+              <span class="indicator" onclick="currentSlide(2)"></span>
+              <span class="indicator" onclick="currentSlide(3)"></span>
+              <span class="indicator" onclick="currentSlide(4)"></span>
+              <span class="indicator" onclick="currentSlide(5)"></span>
+            </div>
+          </div>
+        </div>
+
         <!-- Informations pour les utilisateurs non connectés -->
         <div class="welcome-info" id="welcome-info">
           <div class="info-cards">
