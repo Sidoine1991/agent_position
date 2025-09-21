@@ -30,30 +30,7 @@ function removeLoadingState(element) {
   }
 }
 
-function showNotification(message, type = 'info', duration = 3000) {
-  const notification = document.createElement('div');
-  notification.className = `notification ${type}`;
-  notification.textContent = message;
-  notification.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 16px 24px;
-    background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
-    color: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 10000;
-    animation: slideInRight 0.3s ease-out;
-  `;
-  
-  document.body.appendChild(notification);
-  
-  setTimeout(() => {
-    notification.style.animation = 'slideInRight 0.3s ease-out reverse';
-    setTimeout(() => notification.remove(), 300);
-  }, duration);
-}
+// Fonction showNotification déjà définie plus haut, on la supprime ici pour éviter la duplication
 
 function createRippleEffect(event) {
   const button = event.currentTarget;
@@ -639,6 +616,9 @@ async function loadAgentProfile() {
       }
       
       $('agent-profile').classList.remove('hidden');
+      
+      // Mettre à jour la navbar après chargement du profil
+      await updateNavbar();
     }
   } catch (e) {
     console.error('Error loading agent profile:', e);
@@ -913,13 +893,13 @@ function scheduleReminder(hour, minute, title, message) {
   const timeUntilReminder = reminderTime.getTime() - now.getTime();
   
   setTimeout(() => {
-    showNotification(title, message);
+    showSystemNotification(title, message);
     // Reprogrammer pour le lendemain
     scheduleReminder(hour, minute, title, message);
   }, timeUntilReminder);
 }
 
-function showNotification(title, message) {
+function showSystemNotification(title, message) {
   if (Notification.permission === 'granted') {
     try {
       const notification = new Notification(title, {
