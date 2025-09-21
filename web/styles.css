@@ -35,6 +35,8 @@ body {
   overflow-x: hidden;
 }
 
+/* Pseudo-éléments temporairement désactivés pour éviter les problèmes de déformation */
+/*
 body::before {
   content: '';
   position: fixed;
@@ -64,6 +66,7 @@ body::after {
   z-index: -1;
   pointer-events: none;
 }
+*/
 
 /* Navigation Bar */
 .navbar {
