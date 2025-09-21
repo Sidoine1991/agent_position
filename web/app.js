@@ -232,8 +232,11 @@ async function init() {
       
       // Vérifier si c'est un ancien token simple (moins de 50 caractères)
       if (jwt && jwt.length < 50) {
-        console.warn('⚠️ Ancien token détecté (longueur:', jwt.length, '). Reconnexion nécessaire.');
-        alert('Session expirée. Veuillez vous reconnecter pour utiliser les nouvelles fonctionnalités.');
+        console.warn('⚠️ Ancien token détecté (longueur:', jwt.length, '). Suppression du token.');
+        localStorage.removeItem('jwt');
+        localStorage.removeItem('loginData');
+        localStorage.removeItem('userProfile');
+        alert('Session expirée. Veuillez vous reconnecter.');
         setTimeout(() => {
           window.location.href = '/';
         }, 1000);
@@ -1296,12 +1299,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Vérifier le token au chargement
   const jwt = localStorage.getItem('jwt');
   if (jwt && jwt.length < 50) {
-    console.warn('⚠️ Ancien token détecté au chargement (longueur:', jwt.length, '). Reconnexion nécessaire.');
-    alert('Session expirée. Veuillez vous reconnecter pour utiliser les nouvelles fonctionnalités.');
-    setTimeout(() => {
-      window.location.href = '/';
-    }, 1000);
-    return;
+    console.warn('⚠️ Ancien token détecté au chargement (longueur:', jwt.length, '). Suppression du token.');
+    localStorage.removeItem('jwt');
+    localStorage.removeItem('loginData');
+    localStorage.removeItem('userProfile');
+    // Ne pas forcer la reconnexion, laisser l'utilisateur naviguer normalement
   }
   
   setTimeout(() => {
