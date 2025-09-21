@@ -707,6 +707,55 @@ app.get('/api/missions/:id/checkins', async (req, res) => {
   }
 });
 
+// Route pour récupérer les missions de l'utilisateur connecté
+app.get('/api/me/missions', async (req, res) => {
+  try {
+    // Vérification de l'authentification
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification requis'
+      });
+    }
+    
+    const token = authHeader.substring(7);
+    let userId;
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      userId = decoded.userId;
+    } catch (jwtError) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification invalide'
+      });
+    }
+    
+    // Récupérer les missions de l'utilisateur
+    const result = await pool.query(`
+      SELECT 
+        m.*,
+        COUNT(c.id) as checkin_count
+      FROM missions m
+      LEFT JOIN checkins c ON m.id = c.mission_id
+      WHERE m.user_id = $1
+      GROUP BY m.id
+      ORDER BY m.start_time DESC
+    `, [userId]);
+    
+    res.json({
+      success: true,
+      missions: result.rows
+    });
+  } catch (error) {
+    console.error('Erreur récupération missions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des missions'
+    });
+  }
+});
+
 // Démarrer le serveur
 app.listen(PORT, () => {
   console.log(`Serveur démarré sur le port ${PORT}`);
