@@ -506,6 +506,9 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
     // Multer parse automatiquement les données FormData
     const { lat, lon, departement, commune, arrondissement, village, start_time, note } = req.body;
     
+    console.log('Content-Type:', req.headers['content-type']);
+    console.log('Body complet:', req.body);
+    
     console.log('Données reçues:', { lat, lon, departement, commune, arrondissement, village, start_time, note });
     console.log('Fichier photo:', req.file);
     
