@@ -229,6 +229,17 @@ async function init() {
       console.log('🔍 Diagnostic API présence:');
       console.log('- JWT disponible:', !!jwt);
       console.log('- JWT longueur:', jwt ? jwt.length : 0);
+      
+      // Vérifier si c'est un ancien token simple (moins de 50 caractères)
+      if (jwt && jwt.length < 50) {
+        console.warn('⚠️ Ancien token détecté (longueur:', jwt.length, '). Reconnexion nécessaire.');
+        alert('Session expirée. Veuillez vous reconnecter pour utiliser les nouvelles fonctionnalités.');
+        setTimeout(() => {
+          window.location.href = '/login.html';
+        }, 1000);
+        return;
+      }
+      
       console.log('- FormData contenu:', {
         departement: fd.get('departement'),
         commune: fd.get('commune'),
@@ -1278,6 +1289,17 @@ function initGeoSelectorsLocal() {
 
 // Initialiser la saisie manuelle au chargement
 document.addEventListener('DOMContentLoaded', () => {
+  // Vérifier le token au chargement
+  const jwt = localStorage.getItem('jwt');
+  if (jwt && jwt.length < 50) {
+    console.warn('⚠️ Ancien token détecté au chargement (longueur:', jwt.length, '). Reconnexion nécessaire.');
+    alert('Session expirée. Veuillez vous reconnecter pour utiliser les nouvelles fonctionnalités.');
+    setTimeout(() => {
+      window.location.href = '/login.html';
+    }, 1000);
+    return;
+  }
+  
   setTimeout(() => {
     setupManualGeoInputs();
   }, 1000);
