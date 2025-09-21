@@ -1139,6 +1139,11 @@ async function loadDepartements() {
     
     deptSelect.innerHTML = '<option value="">Sélectionner un département</option>';
     
+    // Attendre que les données géographiques soient chargées
+    if (window.loadGeoData) {
+      await window.loadGeoData();
+    }
+    
     // Utiliser les données locales qui fonctionnent
     if (window.geoData && window.geoData.departements) {
       window.geoData.departements.forEach(d => {
@@ -1166,6 +1171,11 @@ async function loadCommunes(departementId) {
     }
     
     communeSelect.innerHTML = '<option value="">Sélectionner une commune</option>';
+    
+    // Attendre que les données géographiques soient chargées
+    if (window.loadGeoData) {
+      await window.loadGeoData();
+    }
     
     console.log('🔍 Vérification de window.geoData:', !!window.geoData);
     if (window.geoData) {
