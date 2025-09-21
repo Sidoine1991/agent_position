@@ -272,6 +272,18 @@
             <input id="start-time" type="time" placeholder="Heure début (optionnel)" />
             <input id="end-time" type="time" placeholder="Heure fin (optionnel)" />
           </div>
+          <div class="row">
+            <div class="form-group">
+              <label for="gps-precision">Précision GPS requise</label>
+              <select id="gps-precision">
+                <option value="high">Haute (≤ 100m)</option>
+                <option value="medium" selected>Moyenne (≤ 500m)</option>
+                <option value="low">Faible (≤ 1000m)</option>
+                <option value="any">Toute précision</option>
+              </select>
+              <small>Niveau de précision GPS accepté pour la présence</small>
+            </div>
+          </div>
           <button id="start-mission">Marquer présence (début)</button>
           <button id="end-mission" disabled>Quitter le terrain (fin)</button>
         </div>

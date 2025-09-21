@@ -41,9 +41,9 @@ function geoPromise() {
       p => resolve(p.coords), 
       e => reject(e), 
       { 
-        enableHighAccuracy: true, 
-        timeout: 15000,
-        maximumAge: 300000 // 5 minutes de cache
+        enableHighAccuracy: false, // Moins strict pour plus de flexibilité
+        timeout: 30000, // Plus de temps pour obtenir la position
+        maximumAge: 600000 // 10 minutes de cache
       }
     );
   });
@@ -658,9 +658,21 @@ async function getCurrentLocationWithValidation() {
   try {
     const coords = await geoPromise();
     
-    // Vérifier la précision GPS (assouplie pour plus de flexibilité)
-    if (coords.accuracy > 500) {
-      throw new Error('Précision GPS insuffisante. Veuillez vous déplacer vers un endroit plus ouvert.');
+    // Vérifier la précision GPS selon le paramètre choisi
+    const gpsPrecision = document.getElementById('gps-precision')?.value || 'medium';
+    let maxAccuracy = 1000; // Par défaut
+    
+    switch (gpsPrecision) {
+      case 'high': maxAccuracy = 100; break;
+      case 'medium': maxAccuracy = 500; break;
+      case 'low': maxAccuracy = 1000; break;
+      case 'any': maxAccuracy = Infinity; break;
+    }
+    
+    if (coords.accuracy > maxAccuracy) {
+      // Afficher un avertissement mais permettre la présence
+      console.warn(`Précision GPS faible: ${Math.round(coords.accuracy)}m`);
+      showNotification('Avertissement GPS', `Précision faible (${Math.round(coords.accuracy)}m). La présence sera enregistrée.`);
     }
     
     // Afficher les informations de localisation
