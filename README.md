@@ -1,8 +1,8 @@
 # 📍 Presence CCRB - Système de Suivi des Agents Terrain
 
-## 🎯 Objectif du Projet
+## 🎯 À Propos
 
-Le système **Presence CCRB** est une solution complète de géolocalisation et de suivi des agents de terrain pour le Centre de Coordination de la Recherche sur le Riz (CCRB). Il permet de vérifier la présence réelle des agents sur leurs zones d'intervention et de générer des rapports de présence fiables.
+Le système **Presence CCRB** est une solution complète de géolocalisation et de suivi des agents de terrain pour le **Conseil de Concertation des Riziculteurs du Bénin (CCRB)**. Il permet de vérifier la présence réelle des agents sur leurs zones d'intervention et de générer des rapports de présence fiables.
 
 ## 🚀 Fonctionnalités Principales
 
@@ -13,13 +13,15 @@ Le système **Presence CCRB** est une solution complète de géolocalisation et 
 - **Notes d'observation** sur le terrain
 - **Sélection de zone** d'intervention (Département → Commune → Arrondissement → Village)
 - **Interface intuitive** avec logo CCRB
+- **Calendrier de présence** avec historique
+- **Tableau de bord** avec métriques personnelles
 
 ### 👨‍💼 Pour les Superviseurs/Admins
 - **Dashboard en temps réel** avec carte interactive
 - **Suivi GPS** des agents avec marqueurs
 - **Validation automatique** de présence basée sur la distance GPS
 - **Gestion complète des agents** (création, modification, suppression)
-- **Page de gestion des agents** (`/admin-agents.html`) avec interface dédiée
+- **Unités administratives** configurables
 - **Exports Excel/CSV** avec validation de présence
 - **Rapports mensuels** automatisés
 - **Configuration des points de référence** GPS
@@ -27,18 +29,19 @@ Le système **Presence CCRB** est une solution complète de géolocalisation et 
 
 ## 🏗️ Architecture Technique
 
-### Backend (Node.js + Express)
-- **Base de données** : SQLite avec `better-sqlite3`
-- **Authentification** : JWT (JSON Web Tokens)
-- **Validation** : Zod pour les schémas de données
-- **Upload de fichiers** : Multer pour les photos
-- **Géolocalisation** : Algorithme de Haversine pour calcul de distance
+### Backend (Vercel Serverless)
+- **API consolidée** : Un seul fichier `api/index.js`
+- **Stockage en mémoire** : Données temporaires pour déploiement serverless
+- **Authentification** : JWT avec secret sécurisé
+- **CORS configuré** : Accès cross-origin
+- **Géolocalisation** : Algorithme de validation de présence
 
 ### Frontend
 - **PWA Agent** : HTML/CSS/JavaScript vanilla
-- **Dashboard** : Interface web avec Leaflet.js pour les cartes
+- **Dashboard** : Interface web responsive
 - **Service Worker** : Cache et fonctionnement hors ligne
 - **Design responsive** : Compatible mobile et desktop
+- **Vercel Analytics** : Suivi des performances
 
 ## 📊 Algorithme de Validation de Présence
 
@@ -58,55 +61,50 @@ Le système **Presence CCRB** est une solution complète de géolocalisation et 
 
 ```
 presence_ccrb/
-├── backend/                 # Serveur Node.js
-│   ├── src/
-│   │   ├── index.ts        # Point d'entrée principal
-│   │   ├── routes.ts       # Routes API
-│   │   ├── db.ts          # Configuration base de données
-│   │   ├── auth.ts        # Authentification JWT
-│   │   ├── presence-algorithm.ts  # Algorithme de validation
-│   │   └── storage.ts     # Gestion des fichiers
-│   ├── data/              # Base de données SQLite
-│   └── package.json
-├── web/                   # Interface utilisateur
-│   ├── index.html         # PWA Agent
-│   ├── dashboard.html     # Dashboard Superviseur
-│   ├── app.js            # JavaScript Agent
-│   ├── dashboard.js      # JavaScript Dashboard
-│   ├── styles.css        # Styles CSS
-│   └── manifest.webmanifest
-├── Media/                # Ressources (logos, images)
-├── Data/                 # Données géographiques
-│   ├── benin_subdvision.xlsx
-│   └── 02_SHP/          # Shapefiles
-└── README.md
+├── api/                      # API Serverless Vercel
+│   ├── index.js             # API consolidée
+│   └── package.json         # Dépendances API
+├── web/                     # Interface utilisateur
+│   ├── index.html           # PWA Agent
+│   ├── dashboard.html       # Dashboard Superviseur
+│   ├── agents.html          # Gestion des agents
+│   ├── profile.html         # Profil utilisateur
+│   ├── reports.html         # Rapports
+│   ├── admin.html           # Administration
+│   ├── app.js              # JavaScript Agent
+│   ├── dashboard.js        # JavaScript Dashboard
+│   ├── agents.js           # JavaScript Gestion agents
+│   ├── profile.js          # JavaScript Profil
+│   ├── reports.js          # JavaScript Rapports
+│   ├── admin.js            # JavaScript Admin
+│   ├── styles.css          # Styles CSS
+│   ├── manifest.webmanifest # PWA Manifest
+│   └── Media/              # Ressources
+│       ├── PP CCRB.png     # Logo CCRB
+│       ├── default-avatar.png
+│       └── default-avatar.svg
+├── Media/                   # Ressources globales
+│   └── PP CCRB.png         # Logo principal
+├── package.json            # Configuration principale
+├── vercel.json            # Configuration Vercel
+├── .vercelignore          # Fichiers ignorés par Vercel
+└── README.md              # Documentation
 ```
 
-## 🚀 Installation et Démarrage
+## 🚀 Déploiement
 
-### Prérequis
-- Node.js (version 16+)
-- npm ou yarn
+### Vercel (Recommandé)
+Le projet est configuré pour un déploiement automatique sur Vercel :
 
-### Installation
-```bash
-# Cloner le projet
-git clone <repository-url>
-cd presence_ccrb
+1. **Connectez le repository GitHub** à Vercel
+2. **Déploiement automatique** à chaque push
+3. **URL de production** : https://agent-position.vercel.app/
 
-# Installer les dépendances backend
-cd backend
-npm install
-
-# Démarrer le serveur
-npm run dev
-```
-
-### Accès
-- **Serveur** : http://localhost:3001
-- **PWA Agent** : http://localhost:3001
-- **Dashboard** : http://localhost:3001/dashboard.html
-- **Gestion des Agents** : http://localhost:3001/admin-agents.html
+### Configuration Vercel
+- **Framework** : Other
+- **Root Directory** : `/`
+- **Build Command** : (automatique)
+- **Output Directory** : (automatique)
 
 ## 👥 Comptes par Défaut
 
@@ -114,16 +112,13 @@ npm run dev
 - **Email** : `admin@ccrb.local`
 - **Mot de passe** : `123456`
 - **Rôle** : Admin complet
+- **Unité** : Direction Générale
 
 ### Superviseur
 - **Email** : `supervisor@ccrb.local`
 - **Mot de passe** : `123456`
 - **Rôle** : Superviseur
-
-### Agent Test
-- **Email** : `agent@test.com`
-- **Mot de passe** : `Test@123`
-- **Rôle** : Agent
+- **Unité** : Direction des Opérations
 
 ## 📱 Utilisation
 
@@ -135,89 +130,66 @@ npm run dev
    - "Quitter le terrain (fin)" : Fin d'activité
 4. **Ajout de notes** : Observations optionnelles
 5. **Prise de photos** : Preuve d'activité
+6. **Consultation calendrier** : Historique de présence
 
 ### Pour les Superviseurs
 1. **Connexion dashboard** : Utiliser compte admin/superviseur
-2. **Configuration** : 
-   - "🎯 Configurer Points de Référence" : Définir zones d'intervention
-   - "➕ Créer/Modifier un Agent" : Gestion des agents
-3. **Gestion des agents** : Page dédiée `/admin-agents.html`
+2. **Gestion des agents** : Page `/agents.html`
    - Création, modification, suppression d'agents
+   - Attribution d'unités administratives
    - Filtrage et recherche d'agents
    - Export des données d'agents
-4. **Suivi** : Visualisation temps réel sur carte
-5. **Exports** : 
-   - "📊 Exporter CSV" : Données brutes
-   - "📈 Exporter Excel" : Rapport formaté avec validation
+3. **Suivi** : Visualisation temps réel sur dashboard
+4. **Rapports** : Génération et export de rapports
 
-## 📊 Exports et Rapports
+### Pour les Administrateurs
+1. **Administration** : Page `/admin.html`
+   - Gestion des unités administratives
+   - Configuration système
+   - Maintenance
+2. **Gestion complète** : Tous les droits superviseur + admin
 
-### Format Excel/CSV
-- **Date et Heure** : Timestamp du check-in
-- **Nom Agent** : Identification complète
-- **Téléphone** : Contact agent
-- **Localisation** : Département/Commune/Arrondissement/Village
-- **Coordonnées GPS** : Latitude/Longitude exactes
-- **Note** : Observations de l'agent
-- **Photo** : Lien vers preuve visuelle
-- **Statut Présence** : `present`/`absent`/`Non validé`
-- **Distance Référence** : Distance en mètres du point de référence
+## 🏢 Unités Administratives
 
-### Rapports Mensuels
-- **Génération automatique** par agent
-- **Statistiques** : Jours présents/absents
-- **Écarts** : Comparaison avec objectifs
-- **Export Excel** : Format standardisé
+Le système inclut 10 unités administratives configurables :
 
-## 🔧 Configuration Avancée
-
-### Points de Référence GPS
-```javascript
-// Coordonnées par défaut (Bénin)
-const villageCoords = {
-  1: { lat: 6.3729, lon: 2.3543 }, // Cotonou
-  2: { lat: 6.4969, lon: 2.6036 }, // Porto-Novo
-  3: { lat: 7.1861, lon: 1.9911 }, // Abomey
-  4: { lat: 9.3077, lon: 2.3158 }, // Parakou
-  5: { lat: 6.3600, lon: 2.4200 }, // Ouidah
-};
-```
-
-### Tolérance de Distance
-- **Par défaut** : 50km (50000 mètres)
-- **Configurable** : Via dashboard ou API
-- **Validation** : Présent ≤ tolérance, Absent > tolérance
+1. **Direction Générale** (DG)
+2. **Direction des Opérations** (DO)
+3. **Direction Administrative et Financière** (DAF)
+4. **Service Ressources Humaines** (SRH)
+5. **Service Comptabilité** (SC)
+6. **Service Logistique** (SL)
+7. **Service Sécurité** (SS)
+8. **Service Informatique** (SI)
+9. **Service Communication** (SCOM)
+10. **Service Juridique** (SJ)
 
 ## 🛠️ API Endpoints
 
 ### Authentification
-- `POST /api/auth/login` - Connexion
-- `POST /api/auth/register` - Inscription
+- `POST /api/login` - Connexion
+- `POST /api/register` - Inscription
+- `GET /api/profile` - Profil utilisateur
 
 ### Agents
-- `GET /api/admin/agents` - Liste des agents (authentifié)
-- `GET /api/admin/agents/public` - Liste des agents (public, pour accès libre)
-- `POST /api/admin/agents` - Créer un agent
-- `PUT /api/admin/agents/:id` - Modifier un agent
-- `DELETE /api/admin/agents/:id` - Supprimer un agent
+- `GET /api/users` - Liste des agents (authentifié)
+- `POST /api/users` - Créer un agent
+- `PUT /api/users/:id` - Modifier un agent
+- `DELETE /api/users/:id` - Supprimer un agent
 
-### Présence
-- `POST /api/presence/start` - Début de présence
-- `POST /api/presence/end` - Fin de présence
-- `POST /api/admin/setup-reference-points` - Configurer points de référence
+### Unités Administratives
+- `GET /api/admin-units` - Liste des unités administratives
 
-### Exports
-- `GET /api/admin/export/checkins.csv` - Export CSV
-- `GET /api/admin/export/checkins.xlsx` - Export Excel
-- `GET /api/admin/export/monthly-report.csv` - Rapport mensuel
+### Utilitaires
+- `GET /api/health` - Santé de l'API
+- `GET /api/test` - Test de l'API
 
 ## 🔒 Sécurité
 
-- **Authentification JWT** : Tokens sécurisés (expiration 12h)
+- **Authentification JWT** : Tokens sécurisés avec secret de 128 caractères
 - **Validation des rôles** : Admin/Superviseur/Agent
-- **Validation des données** : Schémas Zod
-- **Upload sécurisé** : Validation des types de fichiers
 - **CORS configuré** : Accès contrôlé
+- **Stockage sécurisé** : Données en mémoire pour serverless
 
 ## 📱 PWA (Progressive Web App)
 
@@ -226,74 +198,46 @@ const villageCoords = {
 - **Hors ligne** : Service Worker pour cache
 - **Notifications** : Possibilité d'ajout
 - **Responsive** : Adaptation mobile/desktop
+- **Manifest** : Configuration PWA complète
 
 ### Installation
 1. Ouvrir l'application dans le navigateur
 2. Cliquer sur "Installer" (icône +)
 3. L'application sera disponible comme une app native
 
-## 🗄️ Base de Données
-
-### Tables Principales
-- **users** : Agents, superviseurs, admins
-- **missions** : Sessions d'activité
-- **checkins** : Points de présence GPS
-- **presence_records** : Validation de présence
-- **monthly_reports** : Rapports mensuels
-- **departements/communes/arrondissements/villages** : Hiérarchie géographique
-
-### Migration
-- **Automatique** : Au démarrage du serveur
-- **Compatibilité** : Ajout de colonnes si nécessaire
-- **Sauvegarde** : Fichier SQLite dans `backend/data/`
-
 ## 🚨 Dépannage
 
 ### Erreurs Courantes
 
-#### "Accès non autorisé" sur admin-agents.html
+#### "Accès non autorisé"
 ```bash
 # Solution : Connectez-vous avec un compte admin/superviseur
 # Email: admin@ccrb.local, Mot de passe: 123456
 ```
 
-#### "Unauthorized" lors de l'export
+#### "Session invalide"
 ```bash
 # Solution : Reconnectez-vous
 localStorage.removeItem('jwt'); location.reload();
 ```
 
-#### Boutons dashboard ne fonctionnent pas
+#### API non disponible
 ```bash
-# Solution : Rechargez la page
-Ctrl + F5
-```
-
-#### Modal de suppression ne se ferme pas
-```bash
-# Solution : Vérifiez la console (F12) pour les erreurs JavaScript
-# Ou rechargez la page complètement
-```
-
-#### "Point de référence non défini"
-```bash
-# Solution : Configurez les points de référence
-# Dashboard → "🎯 Configurer Points de Référence"
+# Solution : Vérifiez le déploiement Vercel
+# Attendez 2-3 minutes après un push
 ```
 
 ### Logs et Debug
 - **Console navigateur** : F12 → Console
-- **Logs serveur** : Terminal backend
-- **Base de données** : Fichier `backend/data/database.db`
+- **Vercel Logs** : Dashboard Vercel → Functions → Logs
+- **Network** : F12 → Network pour voir les appels API
 
 ## 🔄 Mise à Jour
 
 ### Code
 ```bash
 git pull origin main
-cd backend
-npm install
-npm run dev
+git push  # Déclenche le redéploiement automatique
 ```
 
 ### Cache Navigateur
@@ -304,11 +248,31 @@ Ctrl + Shift + R
 localStorage.clear(); location.reload();
 ```
 
+## 📊 Fonctionnalités Avancées
+
+### Tableau de Bord
+- **Métriques en temps réel** : Jours travaillés, heures, taux de présence
+- **Position actuelle** : Géolocalisation en direct
+- **Calendrier interactif** : Historique de présence
+- **Notifications** : Rappels et alertes
+
+### Rapports
+- **Génération automatique** : Rapports mensuels par agent
+- **Export Excel/CSV** : Données formatées
+- **Statistiques** : Taux de présence, écarts
+- **Graphiques** : Visualisation des données
+
+### Administration
+- **Gestion des unités** : Configuration des unités administratives
+- **Paramètres système** : Configuration globale
+- **Maintenance** : Outils d'administration
+- **Sauvegarde** : Export des données
+
 ## 📞 Support
 
 ### Contacts
 - **Développeur** : [Votre nom/email]
-- **CCRB** : [Contact organisation]
+- **CCRB** : Conseil de Concertation des Riziculteurs du Bénin
 - **Documentation** : Ce README
 
 ### Contribution
@@ -320,7 +284,7 @@ localStorage.clear(); location.reload();
 
 ## 📄 Licence
 
-Ce projet est développé pour le Centre de Coordination de la Recherche sur le Riz (CCRB). Tous droits réservés.
+Ce projet est développé pour le **Conseil de Concertation des Riziculteurs du Bénin (CCRB)**. Tous droits réservés.
 
 ---
 
@@ -335,23 +299,20 @@ Vous disposez maintenant d'un système complet de suivi de présence des agents 
 ✅ **Configurer facilement** les zones d'intervention  
 ✅ **Gérer complètement les agents** avec interface dédiée  
 ✅ **Contrôler l'accès** avec authentification sécurisée  
+✅ **Organiser par unités administratives**  
+✅ **Déployer facilement** sur Vercel  
 
-## 🔧 Corrections Récentes
+## 🔧 Version Actuelle
 
-### Version Actuelle
-- ✅ **Authentification complète** restaurée sur admin-agents.html
-- ✅ **Fonctionnalités CRUD** réactivées (création, modification, suppression)
-- ✅ **Export CSV** des données d'agents fonctionnel
-- ✅ **Modals de confirmation** corrigés et fonctionnels
-- ✅ **Gestionnaires d'événements** robustes pour les boutons
-- ✅ **Interface utilisateur** entièrement opérationnelle
-
-### Problèmes Résolus
-- 🔧 Modal de suppression ne se fermait pas → **Corrigé**
-- 🔧 Boutons "Annuler" non fonctionnels → **Corrigé**
-- 🔧 Accès libre désactivé → **Authentification restaurée**
-- 🔧 Fonctions d'export désactivées → **Réactivées**
+### Fonctionnalités Implémentées
+- ✅ **API consolidée** avec JWT sécurisé
+- ✅ **Unités administratives** configurables
+- ✅ **Gestion complète des agents** avec formulaire
+- ✅ **Interface responsive** et moderne
+- ✅ **PWA fonctionnelle** avec service worker
+- ✅ **Déploiement Vercel** automatique
+- ✅ **Authentification robuste** par rôles
+- ✅ **Calendrier de présence** interactif
+- ✅ **Tableau de bord** avec métriques
 
 **Bonne utilisation du système Presence CCRB !** 🚀
-#   F o r c e   d e p l o y m e n t  
- 
