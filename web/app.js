@@ -176,11 +176,11 @@ function resetSlideInterval() {
 
 function preloadCarouselImages() {
   const imageUrls = [
-    '/Media/PP CCRB.png',
-    '/Media/siege_CCRB.png',
-    '/Media/parcelle_riz.jpg',
-    '/Media/paarce2_riz.png',
-    '/Media/riz.png'
+    './Media/PP CCRB.png',
+    './Media/siege_CCRB.png',
+    './Media/parcelle_riz.jpg',
+    './Media/paarce2_riz.png',
+    './Media/riz.png'
   ];
   
   let loadedImages = 0;
@@ -238,6 +238,22 @@ function preloadCarouselImages() {
 }
 
 function initCarousel() {
+  console.log('🎠 Initialisation du carousel...');
+  
+  // Vérifier que les éléments existent
+  const carousel = document.getElementById('hero-carousel');
+  const slides = document.querySelectorAll('.carousel-slide');
+  const indicators = document.querySelectorAll('.indicator');
+  
+  console.log('Carousel trouvé:', !!carousel);
+  console.log('Slides trouvées:', slides.length);
+  console.log('Indicateurs trouvés:', indicators.length);
+  
+  if (!carousel || slides.length === 0) {
+    console.error('❌ Carousel non trouvé ou slides manquantes');
+    return;
+  }
+  
   // Précharger les images
   preloadCarouselImages();
   
@@ -245,8 +261,9 @@ function initCarousel() {
   showSlide(0);
   resetSlideInterval();
   
+  console.log('✅ Carousel initialisé avec succès');
+  
   // Pause au survol
-  const carousel = document.getElementById('hero-carousel');
   if (carousel) {
     carousel.addEventListener('mouseenter', () => {
       clearInterval(slideInterval);
@@ -749,7 +766,9 @@ async function init() {
   });
   
   // Initialiser le carousel
-  initCarousel();
+  setTimeout(() => {
+    initCarousel();
+  }, 100);
 }
 
 async function refreshCheckins() {
