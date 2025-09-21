@@ -15,14 +15,88 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Test de connexion à la base de données
-pool.query('SELECT NOW()', (err, result) => {
+// Test de connexion à la base de données et création des tables
+pool.query('SELECT NOW()', async (err, result) => {
   if (err) {
     console.error('❌ Erreur de connexion à la base de données:', err.message);
   } else {
     console.log('✅ Connexion à la base de données réussie:', result.rows[0].now);
+    
+    // Créer les tables si elles n'existent pas
+    try {
+      await createTables();
+      console.log('✅ Tables de base de données vérifiées/créées');
+    } catch (error) {
+      console.error('❌ Erreur lors de la création des tables:', error.message);
+    }
   }
 });
+
+// Fonction pour créer les tables
+async function createTables() {
+  const schema = `
+    -- Table des utilisateurs
+    CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'superviseur', 'agent')),
+        phone VARCHAR(20),
+        is_verified BOOLEAN DEFAULT FALSE,
+        verification_code VARCHAR(6),
+        verification_expires TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Table des codes de validation
+    CREATE TABLE IF NOT EXISTS verification_codes (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        code VARCHAR(6) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Table des présences
+    CREATE TABLE IF NOT EXISTS presences (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        start_time TIMESTAMP NOT NULL,
+        end_time TIMESTAMP,
+        location_lat DECIMAL(10, 8),
+        location_lng DECIMAL(11, 8),
+        location_name VARCHAR(255),
+        notes TEXT,
+        photo_url VARCHAR(500),
+        status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Table des rapports
+    CREATE TABLE IF NOT EXISTS reports (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        title VARCHAR(255) NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        content TEXT,
+        data JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Index pour les performances
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+    CREATE INDEX IF NOT EXISTS idx_presences_user_id ON presences(user_id);
+    CREATE INDEX IF NOT EXISTS idx_presences_start_time ON presences(start_time);
+    CREATE INDEX IF NOT EXISTS idx_reports_user_id ON reports(user_id);
+    CREATE INDEX IF NOT EXISTS idx_verification_codes_email ON verification_codes(email);
+  `;
+  
+  await pool.query(schema);
+}
 
 // Configuration email (à configurer avec vos paramètres SMTP)
 const transporter = nodemailer.createTransport({
