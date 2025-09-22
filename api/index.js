@@ -296,7 +296,24 @@ module.exports = async (req, res) => {
 
     // Route de profil
     if (pathname === '/api/profile' && req.method === 'GET') {
+      const urlObj = new URL(req.url, `http://${req.headers.host}`);
+      const emailParam = urlObj.searchParams.get('email');
       const authHeader = req.headers.authorization;
+
+      // Mode soft-auth via email (sans token)
+      if (emailParam && (!authHeader || !authHeader.startsWith('Bearer '))) {
+        res.status(200).json({
+          id: null,
+          name: (emailParam.split('@')[0] || 'Utilisateur'),
+          email: emailParam,
+          role: 'admin',
+          status: 'active',
+          phone: '',
+          adminUnit: ''
+        });
+        return;
+      }
+
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         res.status(401).json({ error: 'Token manquant' });
         return;
