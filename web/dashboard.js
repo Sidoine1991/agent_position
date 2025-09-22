@@ -135,9 +135,14 @@ async function init() {
 
 async function loadAgents() {
   const sel = $('agent'); sel.innerHTML = '';
-  const rows = await api('/admin/agents');
-  sel.append(new Option('Tous les agents', ''));
-  for (const r of rows) sel.append(new Option(`${r.name} (${r.email})`, r.id));
+  try {
+    const rows = await api('/admin/agents');
+    sel.append(new Option('Tous les agents', ''));
+    for (const r of rows) sel.append(new Option(`${r.name} (${r.email})`, r.id));
+  } catch (e) {
+    console.warn('admin/agents indisponible, masquer la liste');
+    sel.append(new Option('Liste indisponible', ''));
+  }
 }
 
 function openAgentModal(agent = null) {

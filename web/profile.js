@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const isAuthenticated = await checkAuth();
   if (isAuthenticated) {
     await loadProfile();
-    await updateNavbar();
+    try { await updateNavbar(); } catch {}
     
     // Gestion du formulaire de changement de mot de passe
     $('password-form').addEventListener('submit', async (e) => {
