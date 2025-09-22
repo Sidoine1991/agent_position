@@ -435,6 +435,9 @@ async function init() {
       const coords = await getCurrentLocationWithValidation();
       const fd = new FormData();
       
+      if (missionId) {
+        fd.append('mission_id', String(missionId));
+      }
       fd.append('lat', String(coords.latitude));
       fd.append('lon', String(coords.longitude));
       fd.append('note', $('note').value || 'Fin de mission');
