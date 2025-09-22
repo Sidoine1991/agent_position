@@ -21,6 +21,7 @@ async function api(path, opts = {}) {
   if (!res.ok) {
     const errorText = await res.text();
     console.error('API error:', errorText);
+    // Ne pas supprimer le token ni rediriger ici
     throw new Error(errorText || res.statusText);
   }
   
@@ -32,27 +33,27 @@ async function api(path, opts = {}) {
 
 // Vérifier l'authentification
 async function checkAuth() {
-  if (!jwt) {
-    alert('Veuillez vous connecter pour accéder à cette page');
-    window.location.href = window.location.origin + '/';
-    return false;
-  }
-  
+  // Mode souple: tenter avec jwt; pas de redirection forcée
+  if (!jwt) return true;
   try {
-    await api('/profile');
+    const email = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
+    if (email) {
+      await api('/profile?email=' + encodeURIComponent(email));
+    } else {
+      await api('/profile');
+    }
     return true;
   } catch (error) {
-    alert('Session expirée. Veuillez vous reconnecter.');
-    localStorage.removeItem('jwt');
-    window.location.href = window.location.origin + '/';
-    return false;
+    console.warn('checkAuth: profil non disponible, continuer en mode limité');
+    return true;
   }
 }
 
 // Charger les informations du profil
 async function loadProfile() {
   try {
-    const profile = await api('/profile');
+    const email = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
+    const profile = email ? await api('/profile?email=' + encodeURIComponent(email)) : await api('/profile');
     
     // Afficher les informations
     $('profile-name').textContent = profile.name || 'Non défini';
@@ -68,7 +69,9 @@ async function loadProfile() {
     
   } catch (error) {
     console.error('Erreur lors du chargement du profil:', error);
-    alert('Erreur lors du chargement du profil');
+    // Afficher un message non bloquant
+    const nameEl = $('profile-name');
+    if (nameEl) nameEl.textContent = 'Profil indisponible';
   }
 }
 
