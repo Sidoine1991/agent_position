@@ -1122,6 +1122,52 @@ app.get('/api/admin/create-super-admin', async (req, res) => {
   }
 });
 
+// PURGE TOTALE DES DONNÉES (ADMIN SEULEMENT) - supprime toutes les données y compris les utilisateurs
+app.post('/api/admin/purge-all', async (req, res) => {
+  try {
+    // Auth obligatoire
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, message: 'Authorization requise' });
+    }
+    let userId;
+    try {
+      const decoded = jwt.verify(authHeader.substring(7), JWT_SECRET);
+      userId = decoded.userId;
+    } catch {
+      return res.status(401).json({ success: false, message: 'Token invalide' });
+    }
+
+    // Vérifier rôle admin
+    const roleRes = await pool.query('SELECT role FROM users WHERE id = $1 LIMIT 1', [userId]);
+    const role = roleRes.rows[0]?.role;
+    if (role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Réservé aux administrateurs' });
+    }
+
+    // Purge transactionnelle
+    await pool.query('BEGIN');
+    // Désactiver contraintes référentielles si nécessaire puis TRUNCATE en cascade
+    // L'ordre avec CASCADE doit suffire si les FK existent correctement
+    await pool.query(`TRUNCATE TABLE 
+      verification_codes,
+      checkins,
+      missions,
+      absences,
+      reports
+      RESTART IDENTITY CASCADE`);
+
+    await pool.query(`TRUNCATE TABLE users RESTART IDENTITY CASCADE`);
+    await pool.query('COMMIT');
+
+    res.json({ success: true, message: 'Purge complète effectuée (toutes les tables principales ont été vidées).' });
+  } catch (e) {
+    try { await pool.query('ROLLBACK'); } catch {}
+    console.error('Erreur purge-all:', e);
+    res.status(500).json({ success: false, message: 'Erreur lors de la purge des données' });
+  }
+});
+
 // Démarrer le serveur
 app.listen(PORT, () => {
   console.log(`Serveur démarré sur le port ${PORT}`);
