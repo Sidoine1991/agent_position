@@ -228,6 +228,15 @@ async function init() {
   
   // Vérifier la connexion automatique via les paramètres URL
   const urlParams = new URLSearchParams(window.location.search);
+  // Auth via token propagé dans l'URL (depuis navbar)
+  const urlToken = urlParams.get('token');
+  if (urlToken && urlToken.length > 20) {
+    try {
+      localStorage.setItem('jwt', urlToken);
+      jwt = urlToken;
+      console.log('🔐 Token restauré depuis l\'URL');
+    } catch {}
+  }
   const email = urlParams.get('email');
   const password = urlParams.get('password');
   
@@ -1319,6 +1328,17 @@ async function updateNavbar() {
         if (adminLink) adminLink.style.display = 'none';
       }
       
+      // Propager le token dans les liens internes pour éviter la perte de session sur autres pages
+      const linksToPropagate = [profileLink, dashboardLink, agentsLink, reportsLink, adminLink];
+      linksToPropagate.forEach(link => {
+        if (link && link.getAttribute('href')) {
+          const baseHref = link.getAttribute('href');
+          const url = new URL(baseHref, window.location.origin);
+          url.searchParams.set('token', jwt);
+          link.setAttribute('href', url.pathname + url.search);
+        }
+      });
+
       // Afficher les informations utilisateur
       if (navbarUser) navbarUser.style.display = 'flex';
       if (userInfo && profile) {
