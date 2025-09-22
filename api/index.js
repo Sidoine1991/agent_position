@@ -378,8 +378,18 @@ module.exports = async (req, res) => {
         res.status(403).json({ error: 'Accès refusé' });
         return;
       }
-      
-      const usersList = users.map(u => ({
+
+      // Pagination et filtres
+      const urlObj = new URL(req.url, `http://${req.headers.host}`);
+      const page = Math.max(1, parseInt(urlObj.searchParams.get('page') || '1'));
+      const limit = Math.min(100, Math.max(1, parseInt(urlObj.searchParams.get('limit') || '10')));
+      const search = (urlObj.searchParams.get('search') || '').toLowerCase();
+      const role = urlObj.searchParams.get('role') || '';
+      const status = urlObj.searchParams.get('status') || '';
+      const sortBy = urlObj.searchParams.get('sortBy') || 'name';
+      const sortDir = (urlObj.searchParams.get('sortDir') || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc';
+
+      let rows = users.map(u => ({
         id: u.id,
         name: u.name,
         email: u.email,
@@ -388,8 +398,26 @@ module.exports = async (req, res) => {
         phone: u.phone,
         adminUnit: u.adminUnit
       }));
-      
-      res.status(200).json(usersList);
+
+      if (search) {
+        rows = rows.filter(r => (r.name || '').toLowerCase().includes(search) || (r.email || '').toLowerCase().includes(search));
+      }
+      if (role) rows = rows.filter(r => r.role === role);
+      if (status) rows = rows.filter(r => r.status === status);
+
+      rows.sort((a, b) => {
+        const av = (a[sortBy] ?? '').toString().toLowerCase();
+        const bv = (b[sortBy] ?? '').toString().toLowerCase();
+        if (av < bv) return sortDir === 'asc' ? -1 : 1;
+        if (av > bv) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+      });
+
+      const total = rows.length;
+      const start = (page - 1) * limit;
+      const items = rows.slice(start, start + limit);
+
+      res.status(200).json({ items, total, page, limit });
       return;
     }
 

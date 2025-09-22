@@ -1,6 +1,7 @@
 // Script pour la gestion des agents
 let jwt = localStorage.getItem('jwt') || '';
 let agents = [];
+let agentPagination = { page: 1, limit: 10, total: 0 };
 let currentUser = null;
 let adminUnits = [];
 
@@ -114,10 +115,24 @@ async function checkAuth() {
 // Charger la liste des agents
 async function loadAgents() {
   try {
-    // Charger les agents depuis l'API
-    agents = await api('/users');
+    const searchTerm = ($('search-agents')?.value || '').trim();
+    const roleFilter = ($('filter-role')?.value || '').trim();
+    const statusFilter = ($('filter-status')?.value || '').trim();
+    const params = new URLSearchParams();
+    params.set('page', String(agentPagination.page));
+    params.set('limit', String(agentPagination.limit));
+    if (searchTerm) params.set('search', searchTerm);
+    if (roleFilter) params.set('role', roleFilter);
+    if (statusFilter) params.set('status', statusFilter);
+    params.set('sortBy', 'name');
+    params.set('sortDir', 'asc');
+
+    const response = await api('/users?' + params.toString());
+    agents = response.items || [];
+    agentPagination.total = response.total || agents.length;
     displayAgents();
     updateStatistics();
+    renderAgentPaginator();
     
   } catch (error) {
     console.error('Erreur lors du chargement des agents:', error);
@@ -217,54 +232,8 @@ function updateStatistics() {
 
 // Filtrer les agents
 function filterAgents() {
-  const searchTerm = $('search-agents').value.toLowerCase();
-  const roleFilter = $('filter-role').value;
-  const statusFilter = $('filter-status').value;
-  
-  const filteredAgents = agents.filter(agent => {
-    const matchesSearch = agent.name.toLowerCase().includes(searchTerm) || 
-                         agent.email.toLowerCase().includes(searchTerm);
-    const matchesRole = !roleFilter || agent.role === roleFilter;
-    const matchesStatus = !statusFilter || agent.status === statusFilter;
-    
-    return matchesSearch && matchesRole && matchesStatus;
-  });
-  
-  // Afficher les agents filtrés
-  const tbody = $('agents-table-body');
-  if (filteredAgents.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="no-data">Aucun agent ne correspond aux critères</td></tr>';
-    return;
-  }
-  
-  tbody.innerHTML = filteredAgents.map(agent => `
-    <tr>
-      <td>
-        <img src="/Media/default-avatar.png" alt="Avatar" class="agent-avatar-small">
-      </td>
-      <td>${agent.name}</td>
-      <td>${agent.email}</td>
-      <td><span class="role-badge role-${agent.role}">${getRoleText(agent.role)}</span></td>
-      <td>${agent.adminUnit || 'Non assigné'}</td>
-      <td><span class="status-badge status-${agent.status}">${getStatusText(agent.status)}</span></td>
-      <td>${formatDate(agent.lastActivity)}</td>
-      <td>
-        <div class="action-buttons">
-          <button class="btn-icon" onclick="editAgent(${agent.id})" title="Modifier">
-            ✏️
-          </button>
-          <button class="btn-icon" onclick="viewAgent(${agent.id})" title="Voir">
-            👁️
-          </button>
-          ${currentUser.role === 'admin' ? `
-            <button class="btn-icon btn-danger" onclick="deleteAgent(${agent.id})" title="Supprimer">
-              🗑️
-            </button>
-          ` : ''}
-        </div>
-      </td>
-    </tr>
-  `).join('');
+  agentPagination.page = 1;
+  loadAgents();
 }
 
 // Ouvrir le modal de création d'agent
@@ -390,6 +359,29 @@ function exportAgents() {
 // Actualiser la liste
 function refreshAgents() {
   loadAgents();
+}
+
+function renderAgentPaginator() {
+  const container = document.getElementById('agents-paginator');
+  if (!container) return;
+  const totalPages = Math.max(1, Math.ceil(agentPagination.total / agentPagination.limit));
+  const page = Math.min(agentPagination.page, totalPages);
+  agentPagination.page = page;
+  container.innerHTML = '';
+  const prev = document.createElement('button');
+  prev.textContent = 'Précédent';
+  prev.disabled = page <= 1;
+  prev.onclick = () => { agentPagination.page = Math.max(1, page - 1); loadAgents(); };
+  const info = document.createElement('span');
+  info.style.margin = '0 8px';
+  info.textContent = `Page ${page} / ${totalPages} (${agentPagination.total} agents)`;
+  const next = document.createElement('button');
+  next.textContent = 'Suivant';
+  next.disabled = page >= totalPages;
+  next.onclick = () => { agentPagination.page = Math.min(totalPages, page + 1); loadAgents(); };
+  container.appendChild(prev);
+  container.appendChild(info);
+  container.appendChild(next);
 }
 
 // Utilitaires
