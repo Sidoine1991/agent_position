@@ -376,8 +376,8 @@ async function init() {
       const coords = await getCurrentLocationWithValidation();
       const fd = new FormData();
       
-      fd.append('lat', coords.lat);
-      fd.append('lon', coords.lon);
+      fd.append('lat', String(coords.latitude));
+      fd.append('lon', String(coords.longitude));
       fd.append('departement', $('departement').value);
       fd.append('commune', $('commune').value);
       fd.append('arrondissement', $('arrondissement').value);
@@ -419,8 +419,8 @@ async function init() {
       const coords = await getCurrentLocationWithValidation();
       const fd = new FormData();
       
-      fd.append('lat', coords.lat);
-      fd.append('lon', coords.lon);
+      fd.append('lat', String(coords.latitude));
+      fd.append('lon', String(coords.longitude));
       fd.append('note', $('note').value || 'Fin de mission');
       
       const photo = $('photo').files[0];
