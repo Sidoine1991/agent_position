@@ -1,5 +1,15 @@
 const apiBase = '/api';
 let jwt = localStorage.getItem('jwt') || '';
+// Restaurer le token depuis l'URL si présent
+try {
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlToken = urlParams.get('token');
+  if (urlToken && urlToken.length > 20) {
+    localStorage.setItem('jwt', urlToken);
+    jwt = urlToken;
+    console.log('🔐 Token (dashboard) restauré depuis URL');
+  }
+} catch {}
 
 function $(id) { return document.getElementById(id); }
 
@@ -32,9 +42,7 @@ async function api(path, opts={}) {
   if (!res.ok) {
     const errorText = await res.text();
     console.error('API error:', errorText);
-    if (res.status === 401 || res.status === 403) {
-      try { localStorage.removeItem('jwt'); } catch {}
-    }
+    // Ne pas supprimer le token automatiquement
     throw new Error(errorText || res.statusText);
   }
   
@@ -48,7 +56,9 @@ let currentProfile;
 
 async function getProfile() {
   try {
-    currentProfile = await api('/profile');
+    // Essayer avec email si disponible pour compat
+    const email = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
+    currentProfile = email ? await api(`/profile?email=${encodeURIComponent(email)}`) : await api('/profile');
     return currentProfile;
   } catch (e) {
     throw e;
@@ -72,18 +82,14 @@ async function ensureAuth() {
       window.location.href = window.location.origin + '/';
     }
   }
-  // Verify role
+  // Verify role (ne pas bloquer brutalement; juste avertir)
   try {
     const profile = await getProfile();
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'supervisor')) {
-      alert('Accès refusé: veuillez vous connecter en tant que superviseur ou admin.');
-      localStorage.removeItem('jwt');
-      window.location.href = window.location.origin + '/';
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'supervisor' && profile.role !== 'superviseur')) {
+      console.warn('Accès non admin/superviseur: affichage dégradé');
     }
   } catch (e) {
-    alert('Session invalide. Veuillez vous reconnecter.');
-    localStorage.removeItem('jwt');
-    window.location.href = window.location.origin + '/';
+    console.warn('Session invalide (non bloquante)');
   }
 }
 
