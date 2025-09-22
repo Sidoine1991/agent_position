@@ -360,10 +360,18 @@ async function init() {
 
   // Bouton simple: débuter la mission
   const startBtnEl = $('start-mission');
+  const endBtnEl = $('end-mission');
   if (startBtnEl) {
     startBtnEl.onclick = async () => {
       const status = $('status');
       await startMission(startBtnEl, status);
+    };
+  }
+
+  if (endBtnEl) {
+    endBtnEl.onclick = async () => {
+      const status = $('status');
+      await endMission(currentMissionId, endBtnEl, status);
     };
   }
 
@@ -390,6 +398,10 @@ async function init() {
       status.textContent = 'Envoi...';
       
       const data = await api('/presence/start', { method: 'POST', body: fd });
+      // Tenter de récupérer l'ID de mission créé et activer les actions liées
+      if (data && (data.mission_id || (data.mission && data.mission.id))) {
+        currentMissionId = data.mission_id || data.mission.id;
+      }
       
       status.textContent = 'Position signalée - Mission démarrée';
       animateElement(status, 'bounce');
@@ -398,8 +410,12 @@ async function init() {
       await refreshCheckins();
       await loadPresenceData();
       
-      // Changer le texte du bouton pour indiquer qu'on peut finir
-      button.innerHTML = '<span class="btn-icon">🏁</span>Finir la mission';
+      // Activer le bouton Finir position et désactiver début
+      const endBtn = $('end-mission');
+      if (endBtn) endBtn.disabled = false;
+      if (button) button.disabled = true;
+      const checkinBtn = $('checkin-btn');
+      if (checkinBtn) checkinBtn.disabled = false;
       
     } catch (e) {
       console.error('Erreur début mission:', e);
@@ -437,8 +453,13 @@ async function init() {
       await refreshCheckins();
       await loadPresenceData();
       
-      // Changer le texte du bouton pour indiquer qu'on peut recommencer
-      button.innerHTML = '<span class="btn-icon">📍</span>Signaler votre position journalière';
+      // Réactiver le bouton Débuter et désactiver Finir
+      const startBtn = $('start-mission');
+      if (startBtn) startBtn.disabled = false;
+      if (button) button.disabled = true;
+      const checkinBtn = $('checkin-btn');
+      if (checkinBtn) checkinBtn.disabled = true;
+      currentMissionId = null;
       
     } catch (e) {
       console.error('Erreur fin mission:', e);
