@@ -1,12 +1,21 @@
 // API consolidée pour Vercel - Version 2.4 - Force Deploy
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://agent-position.vercel.app';
+const WEB_PUSH_CONTACT = process.env.WEB_PUSH_CONTACT || 'mailto:admin@example.com';
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
+
+let webPush;
+try {
+  webPush = require('web-push');
+} catch {}
 
 // Stockage en mémoire
 let users = [];
 let missions = [];
 let checkins = [];
 let adminUnits = [];
+let pushSubscriptions = [];
 
 // Initialiser les utilisateurs par défaut
 function initializeUsers() {
@@ -86,6 +95,24 @@ function verifyToken(token) {
 // Initialiser les données
 initializeUsers();
 
+// Configurer Web Push (si disponible)
+let effectiveVapidPublicKey = VAPID_PUBLIC_KEY;
+if (webPush) {
+  try {
+    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+      // Générer des clés éphémères si non fournies (non persistant entre redéploiements)
+      const keys = webPush.generateVAPIDKeys();
+      effectiveVapidPublicKey = keys.publicKey;
+      webPush.setVapidDetails(WEB_PUSH_CONTACT, keys.publicKey, keys.privateKey);
+    } else {
+      effectiveVapidPublicKey = VAPID_PUBLIC_KEY;
+      webPush.setVapidDetails(WEB_PUSH_CONTACT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+    }
+  } catch (e) {
+    console.warn('Web Push init error:', e?.message);
+  }
+}
+
 module.exports = async (req, res) => {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
@@ -105,6 +132,78 @@ module.exports = async (req, res) => {
     // Route de santé
     if (pathname === '/api/health') {
       res.status(200).json({ status: 'OK', message: 'API fonctionnelle' });
+      return;
+    }
+
+    // Exposer la clé publique VAPID
+    if (pathname === '/api/push/public-key' && req.method === 'GET') {
+      if (!webPush) {
+        res.status(503).json({ error: 'Web Push non disponible' });
+        return;
+      }
+      res.status(200).json({ publicKey: effectiveVapidPublicKey });
+      return;
+    }
+
+    // Souscription aux notifications push
+    if (pathname === '/api/push/subscribe' && req.method === 'POST') {
+      if (!webPush) {
+        res.status(503).json({ error: 'Web Push non disponible' });
+        return;
+      }
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : '';
+      const payload = token ? verifyToken(token) : null;
+
+      const subscription = req.body && (req.body.subscription || req.body);
+      if (!subscription || !subscription.endpoint) {
+        res.status(400).json({ error: 'Subscription invalide' });
+        return;
+      }
+
+      // Dédupliquer par endpoint
+      pushSubscriptions = pushSubscriptions.filter(s => s.subscription.endpoint !== subscription.endpoint);
+      pushSubscriptions.push({ userId: payload?.id || payload?.userId || null, subscription });
+      res.status(201).json({ success: true });
+      return;
+    }
+
+    // Envoyer une notification de test
+    if (pathname === '/api/push/test' && req.method === 'POST') {
+      if (!webPush) {
+        res.status(503).json({ error: 'Web Push non disponible' });
+        return;
+      }
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : '';
+      const payload = token ? verifyToken(token) : null;
+
+      const targetUserId = (payload && (payload.id || payload.userId)) || null;
+      const audience = req.body && req.body.audience || 'me'; // 'me' | 'all'
+      const noti = req.body && req.body.notification || {};
+      const data = {
+        title: noti.title || 'Notification CCRB',
+        body: noti.body || 'Message de test',
+        icon: '/Media/logo-ccrb.png',
+        badge: '/Media/logo-ccrb.png',
+        url: noti.url || '/dashboard.html'
+      };
+
+      const targets = audience === 'all'
+        ? pushSubscriptions
+        : pushSubscriptions.filter(s => s.userId && targetUserId && s.userId === targetUserId);
+
+      const results = [];
+      for (const s of targets) {
+        try {
+          await webPush.sendNotification(s.subscription, JSON.stringify(data));
+          results.push({ endpoint: s.subscription.endpoint, ok: true });
+        } catch (e) {
+          results.push({ endpoint: s.subscription.endpoint, ok: false, error: e?.message });
+        }
+      }
+
+      res.status(200).json({ success: true, sent: results.length, results });
       return;
     }
 
@@ -210,20 +309,34 @@ module.exports = async (req, res) => {
         return;
       }
       
-      const user = users.find(u => u.id === payload.id);
-      if (!user) {
-        res.status(404).json({ error: 'Utilisateur non trouvé' });
+      // Les tokens peuvent contenir id (api vercel) ou userId (backend sqlite)
+      const tokenUserId = (payload && (payload.id || payload.userId)) || null;
+      
+      // Chercher l'utilisateur dans la mémoire si un id est disponible
+      const user = tokenUserId ? users.find(u => u.id === tokenUserId) : null;
+      
+      if (user) {
+        res.status(200).json({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          phone: user.phone,
+          adminUnit: user.adminUnit
+        });
         return;
       }
       
+      // Si pas trouvé en mémoire, retourner le payload minimal du token pour éviter 404
       res.status(200).json({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-        phone: user.phone,
-        adminUnit: user.adminUnit
+        id: tokenUserId,
+        name: payload.name || 'Utilisateur',
+        email: payload.email || '',
+        role: payload.role || 'agent',
+        status: 'active',
+        phone: payload.phone || '',
+        adminUnit: payload.adminUnit || ''
       });
       return;
     }

@@ -6,7 +6,9 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "dependencies": {},
+  "dependencies": {
+    "web-push": "^3.6.0"
+  },
   "scripts": {
     "start": "node index.js"
   }

@@ -374,7 +374,7 @@ async function init() {
   const endBtnEl = $('end-mission');
   if (startBtnEl) {
     startBtnEl.onclick = async () => {
-      const status = $('status');
+    const status = $('status');
       await startMission(startBtnEl, status);
     };
   }
@@ -405,7 +405,7 @@ async function init() {
       
       const photo = $('photo').files[0];
       if (photo) fd.append('photo', photo);
-      
+
       status.textContent = 'Envoi...';
       
       const data = await api('/presence/start', { method: 'POST', body: fd });
@@ -461,7 +461,7 @@ async function init() {
       // Inclure mission_id si connu
       if (missionId) fd.append('mission_id', String(missionId));
       await api('/presence/end', { method: 'POST', body: fd });
-      
+
       status.textContent = 'Position signalée - Mission terminée';
       animateElement(status, 'bounce');
       showNotification('Position journalière signalée - Mission terminée !', 'success');
@@ -585,7 +585,7 @@ async function init() {
   // Ne charger les données que si l'utilisateur est connecté
   if (jwt && jwt.length > 20) {
     await loadPresenceData();
-    await loadDashboardMetrics();
+  await loadDashboardMetrics();
   }
   
   // Initialiser les animations de scroll
@@ -1333,7 +1333,7 @@ async function updateNavbar() {
       }
       
       // Ne plus propager le token dans l'URL pour le dashboard
-
+      
       // Afficher les informations utilisateur
       if (navbarUser) navbarUser.style.display = 'flex';
       if (userInfo && profile) {

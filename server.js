@@ -1168,6 +1168,57 @@ app.post('/api/admin/purge-all', async (req, res) => {
   }
 });
 
+// Mettre à jour le profil de l'utilisateur connecté (auto-service)
+app.post('/api/me/profile', async (req, res) => {
+  try {
+    // Auth
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, message: 'Authorization requise' });
+    }
+    let userId;
+    try {
+      const decoded = jwt.verify(authHeader.substring(7), JWT_SECRET);
+      userId = decoded.userId;
+    } catch {
+      return res.status(401).json({ success: false, message: 'Token invalide' });
+    }
+
+    // Champs autorisés à la mise à jour auto-service
+    const allowedFields = [
+      'first_name','last_name','phone','photo_path',
+      'project_name','project_description','planning_start_date','planning_end_date',
+      'expected_days_per_month','expected_hours_per_month','work_schedule','contract_type',
+      'departement','commune','arrondissement','village','village_id',
+      'tolerance_radius_meters','reference_lat','reference_lon','gps_accuracy'
+    ];
+
+    const payload = req.body || {};
+    const sets = [];
+    const params = [];
+    let idx = 1;
+    for (const key of allowedFields) {
+      if (payload[key] !== undefined && payload[key] !== null) {
+        sets.push(`${key} = $${idx++}`);
+        params.push(payload[key]);
+      }
+    }
+
+    if (sets.length === 0) {
+      return res.json({ success: true, message: 'Aucun champ à mettre à jour' });
+    }
+
+    params.push(userId);
+    const sql = `UPDATE users SET ${sets.join(', ')} WHERE id = $${idx} RETURNING id`;
+    await pool.query(sql, params);
+
+    res.json({ success: true, message: 'Profil mis à jour' });
+  } catch (e) {
+    console.error('Erreur update me/profile:', e);
+    res.status(500).json({ success: false, message: 'Erreur lors de la mise à jour du profil' });
+  }
+});
+
 // Démarrer le serveur
 app.listen(PORT, () => {
   console.log(`Serveur démarré sur le port ${PORT}`);
