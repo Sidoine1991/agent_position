@@ -14,8 +14,9 @@ const PORT = process.env.PORT || 3000;
 // Configuration JWT
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
 
-// Configuration multer pour les fichiers
-const upload = multer({ dest: 'uploads/' });
+// Configuration multer pour les fichiers (Vercel-compatible)
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 // Configuration de la base de données
 const pool = new Pool({

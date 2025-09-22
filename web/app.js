@@ -175,9 +175,61 @@ function geoPromise() {
   });
 }
 
+async function autoLogin(email, password) {
+  try {
+    console.log('🔐 Tentative de connexion automatique...');
+    
+    const response = await api('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    
+    console.log('Réponse de l\'API:', response);
+    
+    if (response.success && response.token) {
+      // Stocker le token et les données de connexion
+      localStorage.setItem('jwt', response.token);
+      localStorage.setItem('userEmail', email);
+      localStorage.setItem('loginData', JSON.stringify({
+        email: email,
+        name: response.user?.name || email,
+        role: response.user?.role || 'agent'
+      }));
+      
+      // Mettre à jour le JWT global
+      jwt = response.token;
+      
+      console.log('✅ Connexion automatique réussie');
+      
+      // Recharger la page pour appliquer les changements
+      window.location.reload();
+    } else {
+      throw new Error(response.message || 'Échec de la connexion');
+    }
+  } catch (e) {
+    console.error('❌ Erreur de connexion automatique:', e);
+    throw e;
+  }
+}
+
 async function init() {
   if ('serviceWorker' in navigator) {
     try { await navigator.serviceWorker.register('/service-worker.js'); } catch {}
+  }
+  
+  // Vérifier la connexion automatique via les paramètres URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const email = urlParams.get('email');
+  const password = urlParams.get('password');
+  
+  if (email && password) {
+    console.log('🔐 Tentative de connexion automatique avec:', { email, password: '***' });
+    try {
+      await autoLogin(email, password);
+    } catch (e) {
+      console.error('❌ Échec de la connexion automatique:', e);
+    }
   }
   
   // Initialiser les notifications
