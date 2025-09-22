@@ -230,6 +230,9 @@ async function init() {
   
   // Vérifier l'état de la mission et mettre à jour le bouton
   await updateDailyPositionButton();
+  
+  // Forcer le rendu du calendrier
+  renderCalendar();
       
       // Initialiser les sélecteurs géographiques après connexion
       setTimeout(() => {
@@ -403,7 +406,8 @@ async function init() {
   }
 
   // Ancien bouton start-mission (désactivé)
-  $('start-mission').onclick = async () => {
+  // Ancien gestionnaire supprimé - utilisation du bouton unique daily-position
+  // $('start-mission').onclick = async () => {
     const status = $('status');
     const startBtn = $('start-mission');
     
@@ -538,7 +542,8 @@ async function init() {
     }
   };
 
-  $('end-mission').onclick = async () => {
+  // Ancien gestionnaire supprimé - utilisation du bouton unique daily-position
+  // $('end-mission').onclick = async () => {
     const status = $('status');
     const endBtn = $('end-mission');
     
