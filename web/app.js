@@ -138,12 +138,9 @@ async function api(path, opts={}) {
   console.log('API response:', res.status, res.statusText);
   
   if (res.status === 401) {
-    try {
-      localStorage.removeItem('jwt');
-    } catch {}
-    jwt = '';
-    console.warn('401 détecté: token supprimé, retour à l\'écran de connexion');
-    throw new Error(JSON.stringify({ success:false, message: "Token d'authentification invalide" }));
+    // Ne pas supprimer le token automatiquement pour éviter les blocages cross-page
+    console.warn('401 détecté: accès non autorisé');
+    throw new Error(JSON.stringify({ success:false, unauthorized:true, message: "Accès non autorisé" }));
   }
   if (!res.ok) {
     const errorText = await res.text();
@@ -270,6 +267,11 @@ async function init() {
   } else { 
     show(authSection); 
     hide(appSection); 
+    // Si le dashboard est ouvert sans token, afficher juste un message non bloquant
+    const path = window.location.pathname || '';
+    if (path.includes('dashboard') || path.includes('admin')) {
+      console.warn('Page admin/dashboard ouverte sans token');
+    }
   }
 
   $('login-form').addEventListener('submit', async (ev) => {
