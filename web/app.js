@@ -431,7 +431,22 @@ async function init() {
     } catch (e) {
       console.error('Erreur début mission:', e);
       status.textContent = 'Erreur début mission';
-      showNotification('Erreur lors du début de mission: ' + e.message, 'error');
+      showNotification('Hors ligne: mission en file et sera envoyée dès retour réseau', 'warning');
+      try {
+        const payload = {
+          lat: Number(fd.get('lat')),
+          lon: Number(fd.get('lon')),
+          note: fd.get('note') || 'Début de mission (offline)'
+        };
+        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'queue-presence',
+            endpoint: '/api/presence/start',
+            method: 'POST',
+            payload
+          });
+        }
+      } catch {}
     } finally {
       removeLoadingState(button);
     }
@@ -480,7 +495,22 @@ async function init() {
     } catch (e) {
       console.error('Erreur fin mission:', e);
       status.textContent = 'Erreur fin mission';
-      showNotification('Erreur lors de la fin de mission: ' + e.message, 'error');
+      showNotification('Hors ligne: fin de mission en file et sera envoyée au retour', 'warning');
+      try {
+        const payload = {
+          lat: Number(fd.get('lat')),
+          lon: Number(fd.get('lon')),
+          note: fd.get('note') || 'Fin de mission (offline)'
+        };
+        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'queue-presence',
+            endpoint: '/api/presence/end',
+            method: 'POST',
+            payload
+          });
+        }
+      } catch {}
     } finally {
       removeLoadingState(button);
     }
@@ -525,7 +555,23 @@ async function init() {
       await refreshCheckins();
     } catch (e) { 
       status.textContent = 'Erreur check-in';
-      showNotification('Erreur lors du check-in: ' + e.message, 'error');
+      showNotification('Hors ligne: check-in en file et sera envoyé au retour réseau', 'warning');
+      try {
+        const payload = {
+          mission_id: Number(fd.get('mission_id')),
+          lat: Number(fd.get('lat')),
+          lon: Number(fd.get('lon')),
+          note: fd.get('note') || ''
+        };
+        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'queue-presence',
+            endpoint: '/api/mission/checkin',
+            method: 'POST',
+            payload
+          });
+        }
+      } catch {}
     } finally {
       removeLoadingState(checkinBtn);
     }
