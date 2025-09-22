@@ -151,6 +151,29 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // Admin: réinitialiser les comptes et données en mémoire
+    if (pathname === '/api/admin/reset' && req.method === 'POST') {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.status(401).json({ error: 'Token manquant' });
+        return;
+      }
+      const token = authHeader.substring(7);
+      const payload = verifyToken(token);
+      if (!payload || payload.role !== 'admin') {
+        res.status(403).json({ error: 'Accès refusé' });
+        return;
+      }
+
+      const before = { users: users.length, missions: missions.length, checkins: checkins.length };
+      initializeUsers();
+      missions = [];
+      checkins = [];
+      const after = { users: users.length, missions: missions.length, checkins: checkins.length };
+      res.status(200).json({ success: true, message: 'Réinitialisation effectuée', before, after });
+      return;
+    }
+
     // Statistiques de présence (simple agrégat)
     if (pathname.startsWith('/api/presence/stats') && req.method === 'GET') {
       try {
