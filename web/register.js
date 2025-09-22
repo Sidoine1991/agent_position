@@ -110,7 +110,7 @@ registerForm.addEventListener('submit', async (e) => {
         currentEmail = data.email;
         if (result.admin_flow) {
           showForm('verification');
-          showMessage('Inscription Administrateur: le code a été envoyé au Super Admin. Contact: +2290196911346', 'success');
+          showMessage("Inscription Administrateur: le code a été envoyé au Super Admin. Veuillez vous rapprocher de l'Équipe de développeur pour obtenir votre code au +2290196911346.", 'success');
         } else {
           showForm('verification');
           showMessage('Code de validation envoyé par email. Vérifiez votre boîte mail.', 'success');
