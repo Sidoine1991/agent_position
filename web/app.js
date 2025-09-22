@@ -280,8 +280,7 @@ async function init() {
   await loadPresenceData();
   await loadDashboardMetrics();
   
-  // Vérifier l'état de la mission et mettre à jour le bouton
-  await updateDailyPositionButton();
+  // Bouton unique: rien à mettre à jour dynamiquement
   
   // Forcer le rendu du calendrier
   renderCalendar();
@@ -351,29 +350,14 @@ async function init() {
     });
   }
 
-  // Bouton unique pour signaler la position journalière
-  $('daily-position').onclick = async () => {
-    const status = $('status');
-    const dailyBtn = $('daily-position');
-    
-    try {
-      // Vérifier s'il y a déjà une mission active
-      const missionsResponse = await api('/me/missions');
-      const activeMission = missionsResponse.missions?.find(m => m.status === 'active');
-      
-      if (activeMission) {
-        // Finir la mission active
-        await endMission(activeMission.id, dailyBtn, status);
-      } else {
-        // Commencer une nouvelle mission
-        await startMission(dailyBtn, status);
-      }
-    } catch (e) {
-      console.error('Erreur position journalière:', e);
-      status.textContent = 'Erreur lors de la signalisation';
-      showNotification('Erreur lors de la signalisation de position', 'error');
-    }
-  };
+  // Bouton simple: débuter la mission
+  const startBtnEl = $('start-mission');
+  if (startBtnEl) {
+    startBtnEl.onclick = async () => {
+      const status = $('status');
+      await startMission(startBtnEl, status);
+    };
+  }
 
   // Fonction pour commencer une mission
   async function startMission(button, status) {
@@ -727,29 +711,7 @@ async function checkDailyAbsences() {
 }
 
 // Fonction pour mettre à jour le bouton de position journalière
-async function updateDailyPositionButton() {
-  try {
-    const missionsResponse = await api('/me/missions');
-    const activeMission = missionsResponse.missions?.find(m => m.status === 'active');
-    const dailyBtn = $('daily-position');
-    
-    if (dailyBtn) {
-      if (activeMission) {
-        // Mission active, proposer de finir
-        dailyBtn.innerHTML = '<span class="btn-icon">🏁</span>Finir la mission';
-        dailyBtn.classList.remove('btn-primary');
-        dailyBtn.classList.add('btn-secondary');
-      } else {
-        // Pas de mission active, proposer de commencer
-        dailyBtn.innerHTML = '<span class="btn-icon">📍</span>Signaler votre position journalière';
-        dailyBtn.classList.remove('btn-secondary');
-        dailyBtn.classList.add('btn-primary');
-      }
-    }
-  } catch (e) {
-    console.warn('Impossible de vérifier l\'état de la mission:', e);
-  }
-}
+// Plus de bouton dynamique; on garde uniquement le début de mission
 
 // Les fonctions de chargement géographique sont maintenant dans geo-data.js
 
