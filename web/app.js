@@ -551,11 +551,13 @@ async function init() {
         const li = document.createElement('li');
         const start = m.start_time ? new Date(m.start_time).toLocaleString() : '-';
         const end = m.end_time ? new Date(m.end_time).toLocaleString() : '-';
+        const depName = getDepartementNameById(m.departement);
+        const comName = getCommuneNameById(m.departement, m.commune);
         li.innerHTML = `
           <div class="list-item">
             <div><strong>Mission #${m.id}</strong> — ${m.status}</div>
             <div>Début: ${start} • Fin: ${end}</div>
-            <div>Département: ${m.departement || '-'} • Commune: ${m.commune || '-'}</div>
+            <div>Département: ${depName || '-'} • Commune: ${comName || '-'}</div>
             <div>Start GPS: ${m.start_lat ?? '-'}, ${m.start_lon ?? '-'} | End GPS: ${m.end_lat ?? '-'}, ${m.end_lon ?? '-'}</div>
           </div>
         `;
@@ -1646,6 +1648,20 @@ function initGeoSelectorsLocal() {
   }
   
   console.log('✅ Sélecteurs géographiques initialisés localement');
+}
+
+// Utilitaires: retrouver noms par ID à partir de geoData
+function getDepartementNameById(departementId) {
+  if (!window.geoData || !Array.isArray(window.geoData.departements)) return String(departementId || '');
+  const d = window.geoData.departements.find(x => String(x.id) === String(departementId));
+  return d ? d.name : String(departementId || '');
+}
+
+function getCommuneNameById(departementId, communeId) {
+  if (!window.geoData || !window.geoData.communes) return String(communeId || '');
+  const communes = window.geoData.communes[String(departementId)] || window.geoData.communes[departementId] || [];
+  const c = communes.find(x => String(x.id) === String(communeId));
+  return c ? c.name : String(communeId || '');
 }
 
 // Initialiser la saisie manuelle au chargement

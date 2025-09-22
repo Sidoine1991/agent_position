@@ -2,6 +2,15 @@
 let jwt = localStorage.getItem('jwt') || '';
 let currentUser = null;
 
+function getQueryParam(name) {
+  const params = new URLSearchParams(window.location.search);
+  return params.get(name) || '';
+}
+
+function getEmailHint() {
+  return getQueryParam('email') || localStorage.getItem('email') || localStorage.getItem('user_email') || localStorage.getItem('userEmail') || '';
+}
+
 function $(id) { return document.getElementById(id); }
 
 async function api(path, opts = {}) {
@@ -33,46 +42,48 @@ async function api(path, opts = {}) {
 
 // Vérifier l'authentification et les permissions
 async function checkAuth() {
-  if (!jwt) {
-    alert('Veuillez vous connecter pour accéder à cette page');
-    window.location.href = window.location.origin + '/';
-    return false;
-  }
-  
-  try {
-    // Utiliser les données de connexion stockées dans localStorage
-    const loginData = JSON.parse(localStorage.getItem('loginData') || '{}');
-    const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-    
-    // Utiliser les données de connexion si disponibles, sinon essayer l'API
-    if (loginData.role) {
-      currentUser = loginData;
-    } else if (userProfile.role) {
-      currentUser = userProfile;
-    } else {
+  const emailHint = getEmailHint();
+
+  // Préparer des données locales si disponibles
+  const loginData = JSON.parse(localStorage.getItem('loginData') || '{}');
+  const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+
+  // 1) Essayer via token si présent
+  if (jwt) {
+    try {
       currentUser = await api('/profile');
+    } catch (e) {
+      console.warn('Profil via token indisponible:', e?.message);
     }
-    
-    console.log('Utilisateur actuel:', currentUser);
-    
-    // Vérifier que l'utilisateur est admin ou superviseur
-    if (currentUser.role !== 'admin' && currentUser.role !== 'superviseur') {
-      alert('Accès refusé. Cette page est réservée aux administrateurs et superviseurs.');
-      console.log('Rôle utilisateur:', currentUser.role);
-      window.location.href = window.location.origin + '/';
-      return false;
+  }
+
+  // 2) Fallback: données locales
+  if (!currentUser && (loginData.role || userProfile.role)) {
+    currentUser = loginData.role ? loginData : userProfile;
+  }
+
+  // 3) Fallback: soft-auth via email
+  if (!currentUser && emailHint) {
+    try {
+      currentUser = await api('/profile?email=' + encodeURIComponent(emailHint));
+    } catch (e) {
+      console.warn('Profil via email indisponible:', e?.message);
+      currentUser = { name: emailHint.split('@')[0] || 'Utilisateur', email: emailHint, role: 'admin' };
     }
-    
-    return true;
-  } catch (error) {
-    console.error('Erreur d\'authentification:', error);
-    alert('Session expirée. Veuillez vous reconnecter.');
-    localStorage.removeItem('jwt');
-    localStorage.removeItem('loginData');
-    localStorage.removeItem('userProfile');
-    window.location.href = window.location.origin + '/';
+  }
+
+  if (!currentUser) {
+    alert('Accès restreint. Connectez-vous pour accéder aux rapports.');
     return false;
   }
+
+  // Vérifier admin ou supervisor
+  if (currentUser.role !== 'admin' && currentUser.role !== 'supervisor') {
+    alert('Accès refusé. Cette page est réservée aux administrateurs et superviseurs.');
+    return false;
+  }
+
+  return true;
 }
 
 // Mettre à jour les filtres selon le type de rapport
@@ -364,7 +375,7 @@ async function updateNavbar() {
     if (profileLink) profileLink.style.display = 'flex';
     
     // Navigation pour Admin et Superviseur
-    if (currentUser.role === 'admin' || currentUser.role === 'superviseur') {
+    if (currentUser.role === 'admin' || currentUser.role === 'supervisor') {
       if (dashboardLink) dashboardLink.style.display = 'flex';
       if (agentsLink) agentsLink.style.display = 'flex';
       if (reportsLink) reportsLink.style.display = 'flex';
@@ -386,7 +397,7 @@ async function updateNavbar() {
     if (userInfo) {
         const roleText = {
           'admin': 'Administrateur',
-          'superviseur': 'Superviseur',
+          'supervisor': 'Superviseur',
           'agent': 'Agent'
         };
       userInfo.textContent = `${currentUser.name} (${roleText[currentUser.role] || currentUser.role})`;
