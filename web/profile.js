@@ -108,7 +108,34 @@ function getRoleText(role) {
 
 // Changer la photo de profil
 function changeAvatar() {
-  alert('Fonctionnalité de changement de photo à implémenter');
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const dataUrl = reader.result;
+          const base64 = (dataUrl || '').toString().split(',')[1];
+          const resp = await api('/profile/photo', { method: 'POST', body: { photo_base64: base64 } });
+          if (resp && resp.photo_url) {
+            const img = $('profile-avatar');
+            if (img) img.src = resp.photo_url;
+            alert('Photo de profil mise à jour');
+          }
+        } catch (err) {
+          alert('Erreur lors de l\'envoi de la photo: ' + (err.message || ''));
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      alert('Erreur: ' + (err.message || ''));
+    }
+  };
+  input.click();
 }
 
 // Changer le mot de passe

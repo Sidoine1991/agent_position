@@ -28,7 +28,8 @@ function initializeUsers() {
       role: 'admin',
       status: 'active',
       phone: '+229 12 34 56 78',
-      adminUnit: 'Direction Générale'
+      adminUnit: 'Direction Générale',
+      photo_url: ''
     },
     {
       id: 2,
@@ -38,7 +39,8 @@ function initializeUsers() {
       role: 'supervisor',
       status: 'active',
       phone: '+229 12 34 56 79',
-      adminUnit: 'Direction des Opérations'
+      adminUnit: 'Direction des Opérations',
+      photo_url: ''
     }
   ];
   
@@ -132,6 +134,36 @@ module.exports = async (req, res) => {
     // Route de santé
     if (pathname === '/api/health') {
       res.status(200).json({ status: 'OK', message: 'API fonctionnelle' });
+      return;
+    }
+
+    // Upload direct de photo de profil (base64) avec URL de bucket simulée
+    if (pathname === '/api/profile/photo' && req.method === 'POST') {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.status(401).json({ error: 'Token manquant' });
+        return;
+      }
+      const token = authHeader.substring(7);
+      const payload = verifyToken(token);
+      if (!payload) {
+        res.status(401).json({ error: 'Token invalide' });
+        return;
+      }
+      const body = req.body || {};
+      const photoData = body.photo_base64 || body.photo || '';
+      if (!photoData || typeof photoData !== 'string' || photoData.length < 50) {
+        res.status(400).json({ error: 'Image invalide' });
+        return;
+      }
+      // Simuler un upload vers bucket et générer une URL publique
+      const filename = `avatar_${(payload.id || payload.userId || 'me')}_${Date.now()}.png`;
+      const publicUrl = `https://cdn.example.com/ccrb/${filename}`;
+      // Enregistrer sur l'utilisateur en mémoire si présent
+      const tokenUserId = payload.id || payload.userId;
+      const u = users.find(x => x.id === tokenUserId);
+      if (u) u.photo_url = publicUrl;
+      res.status(200).json({ success: true, photo_url: publicUrl });
       return;
     }
 
@@ -333,14 +365,15 @@ module.exports = async (req, res) => {
       const user = tokenUserId ? users.find(u => u.id === tokenUserId) : null;
       
       if (user) {
-        res.status(200).json({
+      res.status(200).json({
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
           status: user.status,
           phone: user.phone,
-          adminUnit: user.adminUnit
+        adminUnit: user.adminUnit,
+        photo_url: user.photo_url || ''
         });
         return;
       }
@@ -353,7 +386,8 @@ module.exports = async (req, res) => {
         role: payload.role || 'agent',
         status: 'active',
         phone: payload.phone || '',
-        adminUnit: payload.adminUnit || ''
+        adminUnit: payload.adminUnit || '',
+        photo_url: payload.photo_url || ''
       });
       return;
     }
@@ -451,7 +485,8 @@ module.exports = async (req, res) => {
         role: role || 'agent',
         status: 'active',
         phone: phone || '',
-        adminUnit: adminUnit || 'Service Général'
+        adminUnit: adminUnit || 'Service Général',
+        photo_url: ''
       };
       
       users.push(newUser);
@@ -463,7 +498,8 @@ module.exports = async (req, res) => {
         role: newUser.role,
         status: newUser.status,
         phone: newUser.phone,
-        adminUnit: newUser.adminUnit
+        adminUnit: newUser.adminUnit,
+        photo_url: newUser.photo_url
       });
       return;
     }
