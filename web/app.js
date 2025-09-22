@@ -521,13 +521,33 @@ async function init() {
   // Restore current mission (uniquement si connecté)
   try {
     if (!jwt) throw new Error('not-authenticated');
-    const missions = await api('/me/missions');
+    const missionsResponse = await api('/me/missions');
+    const missions = missionsResponse.missions || [];
     const active = missions.find(m => m.status === 'active');
     if (active) {
       currentMissionId = active.id;
       $('end-mission').disabled = false;
       $('checkin-btn').disabled = false;
       await refreshCheckins();
+    }
+    // Render missions history list
+    const historyEl = $('missions-history');
+    if (historyEl) {
+      historyEl.innerHTML = '';
+      missions.forEach(m => {
+        const li = document.createElement('li');
+        const start = m.start_time ? new Date(m.start_time).toLocaleString() : '-';
+        const end = m.end_time ? new Date(m.end_time).toLocaleString() : '-';
+        li.innerHTML = `
+          <div class="list-item">
+            <div><strong>Mission #${m.id}</strong> — ${m.status}</div>
+            <div>Début: ${start} • Fin: ${end}</div>
+            <div>Département: ${m.departement || '-'} • Commune: ${m.commune || '-'}</div>
+            <div>Start GPS: ${m.start_lat ?? '-'}, ${m.start_lon ?? '-'} | End GPS: ${m.end_lat ?? '-'}, ${m.end_lon ?? '-'}</div>
+          </div>
+        `;
+        historyEl.appendChild(li);
+      });
     }
   } catch {}
 
