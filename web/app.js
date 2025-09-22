@@ -137,6 +137,14 @@ async function api(path, opts={}) {
   
   console.log('API response:', res.status, res.statusText);
   
+  if (res.status === 401) {
+    try {
+      localStorage.removeItem('jwt');
+    } catch {}
+    jwt = '';
+    console.warn('401 détecté: token supprimé, retour à l\'écran de connexion');
+    throw new Error(JSON.stringify({ success:false, message: "Token d'authentification invalide" }));
+  }
   if (!res.ok) {
     const errorText = await res.text();
     console.error('API error:', errorText);
@@ -531,10 +539,10 @@ async function init() {
   });
   
   // Charger les statistiques mensuelles
-  await calculateMonthlyStats();
+  try { await calculateMonthlyStats(); } catch {}
   
   // Vérifier les absences quotidiennes
-  await checkDailyAbsences();
+  try { await checkDailyAbsences(); } catch {}
   
   // Initialiser l'image hero
   setTimeout(() => {
@@ -584,7 +592,8 @@ async function loadAgentProfile() {
   try {
     // Récupérer l'email depuis l'URL ou le localStorage
     const urlParams = new URLSearchParams(window.location.search);
-    const email = urlParams.get('email') || localStorage.getItem('userEmail') || 'admin@ccrb.local';
+    const email = urlParams.get('email') || localStorage.getItem('userEmail');
+    if (!email) { return; }
     const profile = await api(`/profile?email=${encodeURIComponent(email)}`);
     if (profile) {
       $('agent-name').textContent = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.name;
@@ -620,7 +629,8 @@ async function calculateMonthlyStats() {
     
     // Récupérer les données de présence du mois
     const urlParams = new URLSearchParams(window.location.search);
-    const email = urlParams.get('email') || localStorage.getItem('userEmail') || 'admin@ccrb.local';
+    const email = urlParams.get('email') || localStorage.getItem('userEmail');
+    if (!email) return;
     const response = await api(`/presence/stats?year=${year}&month=${month}&email=${encodeURIComponent(email)}`);
     
     if (response.success) {
