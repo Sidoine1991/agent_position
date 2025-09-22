@@ -224,9 +224,12 @@ async function init() {
       hide(authSection); show(appSection);
       await loadAgentProfile();
       
-      // Charger les données après connexion
-      await loadPresenceData();
-      await loadDashboardMetrics();
+  // Charger les données après connexion
+  await loadPresenceData();
+  await loadDashboardMetrics();
+  
+  // Vérifier l'état de la mission et mettre à jour le bouton
+  await updateDailyPositionButton();
       
       // Initialiser les sélecteurs géographiques après connexion
       setTimeout(() => {
@@ -293,6 +296,113 @@ async function init() {
     });
   }
 
+  // Bouton unique pour signaler la position journalière
+  $('daily-position').onclick = async () => {
+    const status = $('status');
+    const dailyBtn = $('daily-position');
+    
+    try {
+      // Vérifier s'il y a déjà une mission active
+      const missionsResponse = await api('/me/missions');
+      const activeMission = missionsResponse.missions?.find(m => m.status === 'active');
+      
+      if (activeMission) {
+        // Finir la mission active
+        await endMission(activeMission.id, dailyBtn, status);
+      } else {
+        // Commencer une nouvelle mission
+        await startMission(dailyBtn, status);
+      }
+    } catch (e) {
+      console.error('Erreur position journalière:', e);
+      status.textContent = 'Erreur lors de la signalisation';
+      showNotification('Erreur lors de la signalisation de position', 'error');
+    }
+  };
+
+  // Fonction pour commencer une mission
+  async function startMission(button, status) {
+    try {
+      createRippleEffect({ currentTarget: button, clientX: 0, clientY: 0 });
+      addLoadingState(button, 'Récupération GPS...');
+      
+      const coords = await getCurrentLocationWithValidation();
+      const fd = new FormData();
+      
+      fd.append('lat', coords.lat);
+      fd.append('lon', coords.lon);
+      fd.append('departement', $('departement').value);
+      fd.append('commune', $('commune').value);
+      fd.append('arrondissement', $('arrondissement').value);
+      fd.append('village', $('village').value);
+      fd.append('note', $('note').value || 'Début de mission');
+      
+      const photo = $('photo').files[0];
+      if (photo) fd.append('photo', photo);
+      
+      status.textContent = 'Envoi...';
+      
+      const data = await api('/presence/start', { method: 'POST', body: fd });
+      
+      status.textContent = 'Position signalée - Mission démarrée';
+      animateElement(status, 'bounce');
+      showNotification('Position journalière signalée - Mission démarrée !', 'success');
+      
+      await refreshCheckins();
+      await loadPresenceData();
+      
+      // Changer le texte du bouton pour indiquer qu'on peut finir
+      button.innerHTML = '<span class="btn-icon">🏁</span>Finir la mission';
+      
+    } catch (e) {
+      console.error('Erreur début mission:', e);
+      status.textContent = 'Erreur début mission';
+      showNotification('Erreur lors du début de mission: ' + e.message, 'error');
+    } finally {
+      removeLoadingState(button);
+    }
+  }
+
+  // Fonction pour finir une mission
+  async function endMission(missionId, button, status) {
+    try {
+      createRippleEffect({ currentTarget: button, clientX: 0, clientY: 0 });
+      addLoadingState(button, 'Récupération GPS...');
+      
+      const coords = await getCurrentLocationWithValidation();
+      const fd = new FormData();
+      
+      fd.append('lat', coords.lat);
+      fd.append('lon', coords.lon);
+      fd.append('note', $('note').value || 'Fin de mission');
+      
+      const photo = $('photo').files[0];
+      if (photo) fd.append('photo', photo);
+      
+      status.textContent = 'Envoi...';
+      
+      await api('/presence/end', { method: 'POST', body: fd });
+      
+      status.textContent = 'Position signalée - Mission terminée';
+      animateElement(status, 'bounce');
+      showNotification('Position journalière signalée - Mission terminée !', 'success');
+      
+      await refreshCheckins();
+      await loadPresenceData();
+      
+      // Changer le texte du bouton pour indiquer qu'on peut recommencer
+      button.innerHTML = '<span class="btn-icon">📍</span>Signaler votre position journalière';
+      
+    } catch (e) {
+      console.error('Erreur fin mission:', e);
+      status.textContent = 'Erreur fin mission';
+      showNotification('Erreur lors de la fin de mission: ' + e.message, 'error');
+    } finally {
+      removeLoadingState(button);
+    }
+  }
+
+  // Ancien bouton start-mission (désactivé)
   $('start-mission').onclick = async () => {
     const status = $('status');
     const startBtn = $('start-mission');
@@ -762,6 +872,31 @@ async function checkDailyAbsences() {
   } catch (e) {
     console.warn('⚠️ Système de vérification des absences non disponible');
     // Ne pas afficher d'erreur, juste un avertissement silencieux
+  }
+}
+
+// Fonction pour mettre à jour le bouton de position journalière
+async function updateDailyPositionButton() {
+  try {
+    const missionsResponse = await api('/me/missions');
+    const activeMission = missionsResponse.missions?.find(m => m.status === 'active');
+    const dailyBtn = $('daily-position');
+    
+    if (dailyBtn) {
+      if (activeMission) {
+        // Mission active, proposer de finir
+        dailyBtn.innerHTML = '<span class="btn-icon">🏁</span>Finir la mission';
+        dailyBtn.classList.remove('btn-primary');
+        dailyBtn.classList.add('btn-secondary');
+      } else {
+        // Pas de mission active, proposer de commencer
+        dailyBtn.innerHTML = '<span class="btn-icon">📍</span>Signaler votre position journalière';
+        dailyBtn.classList.remove('btn-secondary');
+        dailyBtn.classList.add('btn-primary');
+      }
+    }
+  } catch (e) {
+    console.warn('Impossible de vérifier l\'état de la mission:', e);
   }
 }
 
