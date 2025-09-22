@@ -218,27 +218,43 @@
             <div class="form-grid">
               <div class="form-group">
                 <label for="af_departement">Département *</label>
-                <select id="af_departement" required>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <select id="af_departement" required style="flex:1;">
                   <option value="">Sélectionner un département...</option>
-                </select>
+                  </select>
+                  <input id="af_departement-manual" placeholder="Saisie manuelle du département" style="display:none; flex:1;" />
+                  <button type="button" id="toggle-af_departement" title="Basculer saisie" style="min-width:40px;">✏️</button>
+                </div>
               </div>
               <div class="form-group">
                 <label for="af_commune">Commune</label>
-                <select id="af_commune" disabled>
-                  <option value="">Sélectionner une commune...</option>
-                </select>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <select id="af_commune" disabled style="flex:1;">
+                    <option value="">Sélectionner une commune...</option>
+                  </select>
+                  <input id="af_commune-manual" placeholder="Saisie manuelle de la commune" style="display:none; flex:1;" />
+                  <button type="button" id="toggle-af_commune" title="Basculer saisie" style="min-width:40px;">✏️</button>
+                </div>
               </div>
               <div class="form-group">
                 <label for="af_arrondissement">Arrondissement</label>
-                <select id="af_arrondissement" disabled>
-                  <option value="">Sélectionner un arrondissement...</option>
-                </select>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <select id="af_arrondissement" disabled style="flex:1;">
+                    <option value="">Sélectionner un arrondissement...</option>
+                  </select>
+                  <input id="af_arrondissement-manual" placeholder="Saisie manuelle de l'arrondissement" style="display:none; flex:1;" />
+                  <button type="button" id="toggle-af_arrondissement" title="Basculer saisie" style="min-width:40px;">✏️</button>
+                </div>
               </div>
               <div class="form-group">
                 <label for="af_village">Village</label>
-                <select id="af_village" disabled>
-                  <option value="">Sélectionner un village...</option>
-                </select>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <select id="af_village" disabled style="flex:1;">
+                    <option value="">Sélectionner un village...</option>
+                  </select>
+                  <input id="af_village-manual" placeholder="Saisie manuelle du village" style="display:none; flex:1;" />
+                  <button type="button" id="toggle-af_village" title="Basculer saisie" style="min-width:40px;">✏️</button>
+                </div>
               </div>
             </div>
           </div>

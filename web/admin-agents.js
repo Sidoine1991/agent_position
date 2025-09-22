@@ -254,6 +254,8 @@ function openAgentModal() {
     
     // Charger les départements
     loadAfDepartements();
+    // Activer la bascule saisie/select
+    setupManualGeoInputsAdmin();
 }
 
 // Modifier un agent
@@ -563,6 +565,46 @@ window.nextPage = nextPage;
 window.closeDeleteModal = closeDeleteModal;
 window.confirmDelete = confirmDelete;
 window.cancelDelete = cancelDelete;
+
+// Bascule saisie manuelle/select pour l'admin (même logique que dashboard)
+function setupManualGeoInputsAdmin() {
+    const fields = ['af_departement','af_commune','af_arrondissement','af_village'];
+    fields.forEach(field => {
+        const select = document.getElementById(field);
+        const input = document.getElementById(field + '-manual');
+        const toggle = document.getElementById('toggle-' + field);
+        if (!select || !input || !toggle) return;
+        toggle.onclick = () => {
+            const manual = input.style.display !== 'none';
+            if (manual) {
+                // switch to select
+                select.style.display = 'block';
+                input.style.display = 'none';
+                toggle.textContent = '✏️';
+                select.disabled = false;
+            } else {
+                // switch to manual
+                select.style.display = 'none';
+                input.style.display = 'block';
+                toggle.textContent = '📋';
+                select.disabled = true;
+                input.focus();
+            }
+        };
+        // sync select -> input
+        select.onchange = () => {
+            if (input.style.display === 'none') return;
+            input.value = select.options[select.selectedIndex]?.text || '';
+        };
+        // sync input -> select (meilleur-effort)
+        input.oninput = () => {
+            if (select.style.display === 'none') return;
+            const opts = Array.from(select.options);
+            const m = opts.find(o => o.text.toLowerCase().includes(input.value.toLowerCase()));
+            if (m) select.value = m.value;
+        };
+    });
+}
 
 // Configuration des gestionnaires d'événements pour les modals
 function setupModalEventListeners() {
