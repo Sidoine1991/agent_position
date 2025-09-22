@@ -12,7 +12,18 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Configuration JWT
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  const message = 'JWT_SECRET non défini. Définissez la variable d\'environnement JWT_SECRET sur la plateforme (Vercel/Render).';
+  if (process.env.NODE_ENV === 'production') {
+    // En production, ne pas démarrer sans secret
+    throw new Error(message);
+  } else {
+    console.warn('[DEV WARNING]', message, 'Un secret temporaire sera utilisé en local.');
+    // Secret temporaire uniquement en local/dev pour éviter de casser le dev
+    process.env.JWT_SECRET = 'dev-temp-secret-change-me';
+  }
+}
 
 // Configuration multer pour les fichiers (Vercel-compatible)
 const storage = multer.memoryStorage();
