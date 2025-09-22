@@ -535,7 +535,7 @@ async function init() {
   try {
     if (!jwt) throw new Error('not-authenticated');
     const missionsResponse = await api('/me/missions');
-    const missions = missionsResponse.missions || [];
+    const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
     const active = missions.find(m => m.status === 'active');
     if (active) {
       currentMissionId = active.id;
@@ -978,7 +978,7 @@ async function loadPresenceData() {
     // Pour l'instant, on va charger les missions existantes (si connecté)
     if (!jwt) return;
     const missionsResponse = await api('/me/missions');
-    const missions = missionsResponse.missions || [];
+    const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
     
     // Traiter les données de présence
     presenceData = {};
@@ -1182,7 +1182,7 @@ async function loadDashboardMetrics() {
     // Charger les données de présence pour le mois actuel (si connecté)
     if (!jwt) return;
     const missionsResponse = await api('/me/missions');
-    const missions = missionsResponse.missions || [];
+    const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
     
