@@ -9,6 +9,20 @@ let webPush;
 try {
   webPush = require('web-push');
 } catch {}
+let cloudinary;
+try {
+  cloudinary = require('cloudinary').v2;
+  if (process.env.CLOUDINARY_URL) {
+    cloudinary.config({ secure: true });
+  } else if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+      secure: true
+    });
+  }
+} catch {}
 
 // Stockage en mémoire
 let users = [];
@@ -137,7 +151,7 @@ module.exports = async (req, res) => {
       return;
     }
 
-    // Upload direct de photo de profil (base64) avec URL de bucket simulée
+    // Upload direct de photo de profil (base64) vers bucket (Cloudinary si configuré)
     if (pathname === '/api/profile/photo' && req.method === 'POST') {
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -156,9 +170,25 @@ module.exports = async (req, res) => {
         res.status(400).json({ error: 'Image invalide' });
         return;
       }
-      // Simuler un upload vers bucket et générer une URL publique
-      const filename = `avatar_${(payload.id || payload.userId || 'me')}_${Date.now()}.png`;
-      const publicUrl = `https://cdn.example.com/ccrb/${filename}`;
+      let publicUrl = '';
+      if (cloudinary && (process.env.CLOUDINARY_URL || process.env.CLOUDINARY_CLOUD_NAME)) {
+        try {
+          const upload = await cloudinary.uploader.upload(`data:image/png;base64,${photoData}`, {
+            folder: 'ccrb/avatars',
+            public_id: `avatar_${(payload.id || payload.userId || 'me')}_${Date.now()}`,
+            overwrite: true,
+            resource_type: 'image'
+          });
+          publicUrl = upload.secure_url || upload.url || '';
+        } catch (err) {
+          console.warn('Cloudinary upload failed, fallback to simulated URL:', err?.message);
+        }
+      }
+      if (!publicUrl) {
+        // Fallback simulated URL if cloud not configured
+        const filename = `avatar_${(payload.id || payload.userId || 'me')}_${Date.now()}.png`;
+        publicUrl = `https://cdn.example.com/ccrb/${filename}`;
+      }
       // Enregistrer sur l'utilisateur en mémoire si présent
       const tokenUserId = payload.id || payload.userId;
       const u = users.find(x => x.id === tokenUserId);
