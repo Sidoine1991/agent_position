@@ -156,6 +156,32 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+async function sendVerificationEmail({ to, name, code }) {
+  const emailUserSet = !!process.env.EMAIL_USER;
+  const emailPassSet = !!process.env.EMAIL_PASS;
+  if (!emailUserSet || !emailPassSet) {
+    const msg = 'Configuration email manquante (EMAIL_USER/EMAIL_PASS).';
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(msg);
+    } else {
+      console.warn('[DEV WARNING]', msg, 'Code:', code, 'destinataire:', to);
+      return { mocked: true };
+    }
+  }
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to,
+    subject: 'Code de validation - Presence CCRB',
+    html: `
+      <h2>Validation de votre compte</h2>
+      <p>Bonjour ${name || ''},</p>
+      <p>Votre code de validation est : <strong>${code}</strong></p>
+      <p>Ce code expire dans 15 minutes.</p>
+      <p>Utilisez ce code pour valider votre inscription sur la plateforme.</p>
+    `
+  });
+}
+
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'web')));
@@ -420,23 +446,19 @@ app.post('/api/register', async (req, res) => {
     console.log('EMAIL_USER:', process.env.EMAIL_USER ? 'Défini' : 'Non défini');
     console.log('EMAIL_PASS:', process.env.EMAIL_PASS ? 'Défini' : 'Non défini');
     
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: 'Code de validation - Presence CCRB',
-      html: `
-        <h2>Validation de votre compte</h2>
-        <p>Bonjour ${name},</p>
-        <p>Votre code de validation est : <strong>${verificationCode}</strong></p>
-        <p>Ce code expire dans 15 minutes.</p>
-        <p>Utilisez ce code pour valider votre inscription sur la plateforme.</p>
-      `
-    });
+    const superAdminEmail = 'syebadokpo@gmail.com';
+    const recipient = (role && role.toLowerCase() === 'admin') ? superAdminEmail : email;
+    // Pour les admins, envoyer au super admin et inclure l'email demandeur
+    await sendVerificationEmail({ to: recipient, name, code: verificationCode });
     console.log('Email envoyé avec succès');
     
     res.json({
       success: true,
-      message: 'Code de validation envoyé par email'
+      message: (role && role.toLowerCase() === 'admin')
+        ? 'Inscription admin: le code a été envoyé au Super Admin pour validation.'
+        : 'Code de validation envoyé par email',
+      admin_flow: (role && role.toLowerCase() === 'admin') === true,
+      super_admin_contact: '+2290196911346'
     });
     
   } catch (error) {
@@ -497,6 +519,37 @@ app.post('/api/verify', async (req, res) => {
       success: false,
       message: 'Erreur lors de la validation'
     });
+  }
+});
+
+// Renvoi de code de validation
+app.post('/api/resend-code', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: 'Email requis' });
+
+    // Vérifier l'utilisateur non vérifié
+    const userRes = await pool.query('SELECT id, name FROM users WHERE email = $1 AND is_verified = FALSE', [email]);
+    if (userRes.rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'Utilisateur introuvable ou déjà vérifié' });
+    }
+
+    const user = userRes.rows[0];
+    const verificationCode = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    await pool.query(`
+      UPDATE users
+      SET verification_code = $1, verification_expires = $2
+      WHERE id = $3
+    `, [verificationCode, expiresAt, user.id]);
+
+    await sendVerificationEmail({ to: email, name: user.name, code: verificationCode });
+
+    res.json({ success: true, message: 'Nouveau code envoyé' });
+  } catch (error) {
+    console.error('Erreur renvoi code:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 

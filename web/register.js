@@ -108,8 +108,13 @@ registerForm.addEventListener('submit', async (e) => {
       } else {
         // Utilisateur normal - validation par email requise
         currentEmail = data.email;
-        showForm('verification');
-        showMessage('Code de validation envoyé par email. Vérifiez votre boîte mail.', 'success');
+        if (result.admin_flow) {
+          showForm('verification');
+          showMessage('Inscription Administrateur: le code a été envoyé au Super Admin. Contact: +2290196911346', 'success');
+        } else {
+          showForm('verification');
+          showMessage('Code de validation envoyé par email. Vérifiez votre boîte mail.', 'success');
+        }
       }
     } else {
       showMessage(result.message || 'Erreur lors de l\'inscription', 'error');
@@ -170,13 +175,8 @@ resendBtn.addEventListener('click', async () => {
     resendBtn.textContent = '⏳ Envoi...';
     resendBtn.disabled = true;
     
-    // Renvoyer le code (même endpoint que l'inscription)
-    const result = await api('/register', 'POST', {
-      email: currentEmail,
-      name: 'Resend',
-      role: 'agent',
-      password: 'resend123'
-    });
+    // Renvoyer le code via endpoint dédié
+    const result = await api('/resend-code', 'POST', { email: currentEmail });
     
     if (result.success) {
       showMessage('Nouveau code envoyé par email', 'success');
