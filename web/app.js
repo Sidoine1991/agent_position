@@ -494,8 +494,9 @@ async function init() {
     }
   };
 
-  // Restore current mission
+  // Restore current mission (uniquement si connecté)
   try {
+    if (!jwt) throw new Error('not-authenticated');
     const missions = await api('/me/missions');
     const active = missions.find(m => m.status === 'active');
     if (active) {
@@ -915,7 +916,8 @@ async function loadPresenceData() {
     const month = currentCalendarDate.getMonth() + 1;
     
     // Simuler des données de présence (à remplacer par un appel API réel)
-    // Pour l'instant, on va charger les missions existantes
+    // Pour l'instant, on va charger les missions existantes (si connecté)
+    if (!jwt) return;
     const missionsResponse = await api('/me/missions');
     const missions = missionsResponse.missions || [];
     
@@ -1118,7 +1120,8 @@ function showLocationInfo(coords) {
 
 async function loadDashboardMetrics() {
   try {
-    // Charger les données de présence pour le mois actuel
+    // Charger les données de présence pour le mois actuel (si connecté)
+    if (!jwt) return;
     const missionsResponse = await api('/me/missions');
     const missions = missionsResponse.missions || [];
     const currentMonth = new Date().getMonth();
