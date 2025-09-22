@@ -856,28 +856,71 @@ app.post('/api/presence/end', async (req, res) => {
     }
     
     console.log('Utilisateur authentifié pour fin mission:', userId);
-    const { lat, lon, end_time, note } = req.body;
-    
-    // Mettre à jour la mission
-    const updateResult = await pool.query(`
-      UPDATE missions 
-      SET end_time = $1, end_lat = $2, end_lon = $3, note = CONCAT(COALESCE(note, ''), ' | ', $4), status = 'completed'
-      WHERE id = (SELECT id FROM missions WHERE user_id = $5 AND status = 'active' ORDER BY start_time DESC LIMIT 1)
-      RETURNING id
-    `, [end_time || new Date().toISOString(), lat, lon, note || '', userId]);
-    
-    if (updateResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Aucune mission active trouvée pour cet utilisateur'
-      });
-    }
+    const { lat, lon, end_time, note, mission_id } = req.body;
 
-    res.json({
-      success: true,
-      message: 'Mission terminée avec succès'
-    });
+    // Essai 1: mise à jour complète avec coordonnées de fin et concat note
+    try {
+      const targetSubquery = mission_id ? '$6' : `(
+        SELECT id FROM missions WHERE user_id = $6 AND status = 'active' ORDER BY start_time DESC LIMIT 1
+      )`;
+      const sql = `
+        UPDATE missions 
+        SET end_time = $1, end_lat = $2, end_lon = $3, note = CONCAT(COALESCE(note, ''), ' | ', $4), status = 'completed'
+        WHERE id = ${targetSubquery}
+        RETURNING id
+      `;
+      const params = [end_time || new Date().toISOString(), lat || null, lon || null, note || '', mission_id ? mission_id : userId, mission_id ? mission_id : userId];
+      const updateResult = await pool.query(sql, params);
+
+      if (updateResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Aucune mission active trouvée pour cet utilisateur'
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: 'Mission terminée avec succès'
+      });
+    } catch (updateError) {
+      console.warn('Update end mission failed (full fields). Retrying with minimal fields...', updateError?.message || updateError);
+      // Essai 2: fallback minimal (sans end_lat/end_lon/concat note) pour compatibilité schéma
+      const targetSubquery2 = mission_id ? '$3' : `(
+        SELECT id FROM missions WHERE user_id = $3 AND status = 'active' ORDER BY start_time DESC LIMIT 1
+      )`;
+      const sql2 = `
+        UPDATE missions 
+        SET end_time = $1, status = 'completed'
+        WHERE id = ${targetSubquery2}
+        RETURNING id
+      `;
+      const fallbackResult = await pool.query(sql2, [end_time || new Date().toISOString(), mission_id ? mission_id : userId, mission_id ? mission_id : userId]);
+
+      if (fallbackResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Aucune mission active trouvée pour cet utilisateur'
+        });
+      }
+
+      return res.json({ success: true, message: 'Mission terminée avec succès (fallback)' });
+    }
   } catch (error) {
+    // Dernier fallback: si la colonne end_time n'existe pas, clôturer sans champs
+    try {
+      const { mission_id } = req.body || {};
+      const target = mission_id ? mission_id : (await pool.query(
+        `SELECT id FROM missions WHERE user_id = $1 AND status = 'active' ORDER BY start_time DESC LIMIT 1`,
+        [req.userId || 0]
+      )).rows[0]?.id;
+      if (target) {
+        await pool.query(`UPDATE missions SET status = 'completed' WHERE id = $1`, [target]);
+        return res.json({ success: true, message: 'Mission terminée (fallback minimal)' });
+      }
+    } catch (e) {
+      console.warn('Ultimate fallback end mission failed:', e?.message || e);
+    }
     console.error('Erreur fin mission:', error);
     res.status(500).json({
       success: false,

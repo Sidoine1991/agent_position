@@ -458,6 +458,8 @@ async function init() {
       
       status.textContent = 'Envoi...';
       
+      // Inclure mission_id si connu
+      if (missionId) fd.append('mission_id', String(missionId));
       await api('/presence/end', { method: 'POST', body: fd });
       
       status.textContent = 'Position signalée - Mission terminée';
@@ -1330,16 +1332,7 @@ async function updateNavbar() {
         if (adminLink) adminLink.style.display = 'none';
       }
       
-      // Propager le token dans les liens internes pour éviter la perte de session sur autres pages
-      const linksToPropagate = [profileLink, dashboardLink, agentsLink, reportsLink, adminLink];
-      linksToPropagate.forEach(link => {
-        if (link && link.getAttribute('href')) {
-          const baseHref = link.getAttribute('href');
-          const url = new URL(baseHref, window.location.origin);
-          url.searchParams.set('token', jwt);
-          link.setAttribute('href', url.pathname + url.search);
-        }
-      });
+      // Ne plus propager le token dans l'URL pour le dashboard
 
       // Afficher les informations utilisateur
       if (navbarUser) navbarUser.style.display = 'flex';

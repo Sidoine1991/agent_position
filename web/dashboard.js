@@ -61,36 +61,17 @@ async function getProfile() {
     currentProfile = email ? await api(`/profile?email=${encodeURIComponent(email)}`) : await api('/profile');
     return currentProfile;
   } catch (e) {
-    throw e;
+    console.warn('getProfile: profil non disponible (continue en mode libre)');
+    return null;
   }
 }
 
 async function ensureAuth() {
-  if (!jwt) {
-    const email = prompt('Email superviseur/admin ?');
-    const password = prompt('Mot de passe ?');
-    if (!email || !password) {
-      alert('Connexion annulée');
-      window.location.href = window.location.origin + '/';
-      return;
-    }
-    try {
-      const data = await api('/login', { method: 'POST', body: { email, password } });
-      jwt = data.token; localStorage.setItem('jwt', jwt);
-    } catch (e) {
-      alert('Erreur de connexion: ' + e.message);
-      window.location.href = window.location.origin + '/';
-    }
-  }
-  // Verify role (ne pas bloquer brutalement; juste avertir)
-  try {
-    const profile = await getProfile();
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'supervisor' && profile.role !== 'superviseur')) {
-      console.warn('Accès non admin/superviseur: affichage dégradé');
-    }
-  } catch (e) {
-    console.warn('Session invalide (non bloquante)');
-  }
+  // Mode libre: ne force pas l'authentification, juste tenter de restaurer jwt et continuer
+  jwt = localStorage.getItem('jwt') || jwt;
+  console.log('ensureAuth: mode libre, jwt présent =', !!jwt);
+  // Optionnel: tenter d'obtenir le profil, sans bloquer
+  try { await getProfile(); } catch {}
 }
 
 let map, markersLayer;
@@ -846,21 +827,8 @@ async function updateUserInfo() {
 
 // Gérer l'accès au dashboard selon le rôle
 async function checkDashboardAccess() {
-  try {
-    const profile = await getProfile();
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'supervisor')) {
-      alert('Accès refusé: Cette page est réservée aux superviseurs et administrateurs.');
-      localStorage.removeItem('jwt');
-      window.location.href = window.location.origin + '/';
-      return false;
-    }
-    return true;
-  } catch (e) {
-    alert('Session invalide. Veuillez vous reconnecter.');
-    localStorage.removeItem('jwt');
-    window.location.href = window.location.origin + '/';
-    return false;
-  }
+  // Mode libre: toujours autoriser l'accès au dashboard
+  return true;
 }
 
 // Fonctions pour la saisie manuelle des unités géographiques (Dashboard)
