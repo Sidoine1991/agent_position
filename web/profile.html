@@ -134,6 +134,50 @@
           </div>
         </div>
 
+        <!-- Edition du Profil (auto-service) -->
+        <div class="card">
+          <h3>✏️ Modifier mes informations</h3>
+          <form id="profile-edit-form" class="form-grid">
+            <div class="form-group">
+              <label for="edit-first-name">Prénom</label>
+              <input id="edit-first-name" type="text" placeholder="Prénom" />
+            </div>
+            <div class="form-group">
+              <label for="edit-last-name">Nom</label>
+              <input id="edit-last-name" type="text" placeholder="Nom" />
+            </div>
+            <div class="form-group">
+              <label for="edit-phone">Téléphone</label>
+              <input id="edit-phone" type="tel" placeholder="Ex: +229 …" />
+            </div>
+            <div class="form-group">
+              <label for="edit-project">Projet / Unité</label>
+              <input id="edit-project" type="text" placeholder="Nom du projet / unité" />
+            </div>
+            <div class="form-group">
+              <label for="edit-plan-start">Début planification</label>
+              <input id="edit-plan-start" type="date" />
+            </div>
+            <div class="form-group">
+              <label for="edit-plan-end">Fin planification</label>
+              <input id="edit-plan-end" type="date" />
+            </div>
+            <div class="form-group">
+              <label for="edit-exp-days">Jours attendus / mois</label>
+              <input id="edit-exp-days" type="number" min="0" step="1" />
+            </div>
+            <div class="form-group">
+              <label for="edit-exp-hours">Heures attendues / mois</label>
+              <input id="edit-exp-hours" type="number" min="0" step="1" />
+            </div>
+            <div class="form-actions" style="grid-column: 1 / -1;">
+              <button type="button" id="save-profile-btn" class="btn-success">Enregistrer</button>
+              <button type="button" id="cancel-profile-btn" class="btn-cancel">Annuler</button>
+            </div>
+          </form>
+          <small>Ces informations sont privées et utilisées pour vos statistiques et la planification.</small>
+        </div>
+
         <!-- Paramètres -->
         <div class="card">
           <h3>⚙️ Paramètres</h3>

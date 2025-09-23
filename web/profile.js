@@ -109,6 +109,18 @@ async function loadProfile() {
       const img = $('profile-avatar');
       if (img) img.src = (profile.photo_url || profile.photo_path) + ((profile.photo_url || profile.photo_path).includes('?') ? '&' : '?') + 'v=' + Date.now();
     }
+
+    // Préremplir le formulaire d'édition
+    try {
+      $('edit-first-name').value = profile.first_name || '';
+      $('edit-last-name').value = profile.last_name || '';
+      $('edit-phone').value = profile.phone || '';
+      $('edit-project').value = profile.project_name || profile.adminUnit || '';
+      if (profile.planning_start_date) $('edit-plan-start').value = profile.planning_start_date;
+      if (profile.planning_end_date) $('edit-plan-end').value = profile.planning_end_date;
+      if (profile.expected_days_per_month) $('edit-exp-days').value = profile.expected_days_per_month;
+      if (profile.expected_hours_per_month) $('edit-exp-hours').value = profile.expected_hours_per_month;
+    } catch {}
     
     // Date de création (simulée)
     $('profile-created').textContent = new Date().toLocaleDateString('fr-FR');
@@ -330,5 +342,40 @@ document.addEventListener('DOMContentLoaded', async () => {
       e.preventDefault();
       await changePassword();
     });
+
+    // Gestion de l'enregistrement du profil (auto-service)
+    const saveBtn = document.getElementById('save-profile-btn');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async () => {
+        try {
+          const payload = {
+            first_name: $('edit-first-name')?.value?.trim() || null,
+            last_name: $('edit-last-name')?.value?.trim() || null,
+            phone: $('edit-phone')?.value?.trim() || null,
+            project_name: $('edit-project')?.value?.trim() || null,
+            planning_start_date: $('edit-plan-start')?.value || null,
+            planning_end_date: $('edit-plan-end')?.value || null,
+            expected_days_per_month: $('edit-exp-days')?.value ? Number($('edit-exp-days').value) : null,
+            expected_hours_per_month: $('edit-exp-hours')?.value ? Number($('edit-exp-hours').value) : null
+          };
+          // Nettoyer payload (supprimer null/undefined)
+          Object.keys(payload).forEach(k => (payload[k] === null || payload[k] === undefined) && delete payload[k]);
+          if (Object.keys(payload).length === 0) {
+            alert('Aucun changement à enregistrer');
+            return;
+          }
+          await api('/me/profile', { method: 'POST', body: payload });
+          alert('Profil mis à jour');
+        } catch (err) {
+          alert('Erreur lors de la mise à jour: ' + (err.message || ''));
+        }
+      });
+    }
+    const cancelBtn = document.getElementById('cancel-profile-btn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', async () => {
+        await loadProfile();
+      });
+    }
   }
 });
