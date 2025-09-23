@@ -1023,7 +1023,16 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
 
     // Déterminer la mission cible
     let targetId = mission_id;
-    if (!targetId) {
+    
+    // Convertir targetId en entier si c'est un tableau ou une chaîne
+    if (Array.isArray(targetId)) {
+      targetId = targetId[0];
+    }
+    if (typeof targetId === 'string') {
+      targetId = parseInt(targetId);
+    }
+    
+    if (!targetId || isNaN(targetId)) {
       const r = await pool.query(
         `SELECT id FROM missions WHERE user_id = $1 AND status = 'active' ORDER BY start_time DESC LIMIT 1`,
         [userId]
@@ -1033,6 +1042,12 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
     }
     if (!targetId) {
       return res.status(404).json({ success: false, message: 'Aucune mission active' });
+    }
+    
+    // S'assurer que targetId est un entier
+    targetId = parseInt(targetId);
+    if (isNaN(targetId)) {
+      return res.status(400).json({ success: false, message: 'ID de mission invalide' });
     }
 
     // Vérifier que la mission existe et appartient à l'utilisateur
