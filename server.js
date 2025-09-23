@@ -2,6 +2,7 @@
 const express = require('express');
 const path = require('path');
 const { Pool } = require('pg');
+const fs = require('fs');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
@@ -1091,9 +1092,18 @@ app.post('/api/profile/photo', async (req, res) => {
     if (!base64 || base64.length < 50) {
       return res.status(400).json({ success: false, message: 'Image invalide' });
     }
-    // TODO: intégrer un vrai stockage (Cloudinary/S3). Fallback: URL simulée.
+    // Sauvegarder localement dans /web/Media/uploads/avatars
+    const avatarsDir = path.join(__dirname, 'web', 'Media', 'uploads', 'avatars');
+    try { fs.mkdirSync(avatarsDir, { recursive: true }); } catch {}
     const filename = `avatar_${userId}_${Date.now()}.png`;
-    const photoUrl = `https://cdn.example.com/ccrb/${filename}`;
+    const filePath = path.join(avatarsDir, filename);
+    const buffer = Buffer.from(base64, 'base64');
+    fs.writeFileSync(filePath, buffer);
+    const photoUrl = `/Media/uploads/avatars/${filename}`;
+    // Optionnel: persister en base si la colonne existe, sinon ignorer
+    try { 
+      await pool.query('UPDATE users SET photo_path = $1 WHERE id = $2', [photoUrl, userId]); 
+    } catch {}
     return res.json({ success: true, photo_url: photoUrl });
   } catch (e) {
     console.error('Erreur upload photo profil (fallback):', e);
