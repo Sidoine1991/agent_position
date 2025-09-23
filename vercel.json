@@ -17,7 +17,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "api/index.js"
+      "dest": "https://presence-ccrb-v2.onrender.com/api/$1"
     },
     {
       "src": "/web/(.*)",

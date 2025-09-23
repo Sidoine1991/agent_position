@@ -1,4 +1,6 @@
-const apiBase = '/api';
+const apiBase = (typeof window !== 'undefined' && window.location && /vercel\.app$/i.test(window.location.host))
+  ? 'https://presence-ccrb-v2.onrender.com/api'
+  : '/api';
 let jwt = localStorage.getItem('jwt') || '';
 let currentMissionId = null;
 let currentCalendarDate = new Date();
