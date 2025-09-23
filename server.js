@@ -64,6 +64,7 @@ async function createTables() {
         name VARCHAR(255) NOT NULL,
         role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'superviseur', 'agent')),
         phone VARCHAR(20),
+        photo_path VARCHAR(500),
         is_verified BOOLEAN DEFAULT FALSE,
         verification_code VARCHAR(6),
         verification_expires TIMESTAMP,
@@ -146,6 +147,8 @@ async function createTables() {
   `;
   
   await pool.query(schema);
+  // Sécurité: ajouter la colonne si l'ancienne table existe déjà sans photo_path
+  try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_path VARCHAR(500)`); } catch {}
 }
 
 // Configuration email (à configurer avec vos paramètres SMTP)
@@ -228,7 +231,7 @@ app.get('/api/profile', async (req, res) => {
     // Dans une vraie app, on vérifierait le JWT
     const email = req.query.email || 'admin@ccrb.local';
     
-    const result = await pool.query('SELECT id, email, name, role, phone, is_verified FROM users WHERE email = $1', [email]);
+    const result = await pool.query('SELECT id, email, name, role, phone, photo_path, is_verified FROM users WHERE email = $1', [email]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -246,6 +249,7 @@ app.get('/api/profile', async (req, res) => {
         name: user.name,
         role: user.role,
         phone: user.phone,
+        photo_path: user.photo_path || null,
         is_verified: user.is_verified
       }
     });

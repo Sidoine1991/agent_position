@@ -107,7 +107,7 @@ async function loadProfile() {
     $('profile-role').className = `role-badge role-${profile.role}`;
     if (profile.photo_url || profile.photo_path) {
       const img = $('profile-avatar');
-      if (img) img.src = profile.photo_url || profile.photo_path;
+      if (img) img.src = (profile.photo_url || profile.photo_path) + ((profile.photo_url || profile.photo_path).includes('?') ? '&' : '?') + 'v=' + Date.now();
     }
     
     // Date de création (simulée)
