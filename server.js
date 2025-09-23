@@ -1072,6 +1072,35 @@ app.post('/api/mission/checkin', async (req, res) => {
   }
 });
 
+// Upload direct de photo de profil (fallback côté serveur Express)
+app.post('/api/profile/photo', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization || '';
+    if (!authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, message: 'Authorization requise' });
+    }
+    let userId;
+    try {
+      const decoded = jwt.verify(authHeader.substring(7), process.env.JWT_SECRET);
+      userId = decoded.userId;
+    } catch {
+      return res.status(401).json({ success: false, message: 'Token invalide' });
+    }
+    const body = req.body || {};
+    const base64 = (body.photo_base64 || body.photo || '').toString();
+    if (!base64 || base64.length < 50) {
+      return res.status(400).json({ success: false, message: 'Image invalide' });
+    }
+    // TODO: intégrer un vrai stockage (Cloudinary/S3). Fallback: URL simulée.
+    const filename = `avatar_${userId}_${Date.now()}.png`;
+    const photoUrl = `https://cdn.example.com/ccrb/${filename}`;
+    return res.json({ success: true, photo_url: photoUrl });
+  } catch (e) {
+    console.error('Erreur upload photo profil (fallback):', e);
+    return res.status(500).json({ success: false, message: 'Erreur lors du téléversement' });
+  }
+});
+
 // Obtenir l'historique des missions
 app.get('/api/missions/history', async (req, res) => {
   try {
