@@ -367,23 +367,23 @@ app.get('/api/presence/stats', async (req, res) => {
       }
       // Fallback app_settings
       if (!expectedDays || expectedDays <= 0) {
-        const s = await pool.query(`SELECT value FROM app_settings WHERE key = 'presence.expected_days_per_month' LIMIT 1`);
-        const v = s.rows[0]?.value;
-        if (v !== undefined) {
-          expectedDays = typeof v === 'number' ? v : (typeof v === 'string' ? parseInt(v) : 22);
-        }
+      const s = await pool.query(`SELECT value FROM app_settings WHERE key = 'presence.expected_days_per_month' LIMIT 1`);
+      const v = s.rows[0]?.value;
+      if (v !== undefined) {
+        expectedDays = typeof v === 'number' ? v : (typeof v === 'string' ? parseInt(v) : 22);
+      }
       }
       if (!expectedDays || Number.isNaN(expectedDays)) expectedDays = 22;
       // Construire stats avec current_position issue des références
-      const stats = {
-        days_worked: parseInt(presenceResult.rows[0].days_worked) || 0,
+    const stats = {
+      days_worked: parseInt(presenceResult.rows[0].days_worked) || 0,
         hours_worked: Math.round((Number(hoursResult.rows[0]?.hours_worked) || 0) * 10) / 10,
-        expected_days: expectedDays,
+      expected_days: expectedDays,
         current_position: (refCommune || refDepartement) ? [refCommune, refDepartement].filter(Boolean).join(', ') : 'Non disponible'
-      };
+    };
       return res.json({ success: true, stats });
     } catch {}
-
+    
     // Fallback final si erreur inattendue dans le bloc ci-dessus
     return res.json({ success: true, stats: { days_worked: 0, hours_worked: 0, expected_days: 22, current_position: 'Non disponible' } });
   } catch (error) {
@@ -1009,14 +1009,17 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
   let userId = null;
   try {
     const decoded = jwt.verify(authHeader.substring(7), JWT_SECRET);
-      userId = decoded.userId;
-  } catch {
+    userId = decoded.userId;
+  } catch (e) {
+    console.error('Token verification error:', e);
     return res.status(401).json({ success: false, message: 'Token invalide' });
   }
 
   try {
     const { mission_id, lat, lon, note, end_time } = req.body || {};
     const nowIso = end_time || new Date().toISOString();
+    
+    console.log('Fin mission - userId:', userId, 'mission_id:', mission_id, 'lat:', lat, 'lon:', lon);
 
     // Déterminer la mission cible
     let targetId = mission_id;
@@ -1026,34 +1029,48 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
         [userId]
       );
       targetId = r.rows[0]?.id || null;
+      console.log('Mission trouvée:', targetId);
     }
     if (!targetId) {
       return res.status(404).json({ success: false, message: 'Aucune mission active' });
     }
 
+    // Vérifier que la mission existe et appartient à l'utilisateur
+    const missionCheck = await pool.query(
+      `SELECT id, user_id, status FROM missions WHERE id = $1 AND user_id = $2`,
+      [targetId, userId]
+    );
+    
+    if (missionCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Mission non trouvée' });
+    }
+
     // Update robuste: si lat/lon fournis, on les stocke; sinon on se contente de clôturer
     if (lat || lon || note) {
-      await pool.query(
-          `UPDATE missions 
+      const result = await pool.query(
+        `UPDATE missions 
          SET end_time = $1,
              end_lat = COALESCE($2, end_lat),
              end_lon = COALESCE($3, end_lon),
              note = CASE WHEN $4 IS NOT NULL AND $4 <> '' THEN CONCAT(COALESCE(note, ''), ' | ', $4) ELSE note END,
              status = 'completed'
-         WHERE id = $5`,
-        [nowIso, lat || null, lon || null, note || null, targetId]
-        );
-      } else {
-      await pool.query(
-        `UPDATE missions SET end_time = $1, status = 'completed' WHERE id = $2`,
-        [nowIso, targetId]
+         WHERE id = $5 AND user_id = $6`,
+        [nowIso, lat || null, lon || null, note || null, targetId, userId]
       );
+      console.log('Mission updated with coords:', result.rowCount);
+    } else {
+      const result = await pool.query(
+        `UPDATE missions SET end_time = $1, status = 'completed' WHERE id = $2 AND user_id = $3`,
+        [nowIso, targetId, userId]
+      );
+      console.log('Mission updated without coords:', result.rowCount);
     }
 
     return res.json({ success: true, message: 'Mission terminée avec succès' });
   } catch (e) {
     console.error('Erreur fin mission:', e);
-    return res.status(500).json({ success: false, message: 'Erreur lors de la fin de la mission' });
+    console.error('Stack trace:', e.stack);
+    return res.status(500).json({ success: false, message: 'Erreur lors de la fin de la mission: ' + e.message });
   }
 });
 

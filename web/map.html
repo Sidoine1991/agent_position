@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des Présences - Carte Interactive</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Bootstrap CSS -->
+    <link href="bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <style>
+        #map {
+            height: 70vh;
+            width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .map-container {
+            position: relative;
+            margin: 20px 0;
+        }
+        
+        .map-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .presence-buttons {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn-presence {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 25px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-presence:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+        
+        .btn-start {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            border: none;
+            color: white;
+        }
+        
+        .btn-end {
+            background: linear-gradient(135deg, #dc3545, #fd7e14);
+            border: none;
+            color: white;
+        }
+        
+        .btn-checkin {
+            background: linear-gradient(135deg, #007bff, #6610f2);
+            border: none;
+            color: white;
+        }
+        
+        .location-info {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-active { background-color: #28a745; }
+        .status-inactive { background-color: #6c757d; }
+        .status-completed { background-color: #007bff; }
+        
+        .mission-info {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">
+                <i class="fas fa-map-marker-alt me-2"></i>
+                Gestion des Présences
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="index.html">
+                    <i class="fas fa-home me-1"></i> Tableau de bord
+                </a>
+                <a class="nav-link" href="profile.html">
+                    <i class="fas fa-user me-1"></i> Profil
+                </a>
+                <button class="btn btn-outline-light btn-sm" onclick="logout()">
+                    <i class="fas fa-sign-out-alt me-1"></i> Déconnexion
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Informations
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Status de présence -->
+                        <div class="location-info">
+                            <h6><i class="fas fa-map-pin me-2"></i>Position actuelle</h6>
+                            <p id="current-location" class="mb-2">Chargement...</p>
+                            <small class="text-muted" id="location-accuracy"></small>
+                        </div>
+                        
+                        <!-- Mission actuelle -->
+                        <div class="mission-info" id="mission-info" style="display: none;">
+                            <h6><i class="fas fa-tasks me-2"></i>Mission en cours</h6>
+                            <p id="mission-details" class="mb-0"></p>
+                        </div>
+                        
+                        <!-- Statut de présence -->
+                        <div class="location-info">
+                            <h6><i class="fas fa-clock me-2"></i>Statut</h6>
+                            <p class="mb-0">
+                                <span id="status-indicator" class="status-indicator status-inactive"></span>
+                                <span id="status-text">Aucune mission active</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Instructions -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-question-circle me-2"></i>
+                            Instructions
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled small">
+                            <li class="mb-2">
+                                <i class="fas fa-play text-success me-2"></i>
+                                <strong>Début de journée :</strong> Cliquez sur "Démarrer Mission" pour marquer votre présence
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-map-marker-alt text-primary me-2"></i>
+                                <strong>Check-in :</strong> Utilisez "Marquer Position" pour enregistrer votre position
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-stop text-danger me-2"></i>
+                                <strong>Fin de journée :</strong> Cliquez sur "Terminer Mission" pour clôturer
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Carte principale -->
+            <div class="col-md-9">
+                <div class="map-container">
+                    <!-- Contrôles de la carte -->
+                    <div class="map-controls">
+                        <button class="btn btn-sm btn-outline-primary" onclick="centerOnUser()" title="Centrer sur ma position">
+                            <i class="fas fa-crosshairs"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleSatellite()" title="Vue satellite">
+                            <i class="fas fa-satellite"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Carte Leaflet -->
+                    <div id="map"></div>
+                    
+                    <!-- Boutons de présence -->
+                    <div class="presence-buttons">
+                        <button id="start-btn" class="btn btn-presence btn-start" onclick="startMission()">
+                            <i class="fas fa-play me-2"></i>Démarrer Mission
+                        </button>
+                        <button id="checkin-btn" class="btn btn-presence btn-checkin" onclick="checkIn()" style="display: none;">
+                            <i class="fas fa-map-marker-alt me-2"></i>Marquer Position
+                        </button>
+                        <button id="end-btn" class="btn btn-presence btn-end" onclick="endMission()" style="display: none;">
+                            <i class="fas fa-stop me-2"></i>Terminer Mission
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Loading -->
+                <div class="loading" id="loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                    <p class="mt-2">Chargement de la position...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="bootstrap-5.3.8-dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://kit.fontawesome.com/a076d05399.js"></script>
+    <script src="map.js"></script>
+</body>
+</html>

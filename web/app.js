@@ -1480,6 +1480,7 @@ async function getLocationName(lat, lon) {
 // Mettre à jour la navbar selon l'état de connexion et le rôle
 async function updateNavbar() {
   const profileLink = $('profile-link');
+  const mapLink = $('map-link');
   const dashboardLink = $('dashboard-link');
   const agentsLink = $('agents-link');
   const reportsLink = $('reports-link');
@@ -1507,8 +1508,9 @@ async function updateNavbar() {
         }
       }
       
-      // Afficher le profil pour tous les utilisateurs connectés
+      // Afficher le profil et la carte pour tous les utilisateurs connectés
       if (profileLink) profileLink.style.display = 'flex';
+      if (mapLink) mapLink.style.display = 'flex';
       
       // Navigation pour Admin et Superviseur
       if (profile && (profile.role === 'admin' || profile.role === 'superviseur')) {
