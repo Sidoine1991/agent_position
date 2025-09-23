@@ -979,126 +979,59 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
 
 // Terminer une mission de présence
 app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
+  // Auth obligatoire
+  const authHeader = req.headers.authorization || '';
+  if (!authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, message: 'Authorization requise' });
+  }
+  let userId = null;
   try {
-    // Vérification de l'authentification
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Token d\'authentification requis'
-      });
-    }
-    
-    const token = authHeader.substring(7);
-    let userId;
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET);
-      userId = decoded.userId;
-    } catch (jwtError) {
-      return res.status(401).json({
-        success: false,
-        message: 'Token d\'authentification invalide'
-      });
-    }
-    
-    console.log('Utilisateur authentifié pour fin mission:', userId);
-    // Multer parse le multipart/form-data; fallback si vide
-    let { lat, lon, end_time, note, mission_id } = req.body;
-    if (!lat || !lon) {
-      // Essayer d'extraire depuis raw body si nécessaire
-      // Ou laisser nulls afin de ne pas bloquer l'update
-      console.warn('Coordonnées de fin manquantes dans req.body, valeurs reçues:', req.body);
-    }
+    const decoded = jwt.verify(authHeader.substring(7), JWT_SECRET);
+    userId = decoded.userId;
+  } catch {
+    return res.status(401).json({ success: false, message: 'Token invalide' });
+  }
 
+  try {
+    const { mission_id, lat, lon, note, end_time } = req.body || {};
     const nowIso = end_time || new Date().toISOString();
 
-    // Essai 1: mise à jour complète avec coordonnées de fin et concat note
-    try {
-      let updateResult;
-      if (mission_id) {
-        updateResult = await pool.query(
-          `UPDATE missions 
-           SET end_time = $1, end_lat = $2, end_lon = $3, note = CONCAT(COALESCE(note, ''), ' | ', $4), status = 'completed'
-           WHERE id = $5
-           RETURNING id`,
-          [nowIso, lat || null, lon || null, note || '', mission_id]
-        );
-      } else {
-        updateResult = await pool.query(
-          `UPDATE missions 
-           SET end_time = $1, end_lat = $2, end_lon = $3, note = CONCAT(COALESCE(note, ''), ' | ', $4), status = 'completed'
-           WHERE id = (SELECT id FROM missions WHERE user_id = $5 AND status = 'active' ORDER BY start_time DESC LIMIT 1)
-           RETURNING id`,
-          [nowIso, lat || null, lon || null, note || '', userId]
-        );
-      }
-
-      if (updateResult.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: 'Aucune mission active trouvée pour cet utilisateur'
-        });
-      }
-
-      return res.json({
-        success: true,
-        message: 'Mission terminée avec succès'
-      });
-    } catch (updateError) {
-      console.warn('Update end mission failed (full fields). Retrying with minimal fields...', updateError?.message || updateError);
-      // Essai 2: fallback minimal (sans end_lat/end_lon/concat note) pour compatibilité schéma
-      let fallbackResult;
-      if (mission_id) {
-        fallbackResult = await pool.query(
-          `UPDATE missions 
-           SET end_time = $1, status = 'completed'
-           WHERE id = $2
-           RETURNING id`,
-          [nowIso, mission_id]
-        );
-      } else {
-        fallbackResult = await pool.query(
-          `UPDATE missions 
-           SET end_time = $1, status = 'completed'
-           WHERE id = (SELECT id FROM missions WHERE user_id = $2 AND status = 'active' ORDER BY start_time DESC LIMIT 1)
-           RETURNING id`,
-          [nowIso, userId]
-        );
-      }
-
-      if (fallbackResult.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: 'Aucune mission active trouvée pour cet utilisateur'
-        });
-      }
-
-      return res.json({ success: true, message: 'Mission terminée avec succès (fallback)' });
+    // Déterminer la mission cible
+    let targetId = mission_id;
+    if (!targetId) {
+      const r = await pool.query(
+        `SELECT id FROM missions WHERE user_id = $1 AND status = 'active' ORDER BY start_time DESC LIMIT 1`,
+        [userId]
+      );
+      targetId = r.rows[0]?.id || null;
     }
-  } catch (error) {
-    // Dernier fallback: si une erreur subsiste, tenter la clôture sans end_time
-    try {
-      const { mission_id } = req.body || {};
-      let targetId = mission_id;
-      if (!targetId) {
-        const r = await pool.query(
-          `SELECT id FROM missions WHERE user_id = $1 AND status = 'active' ORDER BY start_time DESC LIMIT 1`,
-          [userId]
-        );
-        targetId = r.rows[0]?.id;
-      }
-      if (targetId) {
-        await pool.query(`UPDATE missions SET status = 'completed' WHERE id = $1`, [targetId]);
-        return res.json({ success: true, message: 'Mission terminée (fallback minimal)' });
-      }
-    } catch (e) {
-      console.warn('Ultimate fallback end mission failed:', e?.message || e);
+    if (!targetId) {
+      return res.status(404).json({ success: false, message: 'Aucune mission active' });
     }
-    console.error('Erreur fin mission:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la fin de la mission'
-    });
+
+    // Update robuste: si lat/lon fournis, on les stocke; sinon on se contente de clôturer
+    if (lat || lon || note) {
+      await pool.query(
+        `UPDATE missions 
+         SET end_time = $1,
+             end_lat = COALESCE($2, end_lat),
+             end_lon = COALESCE($3, end_lon),
+             note = CASE WHEN $4 IS NOT NULL AND $4 <> '' THEN CONCAT(COALESCE(note, ''), ' | ', $4) ELSE note END,
+             status = 'completed'
+         WHERE id = $5`,
+        [nowIso, lat || null, lon || null, note || null, targetId]
+      );
+    } else {
+      await pool.query(
+        `UPDATE missions SET end_time = $1, status = 'completed' WHERE id = $2`,
+        [nowIso, targetId]
+      );
+    }
+
+    return res.json({ success: true, message: 'Mission terminée avec succès' });
+  } catch (e) {
+    console.error('Erreur fin mission:', e);
+    return res.status(500).json({ success: false, message: 'Erreur lors de la fin de la mission' });
   }
 });
 
