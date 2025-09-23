@@ -5,6 +5,15 @@ let currentCalendarDate = new Date();
 let presenceData = {};
 let appSettings = null;
 
+function clearCachedUserData() {
+  try {
+    localStorage.removeItem('loginData');
+    localStorage.removeItem('userProfile');
+    localStorage.removeItem('lastGPS');
+  } catch {}
+  try { presenceData = {}; } catch {}
+}
+
 function $(id) { return document.getElementById(id); }
 function show(el) { el.classList.remove('hidden'); }
 function hide(el) { el.classList.add('hidden'); }
@@ -228,6 +237,7 @@ async function autoLogin(email, password) {
         name: response.user?.name || email,
         role: response.user?.role || 'agent'
       }));
+      localStorage.setItem('lastUserEmail', email);
       
       // Mettre à jour le JWT global
       jwt = response.token;
@@ -270,6 +280,13 @@ async function init() {
   
   if (email && password) {
     console.log('🔐 Tentative de connexion automatique avec:', { email, password: '***' });
+    // Si l'email a changé, nettoyer le cache local (évite stats d'un autre utilisateur)
+    try {
+      const lastEmail = localStorage.getItem('lastUserEmail');
+      if (lastEmail && lastEmail.toLowerCase() !== email.toLowerCase()) {
+        clearCachedUserData();
+      }
+    } catch {}
     try {
       await autoLogin(email, password);
     } catch (e) {
@@ -322,6 +339,7 @@ async function init() {
       localStorage.setItem('loginData', JSON.stringify(data.user));
       localStorage.setItem('userProfile', JSON.stringify(data.user));
       localStorage.setItem('userEmail', data.user.email || email);
+      localStorage.setItem('lastUserEmail', data.user.email || email);
       
       hide(authSection); show(appSection);
       await loadAgentProfile();
@@ -736,6 +754,14 @@ async function loadAgentProfile() {
     if (!email) { return; }
     const profile = await api(`/profile?email=${encodeURIComponent(email)}`);
     if (profile) {
+      // Si le profil correspond à un autre utilisateur que précédemment, nettoyer les stats locales
+      try {
+        const lastEmail = localStorage.getItem('lastUserEmail');
+        if (profile.email && lastEmail && profile.email.toLowerCase() !== lastEmail.toLowerCase()) {
+          clearCachedUserData();
+          localStorage.setItem('lastUserEmail', profile.email);
+        }
+      } catch {}
       $('agent-name').textContent = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.name;
       $('agent-phone').textContent = profile.phone || '-';
       $('agent-role').textContent = profile.role || '-';
