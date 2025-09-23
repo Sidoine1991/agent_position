@@ -1150,7 +1150,7 @@ async function loadPresenceData() {
     presenceData = {};
     
     missions.forEach(mission => {
-      if (mission.status === 'completed' && mission.start_time) {
+      if ((mission.status === 'completed' || mission.status === 'active') && mission.start_time) {
         const startDate = new Date(mission.start_time);
         const dateKey = formatDateKey(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
         

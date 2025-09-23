@@ -315,14 +315,14 @@ app.get('/api/presence/stats', async (req, res) => {
     const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
     const endDate = new Date(year, month, 0).toISOString().split('T')[0];
     
-    // Compter les jours de présence (utiliser la table missions au lieu de checkins)
+    // Compter les jours de présence (jour avec mission démarrée)
     const presenceResult = await pool.query(`
       SELECT COUNT(DISTINCT DATE(start_time)) as days_worked,
              COUNT(*) as total_missions
       FROM missions 
       WHERE user_id = $1 
       AND DATE(start_time) BETWEEN $2 AND $3
-      AND status = 'completed'
+      AND status IN ('active','completed')
     `, [userId, startDate, endDate]);
     
     // Calculer les heures travaillées (approximation)
@@ -338,13 +338,9 @@ app.get('/api/presence/stats', async (req, res) => {
       ) as work_days
     `, [userId, startDate, endDate]);
     
-    // Récupérer la position actuelle (dernière position)
-    const positionResult = await pool.query(`
-      SELECT start_lat as lat, start_lon as lon
-      FROM missions 
-      WHERE user_id = $1 
-      ORDER BY start_time DESC 
-      LIMIT 1
+    // Position actuelle: utiliser l'unité de référence de l'agent si disponible
+    const userRef = await pool.query(`
+      SELECT departement, commune FROM users WHERE id = $1 LIMIT 1
     `, [userId]);
     
     // Récupérer les paramètres attendus (jours attendus)
@@ -362,8 +358,8 @@ app.get('/api/presence/stats', async (req, res) => {
       days_worked: parseInt(presenceResult.rows[0].days_worked) || 0,
       hours_worked: parseInt(hoursResult.rows[0].estimated_hours) || 0,
       expected_days: expectedDays,
-      current_position: positionResult.rows.length > 0 
-        ? `${positionResult.rows[0].lat.toFixed(4)}, ${positionResult.rows[0].lon.toFixed(4)}`
+      current_position: (userRef.rows[0]?.commune || userRef.rows[0]?.departement) 
+        ? [userRef.rows[0]?.commune, userRef.rows[0]?.departement].filter(Boolean).join(', ')
         : 'Non disponible'
     };
     
@@ -1215,16 +1211,32 @@ app.get('/api/missions/:id/checkins', async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(`
-      SELECT lat, lon, note, timestamp
-      FROM checkins 
-      WHERE mission_id = $1 
-      ORDER BY timestamp DESC
+      SELECT c.lat, c.lon, c.note, c.timestamp,
+             u.reference_lat, u.reference_lon, COALESCE(u.tolerance_radius_meters, 500) AS tol
+      FROM checkins c
+      JOIN missions m ON c.mission_id = m.id
+      JOIN users u ON m.user_id = u.id
+      WHERE c.mission_id = $1
+      ORDER BY c.timestamp DESC
     `, [id]);
 
-    res.json({
-      success: true,
-      checkins: result.rows
+    const toRad = (v) => (Number(v) * Math.PI) / 180;
+    const R = 6371000;
+    const items = result.rows.map(r => {
+      let distance_m = null;
+      try {
+        if (r.reference_lat && r.reference_lon && r.lat && r.lon) {
+          const dLat = toRad(Number(r.lat) - Number(r.reference_lat));
+          const dLon = toRad(Number(r.lon) - Number(r.reference_lon));
+          const a = Math.sin(dLat/2)**2 + Math.cos(toRad(r.reference_lat)) * Math.cos(toRad(r.lat)) * Math.sin(dLon/2)**2;
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          distance_m = Math.round(R * c);
+        }
+      } catch {}
+      return { lat: r.lat, lon: r.lon, note: r.note, timestamp: r.timestamp, distance_from_reference_m: distance_m, tol: r.tol };
     });
+
+    res.json({ success: true, checkins: items });
   } catch (error) {
     console.error('Erreur check-ins mission:', error);
     res.status(500).json({
