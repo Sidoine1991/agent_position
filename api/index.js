@@ -1,9 +1,16 @@
-// API consolidée pour Vercel - Version 2.4 - Force Deploy
+// API consolidée pour Vercel - Version 2.5 - Database Integration
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://agent-position.vercel.app';
 const WEB_PUSH_CONTACT = process.env.WEB_PUSH_CONTACT || 'mailto:admin@example.com';
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
+
+// Configuration base de données Render
+const { Pool } = require('pg');
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/presence_ccrb',
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
 
 let webPush;
 try {
