@@ -536,6 +536,30 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // Admin: liste des agents (alias simplifié)
+    if (pathname === '/api/admin/agents' && req.method === 'GET') {
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : '';
+      const payload = token ? verifyToken(token) : null;
+      if (!payload || (payload.role !== 'admin' && payload.role !== 'supervisor')) {
+        res.status(403).json({ success: false, message: 'Accès refusé' });
+        return;
+      }
+      const rows = users.map(u => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        phone: u.phone,
+        departement: u.departement || '',
+        project_name: u.project_name || '',
+        status: u.status || 'active',
+        photo_path: u.photo_url || ''
+      }));
+      res.status(200).json(rows);
+      return;
+    }
+
     // Route de connexion
     if (pathname === '/api/login' && req.method === 'POST') {
       const { email, password } = req.body;
