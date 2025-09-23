@@ -189,19 +189,19 @@ async function sendVerificationEmail({ to, name, code }) {
 // Middleware
 app.use((req, res, next) => {
   try {
-    const allowed = [
+    const allowed = new Set([
       process.env.CORS_ORIGIN,
       'https://agent-position.vercel.app',
       'https://www.agent-position.vercel.app'
-    ].filter(Boolean);
-    const origin = req.headers.origin;
-    if (origin && allowed.includes(origin)) {
-      res.header('Access-Control-Allow-Origin', origin);
-    }
+    ].filter(Boolean));
+    const origin = req.headers.origin || '';
+    // Autoriser l'origine Vercel si connue, sinon fallback '*'
+    res.header('Access-Control-Allow-Origin', allowed.size === 0 ? '*' : (allowed.has(origin) ? origin : '*'));
     res.header('Vary', 'Origin');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || 'Content-Type, Authorization');
     res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Max-Age', '86400');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
   } catch {}
   next();
