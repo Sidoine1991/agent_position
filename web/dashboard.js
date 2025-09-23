@@ -75,9 +75,18 @@ async function ensureAuth() {
 }
 
 let map, markersLayer;
+let appSettings = null;
+
+async function loadSettings() {
+  try {
+    const res = await api('/settings');
+    if (res && res.success) appSettings = res.settings || null;
+  } catch {}
+}
 
 async function init() {
   await ensureAuth();
+  await loadSettings();
   
   // Vérifier l'accès au dashboard
   const hasAccess = await checkDashboardAccess();
@@ -176,8 +185,10 @@ function openAgentModal(agent = null) {
   $('af_project_description').value = agent?.project_description || '';
   $('af_plan_start').value = agent?.planning_start_date || '';
   $('af_plan_end').value = agent?.planning_end_date || '';
-  $('af_expected_days').value = agent?.expected_days_per_month || '';
-  $('af_expected_hours').value = agent?.expected_hours_per_month || '';
+  const defaultDays = appSettings?.['presence.expected_days_per_month'];
+  const defaultHours = appSettings?.['presence.expected_hours_per_month'];
+  $('af_expected_days').value = agent?.expected_days_per_month || (defaultDays ?? '');
+  $('af_expected_hours').value = agent?.expected_hours_per_month || (defaultHours ?? '');
   $('af_work_schedule').value = agent?.work_schedule || '';
   $('af_contract_type').value = agent?.contract_type || '';
   $('af_tolerance').value = agent?.tolerance_radius_meters || '';

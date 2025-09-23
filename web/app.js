@@ -3,6 +3,7 @@ let jwt = localStorage.getItem('jwt') || '';
 let currentMissionId = null;
 let currentCalendarDate = new Date();
 let presenceData = {};
+let appSettings = null;
 
 function $(id) { return document.getElementById(id); }
 function show(el) { el.classList.remove('hidden'); }
@@ -245,6 +246,10 @@ async function autoLogin(email, password) {
 }
 
 async function init() {
+  try {
+    const s = await api('/settings');
+    if (s && s.success) appSettings = s.settings || null;
+  } catch {}
   if ('serviceWorker' in navigator) {
     try { await navigator.serviceWorker.register('/service-worker.js'); } catch {}
   }
@@ -778,7 +783,10 @@ async function calculateMonthlyStats() {
       const hoursWorked = stats.hours_worked || 0;
       
       // Calculer le taux de présence
-      const expectedDays = stats.expected_days || 22; // Jours ouvrables moyens
+      let expectedDays = stats.expected_days || 22;
+      if (!stats.expected_days && appSettings && appSettings['presence.expected_days_per_month']) {
+        expectedDays = Number(appSettings['presence.expected_days_per_month']) || expectedDays;
+      }
       const presenceRate = expectedDays > 0 ? Math.round((daysWorked / expectedDays) * 100) : 0;
       
       // Mettre à jour l'interface
@@ -1366,6 +1374,7 @@ async function updateNavbar() {
   const agentsLink = $('agents-link');
   const reportsLink = $('reports-link');
   const adminLink = $('admin-link');
+  const adminSettingsBtnId = 'admin-settings-link';
   const navbarUser = $('navbar-user');
   const userInfo = $('user-info');
   
@@ -1403,10 +1412,27 @@ async function updateNavbar() {
       }
       
       // Navigation pour Admin uniquement
-      if (profile && profile.role === 'admin') {
+      const isAdmin = profile && profile.role === 'admin';
+      if (isAdmin) {
         if (adminLink) adminLink.style.display = 'flex';
+        // Ajouter un bouton Paramètres Admin si absent
+        let settingsLink = document.getElementById(adminSettingsBtnId);
+        if (!settingsLink) {
+          settingsLink = document.createElement('a');
+          settingsLink.id = adminSettingsBtnId;
+          settingsLink.href = '/admin-settings.html';
+          settingsLink.className = 'navbar-link';
+          settingsLink.style.display = 'flex';
+          settingsLink.innerHTML = '<span class="navbar-icon">🛠️</span><span>Paramètres</span>';
+          const navbar = adminLink.closest('.navbar-menu') || document.querySelector('.navbar .navbar-menu') || document.querySelector('.navbar');
+          if (navbar) navbar.insertBefore(settingsLink, document.getElementById('navbar-user'));
+        } else {
+          settingsLink.style.display = 'flex';
+        }
       } else {
         if (adminLink) adminLink.style.display = 'none';
+        const settingsLink = document.getElementById(adminSettingsBtnId);
+        if (settingsLink) settingsLink.style.display = 'none';
       }
       
       // Ne plus propager le token dans l'URL pour le dashboard

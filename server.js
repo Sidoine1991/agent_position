@@ -214,6 +214,9 @@ app.get('/profile.html', (req, res) => {
 app.get('/reports.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'web', 'reports.html'));
 });
+app.get('/admin-settings.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'web', 'admin-settings.html'));
+});
 
 // API Routes
 
@@ -303,10 +306,21 @@ app.get('/api/presence/stats', async (req, res) => {
       LIMIT 1
     `, [userId]);
     
+    // Récupérer les paramètres attendus (jours attendus)
+    let expectedDays = 22;
+    try {
+      const s = await pool.query(`SELECT value FROM app_settings WHERE key = 'presence.expected_days_per_month' LIMIT 1`);
+      const v = s.rows[0]?.value;
+      if (v !== undefined) {
+        expectedDays = typeof v === 'number' ? v : (typeof v === 'string' ? parseInt(v) : 22);
+        if (Number.isNaN(expectedDays)) expectedDays = 22;
+      }
+    } catch {}
+
     const stats = {
       days_worked: parseInt(presenceResult.rows[0].days_worked) || 0,
       hours_worked: parseInt(hoursResult.rows[0].estimated_hours) || 0,
-      expected_days: 22, // Jours ouvrables moyens
+      expected_days: expectedDays,
       current_position: positionResult.rows.length > 0 
         ? `${positionResult.rows[0].lat.toFixed(4)}, ${positionResult.rows[0].lon.toFixed(4)}`
         : 'Non disponible'
@@ -363,13 +377,91 @@ app.post('/api/presence/mark-absent', async (req, res) => {
     
     const userId = userResult.rows[0].id;
     
-    // Pour l'instant, on ne peut pas marquer les absences sans la table absences
-    // On peut créer une mission avec un statut spécial ou utiliser une autre approche
-    console.log(`Absence marquée pour l'utilisateur ${userId} le ${date}`);
-    
+    await pool.query(
+      `INSERT INTO absences (user_id, date)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id, date) DO NOTHING`,
+      [userId, date]
+    );
     res.json({ success: true, message: 'Absence enregistrée' });
   } catch (error) {
     console.error('Error marking absence:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// Récupérer quelques paramètres d'application
+app.get('/api/settings', async (req, res) => {
+  try {
+    const rows = await pool.query(`SELECT key, value FROM app_settings WHERE key IN (
+      'presence.expected_days_per_month',
+      'presence.expected_hours_per_month',
+      'geo.default_departement',
+      'security.password_min_length'
+    )`);
+    const settings = {};
+    for (const r of rows.rows) settings[r.key] = r.value;
+    res.json({ success: true, settings });
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'Erreur chargement paramètres' });
+  }
+});
+
+// Admin: lire tous les paramètres
+app.get('/api/admin/settings', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization || '';
+    if (!authHeader.startsWith('Bearer ')) return res.status(401).json({ success: false, message: 'Authorization requise' });
+    let userId;
+    try {
+      const decoded = jwt.verify(authHeader.substring(7), JWT_SECRET);
+      userId = decoded.userId;
+    } catch {
+      return res.status(401).json({ success: false, message: 'Token invalide' });
+    }
+
+    const roleRes = await pool.query('SELECT role FROM users WHERE id = $1 LIMIT 1', [userId]);
+    if (roleRes.rows[0]?.role !== 'admin') return res.status(403).json({ success: false, message: 'Réservé aux administrateurs' });
+
+    const rows = await pool.query(`SELECT key, value, updated_at FROM app_settings ORDER BY key`);
+    const settings = {};
+    for (const r of rows.rows) settings[r.key] = r.value;
+    res.json({ success: true, settings });
+  } catch (e) {
+    console.error('GET /api/admin/settings error:', e);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// Admin: mettre à jour des paramètres
+app.put('/api/admin/settings', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization || '';
+    if (!authHeader.startsWith('Bearer ')) return res.status(401).json({ success: false, message: 'Authorization requise' });
+    let userId;
+    try {
+      const decoded = jwt.verify(authHeader.substring(7), JWT_SECRET);
+      userId = decoded.userId;
+    } catch {
+      return res.status(401).json({ success: false, message: 'Token invalide' });
+    }
+
+    const roleRes = await pool.query('SELECT role FROM users WHERE id = $1 LIMIT 1', [userId]);
+    if (roleRes.rows[0]?.role !== 'admin') return res.status(403).json({ success: false, message: 'Réservé aux administrateurs' });
+
+    const payload = req.body || {};
+    const settings = payload.settings || {};
+    const entries = Object.entries(settings);
+    for (const [key, value] of entries) {
+      await pool.query(
+        `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2::jsonb, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+        [key, JSON.stringify(value)]
+      );
+    }
+    res.json({ success: true, updated: entries.map(e => e[0]) });
+  } catch (e) {
+    console.error('PUT /api/admin/settings error:', e);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
