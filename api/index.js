@@ -340,6 +340,164 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // ====== PRESENCE & MISSIONS (in-memory) ======
+    // Démarrer une présence -> crée mission active si inexistante et ajoute checkin
+    if (pathname === '/api/presence/start' && req.method === 'POST') {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.status(401).json({ error: 'Token manquant' });
+        return;
+      }
+      const token = authHeader.substring(7);
+      const payload = verifyToken(token);
+      if (!payload) { res.status(401).json({ error: 'Token invalide' }); return; }
+
+      const body = req.body || {};
+      const lat = Number(body.lat);
+      const lon = Number(body.lon);
+      const note = body.note || 'Début de mission';
+      if (!isFinite(lat) || !isFinite(lon)) { res.status(400).json({ error: 'Coordonnées invalides' }); return; }
+      let mission = missions.find(m => m.agent_id === (payload.id || payload.userId) && m.status === 'active');
+      if (!mission) {
+        mission = {
+          id: missions.length ? Math.max(...missions.map(m => m.id)) + 1 : 1,
+          agent_id: (payload.id || payload.userId),
+          date_start: new Date().toISOString(),
+          date_end: null,
+          status: 'active',
+          village_id: body.village_id || null
+        };
+        missions.push(mission);
+      }
+      const checkin = {
+        id: checkins.length ? Math.max(...checkins.map(c => c.id)) + 1 : 1,
+        mission_id: mission.id,
+        lat, lon,
+        photo_path: null,
+        note,
+        timestamp: new Date().toISOString()
+      };
+      checkins.push(checkin);
+      res.status(200).json({ mission_id: mission.id, checkin_id: checkin.id, success: true, message: 'Présence (début) enregistrée' });
+      return;
+    }
+
+    // Clôturer une présence -> ajoute checkin et termine la mission active
+    if (pathname === '/api/presence/end' && req.method === 'POST') {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) { res.status(401).json({ error: 'Token manquant' }); return; }
+      const token = authHeader.substring(7);
+      const payload = verifyToken(token);
+      if (!payload) { res.status(401).json({ error: 'Token invalide' }); return; }
+      const body = req.body || {};
+      const lat = Number(body.lat);
+      const lon = Number(body.lon);
+      const note = body.note || 'Fin de mission';
+      if (!isFinite(lat) || !isFinite(lon)) { res.status(400).json({ error: 'Coordonnées invalides' }); return; }
+      const mission = missions.find(m => m.agent_id === (payload.id || payload.userId) && m.status === 'active');
+      if (!mission) { res.status(400).json({ error: 'Aucune mission active' }); return; }
+      const checkin = {
+        id: checkins.length ? Math.max(...checkins.map(c => c.id)) + 1 : 1,
+        mission_id: mission.id,
+        lat, lon,
+        photo_path: null,
+        note,
+        timestamp: new Date().toISOString()
+      };
+      checkins.push(checkin);
+      mission.status = 'ended';
+      mission.date_end = new Date().toISOString();
+      res.status(200).json({ success: true, message: 'Présence (fin) enregistrée' });
+      return;
+    }
+
+    // Check-in sur mission
+    if (pathname === '/api/mission/checkin' && req.method === 'POST') {
+      const body = req.body || {};
+      const mission_id = Number(body.mission_id);
+      const lat = Number(body.lat);
+      const lon = Number(body.lon);
+      const note = body.note || '';
+      if (!mission_id || !isFinite(lat) || !isFinite(lon)) { res.status(400).json({ error: 'Paramètres invalides' }); return; }
+      if (!missions.find(m => m.id === mission_id)) { res.status(404).json({ error: 'Mission introuvable' }); return; }
+      const checkin = {
+        id: checkins.length ? Math.max(...checkins.map(c => c.id)) + 1 : 1,
+        mission_id, lat, lon, photo_path: null, note, timestamp: new Date().toISOString()
+      };
+      checkins.push(checkin);
+      res.status(200).json({ success: true, checkin_id: checkin.id, message: 'Check-in enregistré' });
+      return;
+    }
+
+    // Missions de l'utilisateur courant
+    if (pathname === '/api/me/missions' && req.method === 'GET') {
+      const authHeader = req.headers.authorization;
+      const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : '';
+      const payload = token ? verifyToken(token) : null;
+      const userId = (payload && (payload.id || payload.userId)) || null;
+      const userMissions = userId ? missions.filter(m => m.agent_id === userId) : missions;
+      res.status(200).json({ success: true, missions: userMissions });
+      return;
+    }
+
+    // Checkins d'une mission
+    if (pathname.startsWith('/api/missions/') && pathname.endsWith('/checkins') && req.method === 'GET') {
+      const parts = pathname.split('/');
+      const missionId = Number(parts[3]);
+      const items = checkins.filter(c => c.mission_id === missionId);
+      res.status(200).json({ success: true, checkins: items });
+      return;
+    }
+
+    // Admin: checkins (liste)
+    if (pathname === '/api/admin/checkins' && req.method === 'GET') {
+      // Optionnel: filtrer par date/agent/village
+      const urlObj = new URL(req.url, `http://${req.headers.host}`);
+      const agentId = urlObj.searchParams.get('agent_id');
+      const items = checkins
+        .map(c => {
+          const m = missions.find(mm => mm.id === c.mission_id);
+          const u = m ? users.find(uu => uu.id === m.agent_id) : null;
+          return {
+            id: c.id,
+            lat: c.lat,
+            lon: c.lon,
+            timestamp: c.timestamp,
+            agent_name: u ? u.name : 'Agent',
+            mission_id: c.mission_id,
+            departement_name: '', commune_name: '', arrondissement_name: '', village_name: '',
+            photo_path: c.photo_path || null
+          };
+        })
+        .filter(r => (agentId ? (missions.find(m => m.id === r.mission_id)?.agent_id == agentId) : true))
+        .sort((a,b) => (a.timestamp < b.timestamp ? 1 : -1));
+      res.status(200).json(items);
+      return;
+    }
+
+    // Admin: derniers checkins
+    if (pathname === '/api/admin/checkins/latest' && req.method === 'GET') {
+      const items = checkins
+        .map(c => {
+          const m = missions.find(mm => mm.id === c.mission_id);
+          const u = m ? users.find(uu => uu.id === m.agent_id) : null;
+          return {
+            id: c.id,
+            lat: c.lat,
+            lon: c.lon,
+            timestamp: c.timestamp,
+            agent_name: u ? u.name : 'Agent',
+            mission_id: c.mission_id,
+            departement_name: '', commune_name: '', arrondissement_name: '', village_name: '',
+            photo_path: c.photo_path || null
+          };
+        })
+        .sort((a,b) => (a.timestamp < b.timestamp ? 1 : -1))
+        .slice(0, 50);
+      res.status(200).json(items);
+      return;
+    }
+
     // Route de connexion
     if (pathname === '/api/login' && req.method === 'POST') {
       const { email, password } = req.body;
