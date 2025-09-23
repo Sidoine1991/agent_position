@@ -322,7 +322,7 @@ localStorage.clear(); location.reload();
 ## 📞 Support
 
 ### Contacts
-- **Développeur** : [Votre nom/email]
+- **Développeur** : Sidoine Kolaolé YEBADOKPO — conseil.riziculteurs.benin2006@gmail.com — +229 0196911346 / +229 0164052710
 - **CCRB** : Conseil de Concertation des Riziculteurs du Bénin
 - **Documentation** : Ce README
 
