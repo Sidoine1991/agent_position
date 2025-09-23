@@ -68,13 +68,33 @@ async function checkAuth() {
 async function loadProfile() {
   try {
     const email = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
-    const profile = email ? await api('/profile?email=' + encodeURIComponent(email)) : await api('/profile');
+    let profile = email ? await api('/profile?email=' + encodeURIComponent(email)) : await api('/profile');
+    // Fallback depuis le cache local si certains champs manquent
+    try {
+      const cached = JSON.parse(localStorage.getItem('loginData') || '{}');
+      const cachedProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+      if (profile && typeof profile === 'object') {
+        if (!profile.name) {
+          const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
+          profile.name = fullName || cached.name || profile.name || 'Utilisateur';
+        }
+        if (!profile.email) profile.email = cached.email || email || profile.email;
+        if (!profile.role) profile.role = cached.role || profile.role || 'agent';
+        if (!profile.photo_url && !profile.photo_path) {
+          profile.photo_url = cachedProfile.photo_url || cachedProfile.photo_path || '';
+        }
+      }
+    } catch {}
     
     // Afficher les informations
     $('profile-name').textContent = profile.name || [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Non défini';
     $('profile-email').textContent = profile.email || 'Non défini';
     $('profile-role').textContent = getRoleText(profile.role);
     $('profile-role').className = `role-badge role-${profile.role}`;
+    if (profile.photo_url || profile.photo_path) {
+      const img = $('profile-avatar');
+      if (img) img.src = profile.photo_url || profile.photo_path;
+    }
     
     // Date de création (simulée)
     $('profile-created').textContent = new Date().toLocaleDateString('fr-FR');
@@ -137,8 +157,18 @@ function changeAvatar() {
           const base64 = (dataUrl || '').toString().split(',')[1];
           const resp = await api('/profile/photo', { method: 'POST', body: { photo_base64: base64 } });
           if (resp && resp.photo_url) {
+            // Mettre à jour l'avatar immédiatement
             const img = $('profile-avatar');
             if (img) img.src = resp.photo_url;
+            // Sauvegarder dans userProfile cache
+            try {
+              const cachedProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+              cachedProfile.photo_url = resp.photo_url;
+              cachedProfile.photo_path = resp.photo_url;
+              localStorage.setItem('userProfile', JSON.stringify(cachedProfile));
+            } catch {}
+            // Mettre à jour le profil côté serveur (si dispo)
+            try { await api('/me/profile', { method: 'POST', body: { photo_path: resp.photo_url } }); } catch {}
             alert('Photo de profil mise à jour');
           }
         } catch (err) {
