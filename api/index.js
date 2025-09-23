@@ -414,13 +414,17 @@ module.exports = async (req, res) => {
       // Mode soft-auth via email (sans token)
       if (emailParam && (!authHeader || !authHeader.startsWith('Bearer '))) {
         res.status(200).json({
-          id: null,
-          name: (emailParam.split('@')[0] || 'Utilisateur'),
-          email: emailParam,
-          role: 'admin',
-          status: 'active',
-          phone: '',
-          adminUnit: ''
+          success: true,
+          user: {
+            id: null,
+            name: (emailParam.split('@')[0] || 'Utilisateur'),
+            email: emailParam,
+            role: 'admin',
+            status: 'active',
+            phone: '',
+            adminUnit: '',
+            photo_url: ''
+          }
         });
         return;
       }
@@ -444,29 +448,35 @@ module.exports = async (req, res) => {
       const user = tokenUserId ? users.find(u => u.id === tokenUserId) : null;
       
       if (user) {
-      res.status(200).json({
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          status: user.status,
-          phone: user.phone,
-        adminUnit: user.adminUnit,
-        photo_url: user.photo_url || ''
+        res.status(200).json({
+          success: true,
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            status: user.status,
+            phone: user.phone,
+            adminUnit: user.adminUnit,
+            photo_url: user.photo_url || ''
+          }
         });
         return;
       }
       
       // Si pas trouvé en mémoire, retourner le payload minimal du token pour éviter 404
       res.status(200).json({
-        id: tokenUserId,
-        name: payload.name || 'Utilisateur',
-        email: payload.email || '',
-        role: payload.role || 'agent',
-        status: 'active',
-        phone: payload.phone || '',
-        adminUnit: payload.adminUnit || '',
-        photo_url: payload.photo_url || ''
+        success: true,
+        user: {
+          id: tokenUserId,
+          name: payload.name || 'Utilisateur',
+          email: payload.email || '',
+          role: payload.role || 'agent',
+          status: 'active',
+          phone: payload.phone || '',
+          adminUnit: payload.adminUnit || '',
+          photo_url: payload.photo_url || ''
+        }
       });
       return;
     }
