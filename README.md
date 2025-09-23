@@ -213,18 +213,7 @@ Le projet est configuré pour un déploiement automatique sur Vercel :
 
 ## 🏢 Unités Administratives
 
-Le système inclut 10 unités administratives configurables :
-
-1. **Direction Générale** (DG)
-2. **Direction des Opérations** (DO)
-3. **Direction Administrative et Financière** (DAF)
-4. **Service Ressources Humaines** (SRH)
-5. **Service Comptabilité** (SC)
-6. **Service Logistique** (SL)
-7. **Service Sécurité** (SS)
-8. **Service Informatique** (SI)
-9. **Service Communication** (SCOM)
-10. **Service Juridique** (SJ)
+Les unités administratives correspondent à la hiérarchie géographique d'intervention : **Département → Commune → Arrondissement → Village**. Chaque animateur dispose d'un point de référence (au niveau du village) et marque sa présence lorsqu'il se rend travailler dans cette zone.
 
 ## 🛠️ API Endpoints
 
