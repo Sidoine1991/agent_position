@@ -187,6 +187,25 @@ async function sendVerificationEmail({ to, name, code }) {
 }
 
 // Middleware
+app.use((req, res, next) => {
+  try {
+    const allowed = [
+      process.env.CORS_ORIGIN,
+      'https://agent-position.vercel.app',
+      'https://www.agent-position.vercel.app'
+    ].filter(Boolean);
+    const origin = req.headers.origin;
+    if (origin && allowed.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+    }
+    res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+  } catch {}
+  next();
+});
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'web')));
 
