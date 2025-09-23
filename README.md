@@ -149,6 +149,68 @@ Le projet est configuré pour un déploiement automatique sur Vercel :
    - Maintenance
 2. **Gestion complète** : Tous les droits superviseur + admin
 
+## 🧭 Flux Fonctionnel Complet (Flowchart)
+
+```text
+[Agent]                                        [API]                                      [Admin/Superviseur]
+   |                                              |                                                 |
+   | 1) Inscription (agent) --------------------> | POST /api/register  --------------------------> |
+   |    - Saisit nom, email, mot de passe         | 201 { token, user }                             |
+   |    - (Option) OTP email pour validation      | (OTP/validation à brancher)                    |
+   v                                              v                                                 |
+  Connexion (agent) ----------------------------> | POST /api/login -> 200 { success, token, user } |
+   |  Stocke le JWT (localStorage)                |                                                 |
+   v                                              |                                                 |
+  Sélection zone (Dépt->Com->Arr->Vill)           |                                                 |
+   |                                              |                                                 |
+  2) Début de mission (Marquer présence) -------> | POST /api/presence/start -> 200 {mission_id}   |
+   |  - GPS auto + (photo facultative)            |  (Crée mission active + 1er check-in)          |
+   v                                              |                                                 v
+  3) Check-in(s) terrain -----------------------> | POST /api/mission/checkin -> 200                |
+   |  - GPS + note/ photo                         |  (Ajoute un point de présence)                 |
+   v                                              |                                                 |
+  4) Fin de mission ---------------------------> | POST /api/presence/end -> 200                   |
+   |  - GPS + note/ photo                         |  (Ajoute un point + clôture mission)           |
+   v                                              v                                                 v
+  Profil/Stats (agent) <------------------------ | GET /api/me/missions (historique)               |
+                                                 | GET /api/profile                                |
+                                                 | GET /api/admin/checkins/latest (carte) --------> 5) Dashboard
+                                                 | GET /api/admin/checkins (filtres)               |   - Markers Leaflet en temps réel
+                                                 | POST /api/admin/setup-reference-points --------> |   - Liste agents & filtres
+                                                 | POST /api/admin/generate-monthly-report -------> |   - Historique mensuel
+                                                 | GET /api/admin/export/checkins.csv ------------> | 6) Export CSV/TXT mensuel
+                                                 | GET /api/admin/export/checkins.txt ------------> |
+```
+
+### Étapes clés détaillées
+- **Inscription**
+  - L’agent peut s’auto-inscrire (ou être créé par l’administrateur). Un flux OTP email peut être branché pour activer le compte avant la première connexion.
+- **Connexion**
+  - Réception d’un JWT et stockage local. Les pages utilisent `/api/profile` (ou `/api/profile?email=` en mode soft-auth) pour charger le profil en production.
+- **Marquage de présence**
+  - Début: `/api/presence/start` crée une mission active et enregistre un point (lat/lon, note, photo).
+  - Check-in: `/api/mission/checkin` ajoute des points intermédiaires.
+  - Fin: `/api/presence/end` clôture la mission et enregistre un point final.
+  - Hors-ligne: les envois sont mis en file (Background Sync) et envoyés au retour réseau.
+- **Supervision**
+  - Carte Leaflet avec markers issus de `/api/admin/checkins/latest` (derniers points) et `/api/admin/checkins` (filtres).
+  - Configuration des points de référence (rayon, coordonnées) via `/api/admin/setup-reference-points`.
+- **Rapports & Exports**
+  - Génération de rapport mensuel (stub) et export CSV/TXT via `/api/admin/export/*`.
+
+## 🔁 Cas d’usage – de bout en bout
+- Un administrateur crée un agent (ou l’agent s’inscrit). L’agent reçoit (optionnellement) un OTP et active son compte.
+- L’agent se connecte, choisit sa zone d’intervention et débute une mission; le GPS enregistre sa présence.
+- L’agent peut ajouter des check-ins (photos/notes). En fin de journée, il clôture sa mission.
+- Le superviseur visualise en temps réel les points sur la carte (Leaflet) et filtre par date/agent/zone.
+- En fin de mois, l’administrateur exporte la liste de présence en CSV/TXT depuis le dashboard.
+
+## 🧪 Endpoints Clés (résumé)
+- Auth: `POST /api/login`, `POST /api/register`, `GET /api/profile`
+- Missions & présence: `POST /api/presence/start`, `POST /api/mission/checkin`, `POST /api/presence/end`, `GET /api/me/missions`
+- Supervision: `GET /api/admin/checkins/latest`, `GET /api/admin/checkins`, `GET /api/admin/agents`
+- Référence & rapports: `POST /api/admin/setup-reference-points`, `POST /api/admin/generate-monthly-report`, `GET /api/admin/export/checkins.csv`, `GET /api/admin/export/checkins.txt`, `GET /api/admin/export/monthly-report.csv`
+
 ## 🏢 Unités Administratives
 
 Le système inclut 10 unités administratives configurables :

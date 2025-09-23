@@ -120,6 +120,10 @@
             <span class="btn-icon">📤</span>
             Exporter
           </button>
+          <button class="btn-secondary" onclick="printReport()">
+            <span class="btn-icon">🖨️</span>
+            Imprimer / PDF
+          </button>
         </div>
       </div>
 
@@ -190,17 +194,11 @@
           <div class="report-charts">
             <div class="chart-container">
               <h4>📈 Évolution de la Présence</h4>
-              <div class="chart-placeholder">
-                <p>Graphique d'évolution de la présence</p>
-                <small>Fonctionnalité de graphique à implémenter</small>
-              </div>
+              <canvas id="presence-line-chart" height="120"></canvas>
             </div>
             <div class="chart-container">
               <h4>🥧 Répartition par Rôle</h4>
-              <div class="chart-placeholder">
-                <p>Graphique en secteurs par rôle</p>
-                <small>Fonctionnalité de graphique à implémenter</small>
-              </div>
+              <canvas id="role-pie-chart" height="120"></canvas>
             </div>
           </div>
         </div>
@@ -238,6 +236,7 @@
       </div>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/reports.js"></script>
     <script>
       // Vercel Speed Insights

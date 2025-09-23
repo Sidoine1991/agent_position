@@ -832,7 +832,7 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
 });
 
 // Terminer une mission de présence
-app.post('/api/presence/end', async (req, res) => {
+app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
   try {
     // Vérification de l'authentification
     const authHeader = req.headers.authorization;
@@ -856,7 +856,13 @@ app.post('/api/presence/end', async (req, res) => {
     }
     
     console.log('Utilisateur authentifié pour fin mission:', userId);
-    const { lat, lon, end_time, note, mission_id } = req.body;
+    // Multer parse le multipart/form-data; fallback si vide
+    let { lat, lon, end_time, note, mission_id } = req.body;
+    if (!lat || !lon) {
+      // Essayer d'extraire depuis raw body si nécessaire
+      // Ou laisser nulls afin de ne pas bloquer l'update
+      console.warn('Coordonnées de fin manquantes dans req.body, valeurs reçues:', req.body);
+    }
 
     const nowIso = end_time || new Date().toISOString();
 
