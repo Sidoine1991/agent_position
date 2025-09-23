@@ -560,6 +560,68 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // Admin: générer un rapport mensuel (stub)
+    if (pathname === '/api/admin/generate-monthly-report' && req.method === 'POST') {
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : '';
+      const payload = token ? verifyToken(token) : null;
+      if (!payload || (payload.role !== 'admin' && payload.role !== 'supervisor')) {
+        res.status(403).json({ success: false, message: 'Accès refusé' });
+        return;
+      }
+      res.status(200).json({ success: true, message: 'Rapport généré (stub)' });
+      return;
+    }
+
+    // Admin: export checkins CSV
+    if (pathname === '/api/admin/export/checkins.csv' && req.method === 'GET') {
+      const rows = checkins.map(c => {
+        const m = missions.find(mm => mm.id === c.mission_id);
+        const u = m ? users.find(uu => uu.id === m.agent_id) : null;
+        return {
+          id: c.id,
+          agent: u ? u.name : 'Agent',
+          lat: c.lat,
+          lon: c.lon,
+          timestamp: c.timestamp,
+          mission_id: c.mission_id
+        };
+      });
+      const header = 'id,agent,lat,lon,timestamp,mission_id\n';
+      const body = rows.map(r => `${r.id},"${r.agent}",${r.lat},${r.lon},${r.timestamp},${r.mission_id}`).join('\n');
+      const csv = header + body;
+      res.setHeader('Content-Type', 'text/csv');
+      res.status(200).send(csv);
+      return;
+    }
+
+    // Admin: export checkins TXT
+    if (pathname === '/api/admin/export/checkins.txt' && req.method === 'GET') {
+      const lines = checkins.map(c => `${c.timestamp} | mission:${c.mission_id} | (${c.lat},${c.lon}) | ${c.note || ''}`);
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.status(200).send(lines.join('\n'));
+      return;
+    }
+
+    // Admin: export monthly report CSV (stub)
+    if (pathname === '/api/admin/export/monthly-report.csv' && req.method === 'GET') {
+      const header = 'agent,missions,checkins\n';
+      const byAgent = new Map();
+      missions.forEach(m => {
+        const u = users.find(uu => uu.id === m.agent_id);
+        const key = u ? u.name : `Agent ${m.agent_id}`;
+        const stats = byAgent.get(key) || { missions: 0, checkins: 0 };
+        stats.missions += 1;
+        stats.checkins += checkins.filter(c => c.mission_id === m.id).length;
+        byAgent.set(key, stats);
+      });
+      const body = Array.from(byAgent.entries()).map(([agent, s]) => `${JSON.stringify(agent)},${s.missions},${s.checkins}`).join('\n');
+      const csv = header + body;
+      res.setHeader('Content-Type', 'text/csv');
+      res.status(200).send(csv);
+      return;
+    }
+
     // Route de connexion
     if (pathname === '/api/login' && req.method === 'POST') {
       const { email, password } = req.body;
