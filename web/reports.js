@@ -140,8 +140,46 @@ async function generateReport() {
   const agentFilter = $('agent-filter').value;
   
   try {
-    // Simuler la génération de données
-    const reportData = await simulateReportData(reportType, dateRange, agentFilter);
+    let reportData;
+    if (reportType === 'presence') {
+      const { start, end } = getRangeDates(dateRange);
+      const qs = new URLSearchParams();
+      if (start) qs.set('from', start);
+      if (end) qs.set('to', end);
+      if (agentFilter && agentFilter !== 'all') qs.set('agent_id', agentFilter);
+      const response = await api(`/admin/checkins?${qs.toString()}`);
+      const items = response && response.items ? response.items : [];
+      // Construire un dataset résumé compatible avec l’affichage actuel
+      const byAgent = new Map();
+      items.forEach(it => {
+        const key = `${it.agent_id}:${it.agent_name}`;
+        const obj = byAgent.get(key) || { name: it.agent_name, role: 'agent', status: 'present', arrivalTime: null, departureTime: null, duration: '-', location: `${it.departement || ''} ${it.commune || ''}`.trim(), within: [], distances: [] };
+        obj.within.push(it.within_tolerance);
+        if (typeof it.distance_from_reference_m === 'number') obj.distances.push(it.distance_from_reference_m);
+        byAgent.set(key, obj);
+      });
+      const details = Array.from(byAgent.values()).map(a => ({
+        name: a.name,
+        role: a.role,
+        status: a.within.some(v => v === false) ? 'absent' : 'present',
+        arrivalTime: a.arrivalTime,
+        departureTime: a.departureTime,
+        duration: a.duration,
+        location: a.location
+      }));
+      reportData = {
+        type: 'presence',
+        period: getPeriodText(dateRange),
+        totalAgents: details.length,
+        presentAgents: details.filter(d => d.status === 'present').length,
+        absentAgents: details.filter(d => d.status !== 'present').length,
+        attendanceRate: details.length ? Math.round((details.filter(d => d.status === 'present').length / details.length) * 100) : 0,
+        details
+      };
+    } else {
+      // Simuler la génération de données pour les autres rapports
+      reportData = await simulateReportData(reportType, dateRange, agentFilter);
+    }
     
     // Afficher les résultats
     displayReport(reportData);
@@ -335,6 +373,35 @@ function getPeriodText(range) {
     'custom': 'Période personnalisée'
   };
   return periods[range] || range;
+}
+
+function getRangeDates(range) {
+  const today = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  if (range === 'today') return { start: fmt(today), end: fmt(today) };
+  if (range === 'week') {
+    const start = new Date(today); start.setDate(today.getDate() - 6);
+    return { start: fmt(start), end: fmt(today) };
+  }
+  if (range === 'month') {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    return { start: fmt(start), end: fmt(today) };
+  }
+  if (range === 'quarter') {
+    const q = Math.floor(today.getMonth() / 3);
+    const start = new Date(today.getFullYear(), q * 3, 1);
+    return { start: fmt(start), end: fmt(today) };
+  }
+  if (range === 'year') {
+    const start = new Date(today.getFullYear(), 0, 1);
+    return { start: fmt(start), end: fmt(today) };
+  }
+  if (range === 'custom') {
+    const s = $('start-date').value || null;
+    const e = $('end-date').value || null;
+    return { start: s, end: e };
+  }
+  return { start: null, end: null };
 }
 
 function getRoleText(role) {

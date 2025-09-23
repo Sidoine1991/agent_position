@@ -1035,6 +1035,89 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
   }
 });
 
+// Admin: liste détaillée des check-ins avec distances
+app.get('/api/admin/checkins', async (req, res) => {
+  try {
+    // Auth: admin ou superviseur
+    const authHeader = req.headers.authorization || '';
+    if (!authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, message: 'Authorization requise' });
+    }
+    let tokenPayload;
+    try {
+      tokenPayload = jwt.verify(authHeader.substring(7), JWT_SECRET);
+    } catch {
+      return res.status(401).json({ success: false, message: 'Token invalide' });
+    }
+    if (!tokenPayload || (tokenPayload.role !== 'admin' && tokenPayload.role !== 'superviseur')) {
+      return res.status(403).json({ success: false, message: 'Réservé aux administrateurs/superviseurs' });
+    }
+
+    const urlObj = new URL(req.protocol + '://' + req.get('host') + req.originalUrl);
+    const from = urlObj.searchParams.get('from');
+    const to = urlObj.searchParams.get('to');
+    const agentId = urlObj.searchParams.get('agent_id');
+
+    const params = [];
+    let where = '1=1';
+    if (from) { params.push(from); where += ` AND DATE(c.timestamp) >= $${params.length}`; }
+    if (to) { params.push(to); where += ` AND DATE(c.timestamp) <= $${params.length}`; }
+    if (agentId) { params.push(agentId); where += ` AND m.user_id = $${params.length}`; }
+
+    const q = `
+      SELECT c.id, c.lat, c.lon, c.timestamp,
+             m.id AS mission_id, m.start_time, m.end_time,
+             u.id AS user_id, u.name AS agent_name, u.role as agent_role,
+             u.reference_lat, u.reference_lon, COALESCE(u.tolerance_radius_meters, 500) as tol,
+             u.departement, u.commune, u.arrondissement, u.village
+      FROM checkins c
+      JOIN missions m ON c.mission_id = m.id
+      JOIN users u ON m.user_id = u.id
+      WHERE ${where}
+      ORDER BY c.timestamp DESC
+      LIMIT 1000`;
+    const rows = await pool.query(q, params);
+
+    const toRad = (v) => (Number(v) * Math.PI) / 180;
+    const R = 6371000; // meters
+
+    const items = rows.rows.map(r => {
+      let distance_m = null;
+      try {
+        if (r.reference_lat && r.reference_lon && r.lat && r.lon) {
+          const dLat = toRad(Number(r.lat) - Number(r.reference_lat));
+          const dLon = toRad(Number(r.lon) - Number(r.reference_lon));
+          const a = Math.sin(dLat/2)**2 + Math.cos(toRad(r.reference_lat)) * Math.cos(toRad(r.lat)) * Math.sin(dLon/2)**2;
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          distance_m = Math.round(R * c);
+        }
+      } catch {}
+      const within = (distance_m !== null) ? distance_m <= Number(r.tol || 500) : null;
+      return {
+        id: r.id,
+        mission_id: r.mission_id,
+        timestamp: r.timestamp,
+        lat: Number(r.lat),
+        lon: Number(r.lon),
+        agent_id: r.user_id,
+        agent_name: r.agent_name,
+        agent_role: r.agent_role,
+        departement: r.departement,
+        commune: r.commune,
+        arrondissement: r.arrondissement,
+        village: r.village,
+        distance_from_reference_m: distance_m,
+        within_tolerance: within
+      };
+    });
+
+    return res.json({ success: true, items });
+  } catch (e) {
+    console.error('GET /api/admin/checkins error:', e);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // Check-in pendant une mission
 app.post('/api/mission/checkin', async (req, res) => {
   try {
