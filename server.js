@@ -325,17 +325,14 @@ app.get('/api/presence/stats', async (req, res) => {
       AND status IN ('active','completed')
     `, [userId, startDate, endDate]);
     
-    // Calculer les heures travaillées (approximation)
+    // Calculer les heures travaillées (somme des durées des missions terminées dans la période)
     const hoursResult = await pool.query(`
-      SELECT 
-        COUNT(*) * 8 as estimated_hours
-      FROM (
-        SELECT DISTINCT DATE(start_time) 
-        FROM missions 
-        WHERE user_id = $1 
-        AND DATE(start_time) BETWEEN $2 AND $3
-        AND status = 'completed'
-      ) as work_days
+      SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (m.end_time - m.start_time))) / 3600.0, 0) AS hours_worked
+      FROM missions m
+      WHERE m.user_id = $1
+        AND DATE(m.start_time) BETWEEN $2 AND $3
+        AND m.end_time IS NOT NULL
+        AND m.status = 'completed'
     `, [userId, startDate, endDate]);
     
     // Position actuelle: utiliser l'unité de référence de l'agent si disponible
@@ -343,27 +340,52 @@ app.get('/api/presence/stats', async (req, res) => {
       SELECT departement, commune FROM users WHERE id = $1 LIMIT 1
     `, [userId]);
     
-    // Récupérer les paramètres attendus (jours attendus)
-    let expectedDays = 22;
+    // Jours planifiés dans le mois: priorité à user.expected_days_per_month, sinon calcul par fenêtre de planification, sinon paramètre global, sinon 22
+    let expectedDays = null;
     try {
-      const s = await pool.query(`SELECT value FROM app_settings WHERE key = 'presence.expected_days_per_month' LIMIT 1`);
-      const v = s.rows[0]?.value;
-      if (v !== undefined) {
-        expectedDays = typeof v === 'number' ? v : (typeof v === 'string' ? parseInt(v) : 22);
-        if (Number.isNaN(expectedDays)) expectedDays = 22;
+      const urow = await pool.query(`
+        SELECT expected_days_per_month, planning_start_date, planning_end_date, commune, departement
+        FROM users WHERE id = $1 LIMIT 1`, [userId]);
+      const u = urow.rows[0] || {};
+      // Préparer position actuelle (commune de référence)
+      var refCommune = u?.commune || null;
+      var refDepartement = u?.departement || null;
+      // expectedDays priorité utilisateur
+      if (u && u.expected_days_per_month && Number(u.expected_days_per_month) > 0) {
+        expectedDays = Number(u.expected_days_per_month);
+      } else if (u && u.planning_start_date && u.planning_end_date) {
+        const ps = new Date(u.planning_start_date);
+        const pe = new Date(u.planning_end_date);
+        const periodStart = new Date(Number(year), Number(month) - 1, 1);
+        const periodEnd = new Date(Number(year), Number(month), 0);
+        const overlapStart = ps > periodStart ? ps : periodStart;
+        const overlapEnd = pe < periodEnd ? pe : periodEnd;
+        if (overlapEnd >= overlapStart) {
+          const msPerDay = 24 * 60 * 60 * 1000;
+          expectedDays = Math.floor((overlapEnd - overlapStart) / msPerDay) + 1;
+        }
       }
+      // Fallback app_settings
+      if (!expectedDays || expectedDays <= 0) {
+        const s = await pool.query(`SELECT value FROM app_settings WHERE key = 'presence.expected_days_per_month' LIMIT 1`);
+        const v = s.rows[0]?.value;
+        if (v !== undefined) {
+          expectedDays = typeof v === 'number' ? v : (typeof v === 'string' ? parseInt(v) : 22);
+        }
+      }
+      if (!expectedDays || Number.isNaN(expectedDays)) expectedDays = 22;
+      // Construire stats avec current_position issue des références
+      const stats = {
+        days_worked: parseInt(presenceResult.rows[0].days_worked) || 0,
+        hours_worked: Math.round((Number(hoursResult.rows[0]?.hours_worked) || 0) * 10) / 10,
+        expected_days: expectedDays,
+        current_position: (refCommune || refDepartement) ? [refCommune, refDepartement].filter(Boolean).join(', ') : 'Non disponible'
+      };
+      return res.json({ success: true, stats });
     } catch {}
 
-    const stats = {
-      days_worked: parseInt(presenceResult.rows[0].days_worked) || 0,
-      hours_worked: parseInt(hoursResult.rows[0].estimated_hours) || 0,
-      expected_days: expectedDays,
-      current_position: (userRef.rows[0]?.commune || userRef.rows[0]?.departement) 
-        ? [userRef.rows[0]?.commune, userRef.rows[0]?.departement].filter(Boolean).join(', ')
-        : 'Non disponible'
-    };
-    
-    res.json({ success: true, stats });
+    // Fallback final si erreur inattendue dans le bloc ci-dessus
+    return res.json({ success: true, stats: { days_worked: 0, hours_worked: 0, expected_days: 22, current_position: 'Non disponible' } });
   } catch (error) {
     console.error('Error fetching presence stats:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
