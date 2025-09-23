@@ -598,12 +598,21 @@ async function init() {
       
     } catch (e) {
       console.error('Erreur fin mission:', e);
-      status.textContent = 'Erreur fin mission';
-      showNotification('Hors ligne: fin de mission en file et sera envoyée au retour', 'warning');
+      status.textContent = 'Erreur GPS - Utilisez le bouton de secours';
+      
+      // Afficher le bouton de secours si pas déjà affiché
+      showForceEndButton(missionId, status);
+      
+      showNotification('Erreur GPS. Utilisez le bouton "Finir sans GPS" ci-dessous', 'warning');
+      
+      // Essayer de sauvegarder en mode offline
       try {
+        const fd = new FormData();
+        if (missionId) fd.append('mission_id', String(missionId));
+        fd.append('note', $('note').value || 'Fin de mission (offline)');
+        
         const payload = {
-          lat: Number(fd.get('lat')),
-          lon: Number(fd.get('lon')),
+          mission_id: missionId,
           note: fd.get('note') || 'Fin de mission (offline)'
         };
         if (navigator.serviceWorker && navigator.serviceWorker.controller) {
@@ -617,6 +626,85 @@ async function init() {
       } catch {}
     } finally {
       removeLoadingState(button);
+    }
+  }
+
+  // Fonction pour forcer la fin de mission sans GPS
+  async function forceEndMission(missionId, button, status) {
+    try {
+      createRippleEffect({ currentTarget: button, clientX: 0, clientY: 0 });
+      addLoadingState(button, 'Fin forcée...');
+      
+      status.textContent = 'Fin forcée en cours...';
+      
+      const response = await api('/presence/force-end', {
+        method: 'POST',
+        body: JSON.stringify({
+          mission_id: missionId,
+          note: $('note').value || 'Fin de mission (sans GPS)'
+        })
+      });
+
+      if (response.success) {
+        status.textContent = 'Mission terminée (sans GPS)';
+        animateElement(status, 'bounce');
+        showNotification('Mission terminée avec succès (sans position GPS)', 'success');
+        
+        await refreshCheckins();
+        await loadPresenceData();
+        
+        // Réactiver le bouton Débuter et désactiver Finir
+        const startBtn = $('start-mission');
+        if (startBtn) startBtn.disabled = false;
+        if (button) button.disabled = true;
+        const checkinBtn = $('checkin-btn');
+        if (checkinBtn) checkinBtn.disabled = true;
+        currentMissionId = null;
+        
+        // Masquer le bouton de secours
+        hideForceEndButton();
+      } else {
+        throw new Error(response.message || 'Erreur lors de la fin forcée');
+      }
+      
+    } catch (e) {
+      console.error('Erreur fin forcée mission:', e);
+      status.textContent = 'Erreur fin forcée';
+      showNotification('Erreur lors de la fin forcée: ' + e.message, 'error');
+    } finally {
+      removeLoadingState(button);
+    }
+  }
+
+  // Fonction pour afficher le bouton de secours
+  function showForceEndButton(missionId, status) {
+    // Vérifier si le bouton existe déjà
+    let forceBtn = $('force-end-mission');
+    if (!forceBtn) {
+      // Créer le bouton de secours
+      forceBtn = document.createElement('button');
+      forceBtn.id = 'force-end-mission';
+      forceBtn.className = 'btn btn-warning mt-2';
+      forceBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Finir sans GPS (Secours)';
+      forceBtn.style.display = 'block';
+      
+      // Ajouter le bouton après le bouton de fin normal
+      const endBtn = $('end-mission');
+      if (endBtn && endBtn.parentNode) {
+        endBtn.parentNode.insertBefore(forceBtn, endBtn.nextSibling);
+      }
+    }
+    
+    // Configurer l'événement
+    forceBtn.onclick = () => forceEndMission(missionId, forceBtn, status);
+    forceBtn.style.display = 'block';
+  }
+
+  // Fonction pour masquer le bouton de secours
+  function hideForceEndButton() {
+    const forceBtn = $('force-end-mission');
+    if (forceBtn) {
+      forceBtn.style.display = 'none';
     }
   }
 

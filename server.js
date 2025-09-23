@@ -1016,10 +1016,10 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
   }
 
   try {
-    const { mission_id, lat, lon, note, end_time } = req.body || {};
+    const { mission_id, lat, lon, note, end_time, force_end } = req.body || {};
     const nowIso = end_time || new Date().toISOString();
     
-    console.log('Fin mission - userId:', userId, 'mission_id:', mission_id, 'lat:', lat, 'lon:', lon);
+    console.log('Fin mission - userId:', userId, 'mission_id:', mission_id, 'lat:', lat, 'lon:', lon, 'force_end:', force_end);
 
     // Déterminer la mission cible
     let targetId = mission_id;
@@ -1081,11 +1081,87 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
       console.log('Mission updated without coords:', result.rowCount);
     }
 
-    return res.json({ success: true, message: 'Mission terminée avec succès' });
+    return res.json({ 
+      success: true, 
+      message: force_end ? 'Mission terminée (sans position GPS)' : 'Mission terminée avec succès',
+      force_end: force_end || false
+    });
   } catch (e) {
     console.error('Erreur fin mission:', e);
     console.error('Stack trace:', e.stack);
     return res.status(500).json({ success: false, message: 'Erreur lors de la fin de la mission: ' + e.message });
+  }
+});
+
+// Route alternative pour forcer la fin de mission (sans GPS)
+app.post('/api/presence/force-end', async (req, res) => {
+  // Auth obligatoire
+  const authHeader = req.headers.authorization || '';
+  if (!authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, message: 'Authorization requise' });
+  }
+  let userId = null;
+  try {
+    const decoded = jwt.verify(authHeader.substring(7), JWT_SECRET);
+    userId = decoded.userId;
+  } catch (e) {
+    console.error('Token verification error:', e);
+    return res.status(401).json({ success: false, message: 'Token invalide' });
+  }
+
+  try {
+    const { mission_id, note } = req.body || {};
+    const nowIso = new Date().toISOString();
+    
+    console.log('Force fin mission - userId:', userId, 'mission_id:', mission_id);
+
+    // Déterminer la mission cible
+    let targetId = mission_id;
+    
+    if (!targetId || isNaN(parseInt(targetId))) {
+      const r = await pool.query(
+        `SELECT id FROM missions WHERE user_id = $1 AND status = 'active' ORDER BY start_time DESC LIMIT 1`,
+        [userId]
+      );
+      targetId = r.rows[0]?.id || null;
+    }
+    
+    if (!targetId) {
+      return res.status(404).json({ success: false, message: 'Aucune mission active' });
+    }
+    
+    targetId = parseInt(targetId);
+
+    // Vérifier que la mission existe et appartient à l'utilisateur
+    const missionCheck = await pool.query(
+      `SELECT id, user_id, status FROM missions WHERE id = $1 AND user_id = $2`,
+      [targetId, userId]
+    );
+    
+    if (missionCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Mission non trouvée' });
+    }
+
+    // Terminer la mission sans position GPS
+    const result = await pool.query(
+      `UPDATE missions 
+       SET end_time = $1,
+           note = CASE WHEN $2 IS NOT NULL AND $2 <> '' THEN CONCAT(COALESCE(note, ''), ' | ', $2, ' (Fin forcée)') ELSE CONCAT(COALESCE(note, ''), ' (Fin forcée)') END,
+           status = 'completed'
+       WHERE id = $3 AND user_id = $4`,
+      [nowIso, note || null, targetId, userId]
+    );
+
+    console.log('Mission forcée terminée:', result.rowCount);
+
+    return res.json({ 
+      success: true, 
+      message: 'Mission terminée (fin forcée - sans position GPS)',
+      force_end: true
+    });
+  } catch (e) {
+    console.error('Erreur fin forcée mission:', e);
+    return res.status(500).json({ success: false, message: 'Erreur lors de la fin forcée de la mission: ' + e.message });
   }
 });
 

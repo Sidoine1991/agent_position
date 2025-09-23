@@ -304,7 +304,8 @@ async function endMission() {
         
         const position = await getCurrentPosition();
         if (!position) {
-            showToast('Impossible d\'obtenir la position GPS', 'error');
+            showToast('Impossible d\'obtenir la position GPS. Utilisez le bouton de secours.', 'warning');
+            showForceEndButton();
             return;
         }
         
@@ -325,14 +326,76 @@ async function endMission() {
             // Supprimer les marqueurs de check-in
             checkinMarkers.forEach(marker => map.removeLayer(marker));
             checkinMarkers = [];
+            hideForceEndButton();
+        } else {
+            showToast('Erreur: ' + response.message, 'error');
+            showForceEndButton();
+        }
+    } catch (error) {
+        console.error('Erreur fin mission:', error);
+        showToast('Erreur lors de la fin de la mission. Utilisez le bouton de secours.', 'warning');
+        showForceEndButton();
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Forcer la fin de mission sans GPS
+async function forceEndMission() {
+    try {
+        showLoading(true);
+        
+        const response = await api('/presence/force-end', {
+            method: 'POST',
+            body: JSON.stringify({
+                mission_id: currentMission.id,
+                note: 'Fin de mission (sans GPS)'
+            })
+        });
+        
+        if (response.success) {
+            showToast('Mission terminée (sans GPS)!', 'success');
+            currentMission = null;
+            updateMissionUI(null);
+            // Supprimer les marqueurs de check-in
+            checkinMarkers.forEach(marker => map.removeLayer(marker));
+            checkinMarkers = [];
+            hideForceEndButton();
         } else {
             showToast('Erreur: ' + response.message, 'error');
         }
     } catch (error) {
-        console.error('Erreur fin mission:', error);
-        showToast('Erreur lors de la fin de la mission', 'error');
+        console.error('Erreur fin forcée mission:', error);
+        showToast('Erreur lors de la fin forcée de la mission', 'error');
     } finally {
         showLoading(false);
+    }
+}
+
+// Afficher le bouton de secours
+function showForceEndButton() {
+    let forceBtn = document.getElementById('force-end-btn');
+    if (!forceBtn) {
+        forceBtn = document.createElement('button');
+        forceBtn.id = 'force-end-btn';
+        forceBtn.className = 'btn btn-warning mt-2';
+        forceBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Finir sans GPS (Secours)';
+        forceBtn.onclick = forceEndMission;
+        
+        // Ajouter le bouton après le bouton de fin normal
+        const endBtn = document.getElementById('end-btn');
+        if (endBtn && endBtn.parentNode) {
+            endBtn.parentNode.insertBefore(forceBtn, endBtn.nextSibling);
+        }
+    }
+    forceBtn.style.display = 'block';
+}
+
+// Masquer le bouton de secours
+function hideForceEndButton() {
+    const forceBtn = document.getElementById('force-end-btn');
+    if (forceBtn) {
+        forceBtn.style.display = 'none';
     }
 }
 
