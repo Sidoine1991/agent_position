@@ -457,8 +457,13 @@ async function loadDepartements() {
     
     deptSelect.innerHTML = '<option value="">Sélectionner un département</option>';
     
+    // Attendre que geo-data.js soit prêt (mobile/PWA peut retarder le chargement)
+    for (let i = 0; i < 10 && !(window.geoData && window.geoData.departements && window.geoData.departements.length); i++) {
+      await new Promise(r => setTimeout(r, 300));
+    }
+
     // Utiliser les données de geo-data.js
-    if (window.geoData && window.geoData.departements) {
+    if (window.geoData && window.geoData.departements && window.geoData.departements.length) {
       window.geoData.departements.forEach(d => {
         const opt = document.createElement('option');
         opt.value = d.id;
@@ -468,6 +473,20 @@ async function loadDepartements() {
       console.log('✅ Départements chargés depuis geo-data.js:', window.geoData.departements.length);
     } else {
       console.error('❌ Données géographiques locales non disponibles');
+      // Fallback sécurisé: lister les 12 départements du Bénin si geoData indisponible (mobile)
+      const fallback = [
+        { id: 1, name: 'Alibori' }, { id: 2, name: 'Atacora' }, { id: 3, name: 'Atlantique' },
+        { id: 4, name: 'Borgou' }, { id: 5, name: 'Collines' }, { id: 6, name: 'Couffo' },
+        { id: 7, name: 'Donga' }, { id: 8, name: 'Littoral' }, { id: 9, name: 'Mono' },
+        { id: 10, name: 'Ouémé' }, { id: 11, name: 'Plateau' }
+      ];
+      fallback.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.id;
+        opt.textContent = d.name;
+        deptSelect.appendChild(opt);
+      });
+      console.log('✅ Départements chargés (fallback mobile):', fallback.length);
     }
   } catch (error) {
     console.error('Erreur chargement départements:', error);
