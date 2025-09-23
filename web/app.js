@@ -14,6 +14,24 @@ function clearCachedUserData() {
   try { presenceData = {}; } catch {}
 }
 
+function isProfileComplete(profile) {
+  if (!profile) return false;
+  const requiredFields = [
+    'phone',
+    'project_name',
+    'planning_start_date',
+    'planning_end_date',
+    'expected_days_per_month',
+    'expected_hours_per_month'
+  ];
+  for (const key of requiredFields) {
+    if (profile[key] === undefined || profile[key] === null || String(profile[key]).trim() === '') {
+      return false;
+    }
+  }
+  return true;
+}
+
 function $(id) { return document.getElementById(id); }
 function show(el) { el.classList.remove('hidden'); }
 function hide(el) { el.classList.add('hidden'); }
@@ -303,8 +321,22 @@ async function init() {
   const authSection = $('auth-section');
   const appSection = $('app-section');
   if (jwt) { 
-    hide(authSection); 
-    show(appSection); 
+    // Charger le profil et vérifier l'onboarding
+    try {
+      const emailForProfile = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
+      let profileData = null;
+      if (emailForProfile) {
+        profileData = await api(`/profile?email=${encodeURIComponent(emailForProfile)}`);
+      }
+      if (!isProfileComplete(profileData)) {
+        // Rediriger vers la page profil pour compléter les informations
+        window.location.href = '/profile.html?onboard=1';
+        return;
+      }
+    } catch {}
+
+    hide(authSection);
+    show(appSection);
     await loadAgentProfile();
     
     // Initialiser les sélecteurs géographiques
@@ -342,6 +374,15 @@ async function init() {
       localStorage.setItem('lastUserEmail', data.user.email || email);
       
       hide(authSection); show(appSection);
+      // Vérifier l'onboarding immédiatement après connexion
+      try {
+        const prof = await api(`/profile?email=${encodeURIComponent(data.user.email || email)}`);
+        if (!isProfileComplete(prof)) {
+          window.location.href = '/profile.html?onboard=1';
+          return;
+        }
+      } catch {}
+
       await loadAgentProfile();
       
   // Charger les données après connexion
