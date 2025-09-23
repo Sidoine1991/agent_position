@@ -498,6 +498,44 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // Admin: configuration des points de référence pour tous les agents
+    if (pathname === '/api/admin/setup-reference-points' && req.method === 'POST') {
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : '';
+      const payload = token ? verifyToken(token) : null;
+      if (!payload || (payload.role !== 'admin' && payload.role !== 'supervisor')) {
+        res.status(403).json({ success: false, message: 'Accès refusé' });
+        return;
+      }
+      const body = req.body || {};
+      const tolerance = Number(body.toleranceRadius || body.tolerance || 50000);
+      let updated = 0;
+      users = users.map(u => {
+        const agentMissions = missions.filter(m => m.agent_id === u.id);
+        const lastMission = agentMissions.sort((a,b) => (a.date_start < b.date_start ? 1 : -1))[0];
+        let refLat = u.reference_lat || null;
+        let refLon = u.reference_lon || null;
+        if (lastMission) {
+          const lastCheck = checkins
+            .filter(c => c.mission_id === lastMission.id)
+            .sort((a,b) => (a.timestamp < b.timestamp ? 1 : -1))[0];
+          if (lastCheck) {
+            refLat = lastCheck.lat;
+            refLon = lastCheck.lon;
+          }
+        }
+        if (typeof tolerance === 'number') u.tolerance_radius_meters = tolerance;
+        if (refLat && refLon) {
+          u.reference_lat = refLat;
+          u.reference_lon = refLon;
+        }
+        updated++;
+        return u;
+      });
+      res.status(200).json({ success: true, message: 'Points de référence configurés', updated_count: updated, total_agents: users.length });
+      return;
+    }
+
     // Route de connexion
     if (pathname === '/api/login' && req.method === 'POST') {
       const { email, password } = req.body;
