@@ -82,33 +82,33 @@ async function checkAuth() {
   // 1) Si on a un token, tenter le profil standard
   if (jwt) {
     try {
-      currentUser = await api('/profile');
-      return true;
+      const result = await api('/profile');
+      currentUser = result?.user || result || null;
     } catch (e) {
       console.warn('Profil via token indisponible, tentative par email...', e?.message);
     }
   }
 
-  // 2) Tentative soft-auth via email (sans token)
-  if (emailHint) {
+  // 2) Tentative soft-auth via email (sans token ou après échec)
+  if (!currentUser && emailHint) {
     try {
-      currentUser = await api('/profile?email=' + encodeURIComponent(emailHint));
-      return true;
+      const result = await api('/profile?email=' + encodeURIComponent(emailHint));
+      currentUser = result?.user || result || null;
     } catch (e) {
       console.warn('Profil via email indisponible, bascule en mode admin allégé pour:', emailHint);
-      // Mode dégradé demandé par le client: accès admin basé sur email connu
       currentUser = {
         name: emailHint.split('@')[0],
         email: emailHint,
         role: 'admin'
       };
-      return true;
     }
   }
 
   // 3) Aucune info: continuer en mode très limité mais ne pas bloquer la page
-  console.warn('Aucun token ni email. Accès limité.');
-  currentUser = { name: 'Utilisateur', email: '', role: 'agent' };
+  if (!currentUser) {
+    console.warn('Aucun token ni email. Accès limité.');
+    currentUser = { name: 'Utilisateur', email: '', role: 'agent' };
+  }
   return true;
 }
 

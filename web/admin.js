@@ -47,7 +47,8 @@ async function checkAuth() {
   // 1) Tenter via token si présent
   if (jwt) {
     try {
-      currentUser = await api('/profile');
+      const result = await api('/profile');
+      currentUser = result?.user || result || null;
     } catch (e) {
       console.warn('Profil via token indisponible:', e?.message);
     }
@@ -56,7 +57,8 @@ async function checkAuth() {
   // 2) Fallback soft-auth via email
   if (!currentUser && emailHint) {
     try {
-      currentUser = await api('/profile?email=' + encodeURIComponent(emailHint));
+      const result = await api('/profile?email=' + encodeURIComponent(emailHint));
+      currentUser = result?.user || result || null;
     } catch (e) {
       console.warn('Profil via email indisponible:', e?.message);
       // Mode dégradé: autoriser admin si email connu
