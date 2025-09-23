@@ -103,6 +103,32 @@ function addScrollAnimations() {
   });
 }
 
+// Bootstrap: appliquer des classes aux éléments existants sans casser le markup
+function applyBootstrapEnhancements() {
+  try {
+    const main = document.querySelector('.main-content');
+    if (main) main.classList.add('container', 'py-3');
+    const nav = document.querySelector('nav.navbar');
+    if (nav) {
+      nav.classList.add('navbar', 'navbar-expand-lg', 'bg-light', 'border-bottom');
+      const nb = nav.querySelector('.navbar-brand');
+      if (nb) nb.classList.add('d-flex', 'align-items-center', 'gap-2');
+    }
+    document.querySelectorAll('.admin-actions, .actions, .btn-group-inline').forEach(el => el.classList.add('d-flex', 'gap-2', 'flex-wrap', 'mb-3'));
+    document.querySelectorAll('.btn-primary').forEach(b => b.classList.add('btn', 'btn-primary'));
+    document.querySelectorAll('.btn-secondary').forEach(b => b.classList.add('btn', 'btn-outline-secondary'));
+    document.querySelectorAll('.btn-danger').forEach(b => b.classList.add('btn', 'btn-danger'));
+    document.querySelectorAll('table').forEach(t => t.classList.add('table', 'table-striped', 'table-hover'));
+    document.querySelectorAll('.card').forEach(c => c.classList.add('card', 'shadow-sm'));
+    document.querySelectorAll('.card h2, .card h3').forEach(h => h.classList.add('card-title'));
+    // Form inputs
+    document.querySelectorAll('input, select, textarea').forEach(i => {
+      if (!['checkbox', 'radio', 'file'].includes(i.type)) i.classList.add('form-control');
+    });
+    document.querySelectorAll('label').forEach(l => l.classList.add('form-label'));
+  } catch (e) { console.warn('Bootstrap enhance failed:', e); }
+}
+
 // Fonction pour initialiser l'image hero
 function initHeroImage() {
   console.log('🖼️ Initialisation de l\'image hero...');
@@ -654,6 +680,9 @@ async function init() {
   setTimeout(() => {
     initHeroImage();
   }, 100);
+
+  // Appliquer Bootstrap
+  try { applyBootstrapEnhancements(); } catch {}
 }
 
 async function refreshCheckins() {
