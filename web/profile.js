@@ -10,7 +10,7 @@ async function api(path, opts = {}) {
   
   console.log('API call:', '/api' + path, { method: opts.method || 'GET', headers, body: opts.body });
   
-  const res = await fetch('/api' + path, {
+  let res = await fetch('/api' + path, {
     method: opts.method || 'GET',
     headers,
     body: opts.body instanceof FormData ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined),
@@ -19,10 +19,21 @@ async function api(path, opts = {}) {
   console.log('API response:', res.status, res.statusText);
   
   if (!res.ok) {
-    const errorText = await res.text();
-    console.error('API error:', errorText);
-    // Ne pas supprimer le token ni rediriger ici
-    throw new Error(errorText || res.statusText);
+    // Retry logique pour /profile sans token: fallback via email si disponible
+    if ((res.status === 401 || res.status === 404) && path === '/profile') {
+      try {
+        const email = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
+        if (email) {
+          res = await fetch('/api/profile?email=' + encodeURIComponent(email));
+          console.log('API response (retry via email):', res.status, res.statusText);
+        }
+      } catch {}
+    }
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('API error:', errorText);
+      throw new Error(errorText || res.statusText);
+    }
   }
   
   const ct = res.headers.get('content-type') || '';
