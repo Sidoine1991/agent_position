@@ -208,12 +208,16 @@ app.use((req, res, next) => {
       'https://www.agent-position.vercel.app'
     ].filter(Boolean));
     const origin = req.headers.origin || '';
-    // Autoriser l'origine Vercel si connue, sinon fallback '*'
-    res.header('Access-Control-Allow-Origin', allowed.size === 0 ? '*' : (allowed.has(origin) ? origin : '*'));
+    // Si un origin est présent, le renvoyer tel quel (nécessaire avec credentials)
+    if (origin) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+    } else {
+      res.header('Access-Control-Allow-Origin', '*');
+    }
     res.header('Vary', 'Origin');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || 'Content-Type, Authorization');
-    res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Max-Age', '86400');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
   } catch {}
@@ -987,7 +991,7 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
   let userId = null;
   try {
     const decoded = jwt.verify(authHeader.substring(7), JWT_SECRET);
-    userId = decoded.userId;
+      userId = decoded.userId;
   } catch {
     return res.status(401).json({ success: false, message: 'Token invalide' });
   }
@@ -1012,7 +1016,7 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
     // Update robuste: si lat/lon fournis, on les stocke; sinon on se contente de clôturer
     if (lat || lon || note) {
       await pool.query(
-        `UPDATE missions 
+          `UPDATE missions 
          SET end_time = $1,
              end_lat = COALESCE($2, end_lat),
              end_lon = COALESCE($3, end_lon),
@@ -1020,8 +1024,8 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
              status = 'completed'
          WHERE id = $5`,
         [nowIso, lat || null, lon || null, note || null, targetId]
-      );
-    } else {
+        );
+      } else {
       await pool.query(
         `UPDATE missions SET end_time = $1, status = 'completed' WHERE id = $2`,
         [nowIso, targetId]
