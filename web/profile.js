@@ -127,21 +127,34 @@ async function loadProfile() {
 // Charger les statistiques
 async function loadStatistics() {
   try {
-    // Simuler des statistiques (à remplacer par de vraies données API)
-    const stats = {
-      totalDays: Math.floor(Math.random() * 30) + 1,
-      totalHours: Math.floor(Math.random() * 200) + 50,
-      attendanceRate: Math.floor(Math.random() * 30) + 70,
-      currentMission: Math.random() > 0.5 ? 'Mission active' : 'Aucune mission'
-    };
-    
-    $('total-days').textContent = stats.totalDays;
-    $('total-hours').textContent = stats.totalHours + 'h';
-    $('attendance-rate').textContent = stats.attendanceRate + '%';
-    $('current-mission').textContent = stats.currentMission;
+    // Stats réelles via API; par défaut: 0 pour un nouvel agent
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const email = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
+    let response = null;
+    try {
+      response = await api(`/presence/stats?year=${year}&month=${month}&email=${encodeURIComponent(email || '')}`);
+    } catch {}
+    const apiStats = response && response.success ? (response.stats || {}) : {};
+    const totalDays = Number(apiStats.days_worked) || 0;
+    const totalHours = Number(apiStats.hours_worked) || 0;
+    const expectedDays = Number(apiStats.expected_days) || 22;
+    const attendanceRate = expectedDays > 0 ? Math.min(100, Math.round((totalDays / expectedDays) * 100)) : 0;
+    const currentMission = apiStats.current_position ? 'Mission active' : 'Aucune mission';
+
+    $('total-days').textContent = totalDays;
+    $('total-hours').textContent = totalHours + 'h';
+    $('attendance-rate').textContent = attendanceRate + '%';
+    $('current-mission').textContent = currentMission;
     
   } catch (error) {
     console.error('Erreur lors du chargement des statistiques:', error);
+    // Fallback: afficher 0 partout pour les nouveaux agents
+    $('total-days').textContent = 0;
+    $('total-hours').textContent = '0h';
+    $('attendance-rate').textContent = '0%';
+    $('current-mission').textContent = 'Aucune mission';
   }
 }
 
