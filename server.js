@@ -1122,10 +1122,12 @@ app.post('/api/profile/photo', async (req, res) => {
     const filePath = path.join(avatarsDir, filename);
     const buffer = Buffer.from(base64, 'base64');
     fs.writeFileSync(filePath, buffer);
-    const photoUrl = `/Media/uploads/avatars/${filename}`;
+    const publicBase = process.env.PUBLIC_BASE_URL || 'https://presence-ccrb-v2.onrender.com';
+    const relativePath = `/Media/uploads/avatars/${filename}`;
+    const photoUrl = `${publicBase}${relativePath}`;
     // Optionnel: persister en base si la colonne existe, sinon ignorer
     try { 
-      await pool.query('UPDATE users SET photo_path = $1 WHERE id = $2', [photoUrl, userId]); 
+      await pool.query('UPDATE users SET photo_path = $1 WHERE id = $2', [relativePath, userId]); 
     } catch {}
     return res.json({ success: true, photo_url: photoUrl });
   } catch (e) {
