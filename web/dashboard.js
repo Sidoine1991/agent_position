@@ -131,6 +131,20 @@ async function init() {
       closeAgentModal();
     }
   });
+
+  // Habillage Bootstrap léger du dashboard
+  try {
+    const main = document.querySelector('.main-content');
+    if (main) main.classList.add('container', 'py-3');
+    const nav = document.querySelector('nav.navbar');
+    if (nav) nav.classList.add('navbar', 'navbar-expand-lg', 'bg-light', 'border-bottom');
+    document.querySelectorAll('table').forEach(t => t.classList.add('table', 'table-striped', 'table-hover'));
+    document.querySelectorAll('input, select, textarea').forEach(i => {
+      if (!['checkbox','radio','file'].includes(i.type)) i.classList.add('form-control');
+    });
+    document.querySelectorAll('label').forEach(l => l.classList.add('form-label'));
+    document.querySelectorAll('button').forEach(b => b.classList.add('btn', 'btn-primary'));
+  } catch {}
 }
 
 async function loadAgents() {
