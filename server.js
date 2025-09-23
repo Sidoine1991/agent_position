@@ -149,6 +149,19 @@ async function createTables() {
   await pool.query(schema);
   // Sécurité: ajouter la colonne si l'ancienne table existe déjà sans photo_path
   try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_path VARCHAR(500)`); } catch {}
+  // Colonnes pour unités de référence et paramètres de planification
+  try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reference_lat DECIMAL(10,6)`); } catch {}
+  try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reference_lon DECIMAL(10,6)`); } catch {}
+  try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tolerance_radius_meters INTEGER`); } catch {}
+  try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS departement VARCHAR(100)`); } catch {}
+  try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS commune VARCHAR(100)`); } catch {}
+  try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS arrondissement VARCHAR(100)`); } catch {}
+  try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS village VARCHAR(100)`); } catch {}
+  try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS project_name VARCHAR(255)`); } catch {}
+  try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS expected_days_per_month INTEGER`); } catch {}
+  try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS expected_hours_per_month INTEGER`); } catch {}
+  try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS planning_start_date DATE`); } catch {}
+  try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS planning_end_date DATE`); } catch {}
 }
 
 // Configuration email (à configurer avec vos paramètres SMTP)
@@ -926,6 +939,22 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
       });
     }
 
+    // Calculer distance avec point de référence si disponible
+    let distance_m = null;
+    try {
+      const ref = await pool.query('SELECT reference_lat, reference_lon, COALESCE(tolerance_radius_meters, 500) AS tol FROM users WHERE id = $1 LIMIT 1', [userId]);
+      const r = ref.rows[0];
+      if (r && r.reference_lat && r.reference_lon && lat && lon) {
+        const toRad = (v) => (Number(v) * Math.PI) / 180;
+        const R = 6371000; // m
+        const dLat = toRad(Number(lat) - Number(r.reference_lat));
+        const dLon = toRad(Number(lon) - Number(r.reference_lon));
+        const a = Math.sin(dLat/2)**2 + Math.cos(toRad(r.reference_lat)) * Math.cos(toRad(lat)) * Math.sin(dLon/2)**2;
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        distance_m = Math.round(R * c);
+      }
+    } catch {}
+
     // Insérer la mission dans la base de données
     const result = await pool.query(`
       INSERT INTO missions (user_id, start_time, start_lat, start_lon, departement, commune, arrondissement, village, note, status)
@@ -936,7 +965,8 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
     res.json({
       success: true,
       message: 'Mission démarrée avec succès',
-      mission_id: result.rows[0].id
+      mission_id: result.rows[0].id,
+      distance_from_reference_m: distance_m
     });
   } catch (error) {
     console.error('Erreur démarrage mission:', error);

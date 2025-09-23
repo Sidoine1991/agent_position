@@ -116,6 +116,13 @@ async function loadProfile() {
       $('edit-last-name').value = profile.last_name || '';
       $('edit-phone').value = profile.phone || '';
       $('edit-project').value = profile.project_name || profile.adminUnit || '';
+      $('edit-departement').value = profile.departement || '';
+      $('edit-commune').value = profile.commune || '';
+      $('edit-arrondissement').value = profile.arrondissement || '';
+      $('edit-village').value = profile.village || '';
+      if (profile.reference_lat) $('edit-ref-lat').value = profile.reference_lat;
+      if (profile.reference_lon) $('edit-ref-lon').value = profile.reference_lon;
+      if (profile.tolerance_radius_meters) $('edit-tolerance').value = profile.tolerance_radius_meters;
       if (profile.planning_start_date) $('edit-plan-start').value = profile.planning_start_date;
       if (profile.planning_end_date) $('edit-plan-end').value = profile.planning_end_date;
       if (profile.expected_days_per_month) $('edit-exp-days').value = profile.expected_days_per_month;
@@ -353,6 +360,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             last_name: $('edit-last-name')?.value?.trim() || null,
             phone: $('edit-phone')?.value?.trim() || null,
             project_name: $('edit-project')?.value?.trim() || null,
+            departement: $('edit-departement')?.value?.trim() || null,
+            commune: $('edit-commune')?.value?.trim() || null,
+            arrondissement: $('edit-arrondissement')?.value?.trim() || null,
+            village: $('edit-village')?.value?.trim() || null,
+            reference_lat: $('edit-ref-lat')?.value ? Number($('edit-ref-lat').value) : null,
+            reference_lon: $('edit-ref-lon')?.value ? Number($('edit-ref-lon').value) : null,
+            tolerance_radius_meters: $('edit-tolerance')?.value ? Number($('edit-tolerance').value) : null,
             planning_start_date: $('edit-plan-start')?.value || null,
             planning_end_date: $('edit-plan-end')?.value || null,
             expected_days_per_month: $('edit-exp-days')?.value ? Number($('edit-exp-days').value) : null,
