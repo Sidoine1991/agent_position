@@ -157,9 +157,30 @@ function changeAvatar() {
           const base64 = (dataUrl || '').toString().split(',')[1];
           const resp = await api('/profile/photo', { method: 'POST', body: { photo_base64: base64 } });
           if (resp && resp.photo_url) {
-            // Mettre à jour l'avatar immédiatement
+            // Précharger et mettre à jour l'avatar avec cache-busting pour éviter le cache
             const img = $('profile-avatar');
-            if (img) img.src = resp.photo_url;
+            const newUrl = `${resp.photo_url}${resp.photo_url.includes('?') ? '&' : '?'}v=${Date.now()}`;
+            if (img) {
+              img.style.visibility = 'hidden';
+              const pre = new Image();
+              pre.onload = () => {
+                img.src = newUrl;
+                img.style.visibility = 'visible';
+              };
+              pre.onerror = () => {
+                img.src = newUrl;
+                img.style.visibility = 'visible';
+              };
+              pre.src = newUrl;
+            }
+            // Mettre aussi à jour l'avatar du tableau de bord si présent
+            try {
+              const dashImg = document.getElementById('agent-avatar');
+              if (dashImg) {
+                const dashUrl = `${resp.photo_url}${resp.photo_url.includes('?') ? '&' : '?'}v=${Date.now()}`;
+                dashImg.src = dashUrl;
+              }
+            } catch {}
             // Sauvegarder dans userProfile cache
             try {
               const cachedProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
