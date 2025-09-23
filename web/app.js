@@ -329,8 +329,10 @@ async function init() {
         profileData = await api(`/profile?email=${encodeURIComponent(emailForProfile)}`);
       }
       if (!isProfileComplete(profileData)) {
-        // Rediriger vers la page profil pour compléter les informations
-        window.location.href = '/profile.html?onboard=1';
+        // Rediriger vers la page profil pour compléter les informations (éviter boucle si déjà dessus)
+        if (!location.pathname.includes('profile.html')) {
+          window.location.href = '/profile.html?onboard=1';
+        }
         return;
       }
     } catch {}
@@ -378,7 +380,9 @@ async function init() {
       try {
         const prof = await api(`/profile?email=${encodeURIComponent(data.user.email || email)}`);
         if (!isProfileComplete(prof)) {
-          window.location.href = '/profile.html?onboard=1';
+          if (!location.pathname.includes('profile.html')) {
+            window.location.href = '/profile.html?onboard=1';
+          }
           return;
         }
       } catch {}
