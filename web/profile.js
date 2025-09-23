@@ -3,6 +3,20 @@ let jwt = localStorage.getItem('jwt') || '';
 
 function $(id) { return document.getElementById(id); }
 
+function setAvatarFromCache() {
+  try {
+    const img = $('profile-avatar');
+    if (!img) return;
+    const cachedProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+    const cachedLogin = JSON.parse(localStorage.getItem('loginData') || '{}');
+    const url = cachedProfile.photo_url || cachedProfile.photo_path || cachedLogin.photo_url || '';
+    if (url && typeof url === 'string') {
+      const busted = `${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}`;
+      img.src = busted;
+    }
+  } catch {}
+}
+
 async function api(path, opts = {}) {
   const headers = opts.headers || {};
   if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
@@ -291,6 +305,8 @@ async function updateNavbar() {
 
 // Initialisation
 document.addEventListener('DOMContentLoaded', async () => {
+  // Afficher immédiatement l'avatar depuis le cache si disponible
+  setAvatarFromCache();
   const isAuthenticated = await checkAuth();
   if (isAuthenticated) {
     await loadProfile();
