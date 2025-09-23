@@ -273,6 +273,13 @@ async function autoLogin(email, password) {
   }
 }
 
+function normalizeProfileResponse(resp) {
+  if (!resp) return resp;
+  if (resp.user) return { ...resp.user };
+  if (resp.success && resp.data && resp.data.user) return { ...resp.data.user };
+  return resp;
+}
+
 async function init() {
   try {
     const s = await api('/settings');
@@ -326,7 +333,7 @@ async function init() {
       const emailForProfile = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
       let profileData = null;
       if (emailForProfile) {
-        profileData = await api(`/profile?email=${encodeURIComponent(emailForProfile)}`);
+        profileData = normalizeProfileResponse(await api(`/profile?email=${encodeURIComponent(emailForProfile)}`));
       }
       if (!isProfileComplete(profileData)) {
         // Rediriger vers la page profil pour compléter les informations (éviter boucle si déjà dessus)
@@ -378,7 +385,7 @@ async function init() {
       hide(authSection); show(appSection);
       // Vérifier l'onboarding immédiatement après connexion
       try {
-        const prof = await api(`/profile?email=${encodeURIComponent(data.user.email || email)}`);
+        const prof = normalizeProfileResponse(await api(`/profile?email=${encodeURIComponent(data.user.email || email)}`));
         if (!isProfileComplete(prof)) {
           if (!location.pathname.includes('profile.html')) {
             window.location.href = '/profile.html?onboard=1';
@@ -797,7 +804,7 @@ async function loadAgentProfile() {
     const urlParams = new URLSearchParams(window.location.search);
     const email = urlParams.get('email') || localStorage.getItem('userEmail');
     if (!email) { return; }
-    const profile = await api(`/profile?email=${encodeURIComponent(email)}`);
+    const profile = normalizeProfileResponse(await api(`/profile?email=${encodeURIComponent(email)}`));
     if (profile) {
       // Si le profil correspond à un autre utilisateur que précédemment, nettoyer les stats locales
       try {

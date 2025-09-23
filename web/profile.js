@@ -39,6 +39,10 @@ async function api(path, opts = {}) {
   const ct = res.headers.get('content-type') || '';
   const result = ct.includes('application/json') ? await res.json() : await res.text();
   console.log('API result:', result);
+  // Normaliser les réponses { user: {...} }
+  if (result && typeof result === 'object' && 'user' in result) {
+    return result.user;
+  }
   return result;
 }
 
@@ -67,7 +71,7 @@ async function loadProfile() {
     const profile = email ? await api('/profile?email=' + encodeURIComponent(email)) : await api('/profile');
     
     // Afficher les informations
-    $('profile-name').textContent = profile.name || 'Non défini';
+    $('profile-name').textContent = profile.name || [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Non défini';
     $('profile-email').textContent = profile.email || 'Non défini';
     $('profile-role').textContent = getRoleText(profile.role);
     $('profile-role').className = `role-badge role-${profile.role}`;
