@@ -1174,6 +1174,86 @@ app.post('/api/admin/purge-all', async (req, res) => {
   }
 });
 
+// Nettoyer les utilisateurs: supprimer tous les comptes sauf le super admin conservé
+app.post('/api/admin/cleanup-users', async (req, res) => {
+  try {
+    // Auth obligatoire
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, message: 'Authorization requise' });
+    }
+    let requesterId;
+    try {
+      const decoded = jwt.verify(authHeader.substring(7), JWT_SECRET);
+      requesterId = decoded.userId;
+    } catch {
+      return res.status(401).json({ success: false, message: 'Token invalide' });
+    }
+
+    // Vérifier rôle admin
+    const roleRes = await pool.query('SELECT email, role FROM users WHERE id = $1 LIMIT 1', [requesterId]);
+    const requester = roleRes.rows[0];
+    if (!requester || requester.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Réservé aux administrateurs' });
+    }
+
+    // Déterminer l'email à conserver (par défaut: super admin principal)
+    const keepEmail = (req.query.keep_email || req.body?.keep_email || 'syebadokpo@gmail.com').toString().trim().toLowerCase();
+
+    // Vérifier que le compte à conserver existe; sinon, refuser pour éviter de tout supprimer par erreur
+    const keepRes = await pool.query('SELECT id FROM users WHERE LOWER(email) = $1 LIMIT 1', [keepEmail]);
+    if (keepRes.rows.length === 0) {
+      return res.status(400).json({ success: false, message: `Compte à conserver introuvable: ${keepEmail}` });
+    }
+    const keepUserId = keepRes.rows[0].id;
+
+    await pool.query('BEGIN');
+
+    // Récupérer les utilisateurs à supprimer
+    const usersToDelete = await pool.query('SELECT id, email FROM users WHERE id <> $1', [keepUserId]);
+    const ids = usersToDelete.rows.map(r => r.id);
+
+    let affected = { users: 0, missions: 0, checkins: 0, absences: 0, reports: 0, verifications: 0 };
+    if (ids.length > 0) {
+      // Supprimer données associées
+      // Checkins liés aux missions de ces utilisateurs
+      const missionIdsRes = await pool.query('SELECT id FROM missions WHERE user_id = ANY($1::int[])', [ids]);
+      const missionIds = missionIdsRes.rows.map(r => r.id);
+      if (missionIds.length > 0) {
+        const delCheckins = await pool.query('DELETE FROM checkins WHERE mission_id = ANY($1::int[])', [missionIds]);
+        affected.checkins = delCheckins.rowCount || 0;
+      }
+      const delMissions = await pool.query('DELETE FROM missions WHERE user_id = ANY($1::int[])', [ids]);
+      affected.missions = delMissions.rowCount || 0;
+
+      const delAbsences = await pool.query('DELETE FROM absences WHERE user_id = ANY($1::int[])', [ids]);
+      affected.absences = delAbsences.rowCount || 0;
+
+      const delReports = await pool.query('DELETE FROM reports WHERE user_id = ANY($1::int[])', [ids]);
+      affected.reports = delReports.rowCount || 0;
+
+      // Codes de vérification par email
+      const emails = usersToDelete.rows.map(r => r.email.toLowerCase());
+      if (emails.length > 0) {
+        const delVerif = await pool.query('DELETE FROM verification_codes WHERE LOWER(email) = ANY($1::text[])', [emails]);
+        affected.verifications = delVerif.rowCount || 0;
+      }
+
+      // Enfin, supprimer les utilisateurs
+      const delUsers = await pool.query('DELETE FROM users WHERE id = ANY($1::int[])', [ids]);
+      affected.users = delUsers.rowCount || 0;
+    }
+
+    await pool.query('COMMIT');
+
+    res.json({ success: true, kept_email: keepEmail, affected });
+  } catch (e) {
+    try { await pool.query('ROLLBACK'); } catch {}
+    console.error('Erreur cleanup-users:', e);
+    res.status(500).json({ success: false, message: 'Erreur lors du nettoyage des utilisateurs' });
+  }
+});
+
 // Mettre à jour le profil de l'utilisateur connecté (auto-service)
 app.post('/api/me/profile', async (req, res) => {
   try {
