@@ -379,7 +379,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
           }
           await api('/me/profile', { method: 'POST', body: payload });
+          try { localStorage.setItem('onboardingPrompted', '1'); } catch {}
           alert('Profil mis à jour');
+          setTimeout(() => { window.location.href = '/'; }, 300);
         } catch (err) {
           alert('Erreur lors de la mise à jour: ' + (err.message || ''));
         }

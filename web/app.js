@@ -330,15 +330,18 @@ async function init() {
   const authSection = $('auth-section');
   const appSection = $('app-section');
   if (jwt) { 
-    // Charger le profil et vérifier l'onboarding
+    // Charger le profil et vérifier l'onboarding (une seule fois)
     try {
       const emailForProfile = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
       let profileData = null;
       if (emailForProfile) {
         profileData = normalizeProfileResponse(await api(`/profile?email=${encodeURIComponent(emailForProfile)}`));
+        // Sauvegarder pour d'autres fonctions (notifications)
+        try { localStorage.setItem('userProfile', JSON.stringify(profileData || {})); } catch {}
       }
-      if (!isProfileComplete(profileData)) {
-        // Rediriger vers la page profil pour compléter les informations (éviter boucle si déjà dessus)
+      const alreadyPrompted = localStorage.getItem('onboardingPrompted') === '1';
+      if (!isProfileComplete(profileData) && !alreadyPrompted) {
+        localStorage.setItem('onboardingPrompted', '1');
         if (!location.pathname.includes('profile.html')) {
           window.location.href = '/profile.html?onboard=1';
         }
@@ -1192,14 +1195,41 @@ async function initializeNotifications() {
 }
 
 function schedulePresenceReminders() {
-  // Rappel matinal (8h00)
-  scheduleReminder(8, 0, 'Rappel de présence', 'N\'oubliez pas de marquer votre présence ce matin !');
-  
-  // Rappel de fin de journée (17h00)
-  scheduleReminder(17, 0, 'Fin de journée', 'Pensez à marquer la fin de votre présence si vous terminez votre journée.');
-  
-  // Rappel de check-in (12h00)
-  scheduleReminder(12, 0, 'Check-in', 'N\'oubliez pas de faire un check-in si vous êtes en mission.');
+  try {
+    const profile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+    const planStart = profile.planning_start_date ? new Date(profile.planning_start_date) : null;
+    const planEnd = profile.planning_end_date ? new Date(profile.planning_end_date) : null;
+    const now = new Date();
+    const inPlannedWindow = planStart && planEnd ? (now >= planStart && now <= planEnd) : true;
+
+    // Rappel matinal (8h00)
+    if (inPlannedWindow) scheduleReminder(8, 0, 'Rappel de présence', 'Marquez votre présence si vous êtes sur le terrain.');
+
+    // Rappel de check-in (12h00)
+    if (inPlannedWindow) scheduleReminder(12, 0, 'Check-in', 'Faites un check-in si votre mission est en cours.');
+
+    // Rappel de fin de journée (17h00)
+    if (inPlannedWindow) scheduleReminder(17, 0, 'Fin de journée', 'Pensez à marquer la fin de votre présence.');
+
+    // Rappel d’absence à 18h: si aucune présence, notifier
+    const hour = 18; const minute = 0;
+    const title = 'Rappel présence: fin de journée';
+    const message = 'Aucune présence détectée aujourd\'hui. Marquez votre présence sinon la journée sera comptée absente.';
+    const now2 = new Date();
+    const reminderTime = new Date(); reminderTime.setHours(hour, minute, 0, 0);
+    if (reminderTime <= now2) reminderTime.setDate(reminderTime.getDate() + 1);
+    const ms = reminderTime.getTime() - now2.getTime();
+    setTimeout(async () => {
+      try {
+        const email = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
+        const resp = await api(`/presence/check-today?email=${encodeURIComponent(email || '')}`);
+        if (resp && resp.success && !resp.has_presence) {
+          showSystemNotification(title, message);
+        }
+      } catch {}
+      schedulePresenceReminders();
+    }, ms);
+  } catch {}
 }
 
 function scheduleReminder(hour, minute, title, message) {
