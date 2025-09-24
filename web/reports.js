@@ -1,4 +1,9 @@
 // Script pour la page de rapports
+// Configuration de l'API - utiliser Render en production sur Vercel
+const apiBase = window.location.hostname === 'agent-position.vercel.app' 
+    ? 'https://presence-ccrb-v2.onrender.com/api'
+    : '/api';
+
 let jwt = localStorage.getItem('jwt') || '';
 let currentUser = null;
 
@@ -18,9 +23,9 @@ async function api(path, opts = {}) {
   if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
   if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
   
-  console.log('API call:', '/api' + path, { method: opts.method || 'GET', headers, body: opts.body });
+  console.log('API call:', apiBase + path, { method: opts.method || 'GET', headers, body: opts.body });
   
-  const res = await fetch('/api' + path, {
+  const res = await fetch(apiBase + path, {
     method: opts.method || 'GET',
     headers,
     body: opts.body instanceof FormData ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined),

@@ -1,4 +1,7 @@
-const apiBase = '/api';
+// Configuration de l'API - utiliser Render en production sur Vercel
+const apiBase = window.location.hostname === 'agent-position.vercel.app' 
+    ? 'https://presence-ccrb-v2.onrender.com/api'
+    : '/api';
 let jwt = localStorage.getItem('jwt') || '';
 // Restaurer le token depuis l'URL si présent
 try {
@@ -633,7 +636,7 @@ async function refresh() {
   exp.onclick = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('/api/admin/export/checkins.csv?' + params.toString(), {
+      const response = await fetch(apiBase + '/admin/export/checkins.csv?' + params.toString(), {
         headers: { 'Authorization': 'Bearer ' + jwt }
       });
       if (response.ok) {
@@ -661,7 +664,7 @@ async function refresh() {
     expTxt.onclick = async (e) => {
       e.preventDefault();
       try {
-        const response = await fetch('/api/admin/export/checkins.txt?' + params.toString(), {
+        const response = await fetch(apiBase + '/admin/export/checkins.txt?' + params.toString(), {
           headers: { 'Authorization': 'Bearer ' + jwt }
         });
         if (response.ok) {
@@ -716,7 +719,7 @@ exportMonthlyReport = async function() {
   }
   
   try {
-    const response = await fetch(`/api/admin/export/monthly-report.csv?month=${month}`, { headers: { 'Authorization': 'Bearer ' + jwt } });
+    const response = await fetch(`${apiBase}/admin/export/monthly-report.csv?month=${month}`, { headers: { 'Authorization': 'Bearer ' + jwt } });
     if (response.ok) {
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);

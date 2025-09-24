@@ -17,14 +17,19 @@ function setAvatarFromCache() {
   } catch {}
 }
 
+// Configuration de l'API - utiliser Render en production sur Vercel
+const apiBase = window.location.hostname === 'agent-position.vercel.app' 
+    ? 'https://presence-ccrb-v2.onrender.com/api'
+    : '/api';
+
 async function api(path, opts = {}) {
   const headers = opts.headers || {};
   if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
   if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
   
-  console.log('API call:', '/api' + path, { method: opts.method || 'GET', headers, body: opts.body });
+  console.log('API call:', apiBase + path, { method: opts.method || 'GET', headers, body: opts.body });
   
-  let res = await fetch('/api' + path, {
+  let res = await fetch(apiBase + path, {
     method: opts.method || 'GET',
     headers,
     body: opts.body instanceof FormData ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined),
@@ -38,7 +43,7 @@ async function api(path, opts = {}) {
       try {
         const email = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
         if (email) {
-          res = await fetch('/api/profile?email=' + encodeURIComponent(email));
+          res = await fetch(apiBase + '/profile?email=' + encodeURIComponent(email));
           console.log('API response (retry via email):', res.status, res.statusText);
         }
       } catch {}

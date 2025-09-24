@@ -1,4 +1,9 @@
 // Variables globales
+// Configuration de l'API - utiliser Render en production sur Vercel
+const apiBase = window.location.hostname === 'agent-position.vercel.app' 
+    ? 'https://presence-ccrb-v2.onrender.com/api'
+    : '/api';
+
 let allAgents = [];
 let filteredAgents = [];
 let currentPage = 1;
@@ -19,13 +24,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         let profile = null;
         if (token) {
-            const r = await fetch('/api/profile', { headers: { 'Authorization': `Bearer ${token}` } });
+            const r = await fetch(apiBase + '/profile', { headers: { 'Authorization': `Bearer ${token}` } });
             if (r.ok) profile = await r.json();
         }
         if (!profile) {
             const email = getEmailHint();
             if (email) {
-                const r2 = await fetch('/api/profile?email=' + encodeURIComponent(email));
+                const r2 = await fetch(apiBase + '/profile?email=' + encodeURIComponent(email));
                 if (r2.ok) profile = await r2.json();
             }
         }
@@ -69,7 +74,7 @@ async function loadAgents() {
     try {
         console.log('📥 Chargement des agents...');
         const token = localStorage.getItem('jwt') || localStorage.getItem('token');
-        const response = await fetch('/api/admin/agents', {
+        const response = await fetch(apiBase + '/admin/agents', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -94,7 +99,7 @@ async function loadAgents() {
 // Charger les départements pour les filtres
 async function loadDepartements() {
     try {
-        const response = await fetch('/api/geo/departements');
+        const response = await fetch(apiBase + '/geo/departements');
         const departements = await response.json();
         
         const select = document.getElementById('filter-departement');
@@ -336,7 +341,7 @@ async function confirmDelete() {
         console.log(`🗑️ Suppression agent ID: ${agentToDelete}`);
         
         const token = localStorage.getItem('jwt') || localStorage.getItem('token');
-        const response = await fetch(`/api/admin/agents/${agentToDelete}`, {
+        const response = await fetch(`${apiBase}/admin/agents/${agentToDelete}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });

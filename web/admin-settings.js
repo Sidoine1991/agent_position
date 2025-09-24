@@ -1,4 +1,7 @@
-const apiBase = '/api';
+// Configuration de l'API - utiliser Render en production sur Vercel
+const apiBase = window.location.hostname === 'agent-position.vercel.app' 
+    ? 'https://presence-ccrb-v2.onrender.com/api'
+    : '/api';
 let jwt = localStorage.getItem('jwt') || '';
 
 async function api(path, opts={}) {

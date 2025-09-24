@@ -16,6 +16,11 @@ const verifyBtnText = document.getElementById('verifyBtnText');
 const resendBtn = document.getElementById('resendBtn');
 
 // Fonction utilitaire pour les requêtes API
+// Configuration de l'API - utiliser Render en production sur Vercel
+const apiBase = window.location.hostname === 'agent-position.vercel.app' 
+    ? 'https://presence-ccrb-v2.onrender.com/api'
+    : '/api';
+
 async function api(endpoint, method = 'GET', data = null) {
   const options = {
     method,
@@ -28,7 +33,7 @@ async function api(endpoint, method = 'GET', data = null) {
     options.body = JSON.stringify(data);
   }
   
-  const response = await fetch(`/api${endpoint}`, options);
+  const response = await fetch(`${apiBase}${endpoint}`, options);
   return await response.json();
 }
 
