@@ -48,9 +48,10 @@ async function api(path, opts={}) {
   
   if (!res.ok) {
     const errorText = await res.text();
-    console.error('API error:', errorText);
-    // Ne pas supprimer le token automatiquement
-    throw new Error(errorText || res.statusText);
+    console.error('API error:', res.status, errorText);
+    const err = new Error(errorText || res.statusText);
+    err.status = res.status;
+    throw err;
   }
   
   const ct = res.headers.get('content-type') || '';
@@ -124,10 +125,18 @@ async function init() {
   }, 1000);
 
   // Charger les check-ins sur la carte
-  await loadCheckinsOnMap();
+  try {
+    await loadCheckinsOnMap();
+  } catch (e) {
+    handleDashboardError(e);
+  }
 
   $('refresh').onclick = refresh;
-  await refresh();
+  try {
+    await refresh();
+  } catch (e) {
+    handleDashboardError(e);
+  }
 
   // Modal agent
   window.openAgentModal = openAgentModal;
@@ -216,6 +225,7 @@ async function loadCheckinsOnMap() {
     }
   } catch (error) {
     console.error('❌ Erreur lors du chargement des check-ins:', error);
+    handleDashboardError(error);
   }
 }
 
@@ -949,6 +959,26 @@ async function updateUserInfo() {
   } catch (e) {
     console.error('Error updating user info:', e);
   }
+}
+
+// Affichage d'une alerte explicite en haut de page pour erreurs d'accès
+function handleDashboardError(error) {
+  try {
+    const container = document.querySelector('.main-content') || document.body;
+    let banner = document.getElementById('dashboard-alert');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'dashboard-alert';
+      banner.style.cssText = 'margin:12px 0;padding:12px 16px;border-radius:8px;background:#fff3cd;color:#664d03;border:1px solid #ffe69c;';
+      container.prepend(banner);
+    }
+    const status = error && (error.status || error.code);
+    if (status === 401) {
+      banner.innerHTML = '🔒 Accès requis: veuillez vous connecter en tant qu\'admin/superviseur. Ouvrez la page d\'accueil, connectez-vous puis revenez sur le Dashboard.';
+    } else {
+      banner.textContent = '⚠️ Impossible de charger les check-ins pour le moment. Réessayez après connexion ou plus tard.';
+    }
+  } catch {}
 }
 
 // Gérer l'accès au dashboard selon le rôle
