@@ -587,3 +587,154 @@ window.addEventListener('beforeunload', function() {
         navigator.geolocation.clearWatch(watchId);
     }
 });
+
+// Variables pour la correction GPS
+let correctedPosition = null;
+let gpsCorrectionPanelVisible = true;
+
+// Fonction pour corriger la position GPS manuellement
+function correctGPSPosition() {
+    const latInput = document.getElementById('manual-lat');
+    const lngInput = document.getElementById('manual-lng');
+    
+    const lat = parseFloat(latInput.value);
+    const lng = parseFloat(lngInput.value);
+    
+    if (isNaN(lat) || isNaN(lng)) {
+        alert('Veuillez entrer des coordonnées valides');
+        return;
+    }
+    
+    if (lat < -90 || lat > 90) {
+        alert('La latitude doit être entre -90 et 90');
+        return;
+    }
+    
+    if (lng < -180 || lng > 180) {
+        alert('La longitude doit être entre -180 et 180');
+        return;
+    }
+    
+    // Sauvegarder la position corrigée
+    correctedPosition = { lat, lng };
+    
+    // Mettre à jour le marqueur utilisateur
+    if (userMarker) {
+        map.removeLayer(userMarker);
+    }
+    
+    userMarker = L.marker([lat, lng], {
+        icon: L.divIcon({
+            className: 'user-marker',
+            html: '<div style="background: #3b82f6; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        })
+    }).addTo(map);
+    
+    // Mettre à jour l'affichage
+    updatePositionDisplay(lat, lng, 'Position corrigée manuellement');
+    
+    // Centrer la carte sur la position corrigée
+    map.setView([lat, lng], 15);
+    
+    console.log('✅ Position GPS corrigée:', lat, lng);
+}
+
+// Fonction pour centrer sur la position corrigée
+function centerOnCorrectedPosition() {
+    if (correctedPosition) {
+        map.setView([correctedPosition.lat, correctedPosition.lng], 15);
+        console.log('🎯 Centrage sur position corrigée');
+    } else {
+        alert('Aucune position corrigée disponible. Veuillez d\'abord corriger votre position.');
+    }
+}
+
+// Fonction pour basculer la visibilité du panneau
+function toggleGPSCorrection() {
+    const panel = document.getElementById('gps-correction-panel');
+    const button = event.target;
+    
+    if (gpsCorrectionPanelVisible) {
+        panel.style.display = 'none';
+        button.innerHTML = '<i class="fas fa-eye me-1"></i>Afficher';
+        gpsCorrectionPanelVisible = false;
+    } else {
+        panel.style.display = 'block';
+        button.innerHTML = '<i class="fas fa-eye-slash me-1"></i>Masquer';
+        gpsCorrectionPanelVisible = true;
+    }
+}
+
+// Fonction pour mettre à jour l'affichage de la position
+function updatePositionDisplay(lat, lng, source = 'GPS') {
+    const currentPositionSpan = document.getElementById('current-position');
+    const gpsAccuracySpan = document.getElementById('gps-accuracy');
+    
+    if (currentPositionSpan) {
+        currentPositionSpan.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)} (${source})`;
+    }
+    
+    if (gpsAccuracySpan && source === 'GPS') {
+        // La précision sera mise à jour par la fonction de géolocalisation
+    } else if (gpsAccuracySpan && source === 'Position corrigée manuellement') {
+        gpsAccuracySpan.textContent = 'Corrigée manuellement';
+    }
+}
+
+// Fonction pour obtenir la position actuelle (GPS ou corrigée)
+function getCurrentPosition() {
+    if (correctedPosition) {
+        return correctedPosition;
+    }
+    
+    // Essayer d'obtenir la position GPS
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                const accuracy = position.coords.accuracy;
+                
+                updatePositionDisplay(lat, lng, 'GPS');
+                document.getElementById('gps-accuracy').textContent = `${Math.round(accuracy)}m`;
+                
+                // Mettre à jour le marqueur
+                if (userMarker) {
+                    map.removeLayer(userMarker);
+                }
+                
+                userMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: 'user-marker',
+                        html: '<div style="background: #10b981; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    })
+                }).addTo(map);
+                
+                // Centrer sur la position GPS
+                map.setView([lat, lng], 15);
+            },
+            function(error) {
+                console.error('Erreur GPS:', error);
+                updatePositionDisplay(0, 0, 'Erreur GPS');
+                document.getElementById('gps-accuracy').textContent = 'Erreur';
+            }
+        );
+    }
+}
+
+// Initialiser la correction GPS au chargement
+document.addEventListener('DOMContentLoaded', function() {
+    // Ajouter un bouton pour obtenir la position GPS
+    const gpsButtons = document.querySelector('.gps-buttons');
+    if (gpsButtons) {
+        const gpsButton = document.createElement('button');
+        gpsButton.className = 'btn-center';
+        gpsButton.innerHTML = '<i class="fas fa-location-arrow me-1"></i>GPS';
+        gpsButton.onclick = getCurrentPosition;
+        gpsButtons.appendChild(gpsButton);
+    }
+});
