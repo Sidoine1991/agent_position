@@ -3,6 +3,11 @@ const apiBase = window.location.hostname === 'agent-position.vercel.app'
     ? 'https://presence-ccrb-v2.onrender.com/api'
     : '/api';
 let jwt = localStorage.getItem('jwt') || '';
+
+// Variables globales pour la carte
+let map;
+let checkinMarkers = [];
+let agentMarkers = [];
 // Restaurer le token depuis l'URL si présent
 try {
   const urlParams = new URLSearchParams(window.location.search);
@@ -119,6 +124,9 @@ async function init() {
     loadAfDepartements();
   }, 1000);
 
+  // Charger les check-ins sur la carte
+  await loadCheckinsOnMap();
+
   $('refresh').onclick = refresh;
   await refresh();
 
@@ -126,7 +134,63 @@ async function init() {
   window.openAgentModal = openAgentModal;
   window.closeAgentModal = closeAgentModal;
   const form = document.getElementById('agent-form');
-  form.addEventListener('submit', onAgentSubmit);
+}
+
+// Fonction pour charger et afficher les check-ins sur la carte
+async function loadCheckinsOnMap() {
+  try {
+    console.log('🗺️ Chargement des check-ins pour la carte...');
+    
+    // Charger les derniers check-ins
+    const response = await api('/admin/checkins/latest?limit=100');
+    if (response.success && response.checkins) {
+      console.log('✅ Check-ins chargés:', response.checkins.length);
+      
+      // Nettoyer les marqueurs existants
+      checkinMarkers.forEach(marker => map.removeLayer(marker));
+      checkinMarkers = [];
+      
+      // Ajouter les marqueurs pour chaque check-in
+      response.checkins.forEach(checkin => {
+        if (checkin.lat && checkin.lon) {
+          const marker = L.circleMarker([checkin.lat, checkin.lon], {
+            radius: 6,
+            fillColor: checkin.within_tolerance ? '#10b981' : '#ef4444',
+            color: checkin.within_tolerance ? '#059669' : '#dc2626',
+            weight: 2,
+            opacity: 0.8,
+            fillOpacity: 0.6
+          }).addTo(map);
+          
+          // Popup avec informations du check-in
+          const popupContent = `
+            <div style="min-width: 200px;">
+              <h6><strong>${checkin.agent_name}</strong></h6>
+              <p><strong>Rôle:</strong> ${checkin.agent_role}</p>
+              <p><strong>Date:</strong> ${new Date(checkin.timestamp).toLocaleString('fr-FR')}</p>
+              <p><strong>Position:</strong> ${checkin.commune || 'Non spécifiée'}</p>
+              <p><strong>Distance:</strong> ${checkin.distance_from_reference_m ? checkin.distance_from_reference_m + 'm' : 'N/A'}</p>
+              <p><strong>Statut:</strong> <span style="color: ${checkin.within_tolerance ? '#10b981' : '#ef4444'}">${checkin.within_tolerance ? '✅ Dans la zone' : '❌ Hors zone'}</span></p>
+            </div>
+          `;
+          
+          marker.bindPopup(popupContent);
+          checkinMarkers.push(marker);
+        }
+      });
+      
+      // Ajuster la vue de la carte pour inclure tous les marqueurs
+      if (checkinMarkers.length > 0) {
+        const group = new L.featureGroup(checkinMarkers);
+        map.fitBounds(group.getBounds().pad(0.1));
+      }
+      
+      console.log('✅ Carte mise à jour avec', checkinMarkers.length, 'marqueurs');
+    }
+  } catch (error) {
+    console.error('❌ Erreur lors du chargement des check-ins:', error);
+  }
+}
   
   // Les fonctions sont déjà exposées globalement au moment de leur déclaration
   

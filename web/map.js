@@ -10,9 +10,23 @@ let checkinMarkers = [];
 let currentMission = null;
 let isSatelliteView = false;
 let watchId = null;
+let jwt = localStorage.getItem('jwt') || '';
+
+// Vérification d'authentification
+function checkAuth() {
+    if (!jwt || jwt.length < 20) {
+        console.log('❌ Pas de token d\'authentification, redirection vers la page de connexion');
+        window.location.href = '/';
+        return false;
+    }
+    return true;
+}
 
 // Initialisation
 document.addEventListener('DOMContentLoaded', function() {
+    // Vérifier l'authentification avant d'initialiser
+    if (!checkAuth()) return;
+    
     initMap();
     loadUserData();
     checkCurrentMission();
