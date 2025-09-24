@@ -1291,8 +1291,8 @@ app.get('/api/admin/checkins/latest', async (req, res) => {
       
       return {
         id: r.id,
-        lat: r.lat,
-        lon: r.lon,
+        lat: Number(r.lat),
+        lon: Number(r.lon),
         timestamp: r.timestamp,
         mission_id: r.mission_id,
         start_time: r.start_time,
@@ -1309,40 +1309,67 @@ app.get('/api/admin/checkins/latest', async (req, res) => {
       };
     });
 
-    res.json({ success: true, checkins: items });
+    // Ajouter des points dérivés depuis missions (départ/fin) pour couvrir les cas sans check-in
+    const missionsRes = await pool.query(`
+      SELECT m.id AS mission_id, m.start_time, m.end_time, m.start_lat, m.start_lon, m.end_lat, m.end_lon,
+             u.id AS user_id, u.name AS agent_name, u.role AS agent_role,
+             u.reference_lat, u.reference_lon, COALESCE(u.tolerance_radius_meters, 500) as tol,
+             u.departement, u.commune, u.arrondissement, u.village
+      FROM missions m
+      JOIN users u ON m.user_id = u.id
+      ORDER BY m.start_time DESC
+      LIMIT $1
+    `, [limit]);
+
+    const derived = [];
+    for (const r of missionsRes.rows) {
+      const pushPoint = (lat, lon, ts, labelSuffix) => {
+        if (lat == null || lon == null) return;
+        let distance_m = null;
+        try {
+          if (r.reference_lat && r.reference_lon && lat && lon) {
+            const dLat = toRad(Number(lat) - Number(r.reference_lat));
+            const dLon = toRad(Number(lon) - Number(r.reference_lon));
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(toRad(Number(r.reference_lat))) * Math.cos(toRad(Number(lat))) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            distance_m = Math.round(R * c);
+          }
+        } catch {}
+        derived.push({
+          id: `m-${r.mission_id}-${labelSuffix}`,
+          lat: Number(lat),
+          lon: Number(lon),
+          timestamp: ts,
+          mission_id: r.mission_id,
+          start_time: r.start_time,
+          end_time: r.end_time,
+          user_id: r.user_id,
+          agent_name: r.agent_name,
+          agent_role: r.agent_role,
+          departement: r.departement,
+          commune: r.commune,
+          arrondissement: r.arrondissement,
+          village: r.village,
+          distance_from_reference_m: distance_m,
+          within_tolerance: distance_m !== null ? distance_m <= Number(r.tol) : null
+        });
+      };
+      pushPoint(r.start_lat, r.start_lon, r.start_time, 'start');
+      pushPoint(r.end_lat, r.end_lon, r.end_time || r.start_time, 'end');
+    }
+
+    // Fusionner, trier par date desc et limiter
+    const combined = [...items, ...derived]
+      .filter(p => typeof p.lat === 'number' && typeof p.lon === 'number')
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, limit);
+
+    res.json({ success: true, checkins: combined });
   } catch (error) {
     console.error('Erreur admin checkins latest:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
-  }
-});
-
-// Admin: liste simple des agents pour filtres
-app.get('/api/admin/agents', async (req, res) => {
-  try {
-    // Auth: admin ou superviseur
-    const authHeader = req.headers.authorization || '';
-    if (!authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, message: 'Authorization requise' });
-    }
-    let tokenPayload;
-    try {
-      tokenPayload = jwt.verify(authHeader.substring(7), JWT_SECRET);
-    } catch {
-      return res.status(401).json({ success: false, message: 'Token invalide' });
-    }
-    if (!tokenPayload || (tokenPayload.role !== 'admin' && tokenPayload.role !== 'superviseur')) {
-      return res.status(403).json({ success: false, message: 'Réservé aux administrateurs/superviseurs' });
-    }
-
-    const rows = await pool.query(`
-      SELECT id, name, email, role
-      FROM users
-      ORDER BY role DESC, name ASC
-    `);
-    return res.json(rows.rows);
-  } catch (e) {
-    console.error('GET /api/admin/agents error:', e);
-    return res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 
@@ -1422,7 +1449,63 @@ app.get('/api/admin/checkins', async (req, res) => {
       };
     });
 
-    return res.json({ success: true, items });
+    // Ajouter les points dérivés depuis missions selon le filtre
+    const paramsM = [];
+    let whereM = '1=1';
+    if (from) { paramsM.push(from); whereM += ` AND DATE(m.start_time) >= $${paramsM.length}`; }
+    if (to) { paramsM.push(to); whereM += ` AND DATE(m.start_time) <= $${paramsM.length}`; }
+    if (agentId) { paramsM.push(agentId); whereM += ` AND m.user_id = $${paramsM.length}`; }
+
+    const missionsRes = await pool.query(`
+      SELECT m.id AS mission_id, m.start_time, m.end_time, m.start_lat, m.start_lon, m.end_lat, m.end_lon,
+             u.id AS user_id, u.name AS agent_name, u.role AS agent_role,
+             u.reference_lat, u.reference_lon, COALESCE(u.tolerance_radius_meters, 500) as tol,
+             u.departement, u.commune, u.arrondissement, u.village
+      FROM missions m
+      JOIN users u ON m.user_id = u.id
+      WHERE ${whereM}
+      ORDER BY m.start_time DESC
+      LIMIT 1000
+    `, paramsM);
+
+    const derived = [];
+    for (const r of missionsRes.rows) {
+      const addPoint = (lat, lon, ts, suffix) => {
+        if (lat == null || lon == null) return;
+        let distance_m = null;
+        try {
+          if (r.reference_lat && r.reference_lon && lat && lon) {
+            const dLat = toRad(Number(lat) - Number(r.reference_lat));
+            const dLon = toRad(Number(lon) - Number(r.reference_lon));
+            const a = Math.sin(dLat/2)**2 + Math.cos(toRad(r.reference_lat)) * Math.cos(toRad(lat)) * Math.sin(dLon/2)**2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            distance_m = Math.round(R * c);
+          }
+        } catch {}
+        derived.push({
+          id: `m-${r.mission_id}-${suffix}`,
+          mission_id: r.mission_id,
+          timestamp: ts,
+          lat: Number(lat),
+          lon: Number(lon),
+          agent_id: r.user_id,
+          agent_name: r.agent_name,
+          agent_role: r.agent_role,
+          departement: r.departement,
+          commune: r.commune,
+          arrondissement: r.arrondissement,
+          village: r.village,
+          distance_from_reference_m: distance_m,
+          within_tolerance: distance_m !== null ? distance_m <= Number(r.tol || 500) : null
+        });
+      };
+      addPoint(r.start_lat, r.start_lon, r.start_time, 'start');
+      addPoint(r.end_lat, r.end_lon, r.end_time || r.start_time, 'end');
+    }
+
+    const combined = [...items, ...derived].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    return res.json({ success: true, items: combined });
   } catch (e) {
     console.error('GET /api/admin/checkins error:', e);
     return res.status(500).json({ success: false, message: 'Erreur serveur' });
