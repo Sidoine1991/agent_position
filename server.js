@@ -1316,6 +1316,36 @@ app.get('/api/admin/checkins/latest', async (req, res) => {
   }
 });
 
+// Admin: liste simple des agents pour filtres
+app.get('/api/admin/agents', async (req, res) => {
+  try {
+    // Auth: admin ou superviseur
+    const authHeader = req.headers.authorization || '';
+    if (!authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, message: 'Authorization requise' });
+    }
+    let tokenPayload;
+    try {
+      tokenPayload = jwt.verify(authHeader.substring(7), JWT_SECRET);
+    } catch {
+      return res.status(401).json({ success: false, message: 'Token invalide' });
+    }
+    if (!tokenPayload || (tokenPayload.role !== 'admin' && tokenPayload.role !== 'superviseur')) {
+      return res.status(403).json({ success: false, message: 'Réservé aux administrateurs/superviseurs' });
+    }
+
+    const rows = await pool.query(`
+      SELECT id, name, email, role
+      FROM users
+      ORDER BY role DESC, name ASC
+    `);
+    return res.json(rows.rows);
+  } catch (e) {
+    console.error('GET /api/admin/agents error:', e);
+    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // Admin: liste détaillée des check-ins avec distances
 app.get('/api/admin/checkins', async (req, res) => {
   try {

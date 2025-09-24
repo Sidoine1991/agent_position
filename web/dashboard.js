@@ -6,6 +6,16 @@ let jwt = localStorage.getItem('jwt') || '';
 
 // Variables globales pour la carte
 let checkinMarkers = [];
+const agentColorMap = new Map();
+function colorForAgent(agentId) {
+  if (!agentColorMap.has(agentId)) {
+    // Palette distincte
+    const palette = ['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#e11d48','#9333ea','#84cc16','#06b6d4'];
+    const next = palette[agentColorMap.size % palette.length];
+    agentColorMap.set(agentId, next);
+  }
+  return agentColorMap.get(agentId);
+}
 let agentMarkers = [];
 // Restaurer le token depuis l'URL si présent
 try {
@@ -189,10 +199,11 @@ async function loadCheckinsOnMap() {
       // Ajouter les marqueurs pour chaque check-in
       response.checkins.forEach(checkin => {
         if (checkin.lat && checkin.lon) {
+          const color = colorForAgent(checkin.user_id || checkin.agent_id || 0);
           const marker = L.circleMarker([checkin.lat, checkin.lon], {
-            radius: 6,
-            fillColor: checkin.within_tolerance ? '#10b981' : '#ef4444',
-            color: checkin.within_tolerance ? '#059669' : '#dc2626',
+            radius: 7,
+            fillColor: color,
+            color: color,
             weight: 2,
             opacity: 0.8,
             fillOpacity: 0.6
