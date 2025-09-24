@@ -907,21 +907,26 @@ function clearSearch() {
 
 window.selectSearchResult = function(lat, lon, label) {
     try {
+        // Centrer la carte
         map.setView([lat, lon], 15);
-        // Demander si départ ou fin
-        const choice = window.prompt(`${label}\n\nUtiliser ce lieu comme:\n- Tapez D pour \"Départ\"\n- Tapez F pour \"Fin\"\n- Laissez vide pour annuler`, 'D / F');
-        if (choice && (choice.toLowerCase() === 'd' || choice.toLowerCase() === 'départ' || choice.toLowerCase() === 'depart')) {
-            dropMissionStartMarker({ lat, lng: lon });
-        } else if (choice && (choice.toLowerCase() === 'f' || choice.toLowerCase() === 'fin')) {
-            dropMissionEndMarker({ lat, lng: lon });
-        } else {
-            const temp = L.marker([lat, lon]).addTo(map).bindPopup(label).openPopup();
-            setTimeout(() => { try { map.removeLayer(temp); } catch {} }, 5000);
-        }
+        
+        // Définir la position corrigée pour que startMission() l'utilise
+        correctedPosition = { lat: Number(lat), lng: Number(lon) };
+        updatePositionDisplay(Number(lat), Number(lon), 'Position sélectionnée');
+        
+        // Déposer un marqueur de départ par défaut
+        dropMissionStartMarker({ lat: Number(lat), lng: Number(lon) });
+        
+        // Mise à jour des champs manuels
         const latEl = document.getElementById('manual-lat');
         const lngEl = document.getElementById('manual-lng');
-        if (latEl && lngEl) { latEl.value = lat.toFixed(6); lngEl.value = lon.toFixed(6); }
+        if (latEl && lngEl) { latEl.value = Number(lat).toFixed(6); lngEl.value = Number(lon).toFixed(6); }
+        
+        // Fermer les résultats
         clearSearch();
+        
+        // Indication à l'utilisateur
+        showToast('Lieu sélectionné. Vous pouvez démarrer la mission ici.', 'info');
     } catch {}
 }
 
