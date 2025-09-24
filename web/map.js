@@ -298,21 +298,21 @@ async function checkIn() {
 }
 
 // Terminer une mission
-async function endMission() {
+async function endMission(missionId, button, status) {
     try {
         showLoading(true);
         
         const position = await getCurrentPosition();
         if (!position) {
             showToast('Impossible d\'obtenir la position GPS. Utilisez le bouton de secours.', 'warning');
-            showForceEndButton();
+            showForceEndButton(missionId, status);
             return;
         }
         
         const response = await api('/presence/end', {
             method: 'POST',
             body: JSON.stringify({
-                mission_id: currentMission.id,
+                mission_id: missionId || currentMission.id,
                 lat: position.lat,
                 lon: position.lon,
                 accuracy: position.accuracy
@@ -329,29 +329,38 @@ async function endMission() {
             hideForceEndButton();
         } else {
             showToast('Erreur: ' + response.message, 'error');
-            showForceEndButton();
+            showForceEndButton(missionId, status);
         }
     } catch (error) {
         console.error('Erreur fin mission:', error);
         showToast('Erreur lors de la fin de la mission. Utilisez le bouton de secours.', 'warning');
-        showForceEndButton();
+        showForceEndButton(missionId, status);
     } finally {
         showLoading(false);
     }
 }
 
 // Forcer la fin de mission sans GPS
-async function forceEndMission() {
+async function forceEndMission(missionId, button, status) {
     try {
+        console.log('🔧 Début de la fin forcée de mission:', { missionId, currentMission: currentMission?.id });
         showLoading(true);
         
+        const targetMissionId = missionId || currentMission?.id;
+        if (!targetMissionId) {
+            throw new Error('Aucune mission active trouvée');
+        }
+        
+        console.log('🔧 Envoi de la requête de fin forcée pour mission:', targetMissionId);
         const response = await api('/presence/force-end', {
             method: 'POST',
             body: JSON.stringify({
-                mission_id: currentMission.id,
+                mission_id: targetMissionId,
                 note: 'Fin de mission (sans GPS)'
             })
         });
+        
+        console.log('🔧 Réponse reçue:', response);
         
         if (response.success) {
             showToast('Mission terminée (sans GPS)!', 'success');
@@ -362,38 +371,52 @@ async function forceEndMission() {
             checkinMarkers = [];
             hideForceEndButton();
         } else {
+            console.error('❌ Erreur dans la réponse:', response);
             showToast('Erreur: ' + response.message, 'error');
         }
     } catch (error) {
-        console.error('Erreur fin forcée mission:', error);
-        showToast('Erreur lors de la fin forcée de la mission', 'error');
+        console.error('❌ Erreur fin forcée mission:', error);
+        showToast('Erreur lors de la fin forcée de la mission: ' + error.message, 'error');
     } finally {
         showLoading(false);
     }
 }
 
 // Afficher le bouton de secours
-function showForceEndButton() {
-    let forceBtn = document.getElementById('force-end-btn');
+function showForceEndButton(missionId, status) {
+    console.log('🔧 Affichage du bouton de secours pour mission:', missionId);
+    
+    let forceBtn = document.getElementById('force-end-mission');
     if (!forceBtn) {
+        console.log('🔧 Création du bouton de secours...');
         forceBtn = document.createElement('button');
-        forceBtn.id = 'force-end-btn';
+        forceBtn.id = 'force-end-mission';
         forceBtn.className = 'btn btn-warning mt-2';
         forceBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Finir sans GPS (Secours)';
-        forceBtn.onclick = forceEndMission;
         
         // Ajouter le bouton après le bouton de fin normal
         const endBtn = document.getElementById('end-btn');
         if (endBtn && endBtn.parentNode) {
             endBtn.parentNode.insertBefore(forceBtn, endBtn.nextSibling);
+            console.log('✅ Bouton de secours ajouté après le bouton de fin');
+        } else {
+            console.warn('⚠️ Bouton de fin non trouvé, ajout du bouton de secours au body');
+            document.body.appendChild(forceBtn);
         }
     }
+    
+    // Configurer l'événement avec les paramètres
+    forceBtn.onclick = () => {
+        console.log('🔧 Clic sur le bouton de secours pour mission:', missionId);
+        forceEndMission(missionId, forceBtn, status);
+    };
     forceBtn.style.display = 'block';
+    console.log('✅ Bouton de secours affiché');
 }
 
 // Masquer le bouton de secours
 function hideForceEndButton() {
-    const forceBtn = document.getElementById('force-end-btn');
+    const forceBtn = document.getElementById('force-end-mission');
     if (forceBtn) {
         forceBtn.style.display = 'none';
     }

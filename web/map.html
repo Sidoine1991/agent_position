@@ -229,7 +229,7 @@
                         <button id="checkin-btn" class="btn btn-presence btn-checkin" onclick="checkIn()" style="display: none;">
                             <i class="fas fa-map-marker-alt me-2"></i>Marquer Position
                         </button>
-                        <button id="end-btn" class="btn btn-presence btn-end" onclick="endMission()" style="display: none;">
+                        <button id="end-btn" class="btn btn-presence btn-end" onclick="endMission(currentMission?.id, this, document.getElementById('status'))" style="display: none;">
                             <i class="fas fa-stop me-2"></i>Terminer Mission
                         </button>
                     </div>
