@@ -477,33 +477,6 @@ function hideForceEndButton() {
     }
 }
 
-// Obtenir la position actuelle
-function getCurrentPosition() {
-    return new Promise((resolve, reject) => {
-        if (!navigator.geolocation) {
-            reject(new Error('Géolocalisation non supportée'));
-            return;
-        }
-        
-        navigator.geolocation.getCurrentPosition(
-            function(position) {
-                resolve({
-                    lat: position.coords.latitude,
-                    lon: position.coords.longitude,
-                    accuracy: position.coords.accuracy
-                });
-            },
-            function(error) {
-                reject(error);
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            }
-        );
-    });
-}
 
 // Afficher/masquer le loading
 function showLoading(show) {
@@ -548,7 +521,6 @@ function createToastContainer() {
 
 // Fonction API
 async function api(endpoint, options = {}) {
-    const token = localStorage.getItem('token');
     const url = `${API_BASE}${endpoint}`;
     
     const config = {
@@ -577,7 +549,9 @@ async function api(endpoint, options = {}) {
 // Déconnexion
 function logout() {
     localStorage.removeItem('token');
+    localStorage.removeItem('jwt');
     localStorage.removeItem('user');
+    token = '';
     window.location.href = 'index.html';
 }
 
@@ -685,20 +659,33 @@ function updatePositionDisplay(lat, lng, source = 'GPS') {
 
 // Fonction pour obtenir la position actuelle (GPS ou corrigée)
 function getCurrentPosition() {
-    if (correctedPosition) {
-        return correctedPosition;
-    }
-    
-    // Essayer d'obtenir la position GPS
-    if (navigator.geolocation) {
+    return new Promise((resolve, reject) => {
+        // Si une position corrigée existe, l'utiliser
+        if (correctedPosition) {
+            resolve(correctedPosition);
+            return;
+        }
+        
+        // Essayer d'obtenir la position GPS
+        if (!navigator.geolocation) {
+            reject(new Error('Géolocalisation non supportée par ce navigateur'));
+            return;
+        }
+        
         navigator.geolocation.getCurrentPosition(
             function(position) {
                 const lat = position.coords.latitude;
                 const lng = position.coords.longitude;
                 const accuracy = position.coords.accuracy;
                 
+                const positionData = { lat, lng, accuracy };
+                
+                // Mettre à jour l'affichage
                 updatePositionDisplay(lat, lng, 'GPS');
-                document.getElementById('gps-accuracy').textContent = `${Math.round(accuracy)}m`;
+                const gpsAccuracyEl = document.getElementById('gps-accuracy');
+                if (gpsAccuracyEl) {
+                    gpsAccuracyEl.textContent = `${Math.round(accuracy)}m`;
+                }
                 
                 // Mettre à jour le marqueur
                 if (userMarker) {
@@ -716,14 +703,25 @@ function getCurrentPosition() {
                 
                 // Centrer sur la position GPS
                 map.setView([lat, lng], 15);
+                
+                resolve(positionData);
             },
             function(error) {
                 console.error('Erreur GPS:', error);
                 updatePositionDisplay(0, 0, 'Erreur GPS');
-                document.getElementById('gps-accuracy').textContent = 'Erreur';
+                const gpsAccuracyEl = document.getElementById('gps-accuracy');
+                if (gpsAccuracyEl) {
+                    gpsAccuracyEl.textContent = 'Erreur';
+                }
+                reject(error);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
             }
         );
-    }
+    });
 }
 
 // Initialiser la correction GPS au chargement
@@ -739,7 +737,38 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // Initialiser la gestion du long-press sur la carte
     setupLongPressToDropMarker();
+
+    // Rendre les panneaux draggable (simple implémentation)
+    makeDraggable(document.getElementById('gps-correction-panel'));
+    makeDraggable(document.querySelector('.search-container'));
 });
+
+function makeDraggable(el) {
+    if (!el) return;
+    let isDown = false;
+    let startX = 0, startY = 0, origX = 0, origY = 0;
+    el.addEventListener('mousedown', (e) => {
+        isDown = true;
+        startX = e.clientX; startY = e.clientY;
+        const rect = el.getBoundingClientRect();
+        origX = rect.left; origY = rect.top;
+        document.body.style.userSelect = 'none';
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (!isDown) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        el.style.left = `${origX + dx}px`;
+        el.style.top = `${origY + dy}px`;
+        el.style.right = 'auto';
+        el.style.transform = 'none';
+        el.style.position = 'fixed';
+    });
+    window.addEventListener('mouseup', () => {
+        isDown = false;
+        document.body.style.userSelect = '';
+    });
+}
 
 // Recherche de lieux via Nominatim (OpenStreetMap)
 let searchAbortController = null;
@@ -796,10 +825,16 @@ function clearSearch() {
 window.selectSearchResult = function(lat, lon, label) {
     try {
         map.setView([lat, lon], 15);
-        // Déposer un marqueur temporaire
-        const temp = L.marker([lat, lon]).addTo(map).bindPopup(label).openPopup();
-        setTimeout(() => { try { map.removeLayer(temp); } catch {} }, 5000);
-        // Pré-remplir le panneau de correction
+        // Demander si départ ou fin
+        const choice = window.prompt(`${label}\n\nUtiliser ce lieu comme:\n- Tapez D pour \"Départ\"\n- Tapez F pour \"Fin\"\n- Laissez vide pour annuler`, 'D / F');
+        if (choice && (choice.toLowerCase() === 'd' || choice.toLowerCase() === 'départ' || choice.toLowerCase() === 'depart')) {
+            dropMissionStartMarker({ lat, lng: lon });
+        } else if (choice && (choice.toLowerCase() === 'f' || choice.toLowerCase() === 'fin')) {
+            dropMissionEndMarker({ lat, lng: lon });
+        } else {
+            const temp = L.marker([lat, lon]).addTo(map).bindPopup(label).openPopup();
+            setTimeout(() => { try { map.removeLayer(temp); } catch {} }, 5000);
+        }
         const latEl = document.getElementById('manual-lat');
         const lngEl = document.getElementById('manual-lng');
         if (latEl && lngEl) { latEl.value = lat.toFixed(6); lngEl.value = lon.toFixed(6); }
@@ -810,6 +845,7 @@ window.selectSearchResult = function(lat, lon, label) {
 // Long-press / tap prolongé pour déposer le marqueur de départ de mission
 let longPressTimeout = null;
 let missionStartMarker = null;
+let missionEndMarker = null;
 function setupLongPressToDropMarker() {
     if (!map) return;
     const pressDurationMs = 600;
@@ -853,4 +889,29 @@ function dropMissionStartMarker(latlng) {
             if (latEl && lngEl) { latEl.value = p.lat.toFixed(6); lngEl.value = p.lng.toFixed(6); }
         });
     } catch (e) { console.error('Erreur dépôt marqueur mission:', e); }
+}
+
+function dropMissionEndMarker(latlng) {
+    try {
+        if (missionEndMarker) map.removeLayer(missionEndMarker);
+        missionEndMarker = L.marker([latlng.lat, latlng.lng], {
+            draggable: true,
+            title: 'Fin de mission',
+            icon: L.divIcon({
+                className: 'end-marker',
+                html: '<div style="background: #ef4444; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            })
+        }).addTo(map).bindPopup('Fin de mission').openPopup();
+
+        const latEl = document.getElementById('manual-lat');
+        const lngEl = document.getElementById('manual-lng');
+        if (latEl && lngEl) { latEl.value = latlng.lat.toFixed(6); lngEl.value = latlng.lng.toFixed(6); }
+
+        missionEndMarker.on('dragend', function(ev){
+            const p = ev.target.getLatLng();
+            if (latEl && lngEl) { latEl.value = p.lat.toFixed(6); lngEl.value = p.lng.toFixed(6); }
+        });
+    } catch (e) { console.error('Erreur dépôt marqueur fin:', e); }
 }
