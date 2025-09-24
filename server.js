@@ -1921,3 +1921,113 @@ app.post('/api/me/profile', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Serveur démarré sur le port ${PORT}`);
 });
+
+// Public: derniers points (check-ins + départ/fin de missions) anonymisés pour la carte publique
+app.get('/api/public/checkins/latest', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 100, 200);
+
+    const toRad = (v) => (Number(v) * Math.PI) / 180;
+    const R = 6371000; // meters
+
+    // Récupérer check-ins récents
+    const rows = await pool.query(`
+      SELECT c.id, c.lat, c.lon, c.timestamp,
+             m.id AS mission_id, m.start_time, m.end_time,
+             u.id AS user_id, u.name AS agent_name,
+             u.reference_lat, u.reference_lon, COALESCE(u.tolerance_radius_meters, 500) as tol,
+             u.departement, u.commune, u.arrondissement, u.village
+      FROM checkins c
+      JOIN missions m ON c.mission_id = m.id
+      JOIN users u ON m.user_id = u.id
+      ORDER BY c.timestamp DESC
+      LIMIT $1
+    `, [limit]);
+
+    const items = rows.rows.map(r => {
+      let distance_m = null;
+      try {
+        if (r.reference_lat && r.reference_lon && r.lat && r.lon) {
+          const dLat = toRad(Number(r.lat) - Number(r.reference_lat));
+          const dLon = toRad(Number(r.lon) - Number(r.reference_lon));
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(toRad(Number(r.reference_lat))) * Math.cos(toRad(Number(r.lat))) *
+                    Math.sin(dLon/2) * Math.sin(dLon/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          distance_m = Math.round(R * c);
+        }
+      } catch {}
+      return {
+        id: r.id,
+        mission_id: r.mission_id,
+        timestamp: r.timestamp,
+        lat: Number(r.lat),
+        lon: Number(r.lon),
+        agent_name: r.agent_name,
+        departement: r.departement,
+        commune: r.commune,
+        arrondissement: r.arrondissement,
+        village: r.village,
+        distance_from_reference_m: distance_m,
+        within_tolerance: distance_m !== null ? distance_m <= Number(r.tol || 500) : null
+      };
+    });
+
+    // Ajouter points dérivés des missions
+    const missionsRes = await pool.query(`
+      SELECT m.id AS mission_id, m.start_time, m.end_time, m.start_lat, m.start_lon, m.end_lat, m.end_lon,
+             u.id AS user_id, u.name AS agent_name,
+             u.reference_lat, u.reference_lon, COALESCE(u.tolerance_radius_meters, 500) as tol,
+             u.departement, u.commune, u.arrondissement, u.village
+      FROM missions m
+      JOIN users u ON m.user_id = u.id
+      ORDER BY m.start_time DESC
+      LIMIT $1
+    `, [limit]);
+
+    const derived = [];
+    for (const r of missionsRes.rows) {
+      const addPoint = (lat, lon, ts, suffix) => {
+        if (lat == null || lon == null) return;
+        let distance_m = null;
+        try {
+          if (r.reference_lat && r.reference_lon && lat && lon) {
+            const dLat = toRad(Number(lat) - Number(r.reference_lat));
+            const dLon = toRad(Number(lon) - Number(r.reference_lon));
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(toRad(Number(r.reference_lat))) * Math.cos(toRad(Number(lat))) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            distance_m = Math.round(R * c);
+          }
+        } catch {}
+        derived.push({
+          id: `m-${r.mission_id}-${suffix}`,
+          mission_id: r.mission_id,
+          timestamp: ts,
+          lat: Number(lat),
+          lon: Number(lon),
+          agent_name: r.agent_name,
+          departement: r.departement,
+          commune: r.commune,
+          arrondissement: r.arrondissement,
+          village: r.village,
+          distance_from_reference_m: distance_m,
+          within_tolerance: distance_m !== null ? distance_m <= Number(r.tol || 500) : null
+        });
+      };
+      addPoint(r.start_lat, r.start_lon, r.start_time, 'start');
+      addPoint(r.end_lat, r.end_lon, r.end_time || r.start_time, 'end');
+    }
+
+    const combined = [...items, ...derived]
+      .filter(p => typeof p.lat === 'number' && typeof p.lon === 'number')
+      .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, limit);
+
+    res.json({ success: true, checkins: combined });
+  } catch (e) {
+    console.error('Erreur /api/public/checkins/latest:', e);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});

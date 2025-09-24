@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Mode public : afficher un message informatif
         console.log('🌍 Mode public : Carte accessible à tous');
         showPublicMode();
+        loadPublicCheckins();
     }
 });
 
@@ -973,4 +974,32 @@ function dropMissionEndMarker(latlng) {
             if (latEl && lngEl) { latEl.value = p.lat.toFixed(6); lngEl.value = p.lng.toFixed(6); }
         });
     } catch (e) { console.error('Erreur dépôt marqueur fin:', e); }
+}
+
+async function loadPublicCheckins() {
+    try {
+        const res = await fetch(`${API_BASE}/public/checkins/latest?limit=150`);
+        const data = await res.json().catch(() => ({}));
+        if (!data || !data.success || !Array.isArray(data.checkins)) return;
+        // Nettoyer anciens
+        checkinMarkers.forEach(m => { try { map.removeLayer(m); } catch {} });
+        checkinMarkers = [];
+        const latlngs = [];
+        for (const r of data.checkins) {
+            if (typeof r.lat !== 'number' || typeof r.lon !== 'number') continue;
+            const marker = L.circleMarker([r.lat, r.lon], {
+                radius: 6,
+                color: '#2563eb',
+                fillColor: '#60a5fa',
+                fillOpacity: 0.6,
+                weight: 1
+            }).addTo(map);
+            marker.bindPopup(`<b>${r.agent_name || 'Agent'}</b><br>${new Date(r.timestamp).toLocaleString('fr-FR')}<br>${r.commune || ''}`);
+            checkinMarkers.push(marker);
+            latlngs.push([r.lat, r.lon]);
+        }
+        if (latlngs.length) map.fitBounds(latlngs, { padding: [20, 20] });
+    } catch (e) {
+        console.warn('Public checkins load error:', e);
+    }
 }
