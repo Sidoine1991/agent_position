@@ -291,11 +291,11 @@ function centerOnUser() {
                     errorMessage = 'Délai d\'attente dépassé';
                     break;
             }
-            showToast(errorMessage, 'error');
+            showToast(errorMessage + '. Utilisez la correction GPS manuelle.', 'warning');
         },
         {
             enableHighAccuracy: true,
-            timeout: 10000,
+            timeout: 20000,
             maximumAge: 30000
         }
     );
@@ -368,7 +368,14 @@ async function checkIn() {
     try {
         showLoading(true);
         
-        const position = await getCurrentPosition();
+        let position;
+        try {
+            position = await getCurrentPosition();
+        } catch (geoErr) {
+            showToast('GPS indisponible (timeout). Entrez des coordonnées dans "Correction GPS" puis réessayez.', 'warning');
+            return;
+        }
+        
         if (!position) {
             showToast('Impossible d\'obtenir la position GPS', 'error');
             return;
@@ -391,7 +398,6 @@ async function checkIn() {
             showToast('Erreur: ' + response.message, 'error');
         }
     } catch (error) {
-        console.error('Erreur check-in:', error);
         showToast('Erreur lors de l\'enregistrement de la position', 'error');
     } finally {
         showLoading(false);
@@ -546,12 +552,17 @@ function getCurrentPosition() {
                 });
             },
             function(error) {
+                // Fallback doux: si utilisateur a entré une correction après coup
+                if (correctedPosition) {
+                    resolve(correctedPosition);
+                    return;
+                }
                 reject(error);
             },
             {
                 enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
+                timeout: 20000,
+                maximumAge: 5000
             }
         );
     });
@@ -615,13 +626,19 @@ async function api(endpoint, options = {}) {
         const response = await fetch(url, config);
         const data = await response.json().catch(() => ({}));
         
+        // Tolérer 404 sur /profile en mode public
         if (!response.ok) {
+            if (response.status === 404 && endpoint.startsWith('/profile')) {
+                return { success: false };
+            }
             throw new Error((data && data.message) || 'Erreur API');
         }
         
         return data;
     } catch (error) {
-        console.error('API Error:', error);
+        if (!(endpoint.startsWith('/profile'))) {
+            console.error('API Error:', error);
+        }
         throw error;
     }
 }
