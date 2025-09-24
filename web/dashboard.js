@@ -76,7 +76,9 @@ async function getProfile() {
   try {
     // Essayer avec email si disponible pour compat
     const email = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
-    currentProfile = email ? await api(`/profile?email=${encodeURIComponent(email)}`) : await api('/profile');
+    const res = email ? await api(`/profile?email=${encodeURIComponent(email)}`) : await api('/profile');
+    // Adapter à la réponse { success, user }
+    currentProfile = res && res.user ? res.user : res;
     return currentProfile;
   } catch (e) {
     console.warn('getProfile: profil non disponible (continue en mode libre)');
@@ -84,9 +86,35 @@ async function getProfile() {
   }
 }
 
+async function tryAutoLoginIfNeeded() {
+  if (jwt && jwt.length > 20) return false;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get('email') || localStorage.getItem('userEmail') || localStorage.getItem('lastUserEmail');
+    const password = params.get('password') || localStorage.getItem('userPassword') || localStorage.getItem('lastPassword');
+    if (!email || !password) return false;
+    console.log('🔐 Auto-login (dashboard) avec paramètres disponibles...');
+    const res = await api('/login', { method: 'POST', body: { email, password } });
+    if (res && res.success && res.token) {
+      jwt = res.token;
+      localStorage.setItem('jwt', jwt);
+      localStorage.setItem('userEmail', res.user?.email || email);
+      console.log('✅ Auto-login réussi (dashboard)');
+      return true;
+    }
+  } catch (e) {
+    console.warn('Auto-login dashboard échoué:', e.message || e);
+  }
+  return false;
+}
+
 async function ensureAuth() {
-  // Mode libre: ne force pas l'authentification, juste tenter de restaurer jwt et continuer
+  // Mode libre: tenter de restaurer ou d'auto-connecter puis continuer
   jwt = localStorage.getItem('jwt') || jwt;
+  if (!jwt) {
+    await tryAutoLoginIfNeeded();
+    jwt = localStorage.getItem('jwt') || jwt;
+  }
   console.log('ensureAuth: mode libre, jwt présent =', !!jwt);
   // Optionnel: tenter d'obtenir le profil, sans bloquer
   try { await getProfile(); } catch {}
@@ -624,8 +652,8 @@ async function loadCommunes(departementId) {
     }
     
     // Réinitialiser les niveaux suivants
-    $('arrondissement').innerHTML = '<option value="">Sélectionner un arrondissement</option>';
-    $('village').innerHTML = '<option value="">Sélectionner un village</option>';
+    $('arrondissement').innerHTML = '<option value=``>Sélectionner un arrondissement</option>';
+    $('village').innerHTML = '<option value=``>Sélectionner un village</option>';
   } catch (error) {
     console.error('Erreur chargement communes:', error);
   }
