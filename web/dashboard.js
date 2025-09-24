@@ -74,11 +74,17 @@ let currentProfile;
 
 async function getProfile() {
   try {
-    // Essayer avec email si disponible pour compat
+    // Essayer via /api/me si jwt, sinon /profile?email
+    if (jwt) {
+      const res = await api('/me');
+      if (res && res.success && res.data && res.data.user) {
+        currentProfile = res.data.user;
+        return currentProfile;
+      }
+    }
     const email = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
-    const res = email ? await api(`/profile?email=${encodeURIComponent(email)}`) : await api('/profile');
-    // Adapter à la réponse { success, user }
-    currentProfile = res && res.user ? res.user : res;
+    const res2 = email ? await api(`/profile?email=${encodeURIComponent(email)}`) : await api('/profile');
+    currentProfile = res2 && res2.user ? res2.user : res2?.data?.user || null;
     return currentProfile;
   } catch (e) {
     console.warn('getProfile: profil non disponible (continue en mode libre)');
@@ -215,17 +221,15 @@ async function loadCheckinsOnMap() {
   try {
     console.log('🗺️ Chargement des check-ins pour la carte...');
     
-    // Charger les derniers check-ins
     const response = await api('/admin/checkins/latest?limit=100');
-    if (response.success && response.checkins) {
-      console.log('✅ Check-ins chargés:', response.checkins.length);
+    const rows = response?.data?.items || response?.checkins || [];
+    if (rows && rows.length) {
+      console.log('✅ Check-ins chargés:', rows.length);
       
-      // Nettoyer les marqueurs existants
       checkinMarkers.forEach(marker => map.removeLayer(marker));
       checkinMarkers = [];
       
-      // Ajouter les marqueurs pour chaque check-in
-      response.checkins.forEach(checkin => {
+      rows.forEach(checkin => {
         if (checkin.lat && checkin.lon) {
           const color = colorForAgent(checkin.user_id || checkin.agent_id || 0);
           const marker = L.circleMarker([checkin.lat, checkin.lon], {
@@ -236,30 +240,24 @@ async function loadCheckinsOnMap() {
             opacity: 0.8,
             fillOpacity: 0.6
           }).addTo(map);
-          
-          // Popup avec informations du check-in
+          const typeLabel = checkin.type === 'mission_start' ? 'Départ' : checkin.type === 'mission_end' ? 'Fin' : 'Check-in';
           const popupContent = `
             <div style="min-width: 200px;">
-              <h6><strong>${checkin.agent_name}</strong></h6>
-              <p><strong>Rôle:</strong> ${checkin.agent_role}</p>
+              <h6><strong>${checkin.agent_name}</strong> • ${typeLabel}</h6>
               <p><strong>Date:</strong> ${new Date(checkin.timestamp).toLocaleString('fr-FR')}</p>
-              <p><strong>Position:</strong> ${checkin.commune || 'Non spécifiée'}</p>
+              <p><strong>Position:</strong> ${checkin.commune || 'N/A'}</p>
               <p><strong>Distance:</strong> ${checkin.distance_from_reference_m ? checkin.distance_from_reference_m + 'm' : 'N/A'}</p>
-              <p><strong>Statut:</strong> <span style="color: ${checkin.within_tolerance ? '#10b981' : '#ef4444'}">${checkin.within_tolerance ? '✅ Dans la zone' : '❌ Hors zone'}</span></p>
             </div>
           `;
-          
           marker.bindPopup(popupContent);
           checkinMarkers.push(marker);
         }
       });
       
-      // Ajuster la vue de la carte pour inclure tous les marqueurs
       if (checkinMarkers.length > 0) {
         const group = new L.featureGroup(checkinMarkers);
         map.fitBounds(group.getBounds().pad(0.1));
       }
-      
       console.log('✅ Carte mise à jour avec', checkinMarkers.length, 'marqueurs');
     }
   } catch (error) {
@@ -727,24 +725,24 @@ async function refresh() {
   try {
     if (useLatest) {
       const resp = await api('/admin/checkins/latest');
-      rows = resp && resp.checkins ? resp.checkins : (Array.isArray(resp) ? resp : []);
+      rows = resp?.data?.items || resp?.checkins || [];
     } else {
-      rows = await api('/admin/checkins?' + params.toString());
+      const resp = await api('/admin/checkins?' + params.toString());
+      rows = resp?.data?.items || [];
     }
   } catch (e) {
     console.warn('Admin checkins API indisponible, tentative fallback public:', e.message || e);
-    // Fallback léger: tenter une route publique si disponible
     try {
       const resp = await fetch(apiBase + '/admin/checkins/latest');
       const data = await resp.json().catch(() => null);
-      rows = data && data.checkins ? data.checkins : [];
+      rows = data?.data?.items || data?.checkins || [];
     } catch {}
   }
 
   const latlngs = [];
   for (const r of rows) {
     if (typeof r.lat !== 'number' || typeof r.lon !== 'number') continue;
-    const m = L.marker([r.lat, r.lon]).bindPopup(`<b>${r.agent_name}</b><br>${r.timestamp}<br>${r.departement_name || ''} / ${r.commune_name || ''} / ${r.arrondissement_name || ''} / ${r.village_name || ''}${r.photo_path ? `<br><img src='${r.photo_path}' style='max-width:160px'/>` : ''}`);
+    const m = L.marker([r.lat, r.lon]).bindPopup(`<b>${r.agent_name}</b><br>${r.timestamp}`);
     markersLayer.addLayer(m);
     latlngs.push([r.lat, r.lon]);
 

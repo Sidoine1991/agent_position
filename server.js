@@ -301,39 +301,24 @@ app.get('/api/geo/search', async (req, res) => {
 // Route pour récupérer le profil utilisateur
 app.get('/api/profile', async (req, res) => {
   try {
-    // Pour l'instant, simulation basée sur l'email
-    // Dans une vraie app, on vérifierait le JWT
     const email = req.query.email || 'admin@ccrb.local';
-    
     const result = await pool.query('SELECT id, email, name, role, phone, photo_path, is_verified FROM users WHERE email = $1', [email]);
-    
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Utilisateur non trouvé'
-      });
+      return res.status(404).json({ success: false, error: 'Utilisateur non trouvé' });
     }
-    
     const user = result.rows[0];
-    res.json({
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        phone: user.phone,
-        photo_path: user.photo_path || null,
-        is_verified: user.is_verified
-      }
-    });
-    
+    return res.json({ success: true, data: { user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      phone: user.phone,
+      photo_path: user.photo_path || null,
+      is_verified: user.is_verified
+    } } });
   } catch (error) {
     console.error('Erreur récupération profil:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la récupération du profil'
-    });
+    return res.status(500).json({ success: false, error: 'Erreur lors de la récupération du profil' });
   }
 });
 
@@ -529,9 +514,9 @@ app.get('/api/settings', async (req, res) => {
     )`);
     const settings = {};
     for (const r of rows.rows) settings[r.key] = r.value;
-    res.json({ success: true, settings });
+    return res.json({ success: true, data: { settings } });
   } catch (e) {
-    res.status(500).json({ success: false, message: 'Erreur chargement paramètres' });
+    return res.status(500).json({ success: false, error: 'Erreur chargement paramètres' });
   }
 });
 
@@ -970,25 +955,17 @@ app.get('/api/geo/villages/:arrondissementId', (req, res) => {
 // Démarrer une mission de présence
 app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
   try {
-    // Vérification de l'authentification
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Token d\'authentification requis'
-      });
+      return res.status(401).json({ success: false, error: 'Token d\'authentification requis' });
     }
-    
     const token = authHeader.substring(7);
     let userId;
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
       userId = decoded.userId;
     } catch (jwtError) {
-      return res.status(401).json({
-        success: false,
-        message: 'Token d\'authentification invalide'
-      });
+      return res.status(401).json({ success: false, error: 'Token d\'authentification invalide' });
     }
     
     console.log('Utilisateur authentifié:', userId);
@@ -1053,18 +1030,14 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
       RETURNING id
     `, [userId, start_time || new Date().toISOString(), lat, lon, departement, commune, arrondissement, village, note]);
 
-    res.json({
-      success: true,
+    return res.json({ success: true, data: {
       message: 'Mission démarrée avec succès',
       mission_id: result.rows[0].id,
       distance_from_reference_m: distance_m
-    });
+    } });
   } catch (error) {
     console.error('Erreur démarrage mission:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors du démarrage de la mission'
-    });
+    return res.status(500).json({ success: false, error: 'Erreur lors du démarrage de la mission' });
   }
 });
 
@@ -1152,13 +1125,14 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
 
     return res.json({ 
       success: true, 
-      message: force_end ? 'Mission terminée (sans position GPS)' : 'Mission terminée avec succès',
-      force_end: force_end || false
+      data: {
+        message: force_end ? 'Mission terminée (sans position GPS)' : 'Mission terminée avec succès',
+        force_end: force_end || false
+      }
     });
   } catch (e) {
     console.error('Erreur fin mission:', e);
-    console.error('Stack trace:', e.stack);
-    return res.status(500).json({ success: false, message: 'Erreur lors de la fin de la mission: ' + e.message });
+    return res.status(500).json({ success: false, error: 'Erreur lors de la fin de la mission: ' + e.message });
   }
 });
 
@@ -1227,36 +1201,24 @@ app.post('/api/presence/force-end', upload.single('photo'), async (req, res) => 
 
     return res.json({ 
       success: true, 
-      message: 'Mission terminée (fin forcée - sans position GPS)',
-      force_end: true
+      data: {
+        message: 'Mission terminée (fin forcée - sans position GPS)',
+        force_end: true
+      }
     });
   } catch (e) {
     console.error('Erreur fin forcée mission:', e);
-    return res.status(500).json({ success: false, message: 'Erreur lors de la fin forcée de la mission: ' + e.message });
+    return res.status(500).json({ success: false, error: 'Erreur lors de la fin forcée de la mission: ' + e.message });
   }
 });
 
 // Admin: derniers check-ins
-app.get('/api/admin/checkins/latest', async (req, res) => {
+app.get('/api/admin/checkins/latest', requireAuth(['admin','superviseur']), async (req, res) => {
   try {
-    // Auth: admin ou superviseur
-    const authHeader = req.headers.authorization || '';
-    if (!authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, message: 'Authorization requise' });
-    }
-    let tokenPayload;
-    try {
-      tokenPayload = jwt.verify(authHeader.substring(7), JWT_SECRET);
-    } catch {
-      return res.status(401).json({ success: false, message: 'Token invalide' });
-    }
-    if (!tokenPayload || (tokenPayload.role !== 'admin' && tokenPayload.role !== 'superviseur')) {
-      return res.status(403).json({ success: false, message: 'Réservé aux administrateurs/superviseurs' });
-    }
+    const limit = Math.min(parseInt(req.query.limit) || 50, 500);
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
 
-    const limit = parseInt(req.query.limit) || 50;
-    
-    const q = `
+    const base = `
       SELECT c.id, c.lat, c.lon, c.timestamp,
              m.id AS mission_id, m.start_time, m.end_time,
              u.id AS user_id, u.name AS agent_name, u.role as agent_role,
@@ -1266,14 +1228,14 @@ app.get('/api/admin/checkins/latest', async (req, res) => {
       JOIN missions m ON c.mission_id = m.id
       JOIN users u ON m.user_id = u.id
       ORDER BY c.timestamp DESC
-      LIMIT $1`;
-    
-    const rows = await pool.query(q, [limit]);
+      LIMIT $1 OFFSET $2`;
+
+    const rows = await pool.query(base, [limit, offset]);
 
     const toRad = (v) => (Number(v) * Math.PI) / 180;
     const R = 6371000; // meters
 
-    const items = rows.rows.map(r => {
+    const itemsCheckins = rows.rows.map(r => {
       let distance_m = null;
       try {
         if (r.reference_lat && r.reference_lon && r.lat && r.lon) {
@@ -1285,11 +1247,10 @@ app.get('/api/admin/checkins/latest', async (req, res) => {
           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
           distance_m = Math.round(R * c);
         }
-      } catch (e) {
-        console.warn('Erreur calcul distance:', e);
-      }
+      } catch {}
       
       return {
+        type: 'checkin',
         id: r.id,
         lat: Number(r.lat),
         lon: Number(r.lon),
@@ -1309,7 +1270,7 @@ app.get('/api/admin/checkins/latest', async (req, res) => {
       };
     });
 
-    // Ajouter des points dérivés depuis missions (départ/fin) pour couvrir les cas sans check-in
+    // Ajouter des points dérivés depuis missions
     const missionsRes = await pool.query(`
       SELECT m.id AS mission_id, m.start_time, m.end_time, m.start_lat, m.start_lon, m.end_lat, m.end_lon,
              u.id AS user_id, u.name AS agent_name, u.role AS agent_role,
@@ -1318,8 +1279,8 @@ app.get('/api/admin/checkins/latest', async (req, res) => {
       FROM missions m
       JOIN users u ON m.user_id = u.id
       ORDER BY m.start_time DESC
-      LIMIT $1
-    `, [limit]);
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
 
     const derived = [];
     for (const r of missionsRes.rows) {
@@ -1338,6 +1299,7 @@ app.get('/api/admin/checkins/latest', async (req, res) => {
           }
         } catch {}
         derived.push({
+          type: labelSuffix === 'start' ? 'mission_start' : 'mission_end',
           id: `m-${r.mission_id}-${labelSuffix}`,
           lat: Number(lat),
           lon: Number(lon),
@@ -1360,41 +1322,27 @@ app.get('/api/admin/checkins/latest', async (req, res) => {
       pushPoint(r.end_lat, r.end_lon, r.end_time || r.start_time, 'end');
     }
 
-    // Fusionner, trier par date desc et limiter
-    const combined = [...items, ...derived]
+    const combined = [...itemsCheckins, ...derived]
       .filter(p => typeof p.lat === 'number' && typeof p.lon === 'number')
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       .slice(0, limit);
 
-    res.json({ success: true, checkins: combined });
+    return res.json({ success: true, data: { items: combined, limit, offset } });
   } catch (error) {
     console.error('Erreur admin checkins latest:', error);
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
-// Admin: liste détaillée des check-ins avec distances
-app.get('/api/admin/checkins', async (req, res) => {
+// Admin: liste détaillée des check-ins avec distances et filtres
+app.get('/api/admin/checkins', requireAuth(['admin','superviseur']), async (req, res) => {
   try {
-    // Auth: admin ou superviseur
-    const authHeader = req.headers.authorization || '';
-    if (!authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, message: 'Authorization requise' });
-    }
-    let tokenPayload;
-    try {
-      tokenPayload = jwt.verify(authHeader.substring(7), JWT_SECRET);
-    } catch {
-      return res.status(401).json({ success: false, message: 'Token invalide' });
-    }
-    if (!tokenPayload || (tokenPayload.role !== 'admin' && tokenPayload.role !== 'superviseur')) {
-      return res.status(403).json({ success: false, message: 'Réservé aux administrateurs/superviseurs' });
-    }
-
     const urlObj = new URL(req.protocol + '://' + req.get('host') + req.originalUrl);
     const from = urlObj.searchParams.get('from');
     const to = urlObj.searchParams.get('to');
     const agentId = urlObj.searchParams.get('agent_id');
+    const limit = Math.min(parseInt(urlObj.searchParams.get('limit')) || 100, 1000);
+    const offset = Math.max(parseInt(urlObj.searchParams.get('offset')) || 0, 0);
 
     const params = [];
     let where = '1=1';
@@ -1413,8 +1361,8 @@ app.get('/api/admin/checkins', async (req, res) => {
       JOIN users u ON m.user_id = u.id
       WHERE ${where}
       ORDER BY c.timestamp DESC
-      LIMIT 1000`;
-    const rows = await pool.query(q, params);
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    const rows = await pool.query(q, [...params, limit, offset]);
 
     const toRad = (v) => (Number(v) * Math.PI) / 180;
     const R = 6371000; // meters
@@ -1432,6 +1380,7 @@ app.get('/api/admin/checkins', async (req, res) => {
       } catch {}
       const within = (distance_m !== null) ? distance_m <= Number(r.tol || 500) : null;
       return {
+        type: 'checkin',
         id: r.id,
         mission_id: r.mission_id,
         timestamp: r.timestamp,
@@ -1449,7 +1398,7 @@ app.get('/api/admin/checkins', async (req, res) => {
       };
     });
 
-    // Ajouter les points dérivés depuis missions selon le filtre
+    // Ajouter missions dérivées filtrées
     const paramsM = [];
     let whereM = '1=1';
     if (from) { paramsM.push(from); whereM += ` AND DATE(m.start_time) >= $${paramsM.length}`; }
@@ -1465,8 +1414,8 @@ app.get('/api/admin/checkins', async (req, res) => {
       JOIN users u ON m.user_id = u.id
       WHERE ${whereM}
       ORDER BY m.start_time DESC
-      LIMIT 1000
-    `, paramsM);
+      LIMIT $${paramsM.length + 1} OFFSET $${paramsM.length + 2}
+    `, [...paramsM, limit, offset]);
 
     const derived = [];
     for (const r of missionsRes.rows) {
@@ -1483,6 +1432,7 @@ app.get('/api/admin/checkins', async (req, res) => {
           }
         } catch {}
         derived.push({
+          type: suffix === 'start' ? 'mission_start' : 'mission_end',
           id: `m-${r.mission_id}-${suffix}`,
           mission_id: r.mission_id,
           timestamp: ts,
@@ -1505,10 +1455,10 @@ app.get('/api/admin/checkins', async (req, res) => {
 
     const combined = [...items, ...derived].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-    return res.json({ success: true, items: combined });
+    return res.json({ success: true, data: { items: combined, limit, offset } });
   } catch (e) {
     console.error('GET /api/admin/checkins error:', e);
-    return res.status(500).json({ success: false, message: 'Erreur serveur' });
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
@@ -1589,14 +1539,11 @@ app.get('/api/missions/history', async (req, res) => {
 
     res.json({
       success: true,
-      missions: result.rows
+      data: { missions: result.rows }
     });
   } catch (error) {
     console.error('Erreur historique missions:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la récupération de l\'historique'
-    });
+    res.status(500).json({ success: false, error: 'Erreur lors de la récupération de l\'historique' });
   }
 });
 
@@ -1630,13 +1577,10 @@ app.get('/api/missions/:id/checkins', async (req, res) => {
       return { lat: r.lat, lon: r.lon, note: r.note, timestamp: r.timestamp, distance_from_reference_m: distance_m, tol: r.tol };
     });
 
-    res.json({ success: true, checkins: items });
+    res.json({ success: true, data: { checkins: items } });
   } catch (error) {
     console.error('Erreur check-ins mission:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la récupération des check-ins'
-    });
+    res.status(500).json({ success: false, error: 'Erreur lors de la récupération des check-ins' });
   }
 });
 
@@ -1676,16 +1620,10 @@ app.get('/api/me/missions', async (req, res) => {
       ORDER BY m.start_time DESC
     `, [userId]);
     
-    res.json({
-      success: true,
-      missions: result.rows
-    });
+    res.json({ success: true, data: { missions: result.rows } });
   } catch (error) {
     console.error('Erreur récupération missions:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la récupération des missions'
-    });
+    res.status(500).json({ success: false, error: 'Erreur lors de la récupération des missions' });
   }
 });
 
@@ -2025,9 +1963,49 @@ app.get('/api/public/checkins/latest', async (req, res) => {
       .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))
       .slice(0, limit);
 
-    res.json({ success: true, checkins: combined });
+    res.json({ success: true, data: { checkins: combined } });
   } catch (e) {
     console.error('Erreur /api/public/checkins/latest:', e);
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// Helper auth middleware
+function requireAuth(roles = []) {
+  return async (req, res, next) => {
+    try {
+      const authHeader = req.headers.authorization || '';
+      if (!authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ success: false, error: 'Authorization requise' });
+      }
+      let tokenPayload;
+      try {
+        tokenPayload = jwt.verify(authHeader.substring(7), JWT_SECRET);
+      } catch {
+        return res.status(401).json({ success: false, error: 'Token invalide' });
+      }
+      if (roles.length) {
+        const roleRes = await pool.query('SELECT role FROM users WHERE id = $1 LIMIT 1', [tokenPayload.userId]);
+        const role = roleRes.rows[0]?.role;
+        if (!role || !roles.includes(role)) {
+          return res.status(403).json({ success: false, error: 'Accès interdit' });
+        }
+      }
+      req.user = tokenPayload;
+      next();
+    } catch (e) {
+      return res.status(500).json({ success: false, error: 'Erreur auth' });
+    }
+  };
+}
+
+// Profil de l'utilisateur courant
+app.get('/api/me', requireAuth(), async (req, res) => {
+  try {
+    const r = await pool.query('SELECT id, email, name, role, phone, photo_path FROM users WHERE id = $1 LIMIT 1', [req.user.userId]);
+    if (r.rows.length === 0) return res.status(404).json({ success: false, error: 'Utilisateur introuvable' });
+    return res.json({ success: true, data: { user: r.rows[0] } });
+  } catch (e) {
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });

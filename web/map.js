@@ -93,54 +93,78 @@ function initMap() {
     });
 }
 
+// Fonction API
+async function api(endpoint, options = {}) {
+    const token = localStorage.getItem('jwt');
+    const url = `${API_BASE}${endpoint}`;
+    
+    const config = {
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : undefined
+        },
+        ...options
+    };
+    
+    try {
+        const response = await fetch(url, config);
+        const data = await response.json().catch(() => ({}));
+        
+        if (!response.ok) {
+            if (response.status === 404 && endpoint.startsWith('/profile')) {
+                return { success: false };
+            }
+            throw new Error((data && (data.error || data.message)) || 'Erreur API');
+        }
+        
+        return data;
+    } catch (error) {
+        if (!(endpoint.startsWith('/profile'))) {
+            console.error('API Error:', error);
+        }
+        throw error;
+    }
+}
+
 // Charger les données utilisateur
 async function loadUserData() {
     try {
         if (!jwt) {
-            // En mode public, ne pas rediriger
-            console.log('⚠️ Pas de token, mode public activé');
             document.getElementById('current-location').textContent = 'Mode public - Carte accessible';
             return;
         }
         
-        const response = await api('/profile');
-        if (response.success && response.user) {
-            const user = response.user;
+        const response = await api('/me');
+        const user = response?.data?.user || response?.user;
+        if (user) {
             document.getElementById('current-location').textContent = 
                 `${user.commune || 'Non défini'}, ${user.departement || 'Non défini'}`;
         } else {
             document.getElementById('current-location').textContent = 'Mode public - Carte accessible';
         }
     } catch (error) {
-        // Tolérer le 404 "Utilisateur non trouvé" en mode public
         document.getElementById('current-location').textContent = 'Mode public - Carte accessible';
     }
 }
 
 // Vérifier la mission actuelle
 async function checkCurrentMission() {
-    // En mode public, ne pas faire d'appels API
     if (!jwt || jwt.length < 20) {
-        console.log('🌍 Mode public : Pas de vérification de mission');
         updateMissionUI(null);
         return;
     }
-    
     try {
         const response = await api('/me/missions');
-        if (response.success && response.missions) {
-            const activeMission = response.missions.find(m => m.status === 'active');
-            if (activeMission) {
-                currentMission = activeMission;
-                updateMissionUI(activeMission);
-                loadCheckins(activeMission.id);
-            } else {
-                updateMissionUI(null);
-            }
+        const missions = response?.data?.missions || response?.missions || [];
+        const activeMission = missions.find(m => m.status === 'active');
+        if (activeMission) {
+            currentMission = activeMission;
+            updateMissionUI(activeMission);
+            loadCheckins(activeMission.id);
+        } else {
+            updateMissionUI(null);
         }
-    } catch (error) {
-        console.error('Erreur vérification mission:', error);
-    }
+    } catch (error) {}
 }
 
 // Mettre à jour l'interface de mission
@@ -186,36 +210,28 @@ function updateMissionUI(mission) {
 async function loadCheckins(missionId) {
     try {
         const response = await api(`/missions/${missionId}/checkins`);
-        if (response.success && response.checkins) {
-            // Supprimer les anciens marqueurs
-            checkinMarkers.forEach(marker => map.removeLayer(marker));
-            checkinMarkers = [];
-            
-            // Ajouter les nouveaux marqueurs
-            response.checkins.forEach(checkin => {
-                if (checkin.lat && checkin.lon) {
-                    const marker = L.marker([checkin.lat, checkin.lon], {
-                        icon: L.divIcon({
-                            className: 'checkin-marker',
-                            html: '<div style="background: #28a745; width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>',
-                            iconSize: [15, 15],
-                            iconAnchor: [7, 7]
-                        })
-                    }).addTo(map);
-                    
-                    marker.bindPopup(`
-                        <b>Check-in</b><br>
-                        ${new Date(checkin.checkin_time).toLocaleString()}<br>
-                        <small>Précision: ${checkin.accuracy}m</small>
-                    `);
-                    
-                    checkinMarkers.push(marker);
-                }
-            });
-        }
-    } catch (error) {
-        console.error('Erreur chargement check-ins:', error);
-    }
+        const list = response?.data?.checkins || response?.checkins || [];
+        checkinMarkers.forEach(marker => map.removeLayer(marker));
+        checkinMarkers = [];
+        list.forEach(checkin => {
+            if (checkin.lat && checkin.lon) {
+                const marker = L.marker([checkin.lat, checkin.lon], {
+                    icon: L.divIcon({
+                        className: 'checkin-marker',
+                        html: '<div style="background: #28a745; width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>',
+                        iconSize: [15, 15],
+                        iconAnchor: [7, 7]
+                    })
+                }).addTo(map);
+                marker.bindPopup(`
+                    <b>Check-in</b><br>
+                    ${new Date(checkin.timestamp || checkin.checkin_time).toLocaleString('fr-FR')}<br>
+                    ${checkin.accuracy ? `<small>Précision: ${checkin.accuracy}m</small>` : ''}
+                `);
+                checkinMarkers.push(marker);
+            }
+        });
+    } catch (error) {}
 }
 
 // Démarrer le suivi de position
@@ -617,40 +633,6 @@ function createToastContainer() {
     return container;
 }
 
-// Fonction API
-async function api(endpoint, options = {}) {
-    const token = localStorage.getItem('jwt');
-    const url = `${API_BASE}${endpoint}`;
-    
-    const config = {
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': token ? `Bearer ${token}` : undefined
-        },
-        ...options
-    };
-    
-    try {
-        const response = await fetch(url, config);
-        const data = await response.json().catch(() => ({}));
-        
-        // Tolérer 404 sur /profile en mode public
-        if (!response.ok) {
-            if (response.status === 404 && endpoint.startsWith('/profile')) {
-                return { success: false };
-            }
-            throw new Error((data && data.message) || 'Erreur API');
-        }
-        
-        return data;
-    } catch (error) {
-        if (!(endpoint.startsWith('/profile'))) {
-            console.error('API Error:', error);
-        }
-        throw error;
-    }
-}
-
 // Déconnexion
 function logout() {
     localStorage.removeItem('jwt');
@@ -1012,16 +994,16 @@ function dropMissionEndMarker(latlng) {
     } catch (e) { console.error('Erreur dépôt marqueur fin:', e); }
 }
 
+// Charger des points publics si non authentifié
 async function loadPublicCheckins() {
     try {
         const res = await fetch(`${API_BASE}/public/checkins/latest?limit=150`);
         const data = await res.json().catch(() => ({}));
-        if (!data || !data.success || !Array.isArray(data.checkins)) return;
-        // Nettoyer anciens
+        const list = data?.data?.checkins || data?.checkins || [];
         checkinMarkers.forEach(m => { try { map.removeLayer(m); } catch {} });
         checkinMarkers = [];
         const latlngs = [];
-        for (const r of data.checkins) {
+        for (const r of list) {
             if (typeof r.lat !== 'number' || typeof r.lon !== 'number') continue;
             const marker = L.circleMarker([r.lat, r.lon], {
                 radius: 6,
@@ -1035,9 +1017,7 @@ async function loadPublicCheckins() {
             latlngs.push([r.lat, r.lon]);
         }
         if (latlngs.length) map.fitBounds(latlngs, { padding: [20, 20] });
-    } catch (e) {
-        console.warn('Public checkins load error:', e);
-    }
+    } catch (e) {}
 }
 
 function renderStatusBar() {
