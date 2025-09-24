@@ -24,8 +24,8 @@ function checkAuth() {
 
 // Initialisation
 document.addEventListener('DOMContentLoaded', function() {
-    // Mettre à jour le token au chargement
-    updateToken();
+    // Restaurer jwt depuis localStorage si besoin
+    jwt = localStorage.getItem('jwt') || jwt;
     
     // Initialiser la carte même sans authentification
     initMap();
@@ -95,7 +95,7 @@ function initMap() {
 // Charger les données utilisateur
 async function loadUserData() {
     try {
-        if (!token) {
+        if (!jwt) {
             // En mode public, ne pas rediriger
             console.log('⚠️ Pas de token, mode public activé');
             document.getElementById('current-location').textContent = 'Mode public - Carte accessible';
@@ -593,23 +593,23 @@ function createToastContainer() {
 
 // Fonction API
 async function api(endpoint, options = {}) {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('jwt');
     const url = `${API_BASE}${endpoint}`;
     
     const config = {
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Authorization': token ? `Bearer ${token}` : undefined
         },
         ...options
     };
     
     try {
         const response = await fetch(url, config);
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
         
         if (!response.ok) {
-            throw new Error(data.message || 'Erreur API');
+            throw new Error((data && data.message) || 'Erreur API');
         }
         
         return data;
@@ -621,7 +621,7 @@ async function api(endpoint, options = {}) {
 
 // Déconnexion
 function logout() {
-    localStorage.removeItem('token');
+    localStorage.removeItem('jwt');
     localStorage.removeItem('user');
     window.location.href = 'index.html';
 }
