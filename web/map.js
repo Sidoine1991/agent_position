@@ -12,11 +12,11 @@ let isSatelliteView = false;
 let watchId = null;
 let jwt = localStorage.getItem('jwt') || '';
 
-// Vérification d'authentification
+// Vérification d'authentification (optionnelle pour la carte)
 function checkAuth() {
     if (!jwt || jwt.length < 20) {
-        console.log('❌ Pas de token d\'authentification, redirection vers la page de connexion');
-        window.location.href = '/';
+        console.log('⚠️ Pas de token d\'authentification, mode public activé');
+        // Ne pas rediriger, permettre l'accès public à la carte
         return false;
     }
     return true;
@@ -24,14 +24,38 @@ function checkAuth() {
 
 // Initialisation
 document.addEventListener('DOMContentLoaded', function() {
-    // Vérifier l'authentification avant d'initialiser
-    if (!checkAuth()) return;
-    
+    // Initialiser la carte même sans authentification
     initMap();
-    loadUserData();
-    checkCurrentMission();
-    startLocationTracking();
+    
+    // Charger les données utilisateur seulement si authentifié
+    if (checkAuth()) {
+        loadUserData();
+        checkCurrentMission();
+        startLocationTracking();
+    } else {
+        // Mode public : afficher un message informatif
+        console.log('🌍 Mode public : Carte accessible à tous');
+        showPublicMode();
+    }
 });
+
+// Fonction pour afficher le mode public
+function showPublicMode() {
+    // Afficher un message informatif dans la section des instructions
+    const instructionsDiv = document.querySelector('.instructions');
+    if (instructionsDiv) {
+        instructionsDiv.innerHTML = `
+            <h6><strong>🌍 Mode Public</strong></h6>
+            <p>Cette carte est accessible à tous. Pour utiliser les fonctionnalités complètes, veuillez vous connecter.</p>
+            <p><strong>Fonctionnalités disponibles :</strong></p>
+            <ul>
+                <li>📍 Visualisation de la carte</li>
+                <li>🗺️ Navigation et zoom</li>
+                <li>🌍 Changement de vue (satellite/standard)</li>
+            </ul>
+        `;
+    }
+}
 
 // Initialiser la carte Leaflet
 function initMap() {
@@ -70,7 +94,9 @@ async function loadUserData() {
     try {
         const token = localStorage.getItem('token');
         if (!token) {
-            window.location.href = 'index.html';
+            // En mode public, ne pas rediriger
+            console.log('⚠️ Pas de token, mode public activé');
+            document.getElementById('current-location').textContent = 'Mode public - Carte accessible';
             return;
         }
         
@@ -82,6 +108,8 @@ async function loadUserData() {
         }
     } catch (error) {
         console.error('Erreur chargement profil:', error);
+        // En cas d'erreur, afficher un message informatif
+        document.getElementById('current-location').textContent = 'Mode public - Carte accessible';
     }
 }
 
