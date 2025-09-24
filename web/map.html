@@ -58,9 +58,16 @@
         }
         
         .navbar-nav .nav-link.active {
-            background-color: rgba(255, 255, 255, 0.2);
+            background-color: rgba(255, 255, 255, 0.3);
             border-radius: 8px;
             font-weight: 600;
+            color: #fff !important;
+            cursor: default;
+        }
+        
+        .navbar-nav .nav-link.active:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+            color: #fff !important;
         }
         
         .btn-presence:hover {
@@ -138,7 +145,7 @@
                 <a class="nav-link" href="index.html">
                     <i class="fas fa-home me-1"></i> Tableau de bord
                 </a>
-                <a class="nav-link active" href="map.html">
+                <a class="nav-link active" href="#" onclick="return false;">
                     <i class="fas fa-map-marker-alt me-1"></i> Carte Présences
                 </a>
                 <a class="nav-link" href="profile.html">
