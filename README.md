@@ -1,3 +1,87 @@
+# Presence CCRB – Suivi de Présence Terrain
+
+Application de suivi de présence des agents sur le terrain avec carte interactive (Leaflet), back-end Node/Express + PostgreSQL, et déploiements Render/Vercel.
+
+## Rôles et accès
+- Admin: accès global, paramètres, exports, rapports.
+- Superviseur: accès aux données agents (lecture), exports.
+- Agent: marquage présence (démarrer/finir), check-ins, profil.
+
+Auth JWT (24h). Middleware serveur: `requireAuth(roles?: ['admin'|'superviseur'|'agent'])`.
+
+## Environnements
+- Front (Vercel): `https://agent-position.vercel.app`
+- API (Render): `https://presence-ccrb-v2.onrender.com`
+
+Variables d’environnement (Render / local):
+- `DATABASE_URL`: Postgres
+- `JWT_SECRET`: secret JWT (obligatoire en prod)
+- `PUBLIC_BASE_URL`: URL publique de l’API (ex: Render)
+- `SERPAPI_KEY`: optionnel (proxy `/api/geo/search`)
+- `EMAIL_USER`, `EMAIL_PASS`: (optionnel) envoi d’emails
+
+## Flux d’utilisation (agent)
+1. Ouvrir la carte. Chercher un lieu et cliquer ⇒ la carte centre, un marqueur “Départ” est posé, la position manuelle est mémorisée.
+2. Démarrer Mission ⇒ `/api/presence/start` avec lat/lon (GPS ou position corrigée).
+3. Check-in ponctuels ⇒ `/api/mission/checkin` (facultatif).
+4. Finir Mission ⇒ `/api/presence/end` (ou bouton de secours sans GPS ⇒ `/api/presence/force-end`).
+
+La carte publique affiche aussi les points publics (check-ins + départ/fin) sans authentification.
+
+## Contrats API (normalisés)
+Toutes les réponses suivent `{ success: boolean, data?: any, error?: string }`.
+
+### Auth & Profil
+- `GET /api/me` (JWT): `{ data: { user } }`
+- `GET /api/profile?email=`: `{ data: { user } }`
+
+### Missions / Présence (JWT)
+- `POST /api/presence/start` body `{lat,lon, ...}` → `{ data: { message, mission_id, distance_from_reference_m } }`
+- `POST /api/presence/end` body `{ mission_id?, lat?, lon?, note? }` → `{ data: { message, force_end? } }`
+- `POST /api/presence/force-end` body `{ mission_id?, note? }` → `{ data: { message, force_end: true } }`
+- `GET /api/me/missions` → `{ data: { missions: Mission[] } }`
+- `GET /api/missions/:id/checkins` → `{ data: { checkins: Checkin[] } }`
+
+### Admin/Superviseur (JWT)
+- `GET /api/admin/checkins?from&to&agent_id&limit&offset` → `{ data: { items, limit, offset } }` (items avec `type: 'checkin'|'mission_start'|'mission_end'`)
+- `GET /api/admin/checkins/latest?limit&offset` → `{ data: { items, limit, offset } }`
+- `GET /api/admin/agents` → (à normaliser si besoin) liste agents
+
+### Public
+- `GET /api/public/checkins/latest?limit` → `{ data: { checkins } }`
+
+### Paramètres
+- `GET /api/settings` → `{ data: { settings } }`
+
+## Données & Index
+Tables: `users`, `missions`, `checkins`, `reports`, `absences`, `app_settings`.
+
+Index recommandés: `missions(user_id,start_time)`, `checkins(mission_id,timestamp)`, `users(email)`. Contraintes: `role` CHECK, FKs.
+
+## Sécurité
+- `helmet` activé, CORS origin strict, `express-rate-limit` global (300 req/15min).
+- JWT vérifié via `requireAuth`. Valider inputs (coords, email, ids).
+
+## UI/UX
+- Carte: recherche (Nominatim/SerpApi), correction GPS manuelle, barre de statut compacte, marqueurs colorés par agent, types de points distincts.
+- Dashboard admin: couleurs uniques par agent, timeline, export CSV/TXT.
+
+## Déploiement
+- Render: API Node/Express (variables env + Postgres). Vercel: front statique.
+- Cache busting via query `?v=` sur assets (géré dans le code).
+
+## Tests rapides
+- `GET /api/health` (disponible)
+- Auth: POST `/api/login` → stocker `jwt` dans localStorage
+- `GET /api/me` doit renvoyer l’utilisateur
+
+## Roadmap rapide
+- Validation d’inputs complète (zod/express-validator)
+- Aggrégats périodiques (vue matérialisée/table) pour KPI hebdo/mensuel
+- Légende/filtres supplémentaires sur la carte (par type de point)
+
+---
+Pour tout besoin (correctifs/évolutions), ouvrir une issue avec le contexte, la route concernée et les logs.
 # 📍 Presence CCRB - Système de Suivi des Agents Terrain
 
 ## 🎯 À Propos
