@@ -86,7 +86,10 @@ async function checkAuth() {
 // Charger les informations du profil
 async function loadProfile() {
   try {
-    const email = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
+    const email = (new URLSearchParams(window.location.search)).get('email') || 
+                  localStorage.getItem('userEmail') || 
+                  localStorage.getItem('lastUserEmail') ||
+                  'ntchaostelle4@gmail.com'; // Email par défaut pour le test
     let profile = email ? await api('/profile?email=' + encodeURIComponent(email)) : await api('/profile');
     // Fallback depuis le cache local si certains champs manquent
     try {

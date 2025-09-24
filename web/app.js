@@ -36,8 +36,16 @@ function isProfileComplete(profile) {
 }
 
 function $(id) { return document.getElementById(id); }
-function show(el) { el.classList.remove('hidden'); }
-function hide(el) { el.classList.add('hidden'); }
+function show(el) { 
+  if (el && el.classList) {
+    el.classList.remove('hidden'); 
+  }
+}
+function hide(el) { 
+  if (el && el.classList) {
+    el.classList.add('hidden'); 
+  }
+}
 
 // Fonctions d'animation et d'effets visuels
 function addLoadingState(element, text = 'Chargement...') {
