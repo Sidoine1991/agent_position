@@ -115,6 +115,13 @@ async function loadUserData() {
 
 // Vérifier la mission actuelle
 async function checkCurrentMission() {
+    // En mode public, ne pas faire d'appels API
+    if (!jwt || jwt.length < 20) {
+        console.log('🌍 Mode public : Pas de vérification de mission');
+        updateMissionUI(null);
+        return;
+    }
+    
     try {
         const response = await api('/me/missions');
         if (response.success && response.missions) {
@@ -204,6 +211,12 @@ async function loadCheckins(missionId) {
 
 // Démarrer le suivi de position
 function startLocationTracking() {
+    // En mode public, ne pas démarrer le tracking de localisation
+    if (!jwt || jwt.length < 20) {
+        console.log('🌍 Mode public : Pas de tracking de localisation');
+        return;
+    }
+    
     if (navigator.geolocation) {
         watchId = navigator.geolocation.watchPosition(
             function(position) {
