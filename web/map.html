@@ -228,6 +228,47 @@
             background: #f3f4f6;
             border-radius: 4px;
         }
+
+        /* Barre de recherche lieu (type Google Maps) */
+        .search-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1001;
+            width: min(92%, 560px);
+        }
+        .search-box {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            border: 1px solid rgba(0,0,0,0.08);
+            padding: 8px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .search-box input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 14px;
+        }
+        .search-results {
+            margin-top: 8px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            border: 1px solid rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        .search-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .search-item:last-child { border-bottom: none; }
+        .search-item:hover { background: #f8fafc; }
         
         .btn-presence:hover {
             transform: translateY(-2px);
@@ -419,6 +460,15 @@
             <!-- Carte principale -->
             <div class="col-md-9">
                 <div class="map-container">
+                    <!-- Barre de recherche (Nominatim) -->
+                    <div class="search-container">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="place-search" placeholder="Rechercher un lieu, commune, ville..." oninput="searchPlace(event)" />
+                            <button class="btn btn-sm btn-primary" onclick="clearSearch()">Effacer</button>
+                        </div>
+                        <div id="search-results" class="search-results" style="display:none;"></div>
+                    </div>
                     <!-- Contrôles de la carte -->
                     <div class="map-controls">
                         <button class="btn btn-sm btn-outline-primary" onclick="centerOnUser()" title="Centrer sur ma position">

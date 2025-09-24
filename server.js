@@ -11,6 +11,7 @@ const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const SERPAPI_KEY = process.env.SERPAPI_KEY;
 
 // Configuration JWT
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -256,6 +257,43 @@ app.get('/reports.html', (req, res) => {
 });
 app.get('/admin-settings.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'web', 'admin-settings.html'));
+});
+
+// Proxy sécurisé pour la recherche Google Maps via SerpApi (optionnel)
+// Utilise SERPAPI_KEY côté serveur; ne jamais exposer la clé au frontend
+app.get('/api/geo/search', async (req, res) => {
+  try {
+    const q = (req.query.q || '').toString().trim();
+    if (!q) return res.status(400).json({ success: false, message: 'Paramètre q requis' });
+
+    if (!SERPAPI_KEY) {
+      return res.status(200).json({ success: true, engine: 'none', results: [] });
+    }
+
+    const params = new URLSearchParams({
+      engine: 'google_maps',
+      q,
+      api_key: SERPAPI_KEY,
+      hl: 'fr'
+    });
+    const url = `https://serpapi.com/search?${params.toString()}`;
+    const resp = await fetch(url);
+    const json = await resp.json();
+
+    const results = [];
+    if (json && json.local_results) {
+      for (const it of json.local_results) {
+        if (it.gps_coordinates && typeof it.gps_coordinates.lat === 'number' && typeof it.gps_coordinates.lng === 'number') {
+          results.push({ lat: it.gps_coordinates.lat, lon: it.gps_coordinates.lng, label: it.title || it.address || it.category || q });
+        }
+      }
+    }
+
+    res.json({ success: true, engine: 'serpapi', results });
+  } catch (e) {
+    console.error('Erreur /api/geo/search:', e);
+    res.status(500).json({ success: false, message: 'Erreur recherche lieu' });
+  }
 });
 
 // API Routes

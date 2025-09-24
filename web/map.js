@@ -737,4 +737,120 @@ document.addEventListener('DOMContentLoaded', function() {
         gpsButton.onclick = getCurrentPosition;
         gpsButtons.appendChild(gpsButton);
     }
+    // Initialiser la gestion du long-press sur la carte
+    setupLongPressToDropMarker();
 });
+
+// Recherche de lieux via Nominatim (OpenStreetMap)
+let searchAbortController = null;
+async function searchPlace(e) {
+    const query = e.target.value.trim();
+    const resultsEl = document.getElementById('search-results');
+    if (!resultsEl) return;
+    if (query.length < 3) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
+
+    try {
+        if (searchAbortController) searchAbortController.abort();
+        searchAbortController = new AbortController();
+
+        let itemsHtml = '';
+        // Essayer SerpApi (proxy backend) si dispo
+        try {
+            const resSerp = await fetch(`/api/geo/search?q=${encodeURIComponent(query)}`, { signal: searchAbortController.signal });
+            const js = await resSerp.json();
+            if (js && js.success && Array.isArray(js.results) && js.results.length) {
+                itemsHtml = js.results.map(r => {
+                    const label = r.label || `${r.lat}, ${r.lon}`;
+                    return `<div class=\"search-item\" onclick=\"selectSearchResult(${r.lat}, ${r.lon}, ${JSON.stringify(label).replace(/\\\"/g,'&quot;')})\">${label}</div>`;
+                }).join('');
+            }
+        } catch {}
+
+        // Fallback Nominatim
+        if (!itemsHtml) {
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`;
+            const res = await fetch(url, { headers: { 'Accept-Language': 'fr' }, signal: searchAbortController.signal });
+            const data = await res.json();
+            itemsHtml = (data || []).map(item => {
+                const lat = parseFloat(item.lat);
+                const lon = parseFloat(item.lon);
+                const label = item.display_name;
+                return `<div class=\"search-item\" onclick=\"selectSearchResult(${lat}, ${lon}, ${JSON.stringify(label).replace(/\\\"/g,'&quot;')})\">${label}</div>`;
+            }).join('');
+        }
+
+        resultsEl.innerHTML = itemsHtml || '<div class="search-item">Aucun résultat</div>';
+        resultsEl.style.display = 'block';
+    } catch (err) {
+        console.error('Recherche lieu échouée:', err);
+    }
+}
+
+function clearSearch() {
+    const input = document.getElementById('place-search');
+    const resultsEl = document.getElementById('search-results');
+    if (input) input.value = '';
+    if (resultsEl) { resultsEl.innerHTML = ''; resultsEl.style.display = 'none'; }
+}
+
+window.selectSearchResult = function(lat, lon, label) {
+    try {
+        map.setView([lat, lon], 15);
+        // Déposer un marqueur temporaire
+        const temp = L.marker([lat, lon]).addTo(map).bindPopup(label).openPopup();
+        setTimeout(() => { try { map.removeLayer(temp); } catch {} }, 5000);
+        // Pré-remplir le panneau de correction
+        const latEl = document.getElementById('manual-lat');
+        const lngEl = document.getElementById('manual-lng');
+        if (latEl && lngEl) { latEl.value = lat.toFixed(6); lngEl.value = lon.toFixed(6); }
+        clearSearch();
+    } catch {}
+}
+
+// Long-press / tap prolongé pour déposer le marqueur de départ de mission
+let longPressTimeout = null;
+let missionStartMarker = null;
+function setupLongPressToDropMarker() {
+    if (!map) return;
+    const pressDurationMs = 600;
+    let pressed = false;
+
+    function startPress(e) {
+        pressed = true;
+        const latlng = e.latlng || map.mouseEventToLatLng(e.originalEvent || e);
+        longPressTimeout = setTimeout(() => {
+            if (pressed) {
+                dropMissionStartMarker(latlng);
+            }
+        }, pressDurationMs);
+    }
+    function endPress() {
+        pressed = false;
+        if (longPressTimeout) { clearTimeout(longPressTimeout); longPressTimeout = null; }
+    }
+
+    map.on('mousedown', startPress);
+    map.on('touchstart', startPress);
+    map.on('mouseup', endPress);
+    map.on('touchend', endPress);
+}
+
+function dropMissionStartMarker(latlng) {
+    try {
+        if (missionStartMarker) map.removeLayer(missionStartMarker);
+        missionStartMarker = L.marker([latlng.lat, latlng.lng], {
+            draggable: true,
+            title: 'Départ de mission'
+        }).addTo(map).bindPopup('Départ de mission').openPopup();
+
+        // Mettre aussi dans le panneau de correction pour cohérence
+        const latEl = document.getElementById('manual-lat');
+        const lngEl = document.getElementById('manual-lng');
+        if (latEl && lngEl) { latEl.value = latlng.lat.toFixed(6); lngEl.value = latlng.lng.toFixed(6); }
+
+        missionStartMarker.on('dragend', function(ev){
+            const p = ev.target.getLatLng();
+            if (latEl && lngEl) { latEl.value = p.lat.toFixed(6); lngEl.value = p.lng.toFixed(6); }
+        });
+    } catch (e) { console.error('Erreur dépôt marqueur mission:', e); }
+}
