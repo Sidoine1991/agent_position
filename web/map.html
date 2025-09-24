@@ -416,66 +416,8 @@
 
     <div class="container-fluid mt-4">
         <div class="row">
-            <!-- Sidebar -->
-            <div class="col-md-3">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="fas fa-info-circle me-2"></i>
-                            Informations
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <!-- Status de présence -->
-                        <div class="location-info">
-                            <h6><i class="fas fa-map-pin me-2"></i>Position actuelle</h6>
-                            <p id="current-location" class="mb-2">Chargement...</p>
-                            <small class="text-muted" id="location-accuracy"></small>
-                        </div>
-                        
-                        <!-- Mission actuelle -->
-                        <div class="mission-info" id="mission-info" style="display: none;">
-                            <h6><i class="fas fa-tasks me-2"></i>Mission en cours</h6>
-                            <p id="mission-details" class="mb-0"></p>
-                        </div>
-                        
-                        <!-- Statut de présence -->
-                        <div class="location-info">
-                            <h6><i class="fas fa-clock me-2"></i>Statut</h6>
-                            <p class="mb-0">
-                                <span id="status-indicator" class="status-indicator status-inactive"></span>
-                                <span id="status-text">Aucune mission active</span>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Instructions -->
-                <div class="card mt-3">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="fas fa-question-circle me-2"></i>
-                            Instructions
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <ul class="list-unstyled small">
-                            <li class="mb-2">
-                                <i class="fas fa-play text-success me-2"></i>
-                                <strong>Début de journée :</strong> Cliquez sur "Démarrer Mission" pour marquer votre présence
-                            </li>
-                            <li class="mb-2">
-                                <i class="fas fa-map-marker-alt text-primary me-2"></i>
-                                <strong>Check-in :</strong> Utilisez "Marquer Position" pour enregistrer votre position
-                            </li>
-                            <li class="mb-2">
-                                <i class="fas fa-stop text-danger me-2"></i>
-                                <strong>Fin de journée :</strong> Cliquez sur "Terminer Mission" pour clôturer
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
+            <!-- Sidebar remplacée par une barre de statut en bas -->
+            <div class="col-md-3 d-none d-md-block"></div>
             
             <!-- Carte principale -->
             <div class="col-md-9">
@@ -523,6 +465,23 @@
                     </div>
                     <p class="mt-2">Chargement de la position...</p>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Barre de statut compacte en bas (centrée) -->
+    <div id="status-bar" style="
+        position: fixed;
+        left: 50%;
+        bottom: 16px;
+        transform: translateX(-50%);
+        z-index: 1100;
+        max-width: 960px;
+        width: calc(100% - 32px);
+    ">
+        <div class="shadow bg-white rounded-3 border px-3 py-2" style="backdrop-filter: blur(6px);">
+            <div id="status-bar-content" class="d-flex flex-wrap align-items-center justify-content-center gap-3 small">
+                <!-- Contenu rempli par JS -->
             </div>
         </div>
     </div>

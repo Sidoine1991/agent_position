@@ -1039,3 +1039,42 @@ async function loadPublicCheckins() {
         console.warn('Public checkins load error:', e);
     }
 }
+
+function renderStatusBar() {
+    try {
+        const bar = document.getElementById('status-bar-content');
+        if (!bar) return;
+        const loc = (document.getElementById('current-location')?.textContent || '').trim();
+        const statusTxt = (document.getElementById('status-text')?.textContent || '').trim();
+        const missionBlock = document.getElementById('mission-details');
+        const missionHtml = missionBlock && missionBlock.innerHTML ? missionBlock.innerHTML : '';
+
+        const missionPieces = [];
+        if (currentMission) {
+            missionPieces.push(`🆔 #${currentMission.id}`);
+            const dt = new Date(currentMission.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            missionPieces.push(`⏱️ ${dt}`);
+            const latNum = Number(currentMission.start_lat);
+            const lonNum = Number(currentMission.start_lon);
+            if (Number.isFinite(latNum) && Number.isFinite(lonNum)) missionPieces.push(`📍 ${latNum.toFixed(4)}, ${lonNum.toFixed(4)}`);
+        }
+
+        bar.innerHTML = `
+          <span title="Position">📌 ${loc || 'Position inconnue'}</span>
+          <span class="text-muted">|</span>
+          <span title="Statut">${statusTxt.includes('active') ? '✅ Active' : statusTxt.includes('Aucune') ? '⏸️ Inactive' : 'ℹ️ ' + statusTxt}</span>
+          ${currentMission ? `<span class="text-muted">|</span><span title="Mission">🧭 ${missionPieces.join(' · ')}</span>` : ''}
+          <span class="text-muted">|</span>
+          <span title="Astuce">💡 Cherchez un lieu, cliquez, puis Démarrer</span>
+        `;
+    } catch {}
+}
+
+// Appels pour garder la barre à jour
+(function hookStatusBar(){
+    const origUpdateMissionUI = updateMissionUI;
+    updateMissionUI = function(m){ origUpdateMissionUI(m); renderStatusBar(); };
+    const origUpdateUserPosition = updateUserPosition;
+    updateUserPosition = function(a,b,c){ origUpdateUserPosition(a,b,c); renderStatusBar(); };
+    document.addEventListener('DOMContentLoaded', () => setTimeout(renderStatusBar, 300));
+})();
