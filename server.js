@@ -1067,10 +1067,10 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
          SET end_time = $1,
              end_lat = COALESCE($2, end_lat),
              end_lon = COALESCE($3, end_lon),
-             note = CASE WHEN $4 IS NOT NULL AND $4 <> '' THEN CONCAT(COALESCE(note, ''), ' | ', $4) ELSE note END,
+             note = CASE WHEN $4::text IS NOT NULL AND $4::text <> '' THEN CONCAT(COALESCE(note, ''), ' | ', $4::text) ELSE note END,
              status = 'completed'
          WHERE id = $5 AND user_id = $6`,
-        [nowIso, lat || null, lon || null, note || null, targetId, userId]
+        [nowIso, lat || null, lon || null, note || '', targetId, userId]
       );
       console.log('Mission updated with coords:', result.rowCount);
     } else {
@@ -1094,7 +1094,7 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
 });
 
 // Route alternative pour forcer la fin de mission (sans GPS)
-app.post('/api/presence/force-end', async (req, res) => {
+app.post('/api/presence/force-end', upload.single('photo'), async (req, res) => {
   // Auth obligatoire
   const authHeader = req.headers.authorization || '';
   if (!authHeader.startsWith('Bearer ')) {
@@ -1113,7 +1113,9 @@ app.post('/api/presence/force-end', async (req, res) => {
     const { mission_id, note } = req.body || {};
     const nowIso = new Date().toISOString();
     
-    console.log('Force fin mission - userId:', userId, 'mission_id:', mission_id);
+    console.log('Force fin mission - userId:', userId, 'mission_id:', mission_id, 'note:', note);
+    console.log('Request body:', req.body);
+    console.log('Request headers:', req.headers);
 
     // Déterminer la mission cible
     let targetId = mission_id;
@@ -1146,10 +1148,10 @@ app.post('/api/presence/force-end', async (req, res) => {
     const result = await pool.query(
       `UPDATE missions 
        SET end_time = $1,
-           note = CASE WHEN $2 IS NOT NULL AND $2 <> '' THEN CONCAT(COALESCE(note, ''), ' | ', $2, ' (Fin forcée)') ELSE CONCAT(COALESCE(note, ''), ' (Fin forcée)') END,
+           note = CASE WHEN $2::text IS NOT NULL AND $2::text <> '' THEN CONCAT(COALESCE(note, ''), ' | ', $2::text, ' (Fin forcée)') ELSE CONCAT(COALESCE(note, ''), ' (Fin forcée)') END,
            status = 'completed'
        WHERE id = $3 AND user_id = $4`,
-      [nowIso, note || null, targetId, userId]
+      [nowIso, note || '', targetId, userId]
     );
 
     console.log('Mission forcée terminée:', result.rowCount);
