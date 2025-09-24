@@ -5,7 +5,6 @@ const apiBase = window.location.hostname === 'agent-position.vercel.app'
 let jwt = localStorage.getItem('jwt') || '';
 
 // Variables globales pour la carte
-let map;
 let checkinMarkers = [];
 let agentMarkers = [];
 // Restaurer le token depuis l'URL si présent
@@ -134,6 +133,34 @@ async function init() {
   window.openAgentModal = openAgentModal;
   window.closeAgentModal = closeAgentModal;
   const form = document.getElementById('agent-form');
+  
+  // Close modal when clicking outside
+  $('agent-modal').addEventListener('click', (e) => {
+    if (e.target === $('agent-modal')) {
+      closeAgentModal();
+    }
+  });
+  
+  // Close modal with Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('agent-modal').classList.contains('hidden')) {
+      closeAgentModal();
+    }
+  });
+
+  // Habillage Bootstrap léger du dashboard
+  try {
+    const main = document.querySelector('.main-content');
+    if (main) main.classList.add('container', 'py-3');
+    const nav = document.querySelector('nav.navbar');
+    if (nav) nav.classList.add('navbar', 'navbar-expand-lg', 'bg-light', 'border-bottom');
+    document.querySelectorAll('table').forEach(t => t.classList.add('table', 'table-striped', 'table-hover'));
+    document.querySelectorAll('input, select, textarea').forEach(i => {
+      if (!['checkbox','radio','file'].includes(i.type)) i.classList.add('form-control');
+    });
+    document.querySelectorAll('label').forEach(l => l.classList.add('form-label'));
+    document.querySelectorAll('button').forEach(b => b.classList.add('btn', 'btn-primary'));
+  } catch {}
 }
 
 // Fonction pour charger et afficher les check-ins sur la carte
@@ -190,37 +217,6 @@ async function loadCheckinsOnMap() {
   } catch (error) {
     console.error('❌ Erreur lors du chargement des check-ins:', error);
   }
-}
-  
-  // Les fonctions sont déjà exposées globalement au moment de leur déclaration
-  
-  // Close modal when clicking outside
-  $('agent-modal').addEventListener('click', (e) => {
-    if (e.target === $('agent-modal')) {
-      closeAgentModal();
-    }
-  });
-  
-  // Close modal with Escape key
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !$('agent-modal').classList.contains('hidden')) {
-      closeAgentModal();
-    }
-  });
-
-  // Habillage Bootstrap léger du dashboard
-  try {
-    const main = document.querySelector('.main-content');
-    if (main) main.classList.add('container', 'py-3');
-    const nav = document.querySelector('nav.navbar');
-    if (nav) nav.classList.add('navbar', 'navbar-expand-lg', 'bg-light', 'border-bottom');
-    document.querySelectorAll('table').forEach(t => t.classList.add('table', 'table-striped', 'table-hover'));
-    document.querySelectorAll('input, select, textarea').forEach(i => {
-      if (!['checkbox','radio','file'].includes(i.type)) i.classList.add('form-control');
-    });
-    document.querySelectorAll('label').forEach(l => l.classList.add('form-label'));
-    document.querySelectorAll('button').forEach(b => b.classList.add('btn', 'btn-primary'));
-  } catch {}
 }
 
 async function loadAgents() {
