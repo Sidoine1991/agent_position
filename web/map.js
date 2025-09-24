@@ -24,6 +24,9 @@ function checkAuth() {
 
 // Initialisation
 document.addEventListener('DOMContentLoaded', function() {
+    // Mettre à jour le token au chargement
+    updateToken();
+    
     // Initialiser la carte même sans authentification
     initMap();
     
@@ -92,7 +95,6 @@ function initMap() {
 // Charger les données utilisateur
 async function loadUserData() {
     try {
-        const token = localStorage.getItem('token');
         if (!token) {
             // En mode public, ne pas rediriger
             console.log('⚠️ Pas de token, mode public activé');
@@ -254,31 +256,68 @@ function updateUserPosition(lat, lng, accuracy = null) {
 
 // Centrer sur la position de l'utilisateur
 function centerOnUser() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            function(position) {
-                const lat = position.coords.latitude;
-                const lng = position.coords.longitude;
-                map.setView([lat, lng], 15);
-                updateUserPosition(lat, lng, position.coords.accuracy);
-            },
-            function(error) {
-                showToast('Impossible d\'obtenir la position', 'error');
-            }
-        );
+    if (!navigator.geolocation) {
+        showToast('Géolocalisation non supportée par ce navigateur', 'error');
+        return;
     }
+    
+    showToast('Recherche de votre position...', 'info');
+    
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            map.setView([lat, lng], 15);
+            updateUserPosition(lat, lng, position.coords.accuracy);
+            showToast('Position trouvée!', 'success');
+        },
+        function(error) {
+            let errorMessage = 'Impossible d\'obtenir la position';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMessage = 'Permission de géolocalisation refusée';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMessage = 'Position indisponible';
+                    break;
+                case error.TIMEOUT:
+                    errorMessage = 'Délai d\'attente dépassé';
+                    break;
+            }
+            showToast(errorMessage, 'error');
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 30000
+        }
+    );
 }
 
 // Basculer entre vue normale et satellite
 function toggleSatellite() {
+    if (!map) {
+        console.error('Carte non initialisée');
+        return;
+    }
+    
+    // Supprimer toutes les couches de tuiles existantes
+    map.eachLayer(function(layer) {
+        if (layer instanceof L.TileLayer) {
+            map.removeLayer(layer);
+        }
+    });
+    
     if (isSatelliteView) {
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
+        showToast('Vue standard activée', 'info');
     } else {
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: '© Esri'
         }).addTo(map);
+        showToast('Vue satellite activée', 'info');
     }
     isSatelliteView = !isSatelliteView;
 }
@@ -477,6 +516,39 @@ function hideForceEndButton() {
     }
 }
 
+// Obtenir la position actuelle (GPS ou corrigée)
+function getCurrentPosition() {
+    return new Promise((resolve, reject) => {
+        // Si une position a été corrigée manuellement, l'utiliser
+        if (correctedPosition) {
+            resolve(correctedPosition);
+            return;
+        }
+        
+        if (!navigator.geolocation) {
+            reject(new Error('Géolocalisation non supportée'));
+            return;
+        }
+        
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                resolve({
+                    lat: position.coords.latitude,
+                    lon: position.coords.longitude,
+                    accuracy: position.coords.accuracy
+                });
+            },
+            function(error) {
+                reject(error);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
+        );
+    });
+}
 
 // Afficher/masquer le loading
 function showLoading(show) {
@@ -521,6 +593,7 @@ function createToastContainer() {
 
 // Fonction API
 async function api(endpoint, options = {}) {
+    const token = localStorage.getItem('token');
     const url = `${API_BASE}${endpoint}`;
     
     const config = {
@@ -549,9 +622,7 @@ async function api(endpoint, options = {}) {
 // Déconnexion
 function logout() {
     localStorage.removeItem('token');
-    localStorage.removeItem('jwt');
     localStorage.removeItem('user');
-    token = '';
     window.location.href = 'index.html';
 }
 
@@ -571,21 +642,26 @@ function correctGPSPosition() {
     const latInput = document.getElementById('manual-lat');
     const lngInput = document.getElementById('manual-lng');
     
+    if (!latInput || !lngInput) {
+        showToast('Erreur: Champs de coordonnées non trouvés', 'error');
+        return;
+    }
+    
     const lat = parseFloat(latInput.value);
     const lng = parseFloat(lngInput.value);
     
     if (isNaN(lat) || isNaN(lng)) {
-        alert('Veuillez entrer des coordonnées valides');
+        showToast('Veuillez entrer des coordonnées valides', 'error');
         return;
     }
     
     if (lat < -90 || lat > 90) {
-        alert('La latitude doit être entre -90 et 90');
+        showToast('La latitude doit être entre -90 et 90', 'error');
         return;
     }
     
     if (lng < -180 || lng > 180) {
-        alert('La longitude doit être entre -180 et 180');
+        showToast('La longitude doit être entre -180 et 180', 'error');
         return;
     }
     
@@ -612,6 +688,7 @@ function correctGPSPosition() {
     // Centrer la carte sur la position corrigée
     map.setView([lat, lng], 15);
     
+    showToast('Position GPS corrigée avec succès!', 'success');
     console.log('✅ Position GPS corrigée:', lat, lng);
 }
 
@@ -619,9 +696,10 @@ function correctGPSPosition() {
 function centerOnCorrectedPosition() {
     if (correctedPosition) {
         map.setView([correctedPosition.lat, correctedPosition.lng], 15);
+        showToast('Centrage sur position corrigée', 'info');
         console.log('🎯 Centrage sur position corrigée');
     } else {
-        alert('Aucune position corrigée disponible. Veuillez d\'abord corriger votre position.');
+        showToast('Aucune position corrigée disponible. Veuillez d\'abord corriger votre position.', 'warning');
     }
 }
 
@@ -629,6 +707,11 @@ function centerOnCorrectedPosition() {
 function toggleGPSCorrection() {
     const panel = document.getElementById('gps-correction-panel');
     const button = event.target;
+    
+    if (!panel || !button) {
+        console.error('Éléments du panneau GPS non trouvés');
+        return;
+    }
     
     if (gpsCorrectionPanelVisible) {
         panel.style.display = 'none';
@@ -657,35 +740,22 @@ function updatePositionDisplay(lat, lng, source = 'GPS') {
     }
 }
 
-// Fonction pour obtenir la position actuelle (GPS ou corrigée)
-function getCurrentPosition() {
-    return new Promise((resolve, reject) => {
-        // Si une position corrigée existe, l'utiliser
-        if (correctedPosition) {
-            resolve(correctedPosition);
-            return;
-        }
-        
-        // Essayer d'obtenir la position GPS
-        if (!navigator.geolocation) {
-            reject(new Error('Géolocalisation non supportée par ce navigateur'));
-            return;
-        }
-        
+// Fonction pour obtenir la position actuelle (GPS ou corrigée) - Version UI
+function getCurrentPositionUI() {
+    if (correctedPosition) {
+        return correctedPosition;
+    }
+    
+    // Essayer d'obtenir la position GPS
+    if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             function(position) {
                 const lat = position.coords.latitude;
                 const lng = position.coords.longitude;
                 const accuracy = position.coords.accuracy;
                 
-                const positionData = { lat, lng, accuracy };
-                
-                // Mettre à jour l'affichage
                 updatePositionDisplay(lat, lng, 'GPS');
-                const gpsAccuracyEl = document.getElementById('gps-accuracy');
-                if (gpsAccuracyEl) {
-                    gpsAccuracyEl.textContent = `${Math.round(accuracy)}m`;
-                }
+                document.getElementById('gps-accuracy').textContent = `${Math.round(accuracy)}m`;
                 
                 // Mettre à jour le marqueur
                 if (userMarker) {
@@ -703,25 +773,14 @@ function getCurrentPosition() {
                 
                 // Centrer sur la position GPS
                 map.setView([lat, lng], 15);
-                
-                resolve(positionData);
             },
             function(error) {
                 console.error('Erreur GPS:', error);
                 updatePositionDisplay(0, 0, 'Erreur GPS');
-                const gpsAccuracyEl = document.getElementById('gps-accuracy');
-                if (gpsAccuracyEl) {
-                    gpsAccuracyEl.textContent = 'Erreur';
-                }
-                reject(error);
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
+                document.getElementById('gps-accuracy').textContent = 'Erreur';
             }
         );
-    });
+    }
 }
 
 // Initialiser la correction GPS au chargement
@@ -732,7 +791,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const gpsButton = document.createElement('button');
         gpsButton.className = 'btn-center';
         gpsButton.innerHTML = '<i class="fas fa-location-arrow me-1"></i>GPS';
-        gpsButton.onclick = getCurrentPosition;
+        gpsButton.onclick = getCurrentPositionUI;
         gpsButtons.appendChild(gpsButton);
     }
     // Initialiser la gestion du long-press sur la carte
