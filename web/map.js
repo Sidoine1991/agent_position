@@ -108,10 +108,11 @@ async function loadUserData() {
             const user = response.user;
             document.getElementById('current-location').textContent = 
                 `${user.commune || 'Non défini'}, ${user.departement || 'Non défini'}`;
+        } else {
+            document.getElementById('current-location').textContent = 'Mode public - Carte accessible';
         }
     } catch (error) {
-        console.error('Erreur chargement profil:', error);
-        // En cas d'erreur, afficher un message informatif
+        // Tolérer le 404 "Utilisateur non trouvé" en mode public
         document.getElementById('current-location').textContent = 'Mode public - Carte accessible';
     }
 }
@@ -153,10 +154,15 @@ function updateMissionUI(mission) {
     
     if (mission) {
         missionInfo.style.display = 'block';
+        const latNum = Number(mission.start_lat);
+        const lonNum = Number(mission.start_lon);
+        const latLonText = Number.isFinite(latNum) && Number.isFinite(lonNum)
+          ? `${latNum.toFixed(4)}, ${lonNum.toFixed(4)}`
+          : 'N/A';
         document.getElementById('mission-details').innerHTML = `
             <strong>Mission #${mission.id}</strong><br>
             <small>Début: ${new Date(mission.start_time).toLocaleString()}</small><br>
-            <small>Position: ${mission.start_lat?.toFixed(4)}, ${mission.start_lon?.toFixed(4)}</small>
+            <small>Position: ${latLonText}</small>
         `;
         
         statusIndicator.className = 'status-indicator status-active';
