@@ -534,7 +534,11 @@ function getCurrentPosition() {
     return new Promise((resolve, reject) => {
         // Si une position a été corrigée manuellement, l'utiliser
         if (correctedPosition) {
-            resolve(correctedPosition);
+            resolve({
+                lat: Number(correctedPosition.lat),
+                lon: Number(correctedPosition.lng ?? correctedPosition.lon),
+                accuracy: null
+            });
             return;
         }
         
@@ -554,7 +558,11 @@ function getCurrentPosition() {
             function(error) {
                 // Fallback doux: si utilisateur a entré une correction après coup
                 if (correctedPosition) {
-                    resolve(correctedPosition);
+                    resolve({
+                        lat: Number(correctedPosition.lat),
+                        lon: Number(correctedPosition.lng ?? correctedPosition.lon),
+                        accuracy: null
+                    });
                     return;
                 }
                 reject(error);
@@ -911,7 +919,7 @@ window.selectSearchResult = function(lat, lon, label) {
         map.setView([lat, lon], 15);
         
         // Définir la position corrigée pour que startMission() l'utilise
-        correctedPosition = { lat: Number(lat), lng: Number(lon) };
+        correctedPosition = { lat: Number(lat), lng: Number(lon), lon: Number(lon) };
         updatePositionDisplay(Number(lat), Number(lon), 'Position sélectionnée');
         
         // Déposer un marqueur de départ par défaut
