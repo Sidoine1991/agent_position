@@ -674,9 +674,23 @@ async function refresh() {
   if (agentId) params.set('agent_id', String(agentId));
   if (villageId) params.set('village_id', String(villageId));
   const useLatest = !date && !agentId && !villageId;
-  const rows = useLatest
-    ? await api('/admin/checkins/latest')
-    : await api('/admin/checkins?' + params.toString());
+  let rows;
+  try {
+    if (useLatest) {
+      const resp = await api('/admin/checkins/latest');
+      rows = resp && resp.checkins ? resp.checkins : (Array.isArray(resp) ? resp : []);
+    } else {
+      rows = await api('/admin/checkins?' + params.toString());
+    }
+  } catch (e) {
+    console.warn('Admin checkins API indisponible, tentative fallback public:', e.message || e);
+    // Fallback léger: tenter une route publique si disponible
+    try {
+      const resp = await fetch(apiBase + '/admin/checkins/latest');
+      const data = await resp.json().catch(() => null);
+      rows = data && data.checkins ? data.checkins : [];
+    } catch {}
+  }
 
   const latlngs = [];
   for (const r of rows) {
