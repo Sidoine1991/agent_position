@@ -337,7 +337,7 @@ app.get('/api/profile', async (req, res) => {
   }
 });
 
-// API pour les statistiques de présence mensuelles
+  // API pour les statistiques de présence mensuelles
 app.get('/api/presence/stats', async (req, res) => {
   try {
     const { year, month } = req.query;
@@ -371,6 +371,29 @@ app.get('/api/presence/stats', async (req, res) => {
         AND DATE(m.start_time) BETWEEN $2 AND $3
         AND m.end_time IS NOT NULL
         AND m.status = 'completed'
+    `, [userId, startDate, endDate]);
+
+    // Répartition hebdomadaire dans le mois (bornée au mois demandé)
+    // week_start est le lundi de la semaine (selon DateStyle Postgres)
+    const weeklyRows = await pool.query(`
+      WITH month_bounds AS (
+        SELECT $2::date AS month_start, $3::date AS month_end
+      )
+      SELECT 
+        GREATEST(DATE_TRUNC('week', m.start_time)::date, mb.month_start) AS week_start,
+        LEAST((DATE_TRUNC('week', m.start_time)::date + INTERVAL '6 day')::date, mb.month_end) AS week_end,
+        COUNT(DISTINCT DATE(m.start_time)) FILTER (WHERE m.status IN ('active','completed')) AS days_worked,
+        COALESCE(SUM(
+          CASE WHEN m.end_time IS NOT NULL AND m.status = 'completed' 
+               THEN EXTRACT(EPOCH FROM (m.end_time - m.start_time)) / 3600.0
+               ELSE 0 END
+        ), 0) AS hours_worked
+      FROM missions m
+      CROSS JOIN month_bounds mb
+      WHERE m.user_id = $1
+        AND DATE(m.start_time) BETWEEN mb.month_start AND mb.month_end
+      GROUP BY 1,2
+      ORDER BY 1
     `, [userId, startDate, endDate]);
     
     // Position actuelle: utiliser l'unité de référence de l'agent si disponible
@@ -413,12 +436,20 @@ app.get('/api/presence/stats', async (req, res) => {
       }
       if (!expectedDays || Number.isNaN(expectedDays)) expectedDays = 22;
       // Construire stats avec current_position issue des références
-    const stats = {
-      days_worked: parseInt(presenceResult.rows[0].days_worked) || 0,
+      const weekly = (weeklyRows.rows || []).map(r => ({
+        week_start: r.week_start,
+        week_end: r.week_end,
+        days_worked: Number(r.days_worked) || 0,
+        hours_worked: Math.round((Number(r.hours_worked) || 0) * 10) / 10
+      }));
+
+      const stats = {
+        days_worked: parseInt(presenceResult.rows[0].days_worked) || 0,
         hours_worked: Math.round((Number(hoursResult.rows[0]?.hours_worked) || 0) * 10) / 10,
-      expected_days: expectedDays,
-        current_position: (refCommune || refDepartement) ? [refCommune, refDepartement].filter(Boolean).join(', ') : 'Non disponible'
-    };
+        expected_days: expectedDays,
+        current_position: (refCommune || refDepartement) ? [refCommune, refDepartement].filter(Boolean).join(', ') : 'Non disponible',
+        weekly
+      };
       return res.json({ success: true, stats });
     } catch {}
     

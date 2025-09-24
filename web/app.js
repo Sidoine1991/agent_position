@@ -969,12 +969,13 @@ async function calculateMonthlyStats() {
       }
       const presenceRate = expectedDays > 0 ? Math.round((daysWorked / expectedDays) * 100) : 0;
       
-      // Mettre à jour l'interface
+      // Mettre à jour l'interface (inclure hebdomadaire si disponible)
       updateDashboardStats({
         daysWorked,
         hoursWorked,
         presenceRate,
-        currentPosition: stats.current_position || 'Non disponible'
+        currentPosition: stats.current_position || 'Non disponible',
+        weekly: Array.isArray(stats.weekly) ? stats.weekly : []
       });
       
       return stats;
@@ -997,6 +998,7 @@ function updateDashboardStats(stats) {
   const hoursElement = document.querySelector('.stat-hours .stat-value');
   const rateElement = document.querySelector('.stat-rate .stat-value');
   const positionElement = document.querySelector('.stat-position .stat-value');
+  const weeklyList = document.getElementById('weekly-stats');
   
   if (daysElement) daysElement.textContent = stats.daysWorked;
   if (hoursElement) hoursElement.textContent = `${stats.hoursWorked}h`;
@@ -1012,6 +1014,20 @@ function updateDashboardStats(stats) {
     }
   }
   if (positionElement) positionElement.textContent = stats.currentPosition;
+
+  // Liste hebdomadaire optionnelle
+  if (weeklyList && Array.isArray(stats.weekly)) {
+    weeklyList.innerHTML = '';
+    stats.weekly.forEach(w => {
+      const li = document.createElement('li');
+      const start = new Date(w.week_start);
+      const end = new Date(w.week_end);
+      const pad = (n) => String(n).padStart(2,'0');
+      const range = `${pad(start.getDate())}/${pad(start.getMonth()+1)} - ${pad(end.getDate())}/${pad(end.getMonth()+1)}`;
+      li.textContent = `${range}: ${w.days_worked} j • ${w.hours_worked} h`;
+      weeklyList.appendChild(li);
+    });
+  }
 }
 
 // Fonction pour vérifier les absences quotidiennes
