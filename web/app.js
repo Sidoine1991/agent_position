@@ -1800,6 +1800,11 @@ async function loadDepartements() {
     const deptSelect = $('departement');
     if (!deptSelect) return;
     
+    // Éviter la duplication en cas d'appels concurrents
+    if (deptSelect.dataset.loading === '1') return;
+    if (deptSelect.options && deptSelect.options.length > 1 && deptSelect.dataset.loaded === '1') return;
+    deptSelect.dataset.loading = '1';
+    
     deptSelect.innerHTML = '<option value="">Sélectionner un département</option>';
     
     // Attendre que les données géographiques soient chargées
@@ -1815,12 +1820,15 @@ async function loadDepartements() {
         opt.textContent = d.name; // Utiliser 'name' au lieu de 'nom'
         deptSelect.appendChild(opt);
       });
+      deptSelect.dataset.loaded = '1';
       console.log('✅ Départements chargés depuis les données locales:', window.geoData.departements.length);
     } else {
       console.error('❌ Données géographiques locales non disponibles');
     }
+    deptSelect.dataset.loading = '0';
   } catch (error) {
     console.error('Erreur chargement départements:', error);
+    try { const deptSelect = $('departement'); if (deptSelect) deptSelect.dataset.loading = '0'; } catch {}
   }
 }
 
