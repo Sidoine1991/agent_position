@@ -1,7 +1,6 @@
 // Configuration de l'API
-const API_BASE = window.location.hostname === 'agent-position.vercel.app' 
-    ? 'https://presence-ccrb-v2.onrender.com/api'
-    : '/api';
+// Toujours utiliser le proxy local /api pour respecter la CSP sur Vercel
+const API_BASE = '/api';
 
 // Variables globales
 let map;

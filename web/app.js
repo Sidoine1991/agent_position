@@ -1,8 +1,5 @@
-// Configuration de l'API - utiliser Render en production sur Vercel
-const onVercel = /\.vercel\.app$/.test(window.location.hostname) || window.location.hostname.includes('vercel.app');
-const apiBase = onVercel
-    ? 'https://presence-ccrb-v2.onrender.com/api'
-    : '/api';
+// Configuration de l'API — toujours passer par notre proxy /api pour éviter les blocages CSP
+const apiBase = '/api';
 let jwt = localStorage.getItem('jwt') || '';
 let currentMissionId = null;
 let currentCalendarDate = new Date();
