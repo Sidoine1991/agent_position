@@ -2068,6 +2068,29 @@ async function loadVillages(arrondissementId) {
                     const vn = normalize(v.name);
                     return vn.endsWith('_' + arrNameNorm) || vn.includes(arrNameNorm);
                   });
+                  // Si rien ne correspond à l'arrondissement, essayer un filtrage plus large par nom de commune
+                  if (villages.length === 0 && communeIdForArr) {
+                    let communeName = null;
+                    try {
+                      const allCommunesGroups = Object.values(window.geoData.communes || {});
+                      for (const grp of allCommunesGroups) {
+                        const found = (grp || []).find(c => String(c.id) === String(communeIdForArr));
+                        if (found) { communeName = found.name; break; }
+                      }
+                    } catch {}
+                    if (communeName) {
+                      const cn = normalize(communeName);
+                      const base = window.geoData.villages[communeIdForArr] || window.geoData.villages[communeName] || [];
+                      villages = base.filter(v => normalize(v.name).includes(cn));
+                    }
+                  }
+                  // En dernier recours: afficher les villages de la commune sans filtrage (mieux que vide)
+                  if (villages.length === 0) {
+                    const base = window.geoData.villages[communeIdForArr] || (communeName ? window.geoData.villages[communeName] : []) || [];
+                    if (Array.isArray(base) && base.length > 0) {
+                      villages = base;
+                    }
+                  }
                 }
               } catch {}
             }
