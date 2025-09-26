@@ -4,8 +4,7 @@
   "webDir": "web",
   "bundledWebRuntime": false,
   "server": {
-    "url": "https://your-railway-app.railway.app",
-    "cleartext": true
+    "androidScheme": "https"
   },
   "plugins": {
     "SplashScreen": {
