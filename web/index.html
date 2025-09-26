@@ -126,13 +126,15 @@
         </div>
       </div>
       
+      <button class="navbar-toggle" onclick="navigation.toggleMobileMenu()">☰</button>
+      
       <div class="navbar-menu">
         <a href="/" class="navbar-link navbar-link-active">
           <span class="navbar-icon">🏠</span>
           <span>Accueil Agent</span>
         </a>
         
-        <a href="/" class="navbar-link navbar-link-active" id="presence-link" style="display: none;">
+        <a href="/" class="navbar-link" id="presence-link" style="display: none;">
           <span class="navbar-icon">📍</span>
           <span>Marquage Présence</span>
         </a>
@@ -25629,6 +25631,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
     <script src="/geo-data.js"></script>
+    <script src="navigation.js"></script>
     <script src="/app.js?v=3" type="module"></script>
     <script>
       // Vercel Speed Insights - Désactivé pour éviter les erreurs

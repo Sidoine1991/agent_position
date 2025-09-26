@@ -1856,59 +1856,45 @@ async function getLocationName(lat, lon) {
 
 // Mettre à jour la navbar selon l'état de connexion et le rôle
 async function updateNavbar() {
-  const profileLink = $('profile-link');
-  const mapLink = $('map-link');
-  const dashboardLink = $('dashboard-link');
-  const agentsLink = $('agents-link');
-  const reportsLink = $('reports-link');
-  const adminLink = $('admin-link');
-  const adminSettingsBtnId = 'admin-settings-link';
-  const navbarUser = $('navbar-user');
-  const userInfo = $('user-info');
-  
-  if (jwt) {
-    try {
-      // Récupérer le profil utilisateur depuis le localStorage ou l'API
-      let profile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-      
-      // Si pas de profil en cache, essayer l'API
-      if (!profile.id) {
-        try {
-          const urlParams = new URLSearchParams(window.location.search);
-          const email = urlParams.get('email') || localStorage.getItem('userEmail') || 'admin@ccrb.local';
-          profile = await api(`/profile?email=${encodeURIComponent(email)}`);
-          localStorage.setItem('userProfile', JSON.stringify(profile));
-        } catch (e) {
-          console.log('API profile non disponible, utilisation des données de connexion');
-          // Utiliser les données de connexion stockées
-          profile = JSON.parse(localStorage.getItem('loginData') || '{}');
-        }
+  try {
+    if (!jwt) {
+      // Utilisateur non connecté
+      if (window.navigation) {
+        await window.navigation.updateForUser(null);
       }
-      
-      // Afficher le profil et la carte pour tous les utilisateurs connectés
-      if (profileLink) profileLink.style.display = 'flex';
-      if (mapLink) mapLink.style.display = 'flex';
-      
-      // Navigation pour Admin et Superviseur
-      if (profile && (profile.role === 'admin' || profile.role === 'superviseur')) {
-        if (dashboardLink) dashboardLink.style.display = 'flex';
-        if (agentsLink) agentsLink.style.display = 'flex';
-        if (reportsLink) reportsLink.style.display = 'flex';
-      } else {
-        if (dashboardLink) dashboardLink.style.display = 'none';
-        if (agentsLink) agentsLink.style.display = 'none';
-        if (reportsLink) reportsLink.style.display = 'none';
+      return;
+    }
+
+    // Utilisateur connecté - récupérer les infos
+    let profile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+    
+    // Si pas de profil en cache, essayer l'API
+    if (!profile.id) {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const email = urlParams.get('email') || localStorage.getItem('userEmail') || 'admin@ccrb.local';
+        profile = await api(`/profile?email=${encodeURIComponent(email)}`);
+        localStorage.setItem('userProfile', JSON.stringify(profile));
+      } catch (e) {
+        console.log('API profile non disponible, utilisation des données de connexion');
+        profile = JSON.parse(localStorage.getItem('loginData') || '{}');
       }
-      
-      // Navigation pour Admin uniquement
-      const isAdmin = profile && profile.role === 'admin';
-      if (isAdmin) {
-        if (adminLink) adminLink.style.display = 'flex';
+    }
+    
+    // Utiliser le nouveau système de navigation
+    if (window.navigation) {
+      await window.navigation.updateForUser(profile);
+    }
+    
+    // Ajouter un bouton Paramètres Admin si absent (pour les admins)
+    if (profile && profile.role === 'admin') {
+      const adminLink = $('admin-link');
+      if (adminLink) {
         // Ajouter un bouton Paramètres Admin si absent
-        let settingsLink = document.getElementById(adminSettingsBtnId);
+        let settingsLink = document.getElementById('admin-settings-link');
         if (!settingsLink) {
           settingsLink = document.createElement('a');
-          settingsLink.id = adminSettingsBtnId;
+          settingsLink.id = 'admin-settings-link';
           settingsLink.href = '/admin-settings.html';
           settingsLink.className = 'navbar-link';
           settingsLink.style.display = 'flex';
@@ -1920,67 +1906,16 @@ async function updateNavbar() {
         }
       } else {
         if (adminLink) adminLink.style.display = 'none';
-        const settingsLink = document.getElementById(adminSettingsBtnId);
+        const settingsLink = document.getElementById('admin-settings-link');
         if (settingsLink) settingsLink.style.display = 'none';
       }
-      
-      // Ne plus propager le token dans l'URL pour le dashboard
-      
-      // Afficher les informations utilisateur
-      if (navbarUser) navbarUser.style.display = 'flex';
-      if (userInfo && profile) {
-        const roleText = {
-          'admin': 'Administrateur',
-          'superviseur': 'Superviseur',
-          'agent': 'Agent'
-        };
-        userInfo.textContent = `${profile.name} (${roleText[profile.role] || profile.role})`;
-      }
-      
-      // Cacher le bouton d'inscription pour les utilisateurs connectés
-      const registerLink = $('register-link');
-      if (registerLink) {
-        registerLink.style.display = 'none';
-      }
-      
-      // Afficher les boutons d'accès rapide
-      const quickAccess = $('quick-access');
-      if (quickAccess) {
-        quickAccess.style.display = 'flex';
-      }
-      
-      // Masquer les informations d'accueil
-      const welcomeInfo = $('welcome-info');
-      if (welcomeInfo) {
-        welcomeInfo.style.display = 'none';
-      }
-    } catch (e) {
-      console.error('Error updating navbar:', e);
-      // En cas d'erreur, cacher les éléments
-      if (dashboardLink) dashboardLink.style.display = 'none';
-      if (navbarUser) navbarUser.style.display = 'none';
-    }
-  } else {
-    // Utilisateur non connecté
-    if (dashboardLink) dashboardLink.style.display = 'none';
-    if (navbarUser) navbarUser.style.display = 'none';
-    
-    // Afficher le bouton d'inscription
-    const registerLink = $('register-link');
-    if (registerLink) {
-      registerLink.style.display = 'flex';
     }
     
-    // Masquer les boutons d'accès rapide
-    const quickAccess = $('quick-access');
-    if (quickAccess) {
-      quickAccess.style.display = 'none';
-    }
-    
-    // Afficher les informations d'accueil
-    const welcomeInfo = $('welcome-info');
-    if (welcomeInfo) {
-      welcomeInfo.style.display = 'block';
+  } catch (e) {
+    console.error('Error updating navbar:', e);
+    // En cas d'erreur, masquer les éléments sensibles
+    if (window.navigation) {
+      await window.navigation.updateForUser(null);
     }
   }
 }
