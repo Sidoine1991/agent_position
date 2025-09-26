@@ -418,8 +418,13 @@ function formatDate(dateString) {
 
 // Déconnexion
 function logout() {
-  localStorage.removeItem('jwt');
-  window.location.href = window.location.origin + '/';
+  try {
+    localStorage.removeItem('jwt');
+    localStorage.removeItem('loginData');
+    localStorage.removeItem('userProfile');
+    localStorage.setItem('presence_update', JSON.stringify({ type: 'logout', ts: Date.now() }));
+  } catch {}
+  window.location.href = '/';
 }
 
 // Mettre à jour la navbar

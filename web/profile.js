@@ -20,6 +20,18 @@ function setAvatarFromCache() {
 // Configuration de l'API - utiliser Render en production sur Vercel
 const onVercel = /\.vercel\.app$/.test(window.location.hostname) || window.location.hostname.includes('vercel.app');
 const apiBase = '/api';
+// Harmoniser la déconnexion pour cette page
+if (typeof window !== 'undefined' && typeof window.logout !== 'function') {
+  window.logout = function() {
+    try {
+      localStorage.removeItem('jwt');
+      localStorage.removeItem('loginData');
+      localStorage.removeItem('userProfile');
+      localStorage.setItem('presence_update', JSON.stringify({ type: 'logout', ts: Date.now() }));
+    } catch {}
+    window.location.href = '/';
+  };
+}
 
 async function api(path, opts = {}) {
   const headers = opts.headers || {};
