@@ -2003,6 +2003,46 @@ async function loadVillages(arrondissementId) {
             villages = all;
           } catch {}
         }
+
+        // 4) Fallback supplémentaire: certaines données lient les villages à la commune (pas à l'arrondissement)
+        if (villages.length === 0) {
+          try {
+            // Retrouver la communeId qui contient cet arrondissement
+            let communeIdForArr = null;
+            const entries = Object.entries(window.geoData.arrondissements || {});
+            for (const [communeKey, arrList] of entries) {
+              if ((arrList || []).some(a => String(a.id) === String(arrondissementId))) {
+                communeIdForArr = communeKey; // peut être string id ou nom
+                break;
+              }
+            }
+            if (communeIdForArr) {
+              // Essayer villages indexés par communeId directement
+              if (window.geoData.villages[communeIdForArr]) {
+                villages = window.geoData.villages[communeIdForArr] || [];
+              }
+              // Ou par nom de commune
+              if (villages.length === 0) {
+                // Trouver le nom de commune
+                let communeName = null;
+                try {
+                  // communeKey peut être un id: retrouver son nom
+                  const allCommunesGroups = Object.values(window.geoData.communes || {});
+                  for (const grp of allCommunesGroups) {
+                    const found = (grp || []).find(c => String(c.id) === String(communeIdForArr));
+                    if (found) { communeName = found.name; break; }
+                  }
+                } catch {}
+                if (!communeName && typeof communeIdForArr === 'string' && isNaN(Number(communeIdForArr))) {
+                  communeName = communeIdForArr;
+                }
+                if (communeName && window.geoData.villages[communeName]) {
+                  villages = window.geoData.villages[communeName] || [];
+                }
+              }
+            }
+          } catch {}
+        }
       }
     }
     
