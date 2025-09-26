@@ -424,7 +424,7 @@ function logout() {
     localStorage.removeItem('userProfile');
     localStorage.setItem('presence_update', JSON.stringify({ type: 'logout', ts: Date.now() }));
   } catch {}
-  window.location.href = '/';
+  window.location.href = '/register.html';
 }
 
 // Mettre à jour la navbar

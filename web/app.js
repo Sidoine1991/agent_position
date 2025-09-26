@@ -1089,9 +1089,14 @@ async function checkDailyAbsences() {
 // Fonction de déconnexion
 function logout() {
   if (confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) {
-    localStorage.removeItem('jwt');
+    try {
+      localStorage.removeItem('jwt');
+      localStorage.removeItem('loginData');
+      localStorage.removeItem('userProfile');
+      localStorage.setItem('presence_update', JSON.stringify({ type: 'logout', ts: Date.now() }));
+    } catch {}
     jwt = '';
-    location.reload();
+    window.location.href = '/register.html';
   }
 }
 

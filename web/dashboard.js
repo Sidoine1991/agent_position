@@ -10,7 +10,7 @@ if (typeof window !== 'undefined' && typeof window.logout !== 'function') {
       localStorage.removeItem('userProfile');
       localStorage.setItem('presence_update', JSON.stringify({ type: 'logout', ts: Date.now() }));
     } catch {}
-    window.location.href = '/';
+    window.location.href = '/register.html';
   };
 }
 let jwt = localStorage.getItem('jwt') || '';
