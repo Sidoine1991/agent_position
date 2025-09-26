@@ -675,10 +675,37 @@ async function init() {
       const startBtn = $('start-mission');
       if (startBtn) startBtn.disabled = false;
       if (button) button.disabled = true;
+      // Garder le bouton check-in actif pour envoyer la présence finale
       const checkinBtn = $('checkin-btn');
-      if (checkinBtn) checkinBtn.disabled = true;
+      if (checkinBtn) checkinBtn.disabled = false;
       currentMissionId = null;
       try { localStorage.removeItem('currentMissionId'); } catch {}
+      
+      // Recharger l'historique des missions
+      try {
+        const missionsResponse = await api('/me/missions');
+        const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
+        const historyEl = $('missions-history');
+        if (historyEl) {
+          historyEl.innerHTML = '';
+          missions.forEach(m => {
+            const li = document.createElement('li');
+            const start = m.start_time ? new Date(m.start_time).toLocaleString() : '-';
+            const end = m.end_time ? new Date(m.end_time).toLocaleString() : '-';
+            const depName = getDepartementNameById(m.departement);
+            const comName = getCommuneNameById(m.departement, m.commune);
+            li.innerHTML = `
+              <div class="list-item">
+                <div><strong>Mission #${m.id}</strong> — ${m.status}</div>
+                <div>Début: ${start} • Fin: ${end}</div>
+                <div>Département: ${depName || '-'} • Commune: ${comName || '-'}</div>
+                <div>Start GPS: ${m.start_lat ?? '-'}, ${m.start_lon ?? '-'} | End GPS: ${m.end_lat ?? '-'}, ${m.end_lon ?? '-'}</div>
+              </div>
+            `;
+            historyEl.appendChild(li);
+          });
+        }
+      } catch {}
       
     } catch (e) {
       console.error('Erreur fin mission:', e);
