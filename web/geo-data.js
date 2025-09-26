@@ -26,13 +26,23 @@ window.loadGeoData = function() {
       .then(r => r.ok ? r.json() : null)
       .then(json => {
         const hasDeps = Array.isArray(json?.departements) && json.departements.length > 0;
+        const hasCommunes = json && json.communes && Object.keys(json.communes).length > 0;
+        const hasArr = json && json.arrondissements && Object.keys(json.arrondissements).length > 0;
         const hasVillages = json && json.villages && Object.keys(json.villages).length > 0;
-        // Accepter si au moins les départements existent (les autres niveaux peuvent être vides)
         if (hasDeps) {
-          window.geoData = { ...window.geoData, ...json, loaded: true };
-          console.log('✅ Données géographiques chargées depuis geo-data.json');
-          resolve(window.geoData);
-          return;
+          // Pré-remplir avec le JSON
+          window.geoData.departements = json.departements;
+          if (hasCommunes) window.geoData.communes = json.communes;
+          if (hasArr) window.geoData.arrondissements = json.arrondissements;
+          if (hasVillages) window.geoData.villages = json.villages;
+          // Si tout est présent, terminer ici, sinon continuer le chargement legacy pour compléter
+          if (hasCommunes && hasArr && hasVillages) {
+            window.geoData.loaded = true;
+            console.log('✅ Données géographiques chargées depuis geo-data.json');
+            resolve(window.geoData);
+            return;
+          }
+          console.log('ℹ️ JSON partiel détecté: complétion via dataset embarqué');
         }
         // Fallback legacy inline dataset (continuera ci-dessous)
         // Charger les départements immédiatement
