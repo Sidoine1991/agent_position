@@ -18,9 +18,7 @@ const resendBtn = document.getElementById('resendBtn');
 // Fonction utilitaire pour les requêtes API
 // Configuration de l'API - utiliser Render en production sur Vercel
 const onVercel = /\.vercel\.app$/.test(window.location.hostname) || window.location.hostname.includes('vercel.app');
-const apiBase = onVercel
-    ? 'https://presence-ccrb-v2.onrender.com/api'
-    : '/api';
+const apiBase = '/api';
 
 async function api(endpoint, method = 'GET', data = null) {
   const options = {

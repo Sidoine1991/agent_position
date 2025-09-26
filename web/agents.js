@@ -18,9 +18,7 @@ function getEmailHint() {
 
 // Configuration de l'API - utiliser Render en production sur Vercel
 const onVercel = /\.vercel\.app$/.test(window.location.hostname) || window.location.hostname.includes('vercel.app');
-const apiBase = onVercel
-    ? 'https://presence-ccrb-v2.onrender.com/api'
-    : '/api';
+const apiBase = '/api';
 
 async function api(path, opts = {}) {
   const headers = opts.headers || {};

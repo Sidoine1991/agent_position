@@ -15,7 +15,7 @@ function getEmailHint() {
 function $(id) { return document.getElementById(id); }
 
 const onVercel = /\.vercel\.app$/.test(window.location.hostname) || window.location.hostname.includes('vercel.app');
-const apiBase = onVercel ? 'https://presence-ccrb-v2.onrender.com/api' : '/api';
+const apiBase = '/api';
 
 async function api(path, opts = {}) {
   const headers = opts.headers || {};
