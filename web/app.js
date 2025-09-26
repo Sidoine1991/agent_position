@@ -768,8 +768,45 @@ async function init() {
         if (active) { currentMissionId = active.id; try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch {} }
       } catch {}
       if (!currentMissionId) {
-        showNotification('Démarrer une mission d\'abord', 'error');
-        return;
+        // Aucun ID mission: démarrer automatiquement la mission et considérer cela comme le check-in demandé
+        const status = $('status');
+        const checkinBtn = $('checkin-btn');
+        try {
+          status.textContent = 'Démarrage mission...';
+          addLoadingState(checkinBtn, 'Démarrage...');
+          let coords = await getCurrentLocationWithValidation();
+          if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 5000) {
+            try {
+              const last = JSON.parse(localStorage.getItem('lastGPS') || '{}');
+              if (isFinite(last.lat) && isFinite(last.lon)) {
+                coords = { latitude: Number(last.lat), longitude: Number(last.lon), accuracy: Number(last.accuracy || 9999) };
+              }
+            } catch {}
+          }
+          const fdStart = new FormData();
+          fdStart.append('lat', String(coords.latitude));
+          fdStart.append('lon', String(coords.longitude));
+          if (typeof coords.accuracy !== 'undefined') fdStart.append('accuracy', String(Math.round(coords.accuracy)));
+          fdStart.append('note', $('note').value || 'Début de mission');
+          const photoStart = $('photo').files[0];
+          if (photoStart) fdStart.append('photo', photoStart);
+          const data = await api('/presence/start', { method: 'POST', body: fdStart });
+          if (data && (data.mission_id || (data.mission && data.mission.id))) {
+            currentMissionId = data.mission_id || data.mission.id;
+            try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch {}
+          }
+          status.textContent = 'Mission démarrée et check-in enregistré';
+          animateElement(status, 'bounce');
+          showNotification('Mission démarrée automatiquement et check-in enregistré.', 'success');
+          await refreshCheckins();
+          try { notifyPresenceUpdate('start'); } catch {}
+          removeLoadingState(checkinBtn);
+          return; // Ne pas envoyer un second check-in
+        } catch (e) {
+          removeLoadingState(checkinBtn);
+          showNotification('Impossible de démarrer la mission automatiquement. Réessayez.', 'error');
+          return;
+        }
       }
     }
     
