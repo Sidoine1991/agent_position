@@ -1,7 +1,6 @@
 // Configuration de l'API - utiliser Render en production sur Vercel
-const apiBase = window.location.hostname === 'agent-position.vercel.app' 
-    ? 'https://presence-ccrb-v2.onrender.com/api'
-    : '/api';
+const onVercel = /\.vercel\.app$/.test(window.location.hostname) || window.location.hostname.includes('vercel.app');
+const apiBase = onVercel ? 'https://presence-ccrb-v2.onrender.com/api' : '/api';
 let jwt = localStorage.getItem('jwt') || '';
 
 async function api(path, opts={}) {
@@ -11,7 +10,7 @@ async function api(path, opts={}) {
   const res = await fetch(apiBase + path, {
     method: opts.method || 'GET',
     headers,
-    body: opts.body ? JSON.stringify(opts.body) : undefined
+    body: opts.body instanceof FormData ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined)
   });
   if (!res.ok) throw new Error(await res.text());
   const ct = res.headers.get('content-type') || '';

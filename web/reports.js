@@ -1,9 +1,5 @@
 // Script pour la page de rapports
 // Configuration de l'API - utiliser Render en production sur Vercel
-const apiBase = window.location.hostname === 'agent-position.vercel.app' 
-    ? 'https://presence-ccrb-v2.onrender.com/api'
-    : '/api';
-
 let jwt = localStorage.getItem('jwt') || '';
 let currentUser = null;
 
@@ -17,6 +13,9 @@ function getEmailHint() {
 }
 
 function $(id) { return document.getElementById(id); }
+
+const onVercel = /\.vercel\.app$/.test(window.location.hostname) || window.location.hostname.includes('vercel.app');
+const apiBase = onVercel ? 'https://presence-ccrb-v2.onrender.com/api' : '/api';
 
 async function api(path, opts = {}) {
   const headers = opts.headers || {};
@@ -299,7 +298,7 @@ async function deleteSavedReport(reportId) {
   if (confirm('Êtes-vous sûr de vouloir supprimer ce rapport ?')) {
     try {
       // Appeler l'API pour supprimer le rapport
-      const result = await api(`/reports/${reportId}`, 'DELETE');
+      const result = await api(`/reports/${reportId}`, { method: 'DELETE' });
       
       if (result.success) {
         alert('Rapport supprimé avec succès');

@@ -7,6 +7,8 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const multer = require('multer');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 
 const app = express();
@@ -201,6 +203,15 @@ async function sendVerificationEmail({ to, name, code }) {
 }
 
 // Middleware
+// Sécurisation HTTP de base
+try { app.use(helmet()); } catch {}
+
+// Limitation de débit basique (anti-abus)
+try {
+  const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
+  app.use(limiter);
+} catch {}
+
 app.use((req, res, next) => {
   try {
     const allowed = new Set([
@@ -226,6 +237,11 @@ app.use((req, res, next) => {
 });
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'web')));
+
+// Utilitaires de validation simples
+function isFiniteNumber(n){ return typeof n === 'number' && Number.isFinite(n); }
+function isLat(n){ return isFiniteNumber(n) && n >= -90 && n <= 90; }
+function isLon(n){ return isFiniteNumber(n) && n >= -180 && n <= 180; }
 
 // Routes pour toutes les pages HTML
 app.get('/', (req, res) => {

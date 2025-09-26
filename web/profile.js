@@ -18,7 +18,8 @@ function setAvatarFromCache() {
 }
 
 // Configuration de l'API - utiliser Render en production sur Vercel
-const apiBase = window.location.hostname === 'agent-position.vercel.app' 
+const onVercel = /\.vercel\.app$/.test(window.location.hostname) || window.location.hostname.includes('vercel.app');
+const apiBase = onVercel
     ? 'https://presence-ccrb-v2.onrender.com/api'
     : '/api';
 
