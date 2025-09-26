@@ -1105,6 +1105,18 @@ if (typeof window !== 'undefined') {
   window.logout = logout;
 }
 
+// Attacher les handlers de déconnexion sans inline (CSP-compatible)
+function bindLogoutButtons() {
+  try {
+    document.querySelectorAll('.navbar-logout').forEach(btn => {
+      if (!btn._logoutBound) {
+        btn.addEventListener('click', (ev) => { ev.preventDefault(); try { window.logout(); } catch {} });
+        btn._logoutBound = true;
+      }
+    });
+  } catch {}
+}
+
 // ===== FONCTIONS DU CALENDRIER =====
 
 async function initializeCalendar() {
@@ -2213,6 +2225,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   setTimeout(() => {
     setupManualGeoInputs();
+    bindLogoutButtons();
   }, 1000);
 });
 
