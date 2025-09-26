@@ -620,21 +620,22 @@ async function init() {
           }
         } catch {}
       }
-      if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 500) {
+      let lowPrecision = false;
+      if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude)) {
         status.textContent = 'Erreur GPS';
-        showNotification('GPS trop imprécis (>500m). Améliorez le signal et réessayez.', 'error');
+        showNotification('GPS invalide. Activez la localisation et réessayez.', 'error');
         return;
       }
-      if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 500) {
-        status.textContent = 'Erreur GPS';
-        showNotification('GPS trop imprécis (>500m). Améliorez le signal et réessayez.', 'error');
-        return;
+      if (coords.accuracy > 500) {
+        const proceed = confirm(`Précision GPS faible (~${Math.round(coords.accuracy)} m). Voulez-vous enregistrer quand même ?`);
+        if (!proceed) {
+          status.textContent = 'Précision insuffisante';
+          showNotification('Enregistrement annulé. Améliorez le signal et réessayez.', 'warning');
+          return;
+        }
+        lowPrecision = true;
       }
-      if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 500) {
-        status.textContent = 'Erreur GPS';
-        showNotification('GPS trop imprécis (>500m). Améliorez le signal et réessayez.', 'error');
-        return;
-      }
+      // (déduplication)
       const fd = new FormData();
       
       if (missionId) {
@@ -647,6 +648,14 @@ async function init() {
       
       const photo = $('photo').files[0];
       if (photo) fd.append('photo', photo);
+      if (lowPrecision) {
+        const baseNote = $('note').value || 'Fin de mission';
+        fd.set('note', `${baseNote} (faible précision ~${Math.round(coords.accuracy)}m)`);
+      }
+      if (lowPrecision) {
+        const baseNote = $('note').value || 'Début de mission';
+        fd.set('note', `${baseNote} (faible précision ~${Math.round(coords.accuracy)}m)`);
+      }
       
       status.textContent = 'Envoi...';
       
@@ -872,6 +881,10 @@ async function init() {
       if (typeof coords.accuracy !== 'undefined') fd.set('accuracy', String(Math.round(coords.accuracy)));
       const file = $('photo').files[0];
       if (file) fd.set('photo', file);
+      if (lowPrecision) {
+        const baseNote = $('note').value || '';
+        fd.set('note', `${baseNote} (faible précision ~${Math.round(coords.accuracy)}m)`);
+      }
       
       status.textContent = 'Envoi...';
       addLoadingState(checkinBtn, 'Envoi...');
