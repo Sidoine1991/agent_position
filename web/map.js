@@ -41,6 +41,18 @@ document.addEventListener('DOMContentLoaded', function() {
         showPublicMode();
         loadPublicCheckins();
     }
+    // Réagir aux mises à jour de présence depuis d'autres pages/onglets
+    window.addEventListener('storage', (ev) => {
+        if (ev.key === 'presence_update') {
+            try {
+                const payload = JSON.parse(ev.newValue || '{}');
+                if (payload && payload.ts) {
+                    // Recharger mission/checkins et rafraîchir carte
+                    checkCurrentMission();
+                }
+            } catch {}
+        }
+    });
 });
 
 // Fonction pour afficher le mode public

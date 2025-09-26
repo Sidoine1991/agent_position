@@ -499,6 +499,7 @@ async function init() {
       const status = $('status');
       await endMission(currentMissionId, endBtnEl, status);
     };
+    try { endBtnEl.textContent = 'Finir mission'; } catch {}
   }
 
   // Fonction pour commencer une mission
@@ -535,6 +536,7 @@ async function init() {
       
       await refreshCheckins();
       await loadPresenceData();
+      try { notifyPresenceUpdate('start'); } catch {}
       
       // Activer le bouton Finir position et désactiver début
       const endBtn = $('end-mission');
@@ -598,6 +600,7 @@ async function init() {
       
       await refreshCheckins();
       await loadPresenceData();
+      try { notifyPresenceUpdate('end'); } catch {}
       
       // Réactiver le bouton Débuter et désactiver Finir
       const startBtn = $('start-mission');
@@ -663,6 +666,7 @@ async function init() {
         
         await refreshCheckins();
         await loadPresenceData();
+        try { notifyPresenceUpdate('force-end'); } catch {}
         
         // Réactiver le bouton Débuter et désactiver Finir
         const startBtn = $('start-mission');
@@ -756,6 +760,7 @@ async function init() {
       showNotification('Check-in enregistré avec succès !', 'success');
       
       await refreshCheckins();
+      try { notifyPresenceUpdate('checkin'); } catch {}
     } catch (e) { 
       status.textContent = 'Erreur check-in';
       showNotification('Hors ligne: check-in en file et sera envoyé au retour réseau', 'warning');
@@ -766,6 +771,12 @@ async function init() {
           lon: Number(fd.get('lon')),
           note: fd.get('note') || ''
         };
+// Notifier les autres onglets/pages qu'une mise à jour de présence a eu lieu
+function notifyPresenceUpdate(type) {
+  try {
+    localStorage.setItem('presence_update', JSON.stringify({ type, ts: Date.now() }));
+  } catch {}
+}
         if (navigator.serviceWorker && navigator.serviceWorker.controller) {
           navigator.serviceWorker.controller.postMessage({
             type: 'queue-presence',
