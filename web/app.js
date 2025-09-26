@@ -1806,6 +1806,8 @@ async function loadDepartements() {
     deptSelect.dataset.loading = '1';
     
     deptSelect.innerHTML = '<option value="">Sélectionner un département</option>';
+    // Assurer qu'il est activé pour interaction
+    deptSelect.disabled = false;
     
     // Attendre que les données géographiques soient chargées
     if (window.loadGeoData) {
@@ -1821,6 +1823,7 @@ async function loadDepartements() {
         deptSelect.appendChild(opt);
       });
       deptSelect.dataset.loaded = '1';
+      deptSelect.disabled = false;
       console.log('✅ Départements chargés depuis les données locales:', window.geoData.departements.length);
     } else {
       console.error('❌ Données géographiques locales non disponibles');
