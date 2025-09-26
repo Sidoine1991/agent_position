@@ -535,12 +535,13 @@ async function init() {
       // Tenter de récupérer l'ID de mission créé et activer les actions liées
       if (data && (data.mission_id || (data.mission && data.mission.id))) {
         currentMissionId = data.mission_id || data.mission.id;
+        try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch {}
       } else {
         try {
           const missionsResponse = await api('/me/missions');
           const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
           const active = missions.find(m => m.status === 'active');
-          if (active) currentMissionId = active.id;
+          if (active) { currentMissionId = active.id; try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch {} }
         } catch {}
       }
       
@@ -632,6 +633,7 @@ async function init() {
       const checkinBtn = $('checkin-btn');
       if (checkinBtn) checkinBtn.disabled = true;
       currentMissionId = null;
+      try { localStorage.removeItem('currentMissionId'); } catch {}
       
     } catch (e) {
       console.error('Erreur fin mission:', e);
@@ -696,8 +698,9 @@ async function init() {
         if (startBtn) startBtn.disabled = false;
         if (button) button.disabled = true;
         const checkinBtn = $('checkin-btn');
-        if (checkinBtn) checkinBtn.disabled = true;
-        currentMissionId = null;
+      if (checkinBtn) checkinBtn.disabled = true;
+      currentMissionId = null;
+      try { localStorage.removeItem('currentMissionId'); } catch {}
         
         // Masquer le bouton de secours
         hideForceEndButton();
@@ -752,11 +755,17 @@ async function init() {
 
   $('checkin-btn').onclick = async () => {
     if (!currentMissionId) {
+      // Try restore from local storage first (faster UX)
+      try {
+        const saved = localStorage.getItem('currentMissionId');
+        if (saved) currentMissionId = Number(saved);
+      } catch {}
+      
       try {
         const missionsResponse = await api('/me/missions');
         const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
         const active = missions.find(m => m.status === 'active');
-        if (active) currentMissionId = active.id;
+        if (active) { currentMissionId = active.id; try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch {} }
       } catch {}
       if (!currentMissionId) {
         showNotification('Démarrer une mission d\'abord', 'error');
