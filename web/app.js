@@ -1973,14 +1973,21 @@ async function loadVillages(arrondissementId) {
         if (arrondissement && window.geoData.villages[arrondissement.name]) {
           villages = window.geoData.villages[arrondissement.name] || [];
         }
-        // 3) Fallback: parcourir toutes les listes et filtrer par suffixe de nom "..._Arrondissement"
+        // 3) Fallback: recherche tolérante par nom (sans accents, insensible à la casse)
         if (villages.length === 0 && arrondissement && arrondissement.name) {
           try {
+            const normalize = (s) => String(s || '')
+              .normalize('NFD')
+              .replace(/\p{Diacritic}+/gu, '')
+              .replace(/[\s-]+/g, '_')
+              .toLowerCase();
+            const arrNameNorm = normalize(arrondissement.name);
             const all = Object.values(window.geoData.villages)
               .flat()
               .filter(v => {
-                const parts = String(v.name || '').split('_');
-                return parts.length > 1 && parts[parts.length - 1] === arrondissement.name;
+                const vn = normalize(v.name);
+                // accepter suffixe exact après '_' ou simple inclusion
+                return vn.endsWith('_' + arrNameNorm) || vn.includes(arrNameNorm);
               });
             villages = all;
           } catch {}
