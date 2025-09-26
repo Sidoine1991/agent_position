@@ -5,9 +5,13 @@ self.addEventListener('install', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  e.respondWith(
-    caches.match(e.request).then((r) => r || fetch(e.request))
-  );
+  const url = new URL(e.request.url);
+  // Only handle same-origin requests to respect CSP
+  if (url.origin === self.location.origin) {
+    e.respondWith(
+      caches.match(e.request).then((r) => r || fetch(e.request))
+    );
+  }
 });
 
 // IndexedDB helpers for offline queue
