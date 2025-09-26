@@ -25,7 +25,9 @@ window.loadGeoData = function() {
     fetch('/geo-data.json', { cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
       .then(json => {
-        if (json && json.departements && json.villages) {
+        const hasDeps = Array.isArray(json?.departements) && json.departements.length > 0;
+        const hasVillages = json && json.villages && Object.keys(json.villages).length > 0;
+        if (hasDeps && hasVillages) {
           window.geoData = { ...window.geoData, ...json, loaded: true };
           console.log('✅ Données géographiques chargées depuis geo-data.json');
           resolve(window.geoData);

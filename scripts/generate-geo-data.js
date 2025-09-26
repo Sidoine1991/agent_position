@@ -30,13 +30,26 @@ function main() {
   }
 
   const wb = xlsx.readFile(xlsxPath);
-  // Use first sheet by default
-  const sheetName = wb.SheetNames[0];
-  const ws = wb.Sheets[sheetName];
-  const rows = xlsx.utils.sheet_to_json(ws, { defval: '' });
+  // Aggregate rows from all sheets to be robust
+  let rows = [];
+  for (const sn of wb.SheetNames) {
+    const ws = wb.Sheets[sn];
+    const part = xlsx.utils.sheet_to_json(ws, { defval: '' });
+    if (Array.isArray(part) && part.length) rows = rows.concat(part);
+  }
   if (!rows.length) {
-    console.error('No rows found in XLSX');
-    process.exit(1);
+    console.error('No rows found in XLSX (all sheets)');
+    // Still output default departements to unblock UI
+    const geo = {
+      departements: [
+        { id:1, name:'Alibori' },{ id:2, name:'Atacora' },{ id:3, name:'Atlantique' },{ id:4, name:'Borgou' },{ id:5, name:'Collines' },
+        { id:6, name:'Couffo' },{ id:7, name:'Donga' },{ id:8, name:'Littoral' },{ id:9, name:'Mono' },{ id:10, name:'Ouémé' },{ id:11, name:'Plateau' }
+      ],
+      communes: {}, arrondissements: {}, villages: {}, loaded: true
+    };
+    fs.writeFileSync(outPath, JSON.stringify(geo));
+    console.log('✅ Generated (defaults only)', outPath);
+    process.exit(0);
   }
 
   // Build key map for headers
@@ -59,13 +72,13 @@ function main() {
 
   // Accept typical headers variants
   const depKeys = ['departement', 'département', 'dept', 'departement id', 'id departement'];
-  const depNameKeys = ['departement name', 'nom departement', 'nom du departement', 'département', 'departement'];
+  const depNameKeys = ['departement name', 'nom departement', 'nom du departement', 'département', 'departement', 'departement_nom'];
   const comKeys = ['commune', 'commune id', 'id commune'];
-  const comNameKeys = ['nom commune', 'commune name', 'nom de la commune', 'commune'];
+  const comNameKeys = ['nom commune', 'commune name', 'nom de la commune', 'commune', 'commune_nom'];
   const arrKeys = ['arrondissement', 'arrondissement id', 'id arrondissement'];
-  const arrNameKeys = ['nom arrondissement', 'arrondissement name', 'nom de l arrondissment', 'arrondissement'];
+  const arrNameKeys = ['nom arrondissement', 'arrondissement name', 'nom de l arrondissment', 'arrondissement', 'arrondissement_nom'];
   const vilKeys = ['village', 'village id', 'id village', 'localite id'];
-  const vilNameKeys = ['nom village', 'village name', 'nom de la localite', 'localite', 'village'];
+  const vilNameKeys = ['nom village', 'village name', 'nom de la localite', 'localite', 'village', 'localite_nom'];
 
   const departements = new Map(); // id -> {id,name}
   const communes = new Map(); // key depId -> [{id,name}]
@@ -155,8 +168,17 @@ function main() {
     }
   }
 
+  // Ensure default departements if none detected
+  let depsOut = Array.from(departements.values()).sort((a,b)=>a.id-b.id);
+  if (depsOut.length === 0) {
+    depsOut = [
+      { id:1, name:'Alibori' },{ id:2, name:'Atacora' },{ id:3, name:'Atlantique' },{ id:4, name:'Borgou' },{ id:5, name:'Collines' },
+      { id:6, name:'Couffo' },{ id:7, name:'Donga' },{ id:8, name:'Littoral' },{ id:9, name:'Mono' },{ id:10, name:'Ouémé' },{ id:11, name:'Plateau' }
+    ];
+  }
+
   const geo = {
-    departements: Array.from(departements.values()).sort((a,b)=>a.id-b.id),
+    departements: depsOut,
     communes: Object.fromEntries(Array.from(communes.entries()).map(([k,v]) => [String(k), v])),
     arrondissements: Object.fromEntries(Array.from(arrondissements.entries()).map(([k,v]) => [String(k), v])),
     villages: Object.fromEntries(Array.from(villages.entries()).map(([k,v]) => [String(k), v])),
