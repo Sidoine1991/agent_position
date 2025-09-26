@@ -1951,6 +1951,11 @@ async function loadVillages(arrondissementId) {
       villageSelect.innerHTML = '<option value="">Sélectionner un village</option>';
       villageSelect.disabled = true;
     
+    // S'assurer que les données géographiques asynchrones sont chargées
+    if (window.loadGeoData) {
+      try { await window.loadGeoData(); } catch {}
+    }
+    
     let villages = [];
     if (window.geoData && window.geoData.villages) {
       // 1) Direct: clé numérique par arrondissementId
