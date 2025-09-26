@@ -817,16 +817,30 @@ async function init() {
 
   // Load geo cascade
   await loadDepartements();
-  $('departement').onchange = async () => {
-    const id = Number($('departement').value);
+  const depSel = $('departement');
+  const comSel = $('commune');
+  const arrSel = $('arrondissement');
+  const vilSel = $('village');
+  if (comSel) { comSel.innerHTML = '<option value="">Sélectionner une commune</option>'; comSel.disabled = true; }
+  if (arrSel) { arrSel.innerHTML = '<option value="">Sélectionner un arrondissement</option>'; arrSel.disabled = true; }
+  if (vilSel) { vilSel.innerHTML = '<option value="">Sélectionner un village</option>'; vilSel.disabled = true; }
+
+  if (depSel) depSel.onchange = async () => {
+    const id = Number(depSel.value);
+    if (comSel) { comSel.innerHTML = '<option value="">Sélectionner une commune</option>'; comSel.disabled = true; }
+    if (arrSel) { arrSel.innerHTML = '<option value="">Sélectionner un arrondissement</option>'; arrSel.disabled = true; }
+    if (vilSel) { vilSel.innerHTML = '<option value="">Sélectionner un village</option>'; vilSel.disabled = true; }
     await loadCommunes(id);
   };
-  $('commune').onchange = async () => {
-    const id = Number($('commune').value);
+  if (comSel) comSel.onchange = async () => {
+    const id = Number(comSel.value);
+    if (arrSel) { arrSel.innerHTML = '<option value="">Sélectionner un arrondissement</option>'; arrSel.disabled = true; }
+    if (vilSel) { vilSel.innerHTML = '<option value="">Sélectionner un village</option>'; vilSel.disabled = true; }
     await loadArrondissements(id);
   };
-  $('arrondissement').onchange = async () => {
-    const id = Number($('arrondissement').value);
+  if (arrSel) arrSel.onchange = async () => {
+    const id = Number(arrSel.value);
+    if (vilSel) { vilSel.innerHTML = '<option value="">Sélectionner un village</option>'; vilSel.disabled = true; }
     await loadVillages(id);
   };
 
