@@ -521,11 +521,17 @@ async function init() {
         showNotification('GPS invalide: activez la localisation haute précision et réessayez.', 'error');
         return;
       }
-      if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude)) {
-        status.textContent = 'Erreur GPS';
-        showNotification('GPS invalide: activez la localisation et réessayez.', 'error');
-        removeLoadingState(checkinBtn);
-        return;
+      
+      // Vérifier la précision et demander confirmation si faible
+      let lowPrecision = false;
+      if (coords.accuracy > 500) {
+        const proceed = confirm(`Précision GPS faible (~${Math.round(coords.accuracy)} m). Voulez-vous enregistrer quand même ?`);
+        if (!proceed) {
+          status.textContent = 'Précision insuffisante';
+          showNotification('Enregistrement annulé. Améliorez le signal et réessayez.', 'warning');
+          return;
+        }
+        lowPrecision = true;
       }
       const fd = new FormData();
       
@@ -536,7 +542,12 @@ async function init() {
       fd.append('arrondissement', $('arrondissement').value);
       fd.append('village', $('village').value);
       if (typeof coords.accuracy !== 'undefined') fd.append('accuracy', String(Math.round(coords.accuracy)));
-      fd.append('note', $('note').value || 'Début de mission');
+      const baseNote = $('note').value || 'Début de mission';
+      if (lowPrecision) {
+        fd.append('note', `${baseNote} (faible précision ~${Math.round(coords.accuracy)}m)`);
+      } else {
+        fd.append('note', baseNote);
+      }
       
       const photo = $('photo').files[0];
       if (photo) fd.append('photo', photo);
