@@ -14,6 +14,10 @@ function normalizeHeader(s) {
     .trim();
 }
 
+function headerIncludes(hNorm, keywords) {
+  return keywords.some(k => hNorm.includes(k));
+}
+
 function pick(obj, keys) {
   for (const k of keys) {
     if (obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== '') return obj[k];
@@ -52,20 +56,43 @@ function main() {
     process.exit(0);
   }
 
-  // Build key map for headers
-  const first = rows[0];
-  const headers = Object.keys(first);
+  // Build header maps with fuzzy detection
+  const headers = Array.from(new Set(rows.flatMap(r => Object.keys(r))));
   const normalizedMap = {};
   for (const h of headers) normalizedMap[normalizeHeader(h)] = h;
 
-  function getField(r, variants) {
-    for (const v of variants) {
-      const key = normalizedMap[normalizeHeader(v)] || normalizedMap[v];
-      if (key && r[key] !== undefined) return r[key];
+  // Auto-detect best header for a semantic field
+  function detectHeader(keywords, fallbacks = []) {
+    const kw = keywords.map(normalizeHeader);
+    // exact normalized match
+    for (const [hn, orig] of Object.entries(normalizedMap)) {
+      if (kw.includes(hn)) return orig;
     }
-    // try direct by normalized name
-    for (const h of headers) {
-      if (normalizeHeader(h) === normalizeHeader(variants[0])) return r[h];
+    // substring match
+    for (const [hn, orig] of Object.entries(normalizedMap)) {
+      if (headerIncludes(hn, kw)) return orig;
+    }
+    // fallback names
+    for (const f of fallbacks) {
+      const n = normalizeHeader(f);
+      if (normalizedMap[n]) return normalizedMap[n];
+    }
+    return null;
+  }
+
+  const depIdHeader = detectHeader(['id departement', 'departement id', 'dept id']);
+  const depNameHeader = detectHeader(['departement', 'département', 'nom departement', 'nom du departement'], ['departement_nom']);
+  const comIdHeader = detectHeader(['id commune', 'commune id']);
+  const comNameHeader = detectHeader(['commune', 'nom commune', 'nom de la commune'], ['commune_nom']);
+  const arrIdHeader = detectHeader(['id arrondissement', 'arrondissement id']);
+  const arrNameHeader = detectHeader(['arrondissement', 'nom arrondissement', 'nom de l arrondissement'], ['arrondissement_nom']);
+  const vilIdHeader = detectHeader(['id village', 'village id', 'localite id']);
+  const vilNameHeader = detectHeader(['village', 'nom village', 'localite', 'nom de la localite'], ['localite_nom']);
+
+  function getField(r, header, altHeaders = []) {
+    if (header && r[header] !== undefined) return r[header];
+    for (const a of altHeaders) {
+      if (a && r[a] !== undefined) return r[a];
     }
     return undefined;
   }
@@ -105,14 +132,14 @@ function main() {
   const arrNameToId = new Map();
 
   for (const r of rows) {
-    let depId = getField(r, depKeys);
-    let depName = getField(r, depNameKeys);
-    let comId = getField(r, comKeys);
-    let comName = getField(r, comNameKeys);
-    let arrId = getField(r, arrKeys);
-    let arrName = getField(r, arrNameKeys);
-    let vilId = getField(r, vilKeys);
-    let vilName = getField(r, vilNameKeys);
+    let depId = getField(r, depIdHeader);
+    let depName = getField(r, depNameHeader);
+    let comId = getField(r, comIdHeader);
+    let comName = getField(r, comNameHeader);
+    let arrId = getField(r, arrIdHeader);
+    let arrName = getField(r, arrNameHeader);
+    let vilId = getField(r, vilIdHeader);
+    let vilName = getField(r, vilNameHeader);
 
     // Normalize
     depId = depId || depNameToId.get(String(depName).trim());
