@@ -47,7 +47,7 @@ function main() {
     const geo = {
       departements: [
         { id:1, name:'Alibori' },{ id:2, name:'Atacora' },{ id:3, name:'Atlantique' },{ id:4, name:'Borgou' },{ id:5, name:'Collines' },
-        { id:6, name:'Couffo' },{ id:7, name:'Donga' },{ id:8, name:'Littoral' },{ id:9, name:'Mono' },{ id:10, name:'Ouémé' },{ id:11, name:'Plateau' }
+        { id:6, name:'Couffo' },{ id:7, name:'Donga' },{ id:8, name:'Littoral' },{ id:9, name:'Mono' },{ id:10, name:'Ouémé' },{ id:11, name:'Plateau' },{ id:12, name:'Zou' }
       ],
       communes: {}, arrondissements: {}, villages: {}, loaded: true
     };
@@ -200,7 +200,7 @@ function main() {
   if (depsOut.length === 0) {
     depsOut = [
       { id:1, name:'Alibori' },{ id:2, name:'Atacora' },{ id:3, name:'Atlantique' },{ id:4, name:'Borgou' },{ id:5, name:'Collines' },
-      { id:6, name:'Couffo' },{ id:7, name:'Donga' },{ id:8, name:'Littoral' },{ id:9, name:'Mono' },{ id:10, name:'Ouémé' },{ id:11, name:'Plateau' }
+      { id:6, name:'Couffo' },{ id:7, name:'Donga' },{ id:8, name:'Littoral' },{ id:9, name:'Mono' },{ id:10, name:'Ouémé' },{ id:11, name:'Plateau' },{ id:12, name:'Zou' }
     ];
   }
 
