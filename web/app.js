@@ -545,13 +545,17 @@ async function init() {
       
       const data = await api('/presence/start', { method: 'POST', body: fd });
       // Tenter de récupérer l'ID de mission créé et activer les actions liées
-      if (data && (data.mission_id || (data.mission && data.mission.id))) {
-        currentMissionId = data.mission_id || data.mission.id;
+      const missionIdFromResp = (data && (data.mission_id || (data.mission && data.mission.id)))
+        || (data && data.data && (data.data.mission_id || (data.data.mission && data.data.mission.id)));
+      if (missionIdFromResp) {
+        currentMissionId = missionIdFromResp;
         try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch {}
       } else {
         try {
           const missionsResponse = await api('/me/missions');
-          const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
+          const missions = Array.isArray(missionsResponse)
+            ? missionsResponse
+            : (missionsResponse.missions || (missionsResponse.data && missionsResponse.data.missions) || []);
           const active = missions.find(m => m.status === 'active');
           if (active) { currentMissionId = active.id; try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch {} }
         } catch {}
@@ -615,6 +619,21 @@ async function init() {
             coords = { latitude: Number(last.lat), longitude: Number(last.lon), accuracy: Number(last.accuracy || 9999) };
           }
         } catch {}
+      }
+      if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 500) {
+        status.textContent = 'Erreur GPS';
+        showNotification('GPS trop imprécis (>500m). Améliorez le signal et réessayez.', 'error');
+        return;
+      }
+      if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 500) {
+        status.textContent = 'Erreur GPS';
+        showNotification('GPS trop imprécis (>500m). Améliorez le signal et réessayez.', 'error');
+        return;
+      }
+      if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 500) {
+        status.textContent = 'Erreur GPS';
+        showNotification('GPS trop imprécis (>500m). Améliorez le signal et réessayez.', 'error');
+        return;
       }
       const fd = new FormData();
       
@@ -856,7 +875,7 @@ async function init() {
       
       status.textContent = 'Envoi...';
       addLoadingState(checkinBtn, 'Envoi...');
-      await api('/mission/checkin', { method: 'POST', body: fd });
+      const resp = await api('/mission/checkin', { method: 'POST', body: fd });
       
       status.textContent = 'Check-in envoyé';
       animateElement(status, 'bounce');
