@@ -169,6 +169,18 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // Paramètres applicatifs (valeurs par défaut)
+    if (pathname === '/api/settings' && req.method === 'GET') {
+      res.status(200).json({
+        success: true,
+        settings: {
+          'presence.expected_days_per_month': 22,
+          'presence.expected_hours_per_month': 160
+        }
+      });
+      return;
+    }
+
     // Admin: réinitialiser les comptes et données en mémoire
     if (pathname === '/api/admin/reset' && req.method === 'POST') {
       const authHeader = req.headers.authorization;

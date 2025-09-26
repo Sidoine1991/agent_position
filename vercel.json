@@ -27,6 +27,8 @@
       "src": "/styles.css",
       "dest": "/web/styles.css"
     },
+    { "src": "/bootstrap-5.3.8-dist/(.*)", "dest": "/bootstrap-5.3.8-dist/$1" },
+    { "src": "/leaflet/(.*)", "dest": "/web/leaflet/$1" },
     {
       "src": "/manifest.webmanifest",
       "dest": "/web/manifest.webmanifest"
