@@ -505,7 +505,16 @@ async function init() {
       createRippleEffect({ currentTarget: button, clientX: 0, clientY: 0 });
       addLoadingState(button, 'Récupération GPS...');
       
-      const coords = await getCurrentLocationWithValidation();
+      let coords = await getCurrentLocationWithValidation();
+      // Fallback: si coords invalides ou précision extrême, utiliser le dernier GPS stocké
+      if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 5000) {
+        try {
+          const last = JSON.parse(localStorage.getItem('lastGPS') || '{}');
+          if (isFinite(last.lat) && isFinite(last.lon)) {
+            coords = { latitude: Number(last.lat), longitude: Number(last.lon), accuracy: Number(last.accuracy || 9999) };
+          }
+        } catch {}
+      }
       const fd = new FormData();
       
       fd.append('lat', String(coords.latitude));
@@ -514,6 +523,7 @@ async function init() {
       fd.append('commune', $('commune').value);
       fd.append('arrondissement', $('arrondissement').value);
       fd.append('village', $('village').value);
+      if (typeof coords.accuracy !== 'undefined') fd.append('accuracy', String(Math.round(coords.accuracy)));
       fd.append('note', $('note').value || 'Début de mission');
       
       const photo = $('photo').files[0];
@@ -579,7 +589,15 @@ async function init() {
       createRippleEffect({ currentTarget: button, clientX: 0, clientY: 0 });
       addLoadingState(button, 'Récupération GPS...');
       
-      const coords = await getCurrentLocationWithValidation();
+      let coords = await getCurrentLocationWithValidation();
+      if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 5000) {
+        try {
+          const last = JSON.parse(localStorage.getItem('lastGPS') || '{}');
+          if (isFinite(last.lat) && isFinite(last.lon)) {
+            coords = { latitude: Number(last.lat), longitude: Number(last.lon), accuracy: Number(last.accuracy || 9999) };
+          }
+        } catch {}
+      }
       const fd = new FormData();
       
       if (missionId) {
@@ -588,6 +606,7 @@ async function init() {
       fd.append('lat', String(coords.latitude));
       fd.append('lon', String(coords.longitude));
       fd.append('note', $('note').value || 'Fin de mission');
+      if (typeof coords.accuracy !== 'undefined') fd.append('accuracy', String(Math.round(coords.accuracy)));
       
       const photo = $('photo').files[0];
       if (photo) fd.append('photo', photo);
@@ -754,12 +773,21 @@ async function init() {
     
     try {
       status.textContent = 'Récupération GPS...';
-      const coords = await getCurrentLocationWithValidation();
+      let coords = await getCurrentLocationWithValidation();
+      if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 5000) {
+        try {
+          const last = JSON.parse(localStorage.getItem('lastGPS') || '{}');
+          if (isFinite(last.lat) && isFinite(last.lon)) {
+            coords = { latitude: Number(last.lat), longitude: Number(last.lon), accuracy: Number(last.accuracy || 9999) };
+          }
+        } catch {}
+      }
       const fd = new FormData();
       fd.set('mission_id', String(currentMissionId));
       fd.set('lat', String(coords.latitude));
       fd.set('lon', String(coords.longitude));
       fd.set('note', $('note').value || '');
+      if (typeof coords.accuracy !== 'undefined') fd.set('accuracy', String(Math.round(coords.accuracy)));
       const file = $('photo').files[0];
       if (file) fd.set('photo', file);
       
@@ -1634,14 +1662,8 @@ async function updateCurrentLocation() {
 }
 
 async function getLocationName(lat, lon) {
-  try {
-    // Utiliser l'API de géocodage inverse (vous pouvez remplacer par votre propre service)
-    const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=fr`);
-    const data = await response.json();
-    return data.locality || data.city || 'Position détectée';
-  } catch (error) {
-    return `Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)}`;
-  }
+  // Respect CSP: ne pas appeler des domaines externes
+  return `Lat: ${lat.toFixed(4)}, Lon: ${lon.toFixed(4)}`;
 }
 
 // Mettre à jour la navbar selon l'état de connexion et le rôle
