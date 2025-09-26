@@ -27,7 +27,8 @@ window.loadGeoData = function() {
       .then(json => {
         const hasDeps = Array.isArray(json?.departements) && json.departements.length > 0;
         const hasVillages = json && json.villages && Object.keys(json.villages).length > 0;
-        if (hasDeps && hasVillages) {
+        // Accepter si au moins les départements existent (les autres niveaux peuvent être vides)
+        if (hasDeps) {
           window.geoData = { ...window.geoData, ...json, loaded: true };
           console.log('✅ Données géographiques chargées depuis geo-data.json');
           resolve(window.geoData);
