@@ -525,6 +525,13 @@ async function init() {
       // Tenter de récupérer l'ID de mission créé et activer les actions liées
       if (data && (data.mission_id || (data.mission && data.mission.id))) {
         currentMissionId = data.mission_id || data.mission.id;
+      } else {
+        try {
+          const missionsResponse = await api('/me/missions');
+          const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
+          const active = missions.find(m => m.status === 'active');
+          if (active) currentMissionId = active.id;
+        } catch {}
       }
       
       status.textContent = 'Position signalée - Mission démarrée';
@@ -725,9 +732,17 @@ async function init() {
   // Ancien bouton end-mission supprimé
 
   $('checkin-btn').onclick = async () => {
-    if (!currentMissionId) { 
-      showNotification('Démarrer une mission d\'abord', 'error');
-      return; 
+    if (!currentMissionId) {
+      try {
+        const missionsResponse = await api('/me/missions');
+        const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
+        const active = missions.find(m => m.status === 'active');
+        if (active) currentMissionId = active.id;
+      } catch {}
+      if (!currentMissionId) {
+        showNotification('Démarrer une mission d\'abord', 'error');
+        return;
+      }
     }
     
     const status = $('status');
