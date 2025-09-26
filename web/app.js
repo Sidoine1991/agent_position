@@ -515,6 +515,18 @@ async function init() {
           }
         } catch {}
       }
+      // Dernière validation: si GPS toujours invalide, arrêter proprement avec un message clair
+      if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude)) {
+        status.textContent = 'Erreur GPS';
+        showNotification('GPS invalide: activez la localisation haute précision et réessayez.', 'error');
+        return;
+      }
+      if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude)) {
+        status.textContent = 'Erreur GPS';
+        showNotification('GPS invalide: activez la localisation et réessayez.', 'error');
+        removeLoadingState(checkinBtn);
+        return;
+      }
       const fd = new FormData();
       
       fd.append('lat', String(coords.latitude));
@@ -563,22 +575,27 @@ async function init() {
     } catch (e) {
       console.error('Erreur début mission:', e);
       status.textContent = 'Erreur début mission';
-      showNotification('Hors ligne: mission en file et sera envoyée dès retour réseau', 'warning');
-      try {
-        const payload = {
-          lat: Number(fd.get('lat')),
-          lon: Number(fd.get('lon')),
-          note: fd.get('note') || 'Début de mission (offline)'
-        };
-        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage({
-            type: 'queue-presence',
-            endpoint: '/api/presence/start',
-            method: 'POST',
-            payload
-          });
-        }
-      } catch {}
+      const msg = (e && e.message) || '';
+      if (String(msg).includes('Coordonnées invalides') || String(msg).includes('400')) {
+        showNotification('Coordonnées GPS invalides: rapprochez-vous d’une zone ouverte ou activez le GPS.', 'error');
+      } else {
+        showNotification('Hors ligne: mission en file et sera envoyée dès retour réseau', 'warning');
+        try {
+          const payload = {
+            lat: Number(fd.get('lat')),
+            lon: Number(fd.get('lon')),
+            note: fd.get('note') || 'Début de mission (offline)'
+          };
+          if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: 'queue-presence',
+              endpoint: '/api/presence/start',
+              method: 'POST',
+              payload
+            });
+          }
+        } catch {}
+      }
     } finally {
       removeLoadingState(button);
     }
@@ -849,6 +866,11 @@ async function init() {
       try { notifyPresenceUpdate('checkin'); } catch {}
     } catch (e) { 
       status.textContent = 'Erreur check-in';
+      const msg = (e && e.message) || '';
+      if (String(msg).includes('Coordonnées invalides') || String(msg).includes('400')) {
+        showNotification('Coordonnées GPS invalides pour le check-in. Réessayez avec un meilleur signal.', 'error');
+        return;
+      }
       showNotification('Hors ligne: check-in en file et sera envoyé au retour réseau', 'warning');
       try {
         const payload = {
