@@ -2040,6 +2040,22 @@ async function loadVillages(arrondissementId) {
                   villages = window.geoData.villages[communeName] || [];
                 }
               }
+
+              // Filtrer par arrondissement sélectionné pour respecter la cascade
+              try {
+                if (Array.isArray(villages) && arrondissement && arrondissement.name) {
+                  const normalize = (s) => String(s || '')
+                    .normalize('NFD')
+                    .replace(/\p{Diacritic}+/gu, '')
+                    .replace(/[\s-]+/g, '_')
+                    .toLowerCase();
+                  const arrNameNorm = normalize(arrondissement.name);
+                  villages = villages.filter(v => {
+                    const vn = normalize(v.name);
+                    return vn.endsWith('_' + arrNameNorm) || vn.includes(arrNameNorm);
+                  });
+                }
+              } catch {}
             }
           } catch {}
         }
