@@ -1554,6 +1554,17 @@ function showSystemNotification(title, message) {
 
 async function getCurrentLocationWithValidation() {
   try {
+    // Vérifier la permission de géolocalisation si disponible
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        const perm = await navigator.permissions.query({ name: 'geolocation' });
+        if (perm.state === 'denied') {
+          showNotification('Accès GPS refusé', 'Veuillez autoriser la localisation dans votre navigateur (Paramètres > Site > Localisation).');
+          throw new Error('Accès GPS refusé');
+        }
+      }
+    } catch {}
+
     // Vérifier d'abord que le serveur répond
     try {
       const healthCheck = await fetch(apiBase + '/health', { 
@@ -1568,12 +1579,51 @@ async function getCurrentLocationWithValidation() {
       // Continuer quand même pour le GPS local
     }
     
-    const coords = await geoPromise();
+    // Déterminer la précision maximale souhaitée via l'UI
+    const gpsPrecision = document.getElementById('gps-precision')?.value || 'medium';
+    let targetAccuracy = 500; // fallback
+    switch (gpsPrecision) {
+      case 'high': targetAccuracy = 50; break;
+      case 'medium': targetAccuracy = 150; break;
+      case 'low': targetAccuracy = 500; break;
+      case 'any': targetAccuracy = Infinity; break;
+    }
+
+    // Lecture multi-essais pour améliorer la précision
+    const getOnce = () => new Promise((resolve, reject) => {
+      if (!navigator.geolocation) return reject(new Error('Géolocalisation non supportée'));
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
+      });
+    });
+
+    const startTs = Date.now();
+    const maxWaitMs = 15000;
+    let best = null;
+    let attempts = 0;
+    while (Date.now() - startTs < maxWaitMs && attempts < 4) {
+      attempts++;
+      try {
+        const pos = await getOnce();
+        const { latitude, longitude, accuracy } = pos.coords || {};
+        if (Number.isFinite(latitude) && Number.isFinite(longitude) && Number.isFinite(accuracy)) {
+          if (!best || accuracy < best.accuracy) best = { latitude, longitude, accuracy };
+          if (accuracy <= targetAccuracy) break;
+        }
+      } catch (e) {
+        // Continuer si timeout, sinon stopper
+        if (!(e && String(e.message || e).toLowerCase().includes('timeout'))) {
+          throw e;
+        }
+      }
+    }
+    if (!best) throw new Error('GPS indisponible');
+    const coords = best;
     
     // Vérifier la précision GPS selon le paramètre choisi
-    const gpsPrecision = document.getElementById('gps-precision')?.value || 'medium';
-    let maxAccuracy = 1000; // Par défaut
-    
+    let maxAccuracy = 1000; // Par défaut pour l'avertissement
     switch (gpsPrecision) {
       case 'high': maxAccuracy = 100; break;
       case 'medium': maxAccuracy = 500; break;
