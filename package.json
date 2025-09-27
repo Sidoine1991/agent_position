@@ -8,18 +8,18 @@
     "dev": "node server.js",
     "build": "echo 'No build step needed'",
     "postinstall": "echo 'Dependencies installed successfully'",
-    "build:geo": "node scripts/generate-geo-data.js"
+    "build:geo": "node scripts/generate-geo-data.js",
+    "test": "node test-runner.js",
+    "test:local": "node test-runner.js local",
+    "test:all": "node test-runner.js all",
+    "test:mobile": "node test-runner.js mobile",
+    "test:vercel": "node test-runner.js vercel",
+    "test:ui": "node test-runner.js ui"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
-    "@capacitor/camera": "^7.0.2",
     "@capacitor/cli": "^7.4.3",
     "@capacitor/core": "^7.4.3",
-    "@capacitor/filesystem": "^7.1.4",
-    "@capacitor/geolocation": "^7.1.5",
-    "@capacitor/network": "^7.0.2",
-    "@capacitor/splash-screen": "^7.0.3",
-    "@capacitor/status-bar": "^7.0.3",
     "bcrypt": "^5.1.1",
     "express": "^4.21.2",
     "express-rate-limit": "^7.4.0",
@@ -33,5 +33,19 @@
   },
   "engines": {
     "node": ">=18.0.0"
-  }
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sidoine1991/agent_position.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Sidoine1991/agent_position/issues"
+  },
+  "homepage": "https://github.com/Sidoine1991/agent_position#readme"
 }
