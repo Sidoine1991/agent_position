@@ -7,6 +7,9 @@ let presenceData = {};
 let appSettings = null;
 let isLoadingProfile = false; // Protection contre les appels répétés
 
+// Détecteur mobile GPS
+let mobileGPSDetector = null;
+
 function clearCachedUserData() {
   try {
     localStorage.removeItem('loginData');
@@ -1635,6 +1638,12 @@ function showSystemNotification(title, message) {
 
 async function getCurrentLocationWithValidation() {
   try {
+    // Utiliser le détecteur mobile GPS si disponible
+    if (window.mobileGPSDetector && window.mobileGPSDetector.isMobile) {
+      console.log('📱 Utilisation du détecteur mobile GPS');
+      return await window.mobileGPSDetector.getValidatedPosition();
+    }
+    
     // Utiliser le GPS Manager amélioré si disponible
     if (window.gpsManager) {
       return await getCurrentLocationWithNotifications();
@@ -2400,7 +2409,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ne pas forcer la reconnexion, laisser l'utilisateur naviguer normalement
   }
   
+  // Initialiser le détecteur mobile GPS
   setTimeout(() => {
+    if (window.mobileGPSDetector) {
+      mobileGPSDetector = window.mobileGPSDetector;
+      console.log('📱 Détecteur mobile GPS initialisé');
+    }
     setupManualGeoInputs();
     bindLogoutButtons();
   }, 1000);
