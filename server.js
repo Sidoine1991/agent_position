@@ -206,7 +206,7 @@ try { app.use(helmet()); } catch {}
 try {
   const limiter = rateLimit({ 
     windowMs: 15 * 60 * 1000, 
-    max: 100, // Plus strict: 100 requêtes par 15 minutes
+    max: 500, // Augmenté pour Vercel: 500 requêtes par 15 minutes
     standardHeaders: true, 
     legacyHeaders: false,
     message: {
@@ -218,7 +218,7 @@ try {
   // Rate limiting spécial pour les connexions
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 10, // Maximum 10 tentatives de connexion par 15 minutes
+    max: 50, // Augmenté pour Vercel: 50 tentatives de connexion par 15 minutes
     standardHeaders: true,
     legacyHeaders: false,
     message: {
