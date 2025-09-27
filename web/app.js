@@ -7,8 +7,10 @@ let presenceData = {};
 let appSettings = null;
 let isLoadingProfile = false; // Protection contre les appels répétés
 
-// Détecteur mobile GPS
-let mobileGPSDetector = null;
+// Protection contre les boucles de connexion
+let loginAttempts = 0;
+const MAX_LOGIN_ATTEMPTS = 3;
+let isLoginInProgress = false;
 
 function clearCachedUserData() {
   try {
@@ -248,8 +250,22 @@ function geoPromise() {
 }
 
 async function autoLogin(email, password) {
+  // Protection contre les boucles
+  if (isLoginInProgress) {
+    console.log('⚠️ Connexion déjà en cours, ignorée');
+    return;
+  }
+  
+  if (loginAttempts >= MAX_LOGIN_ATTEMPTS) {
+    console.log('❌ Trop de tentatives de connexion, arrêt');
+    return;
+  }
+  
+  isLoginInProgress = true;
+  loginAttempts++;
+  
   try {
-    console.log('🔐 Tentative de connexion automatique...');
+    console.log('🔐 Tentative de connexion automatique...', loginAttempts);
     
     const response = await api('/login', {
       method: 'POST',
@@ -274,6 +290,10 @@ async function autoLogin(email, password) {
       
       console.log('✅ Connexion automatique réussie');
       
+      // Réinitialiser les compteurs
+      loginAttempts = 0;
+      isLoginInProgress = false;
+      
       // Recharger la page pour appliquer les changements
       window.location.reload();
     } else {
@@ -281,6 +301,21 @@ async function autoLogin(email, password) {
     }
   } catch (e) {
     console.error('❌ Erreur de connexion automatique:', e);
+    isLoginInProgress = false;
+    
+    // Si c'est une erreur 429 (Too Many Requests), arrêter complètement
+    if (e.message && e.message.includes('429')) {
+      console.log('❌ Trop de requêtes, arrêt des tentatives');
+      loginAttempts = MAX_LOGIN_ATTEMPTS;
+    }
+    
+    // Attendre avant la prochaine tentative
+    if (loginAttempts < MAX_LOGIN_ATTEMPTS) {
+      setTimeout(() => {
+        isLoginInProgress = false;
+      }, 5000); // Attendre 5 secondes
+    }
+    
     throw e;
   }
 }
@@ -317,6 +352,18 @@ async function init() {
   
   if (email && password) {
     console.log('🔐 Tentative de connexion automatique avec:', { email, password: '***' });
+    
+    // Vérifier si on a déjà tenté cette connexion récemment
+    const lastAttempt = localStorage.getItem('lastLoginAttempt');
+    const now = Date.now();
+    if (lastAttempt && (now - parseInt(lastAttempt)) < 10000) { // 10 secondes
+      console.log('⚠️ Tentative de connexion trop récente, ignorée');
+      return;
+    }
+    
+    // Marquer cette tentative
+    localStorage.setItem('lastLoginAttempt', now.toString());
+    
     // Si l'email a changé, nettoyer le cache local (évite stats d'un autre utilisateur)
     try {
       const lastEmail = localStorage.getItem('lastUserEmail');
