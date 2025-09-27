@@ -42,8 +42,8 @@ class MobileGPSDetector {
     // Détecter les actions de mission
     this.setupMissionListeners();
     
-    // Demander la permission GPS au chargement
-    this.requestGPSPermissionOnLoad();
+    // Désactiver la demande GPS automatique au chargement pour éviter les conflits
+    // this.requestGPSPermissionOnLoad();
   }
 
   // Ajouter les styles pour les notifications GPS
@@ -181,12 +181,9 @@ class MobileGPSDetector {
 
   // Gestion des actions de mission
   async handleMissionAction() {
-    if (!this.gpsPermissionGranted) {
-      console.log('📱 Demande de permission GPS pour action de mission');
-      await this.requestGPSPermission('mission');
-    } else {
-      console.log('✅ Permission GPS déjà accordée');
-    }
+    console.log('📱 Action de mission détectée sur mobile');
+    // Ne pas bloquer l'action, laisser l'application gérer le GPS
+    return true;
   }
 
   // Demander la permission GPS au chargement

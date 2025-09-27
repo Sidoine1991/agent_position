@@ -1638,16 +1638,16 @@ function showSystemNotification(title, message) {
 
 async function getCurrentLocationWithValidation() {
   try {
-    // Utiliser le détecteur mobile GPS si disponible
-    if (window.mobileGPSDetector && window.mobileGPSDetector.isMobile) {
-      try {
-        console.log('📱 Utilisation du détecteur mobile GPS');
-        return await window.mobileGPSDetector.getValidatedPosition();
-      } catch (mobileError) {
-        console.warn('⚠️ Erreur détecteur mobile GPS, fallback:', mobileError);
-        // Continuer avec la méthode normale
-      }
-    }
+    // Désactiver temporairement le détecteur mobile GPS pour éviter les conflits
+    // if (window.mobileGPSDetector && window.mobileGPSDetector.isMobile) {
+    //   try {
+    //     console.log('📱 Utilisation du détecteur mobile GPS');
+    //     return await window.mobileGPSDetector.getValidatedPosition();
+    //   } catch (mobileError) {
+    //     console.warn('⚠️ Erreur détecteur mobile GPS, fallback:', mobileError);
+    //     // Continuer avec la méthode normale
+    //   }
+    // }
     
     // Utiliser le GPS Manager amélioré si disponible
     if (window.gpsManager) {
