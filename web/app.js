@@ -1640,8 +1640,13 @@ async function getCurrentLocationWithValidation() {
   try {
     // Utiliser le détecteur mobile GPS si disponible
     if (window.mobileGPSDetector && window.mobileGPSDetector.isMobile) {
-      console.log('📱 Utilisation du détecteur mobile GPS');
-      return await window.mobileGPSDetector.getValidatedPosition();
+      try {
+        console.log('📱 Utilisation du détecteur mobile GPS');
+        return await window.mobileGPSDetector.getValidatedPosition();
+      } catch (mobileError) {
+        console.warn('⚠️ Erreur détecteur mobile GPS, fallback:', mobileError);
+        // Continuer avec la méthode normale
+      }
     }
     
     // Utiliser le GPS Manager amélioré si disponible
@@ -2411,12 +2416,18 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initialiser le détecteur mobile GPS
   setTimeout(() => {
-    if (window.mobileGPSDetector) {
-      mobileGPSDetector = window.mobileGPSDetector;
-      console.log('📱 Détecteur mobile GPS initialisé');
+    try {
+      if (window.mobileGPSDetector) {
+        mobileGPSDetector = window.mobileGPSDetector;
+        console.log('📱 Détecteur mobile GPS initialisé');
+      } else {
+        console.log('⚠️ Détecteur mobile GPS non disponible');
+      }
+      setupManualGeoInputs();
+      bindLogoutButtons();
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'initialisation:', error);
     }
-    setupManualGeoInputs();
-    bindLogoutButtons();
   }, 1000);
 });
 

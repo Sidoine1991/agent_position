@@ -4,7 +4,13 @@ class MobileGPSDetector {
     this.isMobile = this.detectMobile();
     this.gpsPermissionGranted = false;
     this.gpsPermissionRequested = false;
-    this.init();
+    
+    // Attendre que le DOM soit prêt
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => this.init());
+    } else {
+      this.init();
+    }
   }
 
   // Détection d'appareil mobile
