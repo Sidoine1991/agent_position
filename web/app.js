@@ -1635,6 +1635,12 @@ function showSystemNotification(title, message) {
 
 async function getCurrentLocationWithValidation() {
   try {
+    // Utiliser le GPS Manager amélioré si disponible
+    if (window.gpsManager) {
+      return await getCurrentLocationWithNotifications();
+    }
+
+    // Fallback vers l'ancienne méthode
     // Vérifier la permission de géolocalisation si disponible
     try {
       if (navigator.permissions && navigator.permissions.query) {
