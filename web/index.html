@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- Manifest désactivé pour éviter 401 tant qu'il n'est pas public -->
-    <!-- <link rel="manifest" href="/manifest.webmanifest" /> -->
+    <!-- Manifest PWA activé -->
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/Media/logo-ccrb.png" />
     <meta name="theme-color" content="#0ea5e9" />
     <title>Presence CCR-B - Agent</title>
@@ -25634,6 +25634,8 @@ document.addEventListener('DOMContentLoaded', function() {
     <script src="capacitor-native.js"></script>
     <script src="navigation.js"></script>
     <script src="/app.js?v=3" type="module"></script>
+    <!-- Service Worker -->
+    <script src="register-sw.js"></script>
     <script>
       // Vercel Speed Insights - Désactivé pour éviter les erreurs
       /*
