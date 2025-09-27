@@ -34,6 +34,34 @@
       "dest": "/web/manifest.webmanifest"
     },
     {
+      "src": "/clear-cache.js",
+      "dest": "/web/clear-cache.js"
+    },
+    {
+      "src": "/mobile-gps-detector.js",
+      "dest": "/web/mobile-gps-detector.js"
+    },
+    {
+      "src": "/gps-enhanced.js",
+      "dest": "/web/gps-enhanced.js"
+    },
+    {
+      "src": "/offline-manager.js",
+      "dest": "/web/offline-manager.js"
+    },
+    {
+      "src": "/register-sw.js",
+      "dest": "/web/register-sw.js"
+    },
+    {
+      "src": "/sw.js",
+      "dest": "/web/sw.js"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/web/favicon.ico"
+    },
+    {
       "src": "/geo-data.js",
       "dest": "/web/geo-data.js"
     },
@@ -76,5 +104,25 @@
   ],
   "env": {
     "NODE_ENV": "production"
-  }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/web/(.*\\.js|.*\\.css|.*\\.html)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300, must-revalidate"
+        }
+      ]
+    }
+  ]
 }
