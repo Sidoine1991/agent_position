@@ -882,6 +882,77 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// Route de test pour vérifier l'authentification
+app.get('/api/test-auth', async (req, res) => {
+  try {
+    const { email, password } = req.query;
+    console.log('🧪 Test auth pour:', email);
+    
+    if (!email || !password) {
+      return res.json({
+        success: false,
+        message: 'Email et mot de passe requis',
+        test: 'missing_credentials'
+      });
+    }
+    
+    // Test de connexion
+    const result = await pool.query(`
+      SELECT id, email, password_hash, name, role, phone, is_verified
+      FROM users WHERE email = $1
+    `, [email]);
+    
+    if (result.rows.length === 0) {
+      return res.json({
+        success: false,
+        message: 'Utilisateur non trouvé',
+        test: 'user_not_found'
+      });
+    }
+    
+    const user = result.rows[0];
+    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    
+    if (!isValidPassword) {
+      return res.json({
+        success: false,
+        message: 'Mot de passe incorrect',
+        test: 'invalid_password'
+      });
+    }
+    
+    if (!user.is_verified) {
+      return res.json({
+        success: false,
+        message: 'Compte non validé',
+        test: 'account_not_verified'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Authentification réussie',
+      test: 'auth_success',
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        is_verified: user.is_verified
+      }
+    });
+    
+  } catch (error) {
+    console.error('Erreur test auth:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur',
+      test: 'server_error',
+      error: error.message
+    });
+  }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ 

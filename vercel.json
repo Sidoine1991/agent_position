@@ -34,6 +34,10 @@
       "dest": "/web/manifest.webmanifest"
     },
     {
+      "src": "/test-render-auth.js",
+      "dest": "/web/test-render-auth.js"
+    },
+    {
       "src": "/clear-cache.js",
       "dest": "/web/clear-cache.js"
     },

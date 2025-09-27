@@ -570,14 +570,27 @@ async function init() {
       
       // Validation plus permissive pour Vercel
       if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude)) {
-        // Essayer de générer des coordonnées par défaut pour le Bénin
-        const beninCoords = {
-          latitude: 9.3077 + (Math.random() - 0.5) * 0.1, // Latitude du Bénin avec variation
-          longitude: 2.3158 + (Math.random() - 0.5) * 0.1, // Longitude du Bénin avec variation
-          accuracy: 10000
-        };
-        coords = beninCoords;
-        console.log('📍 Utilisation des coordonnées par défaut du Bénin:', coords);
+        // Détecter si on est sur Vercel
+        const isVercel = window.location.hostname.includes('vercel.app');
+        
+        if (isVercel) {
+          // Sur Vercel, utiliser des coordonnées fixes du Bénin
+          coords = {
+            latitude: 9.3077,
+            longitude: 2.3158,
+            accuracy: 1000
+          };
+          console.log('📍 Vercel détecté - Utilisation coordonnées fixes Bénin:', coords);
+        } else {
+          // Essayer de générer des coordonnées par défaut pour le Bénin
+          const beninCoords = {
+            latitude: 9.3077 + (Math.random() - 0.5) * 0.1, // Latitude du Bénin avec variation
+            longitude: 2.3158 + (Math.random() - 0.5) * 0.1, // Longitude du Bénin avec variation
+            accuracy: 10000
+          };
+          coords = beninCoords;
+          console.log('📍 Utilisation des coordonnées par défaut du Bénin:', coords);
+        }
       }
       
       // Vérifier la précision et demander confirmation si faible
