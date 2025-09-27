@@ -15,19 +15,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const SERPAPI_KEY = process.env.SERPAPI_KEY;
 
-// Configuration JWT
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  const message = 'JWT_SECRET non défini. Définissez la variable d\'environnement JWT_SECRET sur la plateforme (Vercel/Render).';
-  if (process.env.NODE_ENV === 'production') {
-    // En production, ne pas démarrer sans secret
-    throw new Error(message);
-  } else {
-    console.warn('[DEV WARNING]', message, 'Un secret temporaire sera utilisé en local.');
-    // Secret temporaire uniquement en local/dev pour éviter de casser le dev
-    process.env.JWT_SECRET = 'dev-temp-secret-change-me';
-  }
-}
+// Configuration JWT avec fallback
+const config = require('./config');
+const JWT_SECRET = config.JWT_SECRET;
 
 // Configuration multer pour les fichiers (Vercel-compatible)
 const storage = multer.memoryStorage();
@@ -35,8 +25,14 @@ const upload = multer({ storage: storage });
 
 // Configuration de la base de données
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/presence_ccrb',
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  connectionString: process.env.DATABASE_URL || 'postgresql://dbccrb_user:THMWBv1Ur2hP1XyNJExmemPodp0pzeV6@dpg-d37s6vmmcj7s73fs2chg-a.oregon-postgres.render.com/dbccrb',
+  ssl: { 
+    rejectUnauthorized: false,
+    require: true
+  },
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
 });
 
 // Test de connexion à la base de données et création des tables
@@ -208,8 +204,31 @@ try { app.use(helmet()); } catch {}
 
 // Limitation de débit basique (anti-abus)
 try {
-  const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
+  const limiter = rateLimit({ 
+    windowMs: 15 * 60 * 1000, 
+    max: 100, // Plus strict: 100 requêtes par 15 minutes
+    standardHeaders: true, 
+    legacyHeaders: false,
+    message: {
+      success: false,
+      error: 'Trop de requêtes, veuillez réessayer plus tard.'
+    }
+  });
+  
+  // Rate limiting spécial pour les connexions
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10, // Maximum 10 tentatives de connexion par 15 minutes
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      error: 'Trop de tentatives de connexion, veuillez attendre 15 minutes.'
+    }
+  });
+  
   app.use(limiter);
+  app.use('/api/login', loginLimiter);
 } catch {}
 
 app.use((req, res, next) => {
@@ -870,6 +889,27 @@ app.get('/api/health', (req, res) => {
     message: 'API is running',
     database: 'connected'
   });
+});
+
+// Route pour les unités administratives
+app.get('/api/admin-units', async (req, res) => {
+  try {
+    const { getDepartements } = require('./backend/src/db-cloud');
+    const departements = await getDepartements();
+    
+    res.json({
+      success: true,
+      data: {
+        departements: departements
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des unités administratives:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erreur lors de la récupération des unités administratives'
+    });
+  }
 });
 
 // ===== ROUTES GÉOGRAPHIQUES =====

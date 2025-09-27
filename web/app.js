@@ -5,6 +5,7 @@ let currentMissionId = null;
 let currentCalendarDate = new Date();
 let presenceData = {};
 let appSettings = null;
+let isLoadingProfile = false; // Protection contre les appels répétés
 
 function clearCachedUserData() {
   try {
@@ -1104,6 +1105,14 @@ async function refreshCheckins() {
 init();
 
 async function loadAgentProfile() {
+  // Protection contre les appels répétés
+  if (isLoadingProfile) {
+    console.log('🔄 loadAgentProfile déjà en cours, ignoré');
+    return;
+  }
+  
+  isLoadingProfile = true;
+  
   try {
     // Récupérer l'email depuis l'URL ou le localStorage
     const urlParams = new URLSearchParams(window.location.search);
@@ -1140,6 +1149,8 @@ async function loadAgentProfile() {
     }
   } catch (e) {
     console.error('Error loading agent profile:', e);
+  } finally {
+    isLoadingProfile = false; // Réinitialiser le flag
   }
 }
 
