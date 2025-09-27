@@ -40,8 +40,13 @@ if ('serviceWorker' in navigator) {
   // Gérer les changements d'état du Service Worker
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     console.log('🔄 Service Worker: Contrôleur changé');
-    // Recharger la page pour utiliser la nouvelle version
-    window.location.reload();
+    // Éviter les rechargements automatiques qui peuvent créer des boucles
+    // Afficher plutôt une notification pour proposer le rafraîchissement manuel
+    try {
+      showUpdateNotification();
+    } catch (e) {
+      console.warn('Impossible d\'afficher la notification de mise à jour:', e);
+    }
   });
   
 } else {
@@ -103,8 +108,8 @@ function clearCache() {
     messageChannel.port1.onmessage = (event) => {
       if (event.data.success) {
         console.log('✅ Cache vidé avec succès');
-        // Recharger la page
-        window.location.reload();
+        // Ne pas recharger automatiquement; laisser l'utilisateur décider
+        try { showUpdateNotification(); } catch {}
       }
     };
     navigator.serviceWorker.controller.postMessage(
