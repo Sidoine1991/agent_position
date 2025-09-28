@@ -511,10 +511,15 @@ async function init() {
     $('login-form-container').style.display = 'block';
     $('register-form-container').style.display = 'none';
     document.querySelectorAll('.auth-tab').forEach(tab => tab.classList.remove('active'));
-    document.querySelector('.auth-tab[onclick="showLoginForm()"]').classList.add('active');
+    document.querySelector('.auth-tab[data-tab="login"]')?.classList.add('active');
   };
 
-  // Fonction showRegisterForm supprimée - redirection directe vers /register.html
+  window.showRegisterForm = () => {
+    $('login-form-container').style.display = 'none';
+    $('register-form-container').style.display = 'block';
+    document.querySelectorAll('.auth-tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelector('.auth-tab[data-tab="register"]')?.classList.add('active');
+  };
 
   // Gestion du formulaire d'inscription
   const registerForm = $('register-form');
@@ -541,8 +546,8 @@ async function init() {
       
       if (data.success) {
         alert('Code de validation envoyé par email. Veuillez vérifier votre boîte mail et utiliser le code pour activer votre compte.');
-        // Rediriger vers la page de validation
-        window.location.href = '/register.html';
+        // Afficher le formulaire de connexion après inscription
+        window.showLoginForm();
       } else {
         alert(data.message || 'Erreur lors de l\'inscription');
       }
@@ -1380,7 +1385,7 @@ function logout() {
       localStorage.setItem('presence_update', JSON.stringify({ type: 'logout', ts: Date.now() }));
     } catch {}
     jwt = '';
-    window.location.href = '/register.html';
+    window.location.href = '/';
   }
 }
 
@@ -1403,6 +1408,8 @@ if (typeof window !== 'undefined') {
   window.logout = logout;
   window.clearAllCache = clearAllCache;
   window.clearCachedUserData = clearCachedUserData;
+  window.showLoginForm = showLoginForm;
+  window.showRegisterForm = showRegisterForm;
 }
 
 // Attacher les handlers de déconnexion sans inline (CSP-compatible)
@@ -1415,6 +1422,46 @@ function bindLogoutButtons() {
       }
     });
   } catch {}
+}
+
+// Attacher tous les gestionnaires d'événements pour les boutons
+function bindAllButtons() {
+  try {
+    // Boutons d'authentification
+    document.querySelectorAll('[data-tab="login"]').forEach(btn => {
+      if (!btn._loginTabBound) {
+        btn.addEventListener('click', (ev) => { ev.preventDefault(); window.showLoginForm(); });
+        btn._loginTabBound = true;
+      }
+    });
+    
+    document.querySelectorAll('[data-tab="register"]').forEach(btn => {
+      if (!btn._registerTabBound) {
+        btn.addEventListener('click', (ev) => { ev.preventDefault(); window.showRegisterForm(); });
+        btn._registerTabBound = true;
+      }
+    });
+    
+    // Boutons d'inscription dans les cartes
+    document.querySelectorAll('.btn-register, .btn-inscription, [data-action="register"]').forEach(btn => {
+      if (!btn._registerBound) {
+        btn.addEventListener('click', (ev) => { ev.preventDefault(); window.showRegisterForm(); });
+        btn._registerBound = true;
+      }
+    });
+    
+    // Boutons de connexion dans les cartes
+    document.querySelectorAll('.btn-login, .btn-connexion, [data-action="login"]').forEach(btn => {
+      if (!btn._loginBound) {
+        btn.addEventListener('click', (ev) => { ev.preventDefault(); window.showLoginForm(); });
+        btn._loginBound = true;
+      }
+    });
+    
+    console.log('🔗 Gestionnaires d\'événements attachés');
+  } catch (error) {
+    console.error('Erreur lors de l\'attachement des gestionnaires:', error);
+  }
 }
 
 // ===== FONCTIONS DU CALENDRIER =====
@@ -2541,6 +2588,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     clearCachedUserData();
   }
   
+  // Attacher tous les gestionnaires d'événements
+  setTimeout(() => {
+    bindAllButtons();
+    bindLogoutButtons();
+  }, 500);
+  
   // Initialiser le détecteur mobile GPS
   setTimeout(() => {
     try {
@@ -2551,7 +2604,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('⚠️ Détecteur mobile GPS non disponible');
       }
       setupManualGeoInputs();
-      bindLogoutButtons();
     } catch (error) {
       console.error('❌ Erreur lors de l\'initialisation:', error);
     }
