@@ -526,10 +526,10 @@ async function init() {
   if (registerForm) {
     registerForm.addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    const name = $('reg-name').value.trim();
-    const email = $('reg-email').value.trim();
-    const password = $('reg-password').value.trim();
-    const confirmPassword = $('reg-confirm-password').value.trim();
+    const name = $('name').value.trim();
+    const email = $('email').value.trim();
+    const password = $('password').value.trim();
+    const confirmPassword = $('confirmPassword').value.trim();
     
     if (password !== confirmPassword) {
       alert('Les mots de passe ne correspondent pas');
@@ -1455,6 +1455,39 @@ function bindAllButtons() {
       if (!btn._loginBound) {
         btn.addEventListener('click', (ev) => { ev.preventDefault(); window.showLoginForm(); });
         btn._loginBound = true;
+      }
+    });
+    
+    // Boutons de navigation
+    document.querySelectorAll('[data-action="navigate"]').forEach(btn => {
+      if (!btn._navigateBound) {
+        btn.addEventListener('click', (ev) => { 
+          ev.preventDefault(); 
+          const url = btn.getAttribute('data-url');
+          if (url) window.location.href = url;
+        });
+        btn._navigateBound = true;
+      }
+    });
+    
+    // Bouton de déconnexion
+    document.querySelectorAll('[data-action="logout"]').forEach(btn => {
+      if (!btn._logoutBound) {
+        btn.addEventListener('click', (ev) => { ev.preventDefault(); window.logout(); });
+        btn._logoutBound = true;
+      }
+    });
+    
+    // Bouton menu mobile
+    document.querySelectorAll('[data-action="toggle-mobile-menu"]').forEach(btn => {
+      if (!btn._menuBound) {
+        btn.addEventListener('click', (ev) => { 
+          ev.preventDefault(); 
+          if (window.navigation && window.navigation.toggleMobileMenu) {
+            window.navigation.toggleMobileMenu();
+          }
+        });
+        btn._menuBound = true;
       }
     });
     
@@ -2572,7 +2605,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Vérifier si la base de données est vierge et nettoyer le cache si nécessaire
   try {
-    const response = await api('/api/settings');
+    const response = await api('/settings');
     if (response && response.success && response.settings) {
       // Base de données accessible, vérifier s'il y a des utilisateurs
       const hasUsers = localStorage.getItem('hasUsers') === 'true';
