@@ -294,8 +294,15 @@ async function autoLogin(email, password) {
       loginAttempts = 0;
       isLoginInProgress = false;
       
-      // Recharger la page pour appliquer les changements
-      window.location.reload();
+      // Mettre à jour l'interface sans recharger la page
+      await loadAgentProfile();
+      await updateNavbar();
+      
+      // Afficher la section principale
+      const authSection = $('auth-section');
+      const appSection = $('app-section');
+      if (authSection) authSection.classList.add('hidden');
+      if (appSection) appSection.classList.remove('hidden');
     } else {
       throw new Error(response.message || 'Échec de la connexion');
     }

@@ -36,10 +36,33 @@ try {
   console.warn('Erreur nettoyage sessionStorage:', e);
 }
 
-// Forcer le rechargement sans cache
+// Afficher une notification de succès au lieu de recharger automatiquement
 if (window.location.search.includes('clear-cache')) {
-  console.log('🔄 Rechargement sans cache...');
-  window.location.href = window.location.pathname;
+  console.log('✅ Cache nettoyé avec succès');
+  
+  // Afficher une notification de succès
+  const notification = document.createElement('div');
+  notification.className = 'alert alert-success alert-dismissible fade show position-fixed';
+  notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 300px;';
+  notification.innerHTML = `
+    <strong>✅ Cache nettoyé</strong>
+    <p class="mb-2">Tous les caches ont été supprimés avec succès.</p>
+    <button type="button" class="btn btn-sm btn-primary" onclick="window.location.href = window.location.pathname">
+      Recharger la page
+    </button>
+    <button type="button" class="btn btn-sm btn-secondary ms-2" onclick="this.parentElement.remove()">
+      Fermer
+    </button>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // Supprimer automatiquement après 10 secondes
+  setTimeout(() => {
+    if (notification.parentElement) {
+      notification.remove();
+    }
+  }, 10000);
 }
 
 console.log('✅ Nettoyage du cache terminé');
