@@ -2151,6 +2151,86 @@ app.post('/api/admin/purge-all', async (req, res) => {
   }
 });
 
+// Réinitialiser toutes les données (sans supprimer les tables)
+app.post('/api/admin/reset-all-data', async (req, res) => {
+  try {
+    // Auth obligatoire
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, message: 'Authorization requise' });
+    }
+    let requesterId;
+    try {
+      const decoded = jwt.verify(authHeader.substring(7), JWT_SECRET);
+      requesterId = decoded.userId;
+    } catch {
+      return res.status(401).json({ success: false, message: 'Token invalide' });
+    }
+
+    // Vérifier rôle admin
+    const roleRes = await pool.query('SELECT email, role FROM users WHERE id = $1 LIMIT 1', [requesterId]);
+    const requester = roleRes.rows[0];
+    if (!requester || requester.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Réservé aux administrateurs' });
+    }
+
+    await pool.query('BEGIN');
+
+    // Vider toutes les tables de données (sans supprimer les tables)
+    const affected = { 
+      checkins: 0, 
+      missions: 0, 
+      absences: 0, 
+      reports: 0, 
+      verification_codes: 0,
+      users: 0 
+    };
+
+    // Supprimer les check-ins
+    const delCheckins = await pool.query('DELETE FROM checkins');
+    affected.checkins = delCheckins.rowCount || 0;
+
+    // Supprimer les missions
+    const delMissions = await pool.query('DELETE FROM missions');
+    affected.missions = delMissions.rowCount || 0;
+
+    // Supprimer les absences
+    const delAbsences = await pool.query('DELETE FROM absences');
+    affected.absences = delAbsences.rowCount || 0;
+
+    // Supprimer les rapports
+    const delReports = await pool.query('DELETE FROM reports');
+    affected.reports = delReports.rowCount || 0;
+
+    // Supprimer les codes de vérification
+    const delVerif = await pool.query('DELETE FROM verification_codes');
+    affected.verification_codes = delVerif.rowCount || 0;
+
+    // Supprimer tous les utilisateurs sauf le super admin
+    const delUsers = await pool.query('DELETE FROM users WHERE email != $1', ['syebadokpo@gmail.com']);
+    affected.users = delUsers.rowCount || 0;
+
+    // Réinitialiser les séquences (auto-increment)
+    await pool.query('ALTER SEQUENCE users_id_seq RESTART WITH 1');
+    await pool.query('ALTER SEQUENCE missions_id_seq RESTART WITH 1');
+    await pool.query('ALTER SEQUENCE checkins_id_seq RESTART WITH 1');
+    await pool.query('ALTER SEQUENCE reports_id_seq RESTART WITH 1');
+    await pool.query('ALTER SEQUENCE verification_codes_id_seq RESTART WITH 1');
+
+    await pool.query('COMMIT');
+
+    res.json({ 
+      success: true, 
+      message: 'Toutes les données ont été réinitialisées. Les tables sont conservées mais vides.',
+      affected 
+    });
+  } catch (e) {
+    try { await pool.query('ROLLBACK'); } catch {}
+    console.error('Erreur reset-all-data:', e);
+    res.status(500).json({ success: false, message: 'Erreur lors de la réinitialisation des données' });
+  }
+});
+
 // Nettoyer les utilisateurs: supprimer tous les comptes sauf le super admin conservé
 app.post('/api/admin/cleanup-users', async (req, res) => {
   try {

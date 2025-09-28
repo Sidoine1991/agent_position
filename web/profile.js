@@ -363,6 +363,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadProfile();
     try { await updateNavbar(); } catch {}
     
+    // Gestion du bouton de changement de photo
+    const changeAvatarBtn = document.getElementById('change-avatar-btn');
+    if (changeAvatarBtn) {
+      changeAvatarBtn.addEventListener('click', changeAvatar);
+    }
+    
     // Gestion du formulaire de changement de mot de passe
     $('password-form').addEventListener('submit', async (e) => {
       e.preventDefault();

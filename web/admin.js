@@ -222,6 +222,59 @@ function optimizeDatabase() {
   }
 }
 
+// Réinitialiser toutes les données
+async function resetAllData() {
+  const confirmMessage = `⚠️ ATTENTION ⚠️
+
+Cette action va supprimer TOUTES les données :
+• Tous les utilisateurs (sauf le super admin)
+• Toutes les missions
+• Tous les check-ins
+• Toutes les absences
+• Tous les rapports
+• Tous les codes de vérification
+
+Les tables seront conservées mais vides.
+
+Êtes-vous ABSOLUMENT SÛR de vouloir continuer ?`;
+
+  if (!confirm(confirmMessage)) {
+    return;
+  }
+
+  // Double confirmation
+  if (!confirm('Dernière chance ! Cette action est IRRÉVERSIBLE. Continuer ?')) {
+    return;
+  }
+
+  try {
+    const response = await api('/admin/reset-all-data', { method: 'POST' });
+    
+    if (response.success) {
+      alert(`✅ Réinitialisation réussie !
+
+Données supprimées :
+• ${response.affected.users} utilisateurs
+• ${response.affected.missions} missions  
+• ${response.affected.checkins} check-ins
+• ${response.affected.absences} absences
+• ${response.affected.reports} rapports
+• ${response.affected.verification_codes} codes de vérification
+
+La base de données a été réinitialisée. Vous devez vous reconnecter.`);
+
+      // Déconnexion et redirection
+      localStorage.clear();
+      window.location.href = '/register.html';
+    } else {
+      alert('❌ Erreur lors de la réinitialisation : ' + (response.message || 'Erreur inconnue'));
+    }
+  } catch (error) {
+    console.error('Erreur resetAllData:', error);
+    alert('❌ Erreur lors de la réinitialisation : ' + error.message);
+  }
+}
+
 function viewLogs() {
   alert('Affichage des logs système - Fonctionnalité à implémenter');
 }
