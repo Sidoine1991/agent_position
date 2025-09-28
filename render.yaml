@@ -11,4 +11,18 @@ services:
         value: production
       - key: PORT
         value: 10000
-    healthCheckPath: /api/health
+      - key: SUPABASE_URL
+        value: https://eoamsmtdspedumjmmeui.supabase.co
+      - key: SUPABASE_ANON_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVvYW1zbXRkc3BlZHVtam1tZXVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwMjcyMzksImV4cCI6MjA3NDYwMzIzOX0.5F1uBbPfMYNlGgFJI20jexPf_XmPLiEOEtCTO_zZDcw
+      - key: SUPABASE_SERVICE_ROLE
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVvYW1zbXRkc3BlZHVtam1tZXVpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTAyNzIzOSwiZXhwIjoyMDc0NjAzMjM5fQ.SrDG8nvNxALqUSqXw3tGWuv9hgLF-bSyUdNmxcoYm_Y
+      - key: SUPABASE_JWT_SECRET
+        value: wineLDVtm0QzgEUg57/bJFMCdWjrjdwYi0Y5dg9BaF2mQlpE6gL6XgCQNtDB2yAry7hY4R9vL6RXtD3Sqjc7NA==
+      - key: JWT_SECRET
+        value: your-super-secret-jwt-key-here
+      - key: CORS_ORIGIN
+        value: https://presence-ccrb.onrender.com
+      - key: SUPERADMIN_PASSWORD
+        value: 123456
+    healthCheckPath: /api/test-server
