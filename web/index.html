@@ -10,6 +10,7 @@
     <title>Presence CCR-B - Agent</title>
     <link href="/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=4" />
+    <link rel="stylesheet" href="styles-tailwind.css?v=1" />
     <style>
       /* Styles critiques pour Render */
       .navbar {
@@ -128,56 +129,56 @@
       
       <button class="navbar-toggle" data-action="toggle-mobile-menu">☰</button>
       
-      <div class="navbar-menu">
+      <div class="navbar-menu flex items-center gap-3 flex-wrap">
         <a href="/" class="navbar-link navbar-link-active">
           <span class="navbar-icon">🏠</span>
           <span>Accueil Agent</span>
         </a>
         
-        <a href="/" class="navbar-link" id="presence-link" style="display: none;">
+        <a href="/" class="navbar-link hidden" id="presence-link">
           <span class="navbar-icon">📍</span>
           <span>Marquage Présence</span>
         </a>
         
         <!-- Navigation pour tous les utilisateurs connectés -->
-        <a href="/profile.html" class="navbar-link" id="profile-link" style="display: none;">
+        <a href="/profile.html" class="navbar-link hidden" id="profile-link">
           <span class="navbar-icon">👤</span>
           <span>Mon Profil</span>
         </a>
-        <a href="/map.html" class="navbar-link" id="map-link" style="display: none;">
+        <a href="/map.html" class="navbar-link hidden" id="map-link">
           <span class="navbar-icon">🗺️</span>
           <span>Carte Présences</span>
         </a>
         
         <!-- Navigation pour Admin et Superviseur -->
-        <a href="/dashboard.html" class="navbar-link" id="dashboard-link" style="display: none;">
+        <a href="/dashboard.html" class="navbar-link hidden" id="dashboard-link">
           <span class="navbar-icon">📊</span>
           <span>Dashboard</span>
         </a>
-        <a href="/agents.html" class="navbar-link" id="agents-link" style="display: none;">
+        <a href="/agents.html" class="navbar-link hidden" id="agents-link">
           <span class="navbar-icon">👥</span>
           <span>Gestion Agents</span>
         </a>
-        <a href="/reports.html" class="navbar-link" id="reports-link" style="display: none;">
+        <a href="/reports.html" class="navbar-link hidden" id="reports-link">
           <span class="navbar-icon">📈</span>
           <span>Rapports</span>
         </a>
         
         <!-- Navigation pour Admin uniquement -->
-        <a href="/admin.html" class="navbar-link" id="admin-link" style="display: none;">
+        <a href="/admin.html" class="navbar-link hidden" id="admin-link">
           <span class="navbar-icon">⚙️</span>
           <span>Administration</span>
         </a>
         
         <!-- Bouton d'inscription pour les utilisateurs non connectés -->
-        <a href="/register.html" class="navbar-link" id="register-link" style="display: none;">
+        <a href="/register.html" class="navbar-link hidden" id="register-link">
           <span class="navbar-icon">📝</span>
           <span>S'inscrire</span>
         </a>
         
-        <div class="navbar-user" id="navbar-user" style="display: none;">
-          <span class="navbar-user-info" id="user-info">Chargement...</span>
-          <button class="navbar-logout" data-action="logout">
+        <div class="navbar-user hidden items-center gap-4" id="navbar-user">
+          <span class="navbar-user-info text-white font-medium" id="user-info">Chargement...</span>
+          <button class="btn-secondary text-sm py-2 px-4" data-action="logout">
             <span class="navbar-icon">🚪</span>
             <span>Déconnexion</span>
           </button>
@@ -192,7 +193,7 @@
         <p>Système de géolocalisation et de suivi des missions</p>
         
         <!-- Boutons d'accès rapide -->
-        <div class="quick-access-buttons" id="quick-access" style="display: none;">
+        <div class="quick-access-buttons hidden flex gap-4 flex-wrap justify-center mt-6" id="quick-access">
           <button class="btn-primary" data-action="navigate" data-url="/dashboard.html">
             <span class="btn-icon">📊</span>
             Accéder au Dashboard
@@ -224,37 +225,37 @@
 
         <!-- Informations pour les utilisateurs non connectés -->
         <div class="welcome-info" id="welcome-info">
-          <div class="info-cards">
-            <div class="info-card">
-              <div class="info-icon">🔐</div>
-              <h3>Connexion</h3>
-              <p>Connectez-vous avec vos identifiants pour accéder à votre espace personnel</p>
-              <button class="btn-secondary" data-action="login" style="margin-top: 1rem;">
+          <div class="info-cards grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+            <div class="card p-6 text-center">
+              <div class="info-icon text-4xl mb-4">🔐</div>
+              <h3 class="text-xl font-bold text-gray-800 mb-3">Connexion</h3>
+              <p class="text-gray-600 mb-4">Connectez-vous avec vos identifiants pour accéder à votre espace personnel</p>
+              <button class="btn-secondary w-full" data-action="login">
                 <span class="btn-icon">🔐</span>
                 Se connecter
               </button>
             </div>
-            <div class="info-card">
-              <div class="info-icon">📝</div>
-              <h3>Inscription</h3>
-              <p>Créez votre compte agent pour commencer à utiliser le système</p>
-              <button class="btn-primary" data-action="register" style="margin-top: 1rem;">
+            <div class="card p-6 text-center">
+              <div class="info-icon text-4xl mb-4">📝</div>
+              <h3 class="text-xl font-bold text-gray-800 mb-3">Inscription</h3>
+              <p class="text-gray-600 mb-4">Créez votre compte agent pour commencer à utiliser le système</p>
+              <button class="btn-primary w-full" data-action="register">
                 <span class="btn-icon">📝</span>
                 Créer un compte
               </button>
             </div>
-            <div class="info-card">
-              <div class="info-icon">📱</div>
-              <h3>Géolocalisation</h3>
-              <p>Marquez votre présence avec précision grâce à la géolocalisation</p>
+            <div class="card p-6 text-center">
+              <div class="info-icon text-4xl mb-4">📱</div>
+              <h3 class="text-xl font-bold text-gray-800 mb-3">Géolocalisation</h3>
+              <p class="text-gray-600">Marquez votre présence avec précision grâce à la géolocalisation</p>
             </div>
           </div>
         </div>
       </div>
       <section id="auth-section">
-        <div class="auth-tabs">
-          <button class="auth-tab active" data-tab="login">Connexion</button>
-          <button class="auth-tab" data-tab="register">Inscription Agent</button>
+        <div class="auth-tabs flex bg-gray-100 rounded-lg p-1 mb-6">
+          <button class="auth-tab active flex-1 py-3 px-4 rounded-md font-medium transition-all duration-200" data-tab="login">Connexion</button>
+          <button class="auth-tab flex-1 py-3 px-4 rounded-md font-medium transition-all duration-200" data-tab="register">Inscription Agent</button>
         </div>
         
         <div id="login-form-container">

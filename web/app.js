@@ -48,11 +48,13 @@ function $(id) { return document.getElementById(id); }
 function show(el) { 
   if (el && el.classList) {
     el.classList.remove('hidden'); 
+    el.classList.add('block');
   }
 }
 function hide(el) { 
   if (el && el.classList) {
     el.classList.add('hidden'); 
+    el.classList.remove('block');
   }
 }
 
@@ -508,15 +510,19 @@ async function init() {
 
   // Gestion des onglets d'authentification
   window.showLoginForm = () => {
-    $('login-form-container').style.display = 'block';
-    $('register-form-container').style.display = 'none';
+    $('login-form-container').classList.remove('hidden');
+    $('login-form-container').classList.add('block');
+    $('register-form-container').classList.add('hidden');
+    $('register-form-container').classList.remove('block');
     document.querySelectorAll('.auth-tab').forEach(tab => tab.classList.remove('active'));
     document.querySelector('.auth-tab[data-tab="login"]')?.classList.add('active');
   };
 
   window.showRegisterForm = () => {
-    $('login-form-container').style.display = 'none';
-    $('register-form-container').style.display = 'block';
+    $('login-form-container').classList.add('hidden');
+    $('login-form-container').classList.remove('block');
+    $('register-form-container').classList.remove('hidden');
+    $('register-form-container').classList.add('block');
     document.querySelectorAll('.auth-tab').forEach(tab => tab.classList.remove('active'));
     document.querySelector('.auth-tab[data-tab="register"]')?.classList.add('active');
   };

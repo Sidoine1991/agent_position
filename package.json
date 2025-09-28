@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "build": "echo 'No build step needed'",
+    "build": "npx tailwindcss -i ./web/tailwind.css -o ./web/styles-tailwind.css --watch",
+    "build:css": "npx tailwindcss -i ./web/tailwind.css -o ./web/styles-tailwind.css",
     "postinstall": "echo 'Dependencies installed successfully'",
     "build:geo": "node scripts/generate-geo-data.js",
     "test": "node test-runner.js",
@@ -38,7 +39,9 @@
     "node": ">=18.0.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.1"
+    "@playwright/test": "^1.55.1",
+    "@tailwindcss/vite": "^4.1.13",
+    "tailwindcss": "^4.1.13"
   },
   "repository": {
     "type": "git",
