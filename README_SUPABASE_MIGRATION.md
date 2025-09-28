@@ -19,7 +19,12 @@ node scripts/migrate-to-supabase.js
 
 Le script lit toutes les tables depuis Render et insère dans Supabase par batchs.
 
-## 4) Basculement de l'app vers Supabase
+## 4) Activer la sécurité (RLS)
+- Ouvrir Supabase → SQL Editor
+- Exécuter `supabase/rls.sql`
+- Vérifier dans « Database » → « Table editor » que RLS est activé et les policies présentes
+
+## 5) Basculement de l'app vers Supabase
 - Définir `USE_SUPABASE=true` sur le backend
 - Configurer `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE`
 
