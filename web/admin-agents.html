@@ -15,20 +15,55 @@
         <div class="navbar-brand">
             <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
             <div class="navbar-title">
-                <h1>CCRB</h1>
-                <span class="navbar-subtitle">Centre de Coordination et de Réponse aux Crises du Bénin</span>
+                <h1>Presence CCRB</h1>
+                <span class="navbar-subtitle">Gestion des Agents</span>
             </div>
         </div>
         
         <div class="navbar-menu">
-            <a href="/index.html" class="navbar-link">Accueil Agent</a>
-            <a href="/dashboard.html" class="navbar-link">Dashboard</a>
-            <a href="/admin-agents.html" class="navbar-link navbar-link-active">Gestion Agents</a>
-        </div>
-        
-        <div class="navbar-user">
-            <span id="user-info">Chargement...</span>
-            <button onclick="logout()" class="navbar-logout">Déconnexion</button>
+            <a href="/" class="navbar-link">
+                <span class="navbar-icon">🏠</span>
+                <span>Accueil Agent</span>
+            </a>
+            
+            <a href="/" class="navbar-link" id="presence-link">
+                <span class="navbar-icon">📍</span>
+                <span>Marquage Présence</span>
+            </a>
+            
+            <!-- Navigation pour tous les utilisateurs connectés -->
+            <a href="/profile.html" class="navbar-link">
+                <span class="navbar-icon">👤</span>
+                <span>Mon Profil</span>
+            </a>
+            
+            <!-- Navigation pour Admin et Superviseur -->
+            <a href="/dashboard.html" class="navbar-link">
+                <span class="navbar-icon">📊</span>
+                <span>Dashboard</span>
+            </a>
+            <a href="/admin-agents.html" class="navbar-link navbar-link-active">
+                <span class="navbar-icon">👥</span>
+                <span>Gestion Agents</span>
+            </a>
+            <a href="/reports.html" class="navbar-link">
+                <span class="navbar-icon">📈</span>
+                <span>Rapports</span>
+            </a>
+            
+            <!-- Navigation pour Admin uniquement -->
+            <a href="/admin.html" class="navbar-link">
+                <span class="navbar-icon">⚙️</span>
+                <span>Administration</span>
+            </a>
+            
+            <div class="navbar-user" id="navbar-user">
+                <span class="navbar-user-info" id="user-info">Chargement...</span>
+                <button onclick="logout()" class="navbar-logout">
+                    <span class="navbar-icon">🚪</span>
+                    <span>Déconnexion</span>
+                </button>
+            </div>
         </div>
     </nav>
 
@@ -370,6 +405,8 @@
       </div>
     </div>
 
+    <script src="/navigation.js"></script>
+    <script src="/app.js"></script>
     <script src="/dashboard.js"></script>
     <script src="/admin-agents.js"></script>
 </body>

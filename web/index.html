@@ -129,56 +129,46 @@
       
       <button class="navbar-toggle" data-action="toggle-mobile-menu">☰</button>
       
-      <div class="navbar-menu flex items-center gap-3 flex-wrap">
+      <div class="navbar-menu">
         <a href="/" class="navbar-link navbar-link-active">
           <span class="navbar-icon">🏠</span>
           <span>Accueil Agent</span>
         </a>
         
-        <a href="/" class="navbar-link hidden" id="presence-link">
+        <a href="/" class="navbar-link" id="presence-link">
           <span class="navbar-icon">📍</span>
           <span>Marquage Présence</span>
         </a>
         
         <!-- Navigation pour tous les utilisateurs connectés -->
-        <a href="/profile.html" class="navbar-link hidden" id="profile-link">
+        <a href="/profile.html" class="navbar-link">
           <span class="navbar-icon">👤</span>
           <span>Mon Profil</span>
         </a>
-        <a href="/map.html" class="navbar-link hidden" id="map-link">
-          <span class="navbar-icon">🗺️</span>
-          <span>Carte Présences</span>
-        </a>
         
         <!-- Navigation pour Admin et Superviseur -->
-        <a href="/dashboard.html" class="navbar-link hidden" id="dashboard-link">
+        <a href="/dashboard.html" class="navbar-link">
           <span class="navbar-icon">📊</span>
           <span>Dashboard</span>
         </a>
-        <a href="/agents.html" class="navbar-link hidden" id="agents-link">
+        <a href="/admin-agents.html" class="navbar-link">
           <span class="navbar-icon">👥</span>
           <span>Gestion Agents</span>
         </a>
-        <a href="/reports.html" class="navbar-link hidden" id="reports-link">
+        <a href="/reports.html" class="navbar-link">
           <span class="navbar-icon">📈</span>
           <span>Rapports</span>
         </a>
         
         <!-- Navigation pour Admin uniquement -->
-        <a href="/admin.html" class="navbar-link hidden" id="admin-link">
+        <a href="/admin.html" class="navbar-link">
           <span class="navbar-icon">⚙️</span>
           <span>Administration</span>
         </a>
         
-        <!-- Bouton d'inscription pour les utilisateurs non connectés -->
-        <a href="/register.html" class="navbar-link hidden" id="register-link">
-          <span class="navbar-icon">📝</span>
-          <span>S'inscrire</span>
-        </a>
-        
-        <div class="navbar-user hidden items-center gap-4" id="navbar-user">
-          <span class="navbar-user-info text-white font-medium" id="user-info">Chargement...</span>
-          <button class="btn-secondary text-sm py-2 px-4" data-action="logout">
+        <div class="navbar-user" id="navbar-user">
+          <span class="navbar-user-info" id="user-info">Chargement...</span>
+          <button onclick="logout()" class="navbar-logout">
             <span class="navbar-icon">🚪</span>
             <span>Déconnexion</span>
           </button>
@@ -25650,7 +25640,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Vercel Speed Insights - Désactivé pour éviter les erreurs
       /*
       if (typeof window !== 'undefined') {
-        /* Vercel Speed Insights désactivé pour éviter les erreurs CSP */
+        // Vercel Speed Insights désactivé pour éviter les erreurs CSP
       }
       */
     </script>
@@ -25658,7 +25648,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Vercel Analytics - Désactivé pour éviter les erreurs CSP
       /*
       if (typeof window !== 'undefined') {
-        /* Vercel Analytics désactivé pour éviter les erreurs CSP */
+        // Vercel Analytics désactivé pour éviter les erreurs CSP
       }
       */
     </script>

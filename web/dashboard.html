@@ -36,56 +36,30 @@
           <span>Marquage Présence</span>
         </a>
         
+        <!-- Navigation pour tous les utilisateurs connectés -->
+        <a href="/profile.html" class="navbar-link">
+          <span class="navbar-icon">👤</span>
+          <span>Mon Profil</span>
+        </a>
+        
+        <!-- Navigation pour Admin et Superviseur -->
         <a href="/dashboard.html" class="navbar-link navbar-link-active">
           <span class="navbar-icon">📊</span>
           <span>Dashboard</span>
         </a>
-        <div class="navbar-dropdown">
-          <button class="navbar-dropdown-toggle">
-            <span class="navbar-icon">⚙️</span>
-            <span>Administration</span>
-            <span class="navbar-arrow">▼</span>
-          </button>
-          <div class="navbar-dropdown-menu">
-            <a href="/admin-agents.html" class="navbar-dropdown-item">
-              <span class="navbar-icon">👥</span>
-              <span>Gestion Agents</span>
-            </a>
-            <button onclick="openAgentModal()" class="navbar-dropdown-item">
-              <span class="navbar-icon">➕</span>
-              <span>Créer Agent</span>
-            </button>
-            <button onclick="createTestAgent()" class="navbar-dropdown-item">
-              <span class="navbar-icon">➕</span>
-              <span>Créer Agent Test</span>
-            </button>
-            <button onclick="setupReferencePoints()" class="navbar-dropdown-item">
-              <span class="navbar-icon">🎯</span>
-              <span>Points de Référence</span>
-            </button>
-          </div>
-        </div>
-        <div class="navbar-dropdown">
-          <button class="navbar-dropdown-toggle">
-            <span class="navbar-icon">📈</span>
-            <span>Rapports</span>
-            <span class="navbar-arrow">▼</span>
-          </button>
-          <div class="navbar-dropdown-menu">
-            <button onclick="generateMonthlyReport()" class="navbar-dropdown-item">
-              <span class="navbar-icon">📊</span>
-              <span>Générer Rapport</span>
-            </button>
-            <button onclick="exportMonthlyReport()" class="navbar-dropdown-item">
-              <span class="navbar-icon">📤</span>
-              <span>Exporter Excel</span>
-            </button>
-          </div>
-        </div>
-        <!-- Bouton d'inscription pour les utilisateurs non connectés -->
-        <a href="/register.html" class="navbar-link" id="register-link" style="display: none;">
-          <span class="navbar-icon">📝</span>
-          <span>S'inscrire</span>
+        <a href="/admin-agents.html" class="navbar-link">
+          <span class="navbar-icon">👥</span>
+          <span>Gestion Agents</span>
+        </a>
+        <a href="/reports.html" class="navbar-link">
+          <span class="navbar-icon">📈</span>
+          <span>Rapports</span>
+        </a>
+        
+        <!-- Navigation pour Admin uniquement -->
+        <a href="/admin.html" class="navbar-link">
+          <span class="navbar-icon">⚙️</span>
+          <span>Administration</span>
         </a>
         
         <div class="navbar-user" id="navbar-user">
@@ -25540,6 +25514,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <script src="/geo-data.js"></script>
     <script src="/capacitor-native.js"></script>
     <script src="/navigation.js"></script>
+    <script src="/app.js"></script>
     <script src="/dashboard.js"></script>
     <script>
       // Vercel Speed Insights
