@@ -319,17 +319,39 @@ async function editAgent(agentId) {
 }
 
 // Supprimer un agent
-function deleteAgent(agentId) {
+async function deleteAgent(agentId) {
     const agent = allAgents.find(a => a.id === agentId);
     if (!agent) {
         alert('❌ Agent non trouvé');
         return;
     }
 
-    agentToDelete = agentId;
-    document.getElementById('delete-message').textContent = 
-        `Êtes-vous sûr de vouloir supprimer l'agent "${agent.name}" ?\n\nCette action est irréversible.`;
-    document.getElementById('delete-modal').classList.remove('hidden');
+    // Suppression directe sans confirmation
+    try {
+        console.log(`🗑️ Suppression agent ID: ${agentId}`);
+        
+        const token = localStorage.getItem('jwt') || localStorage.getItem('token');
+        const response = await fetch(`${apiBase}/admin/agents/${agentId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        if (result.success) {
+            console.log('✅ Agent supprimé avec succès');
+            alert(`✅ Agent "${agent.name}" supprimé avec succès`);
+            await loadAgents(); // Recharger la liste
+        } else {
+            throw new Error(result.message || 'Erreur lors de la suppression');
+        }
+    } catch (error) {
+        console.error('❌ Erreur suppression agent:', error);
+        alert('❌ Erreur lors de la suppression: ' + error.message);
+    }
 }
 
 // Confirmer la suppression

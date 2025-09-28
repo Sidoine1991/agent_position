@@ -6,6 +6,7 @@
     <title>Gestion des Agents - CCRB</title>
     <link href="/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/modern-ui.css?v=1" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
@@ -393,17 +394,6 @@
       </div>
     </div>
 
-    <!-- Modal de confirmation de suppression -->
-    <div id="delete-modal" class="hidden" style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.4); z-index:9999;">
-      <div style="background:#fff; padding:24px; border-radius:12px; width: min(400px, 95vw);">
-        <h3>🗑️ Confirmer la suppression</h3>
-        <p id="delete-message">Êtes-vous sûr de vouloir supprimer cet agent ?</p>
-        <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:20px;">
-          <button onclick="cancelDelete()" class="btn-cancel">Annuler</button>
-          <button onclick="confirmDelete()" class="btn-danger">Supprimer</button>
-        </div>
-      </div>
-    </div>
 
     <script src="/navigation.js"></script>
     <script src="/app.js"></script>
