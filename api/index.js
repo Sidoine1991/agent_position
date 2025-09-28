@@ -43,31 +43,9 @@ function initializeUsers() {
   users = [
     {
       id: 1,
-      name: 'Admin Principal',
-      email: 'admin@ccrb.local',
-      password: simpleHash('123456'),
-      role: 'admin',
-      status: 'active',
-      phone: '+229 12 34 56 78',
-      adminUnit: 'Direction Générale',
-      photo_url: ''
-    },
-    {
-      id: 2,
-      name: 'Superviseur Principal',
-      email: 'supervisor@ccrb.local',
-      password: simpleHash('123456'),
-      role: 'supervisor',
-      status: 'active',
-      phone: '+229 12 34 56 79',
-      adminUnit: 'Direction des Opérations',
-      photo_url: ''
-    },
-    {
-      id: 3,
       name: 'Super Admin',
       email: 'syebadokpo@gmail.com',
-      password: simpleHash('123456'),
+      password: simpleHash(process.env.SUPERADMIN_PASSWORD || '123456'),
       role: 'admin',
       status: 'active',
       phone: '+229 00 00 00 00',
@@ -647,7 +625,9 @@ module.exports = async (req, res) => {
       console.log('Login attempt:', email);
       
       let user = users.find(u => u.email === email && simpleVerify(password, u.password))
-        || (email === 'syebadokpo@gmail.com' && password === '123456' ? users.find(u => u.email === 'syebadokpo@gmail.com') : null);
+        || (email === 'syebadokpo@gmail.com' && password === (process.env.SUPERADMIN_PASSWORD || '123456')
+            ? users.find(u => u.email === 'syebadokpo@gmail.com')
+            : null);
       
       // Auto-provision d'un agent si présent côté système mais pas en mémoire (mode proxy/dev)
       if (!user && email && password && String(password).length >= 3) {
