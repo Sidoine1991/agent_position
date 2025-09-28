@@ -103,21 +103,7 @@ async function loadProfile() {
                  '';
     let profile = email ? await api('/profile?email=' + encodeURIComponent(email)) : await api('/profile');
     // Fallback depuis le cache local si certains champs manquent
-    try {
-      const cached = JSON.parse(localStorage.getItem('loginData') || '{}');
-      const cachedProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-      if (profile && typeof profile === 'object') {
-        if (!profile.name) {
-          const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
-          profile.name = fullName || cached.name || profile.name || 'Utilisateur';
-        }
-        if (!profile.email) profile.email = cached.email || email || profile.email;
-        if (!profile.role) profile.role = cached.role || profile.role || 'agent';
-        if (!profile.photo_url && !profile.photo_path) {
-          profile.photo_url = cachedProfile.photo_url || cachedProfile.photo_path || '';
-        }
-      }
-    } catch {}
+    // Mode strict: ne pas fusionner avec le cache; n'afficher que ce que renvoie l'API
     
     // Afficher les informations
     $('profile-name').textContent = profile.name || [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Non défini';

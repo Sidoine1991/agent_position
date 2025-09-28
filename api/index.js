@@ -104,8 +104,10 @@ function verifyToken(token) {
   }
 }
 
-// Initialiser les données
+// Initialiser les données (dev only). En production: ne conserver que le superadmin bootstrap
 initializeUsers();
+const isProd = process.env.NODE_ENV === 'production';
+const allowFakeData = String(process.env.ALLOW_FAKE_DATA || '').toLowerCase() === 'true';
 
 // Configurer Web Push (si disponible)
 let effectiveVapidPublicKey = VAPID_PUBLIC_KEY;
@@ -628,23 +630,10 @@ module.exports = async (req, res) => {
         || (email === 'syebadokpo@gmail.com' && password === (process.env.SUPERADMIN_PASSWORD || '123456')
             ? users.find(u => u.email === 'syebadokpo@gmail.com')
             : null);
-      
-      // Auto-provision d'un agent si présent côté système mais pas en mémoire (mode proxy/dev)
-      if (!user && email && password && String(password).length >= 3) {
-        const nextId = users.length ? Math.max(...users.map(u => u.id)) + 1 : 1;
-        user = {
-          id: nextId,
-          name: (email.split('@')[0] || 'Agent'),
-          email,
-          password: simpleHash(password),
-          role: 'agent',
-          status: 'active',
-          phone: '',
-          adminUnit: 'Service Général',
-          photo_url: ''
-        };
-        users.push(user);
-        console.log('Auto-provisioned agent:', email, 'id=', nextId);
+
+      // Interdire l'auto-provision en production (et par défaut)
+      if (!user && !allowFakeData) {
+        console.log('Login failed (no auto-provision in strict mode) for:', email);
       }
 
       if (user) {
