@@ -184,7 +184,8 @@ class NavigationManager {
     updateUserInfo(profile) {
         const userInfo = document.querySelector('.navbar-user-info');
         if (userInfo) {
-            userInfo.textContent = `${profile.first_name} ${profile.last_name}`;
+            const fullName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+            userInfo.textContent = fullName || profile.name || (profile.email || 'Utilisateur');
         }
     }
 
@@ -215,12 +216,14 @@ class NavigationManager {
     }
 
     getMenuLinks(role) {
+        const normRole = String(role || '').toLowerCase();
+        const roleKey = (normRole === 'superviseur') ? 'supervisor' : normRole;
         const baseLinks = [
             { page: 'dashboard', text: 'Tableau de bord', icon: '🏠' },
             { page: 'profile', text: 'Profil', icon: '👤' }
         ];
 
-        switch(role) {
+        switch(roleKey) {
             case 'admin':
                 return [
                     ...baseLinks,
@@ -243,10 +246,12 @@ class NavigationManager {
     addUserDropdown(menu, profile) {
         const dropdown = document.createElement('div');
         dropdown.className = 'navbar-dropdown';
+        const fullName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+        const displayName = fullName || profile.name || (profile.email || 'Compte');
         dropdown.innerHTML = `
             <button class="navbar-dropdown-toggle">
                 <span class="navbar-icon">👤</span>
-                ${profile.first_name} ${profile.last_name}
+                ${displayName}
                 <span class="navbar-arrow">▼</span>
             </button>
             <div class="navbar-dropdown-menu">
