@@ -509,14 +509,28 @@ async function init() {
   });
 
   // Gestion des onglets d'authentification
-  window.showLoginForm = () => {
-    $('login-form-container').classList.remove('hidden');
-    $('login-form-container').classList.add('block');
-    $('register-form-container').classList.add('hidden');
-    $('register-form-container').classList.remove('block');
+  function showLoginForm() {
+    const loginContainer = $('login-form-container');
+    const registerContainer = $('register-form-container');
+    
+    if (loginContainer) {
+      loginContainer.classList.remove('hidden');
+      loginContainer.classList.add('block');
+    }
+    
+    if (registerContainer) {
+      registerContainer.classList.add('hidden');
+      registerContainer.classList.remove('block');
+    }
+    
     document.querySelectorAll('.auth-tab').forEach(tab => tab.classList.remove('active'));
-    document.querySelector('.auth-tab[data-tab="login"]')?.classList.add('active');
-  };
+    const loginTab = document.querySelector('.auth-tab[data-tab="login"]');
+    if (loginTab) {
+      loginTab.classList.add('active');
+    }
+  }
+  
+  window.showLoginForm = showLoginForm;
 
   window.showRegisterForm = () => {
     $('login-form-container').classList.add('hidden');
@@ -569,17 +583,17 @@ async function init() {
   const startBtnEl = $('start-mission');
   const endBtnEl = $('end-mission');
   if (startBtnEl) {
-    startBtnEl.onclick = async () => {
-    const status = $('status');
+    startBtnEl.addEventListener('click', async () => {
+      const status = $('status');
       await startMission(startBtnEl, status);
-    };
+    });
   }
 
   if (endBtnEl) {
-    endBtnEl.onclick = async () => {
+    endBtnEl.addEventListener('click', async () => {
       const status = $('status');
       await endMission(currentMissionId, endBtnEl, status);
-    };
+    });
     try { endBtnEl.textContent = 'Finir mission'; } catch {}
   }
 
@@ -924,7 +938,7 @@ async function init() {
     }
     
     // Configurer l'événement
-    forceBtn.onclick = () => forceEndMission(missionId, forceBtn, status);
+    forceBtn.addEventListener('click', () => forceEndMission(missionId, forceBtn, status));
     forceBtn.style.display = 'block';
   }
 
@@ -940,7 +954,9 @@ async function init() {
 
   // Ancien bouton end-mission supprimé
 
-  $('checkin-btn').onclick = async () => {
+  const checkinBtn = $('checkin-btn');
+  if (checkinBtn) {
+    checkinBtn.addEventListener('click', async () => {
     if (!currentMissionId) {
       // Try restore from local storage first (faster UX)
       try {
@@ -1071,7 +1087,8 @@ function notifyPresenceUpdate(type) {
     } finally {
       removeLoadingState(checkinBtn);
     }
-  };
+    });
+  }
 
   // Restore current mission (uniquement si connecté)
   try {
@@ -1510,17 +1527,17 @@ async function initializeCalendar() {
   const nextBtn = $('next-month');
   
   if (prevBtn) {
-    prevBtn.onclick = () => {
+    prevBtn.addEventListener('click', () => {
       currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
       renderCalendar();
-    };
+    });
   }
   
   if (nextBtn) {
-    nextBtn.onclick = () => {
+    nextBtn.addEventListener('click', () => {
       currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
       renderCalendar();
-    };
+    });
   }
   
   renderCalendar();
@@ -1622,7 +1639,7 @@ function createDayElement(day, isOtherMonth) {
   }
   
   // Ajouter l'événement de clic
-  dayElement.onclick = () => handleDayClick(day, isOtherMonth);
+  dayElement.addEventListener('click', () => handleDayClick(day, isOtherMonth));
   
   return dayElement;
 }
@@ -1798,7 +1815,7 @@ function showSystemNotification(title, message) {
         tag: 'presence-reminder'
       });
 
-      notification.onclick = () => {
+      notification.addEventListener('click', () => {
         window.focus();
         notification.close();
         // Scroll vers le formulaire de présence
@@ -1806,7 +1823,7 @@ function showSystemNotification(title, message) {
         if (presenceCard && presenceCard.textContent.includes('Présence terrain')) {
           presenceCard.scrollIntoView({ behavior: 'smooth' });
         }
-      };
+      });
 
       // Auto-fermer après 5 secondes
       setTimeout(() => {

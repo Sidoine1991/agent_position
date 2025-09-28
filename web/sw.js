@@ -84,10 +84,12 @@ self.addEventListener('fetch', (event) => {
           return response;
         }
         return fetch(request).then((response) => {
-          if (response.status === 200) {
+          if (response.status === 200 && request.url.startsWith('http')) {
             const responseClone = response.clone();
             caches.open(STATIC_CACHE).then((cache) => {
-              cache.put(request, responseClone);
+              cache.put(request, responseClone).catch((error) => {
+                console.warn('⚠️ Service Worker: Erreur mise en cache statique:', error);
+              });
             });
           }
           return response;
@@ -101,11 +103,13 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(request).then((response) => {
-        // Mettre en cache les réponses API réussies
-        if (response.status === 200) {
+        // Mettre en cache les réponses API réussies (éviter les schémas non supportés)
+        if (response.status === 200 && request.url.startsWith('http')) {
           const responseClone = response.clone();
           caches.open(DYNAMIC_CACHE).then((cache) => {
-            cache.put(request, responseClone);
+            cache.put(request, responseClone).catch((error) => {
+              console.warn('⚠️ Service Worker: Erreur mise en cache API:', error);
+            });
           });
         }
         return response;
@@ -142,11 +146,13 @@ self.addEventListener('fetch', (event) => {
       }
       
       return fetch(request).then((response) => {
-        // Mettre en cache les réponses réussies
-        if (response.status === 200) {
+        // Mettre en cache les réponses réussies (éviter les schémas non supportés)
+        if (response.status === 200 && request.url.startsWith('http')) {
           const responseClone = response.clone();
           caches.open(DYNAMIC_CACHE).then((cache) => {
-            cache.put(request, responseClone);
+            cache.put(request, responseClone).catch((error) => {
+              console.warn('⚠️ Service Worker: Erreur mise en cache:', error);
+            });
           });
         }
         return response;
