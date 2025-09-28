@@ -2,6 +2,19 @@
 // Usage: node scripts/migrate-to-supabase.js
 // Required env: DATABASE_URL (Render), SUPABASE_URL, SUPABASE_SERVICE_ROLE
 
+const path = require('path');
+// Charger les variables d'environnement depuis .env (racine) ou web/.env
+try {
+  const dotenv = require('dotenv');
+  // Priorité: racine, sinon web/.env
+  const loadedRoot = dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+  if (loadedRoot.error) {
+    dotenv.config({ path: path.resolve(process.cwd(), 'web/.env') });
+  }
+} catch (e) {
+  // dotenv est optionnel, on continue si non installé
+}
+
 const { Client } = require('pg');
 const { createClient } = require('@supabase/supabase-js');
 
