@@ -16,7 +16,12 @@ function clearCachedUserData() {
   try {
     localStorage.removeItem('loginData');
     localStorage.removeItem('userProfile');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('jwt');
     localStorage.removeItem('lastGPS');
+    localStorage.removeItem('vercelLoginAttempts');
+    localStorage.removeItem('lastLoginAttempt');
+    console.log('🧹 Cache utilisateur nettoyé');
   } catch {}
   try { presenceData = {}; } catch {}
 }
@@ -1379,9 +1384,25 @@ function logout() {
   }
 }
 
-// Exposer la fonction de déconnexion
+// Fonction pour nettoyer complètement le cache (utile pour les bases vierges)
+function clearAllCache() {
+  if (confirm('Voulez-vous nettoyer complètement le cache local ? Cela vous déconnectera et supprimera toutes les données temporaires.')) {
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+      console.log('🧹 Cache complètement nettoyé');
+      location.reload();
+    } catch (error) {
+      console.error('Erreur lors du nettoyage:', error);
+    }
+  }
+}
+
+// Exposer les fonctions globalement
 if (typeof window !== 'undefined') {
   window.logout = logout;
+  window.clearAllCache = clearAllCache;
+  window.clearCachedUserData = clearCachedUserData;
 }
 
 // Attacher les handlers de déconnexion sans inline (CSP-compatible)
@@ -2483,7 +2504,7 @@ function getCommuneNameById(departementId, communeId) {
 }
 
 // Initialiser la saisie manuelle au chargement
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   // Ne pas effacer la console sur Vercel pour éviter les boucles
   if (!window.location.hostname.includes('vercel.app')) {
     console.clear();
@@ -2500,6 +2521,24 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.removeItem('loginData');
     localStorage.removeItem('userProfile');
     // Ne pas forcer la reconnexion, laisser l'utilisateur naviguer normalement
+  }
+  
+  // Vérifier si la base de données est vierge et nettoyer le cache si nécessaire
+  try {
+    const response = await api('/api/settings');
+    if (response && response.success && response.settings) {
+      // Base de données accessible, vérifier s'il y a des utilisateurs
+      const hasUsers = localStorage.getItem('hasUsers') === 'true';
+      if (!hasUsers) {
+        console.log('🔍 Vérification de la base de données...');
+        // Nettoyer le cache pour forcer une reconnexion propre
+        clearCachedUserData();
+        localStorage.setItem('hasUsers', 'false');
+      }
+    }
+  } catch (error) {
+    console.log('⚠️ Impossible de vérifier la base de données, nettoyage du cache');
+    clearCachedUserData();
   }
   
   // Initialiser le détecteur mobile GPS
