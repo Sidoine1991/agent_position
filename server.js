@@ -6,6 +6,18 @@ const fs = require('fs');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+let supabaseEnabled = String(process.env.USE_SUPABASE || '').toLowerCase() === 'true';
+let supabaseClient = null;
+try {
+  if (supabaseEnabled) {
+    const { getSupabaseClient } = require('./backend/src/supabase');
+    supabaseClient = getSupabaseClient();
+    console.log('🔗 Supabase activé');
+  }
+} catch (e) {
+  console.warn('⚠️ Supabase non initialisé:', e?.message);
+  supabaseEnabled = false;
+}
 const multer = require('multer');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -840,15 +852,25 @@ app.post('/api/register', async (req, res) => {
       });
     }
     
-    // Vérifier si l'email existe déjà
+    // Vérifier si l'email existe déjà (Supabase ou Postgres)
     console.log('Vérification email existant...');
-    const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
-    if (existingUser.rows.length > 0) {
-      console.log('Email déjà utilisé');
-      return res.status(400).json({
-        success: false,
-        message: 'Cet email est déjà utilisé'
-      });
+    if (supabaseEnabled) {
+      const { data: existRows, error: existErr } = await supabaseClient
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .limit(1);
+      if (existErr) throw existErr;
+      if (existRows && existRows.length > 0) {
+        console.log('Email déjà utilisé');
+        return res.status(400).json({ success: false, message: 'Cet email est déjà utilisé' });
+      }
+    } else {
+      const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+      if (existingUser.rows.length > 0) {
+        console.log('Email déjà utilisé');
+        return res.status(400).json({ success: false, message: 'Cet email est déjà utilisé' });
+      }
     }
     
     // Générer un code de validation
@@ -860,13 +882,28 @@ app.post('/api/register', async (req, res) => {
     console.log('Hachage du mot de passe...');
     const passwordHash = await bcrypt.hash(password, 10);
     
-    // Créer l'utilisateur (non vérifié)
+    // Créer l'utilisateur (non vérifié) dans Supabase ou Postgres
     console.log('Création de l\'utilisateur en base...');
-    await pool.query(`
-      INSERT INTO users (email, password_hash, name, role, phone, verification_code, verification_expires)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [email, passwordHash, name, role, phone, verificationCode, expiresAt]);
-    console.log('Utilisateur créé avec succès');
+    if (supabaseEnabled) {
+      const { error: insErr } = await supabaseClient.from('users').insert({
+        email,
+        password_hash: passwordHash,
+        name,
+        role,
+        phone,
+        verification_code: verificationCode,
+        verification_expires: expiresAt.toISOString(),
+        is_verified: false
+      });
+      if (insErr) throw insErr;
+      console.log('Utilisateur créé (Supabase)');
+    } else {
+      await pool.query(`
+        INSERT INTO users (email, password_hash, name, role, phone, verification_code, verification_expires)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [email, passwordHash, name, role, phone, verificationCode, expiresAt]);
+      console.log('Utilisateur créé (Postgres)');
+    }
     
     // Envoyer l'email de validation (non bloquant si SMTP manquant)
     console.log('Envoi de l\'email de validation...');
@@ -909,20 +946,38 @@ app.post('/api/verify', async (req, res) => {
   try {
     const { email, code } = req.body;
     
-    // Vérifier le code
-    const result = await pool.query(`
-      SELECT id, verification_expires FROM users 
-      WHERE email = $1 AND verification_code = $2 AND is_verified = FALSE
-    `, [email, code]);
+    // Vérifier le code (Supabase ou Postgres)
+    let user = null;
+    if (supabaseEnabled) {
+      const { data: rows, error } = await supabaseClient
+        .from('users')
+        .select('id, verification_expires')
+        .eq('email', email)
+        .eq('verification_code', code)
+        .eq('is_verified', false)
+        .limit(1);
+      if (error) throw error;
+      if (!rows || rows.length === 0) {
+        return res.status(400).json({ success: false, message: 'Code invalide ou expiré' });
+      }
+      user = rows[0];
+    } else {
+      const result = await pool.query(`
+        SELECT id, verification_expires FROM users 
+        WHERE email = $1 AND verification_code = $2 AND is_verified = FALSE
+      `, [email, code]);
+      if (result.rows.length === 0) {
+        return res.status(400).json({ success: false, message: 'Code invalide ou expiré' });
+      }
+      user = result.rows[0];
+    }
     
-    if (result.rows.length === 0) {
+    if (!user) {
       return res.status(400).json({
         success: false,
         message: 'Code invalide ou expiré'
       });
     }
-    
-    const user = result.rows[0];
     
     // Vérifier l'expiration
     if (new Date() > new Date(user.verification_expires)) {
@@ -932,12 +987,20 @@ app.post('/api/verify', async (req, res) => {
       });
     }
     
-    // Valider l'utilisateur
-    await pool.query(`
-      UPDATE users 
-      SET is_verified = TRUE, verification_code = NULL, verification_expires = NULL
-      WHERE id = $1
-    `, [user.id]);
+    // Valider l'utilisateur (Supabase ou Postgres)
+    if (supabaseEnabled) {
+      const { error: upErr } = await supabaseClient
+        .from('users')
+        .update({ is_verified: true, verification_code: null, verification_expires: null })
+        .eq('id', user.id);
+      if (upErr) throw upErr;
+    } else {
+      await pool.query(`
+        UPDATE users 
+        SET is_verified = TRUE, verification_code = NULL, verification_expires = NULL
+        WHERE id = $1
+      `, [user.id]);
+    }
     
     res.json({
       success: true,
@@ -1009,24 +1072,33 @@ app.post('/api/login', async (req, res) => {
       });
     }
     
-    // Récupérer l'utilisateur
+    // Récupérer l'utilisateur (Supabase ou Postgres)
     console.log('🔍 Recherche de l\'utilisateur dans la base...');
-    const result = await pool.query(`
-      SELECT id, email, password_hash, name, role, phone, is_verified
-      FROM users WHERE email = $1
-    `, [email]);
-    
-    console.log('📊 Nombre d\'utilisateurs trouvés:', result.rows.length);
-    
-    if (result.rows.length === 0) {
-      console.log('❌ Aucun utilisateur trouvé pour:', email);
-      return res.status(400).json({
-        success: false,
-        message: 'Email ou mot de passe incorrect'
-      });
+    let user = null;
+    if (supabaseEnabled) {
+      const { data: rows, error } = await supabaseClient
+        .from('users')
+        .select('id, email, password_hash, name, role, phone, is_verified')
+        .eq('email', email)
+        .limit(1);
+      if (error) throw error;
+      if (!rows || rows.length === 0) {
+        console.log('❌ Aucun utilisateur trouvé pour:', email);
+        return res.status(400).json({ success: false, message: 'Email ou mot de passe incorrect' });
+      }
+      user = rows[0];
+    } else {
+      const result = await pool.query(`
+        SELECT id, email, password_hash, name, role, phone, is_verified
+        FROM users WHERE email = $1
+      `, [email]);
+      console.log('📊 Nombre d\'utilisateurs trouvés:', result.rows.length);
+      if (result.rows.length === 0) {
+        console.log('❌ Aucun utilisateur trouvé pour:', email);
+        return res.status(400).json({ success: false, message: 'Email ou mot de passe incorrect' });
+      }
+      user = result.rows[0];
     }
-    
-    const user = result.rows[0];
     console.log('👤 Utilisateur trouvé:', {
       id: user.id,
       email: user.email,
