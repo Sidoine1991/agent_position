@@ -380,6 +380,40 @@ app.get('/api/settings', async (req, res) => {
   }
 });
 
+// Routes manquantes pour Render
+app.get('/api/admin-units', async (req, res) => {
+  try {
+    const { data, error } = await supabaseClient.from('admin_units').select('*');
+    if (error) throw error;
+    res.json({ success: true, units: data || [] });
+  } catch (error) {
+    console.error('Erreur admin-units:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/users', async (req, res) => {
+  try {
+    const { data, error } = await supabaseClient.from('users').select('*');
+    if (error) throw error;
+    res.json({ success: true, users: data || [] });
+  } catch (error) {
+    console.error('Erreur users:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/push/public-key', async (req, res) => {
+  try {
+    // Clé publique VAPID pour les notifications push
+    const publicKey = process.env.VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa40HI8F5j7gK3xN8k';
+    res.json({ success: true, publicKey });
+  } catch (error) {
+    console.error('Erreur push key:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Fonction d'envoi d'email
 async function sendVerificationEmail(email, code) {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {

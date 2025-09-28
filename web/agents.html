@@ -6,8 +6,8 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#0ea5e9" />
     <title>Gestion des Agents - Presence CCRB</title>
-    <link href="/web/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/web/styles.css?v=2" />
+    <link href="/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css?v=2" />
   </head>
   <body>
     <!-- Navigation Bar -->
@@ -226,23 +226,19 @@
       </div>
     </div>
 
-    <script src="/web/capacitor-native.js"></script>
-    <script src="/web/navigation.js"></script>
+    <script src="/capacitor-native.js"></script>
+    <script src="/navigation.js"></script>
     <script src="/agents.js"></script>
     <script>
       // Vercel Speed Insights
       if (typeof window !== 'undefined') {
-        import('https://unpkg.com/@vercel/speed-insights@1.2.0/dist/index.js').then(({ inject }) => {
-          inject();
-        });
+        /* Vercel Speed Insights désactivé pour éviter les erreurs CSP */
       }
     </script>
     <script>
       // Vercel Analytics
       if (typeof window !== 'undefined') {
-        import('https://unpkg.com/@vercel/analytics@1.2.0/dist/index.js').then(({ inject }) => {
-          inject();
-        });
+        /* Vercel Analytics désactivé pour éviter les erreurs CSP */
       }
     </script>
     <footer class="bg-light border-top mt-4 py-3">
@@ -255,6 +251,6 @@
         </div>
       </div>
     </footer>
-    <script src="/web/bootstrap-5.3.8-dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/bootstrap-5.3.8-dist/js/bootstrap.bundle.min.js"></script>
   </body>
 </html>
