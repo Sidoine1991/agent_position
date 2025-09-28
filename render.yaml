@@ -11,6 +11,16 @@ services:
         value: production
       - key: PORT
         value: 10000
+      - key: DATABASE_URL
+        value: postgresql://dbccrb_user:THMWBv1Ur2hP1XyNJExmemPodp0pzeV6@dpg-d37s6vmmcj7s73fs2chg-a.oregon-postgres.render.com:5432/dbccrb?ssl=true
+      - key: EMAIL_USER
+        value: syebadokpo@gmail.com
+      - key: EMAIL_PASS
+        value: sxzq sehu zpwv eqzf
+      - key: JWT_SECRET
+        value: 34f3e1679f779701810d0e0c4638401bb4cc29280de16c8b3758b42e31a614f61009548be4407037f7f4e02f218fb0f2a9de947aac91261232e7fe80b3586ea0
+      - key: SERPAPI_API_KEY
+        value: e0336d08424cd61122fe50e8044420ec3c492f19e101e893f59791e4ec001e7a
       - key: SUPABASE_URL
         value: https://eoamsmtdspedumjmmeui.supabase.co
       - key: SUPABASE_ANON_KEY
@@ -19,10 +29,6 @@ services:
         value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVvYW1zbXRkc3BlZHVtam1tZXVpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTAyNzIzOSwiZXhwIjoyMDc0NjAzMjM5fQ.SrDG8nvNxALqUSqXw3tGWuv9hgLF-bSyUdNmxcoYm_Y
       - key: SUPABASE_JWT_SECRET
         value: wineLDVtm0QzgEUg57/bJFMCdWjrjdwYi0Y5dg9BaF2mQlpE6gL6XgCQNtDB2yAry7hY4R9vL6RXtD3Sqjc7NA==
-      - key: JWT_SECRET
-        value: your-super-secret-jwt-key-here
       - key: CORS_ORIGIN
         value: https://presence-ccrb.onrender.com
-      - key: SUPERADMIN_PASSWORD
-        value: 123456
     healthCheckPath: /api/test-server
