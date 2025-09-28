@@ -1,182 +1,297 @@
-// Navigation unifiée pour toutes les pages
+// ===== SYSTÈME DE NAVIGATION UNIFIÉ =====
 class NavigationManager {
-  constructor() {
-    this.currentPage = this.getCurrentPage();
-    this.init();
-  }
-
-  getCurrentPage() {
-    const path = window.location.pathname;
-    if (path === '/' || path === '/index.html') return 'home';
-    if (path.includes('profile')) return 'profile';
-    if (path.includes('dashboard')) return 'dashboard';
-    if (path.includes('agents')) return 'agents';
-    if (path.includes('reports')) return 'reports';
-    if (path.includes('admin')) return 'admin';
-    if (path.includes('map')) return 'map';
-    if (path.includes('register')) return 'register';
-    return 'home';
-  }
-
-  init() {
-    this.setupNavbar();
-    this.setupMobileMenu();
-    this.updateActiveLinks();
-  }
-
-  setupNavbar() {
-    const navbar = document.querySelector('.navbar');
-    if (!navbar) return;
-
-    // Ajouter le bouton mobile si pas présent
-    if (!document.querySelector('.navbar-toggle')) {
-      const toggle = document.createElement('button');
-      toggle.className = 'navbar-toggle';
-      toggle.innerHTML = '☰';
-      toggle.onclick = () => this.toggleMobileMenu();
-      navbar.appendChild(toggle);
+    constructor() {
+        this.currentPage = 'dashboard';
+        this.isMobile = window.innerWidth <= 768;
+        this.mobileMenuOpen = false;
+        this.init();
     }
-  }
 
-  setupMobileMenu() {
-    const style = document.createElement('style');
-    style.textContent = `
-      .navbar-toggle {
-        display: none;
-        background: none;
-        border: none;
-        font-size: 1.5rem;
-        cursor: pointer;
-        padding: 0.5rem;
-        color: #333;
-      }
-      
-      @media (max-width: 768px) {
-        .navbar-toggle {
-          display: block;
+    init() {
+        this.setupEventListeners();
+        this.updateNavbar();
+        this.handleResponsive();
+    }
+
+    setupEventListeners() {
+        // Toggle mobile menu
+        const mobileToggle = document.querySelector('.navbar-toggle');
+        if (mobileToggle) {
+            mobileToggle.addEventListener('click', () => this.toggleMobileMenu());
+        }
+
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (this.mobileMenuOpen && !e.target.closest('.navbar')) {
+                this.closeMobileMenu();
+            }
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => this.handleResponsive());
+
+        // Handle navigation links
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('[data-page]')) {
+                e.preventDefault();
+                this.navigateTo(e.target.dataset.page);
+            }
+        });
+    }
+
+    handleResponsive() {
+        const wasMobile = this.isMobile;
+        this.isMobile = window.innerWidth <= 768;
+        
+        if (wasMobile !== this.isMobile) {
+            this.updateNavbar();
+            if (!this.isMobile) {
+                this.closeMobileMenu();
+            }
+        }
+    }
+
+    toggleMobileMenu() {
+        this.mobileMenuOpen = !this.mobileMenuOpen;
+        const menu = document.querySelector('.navbar-menu');
+        const toggle = document.querySelector('.navbar-toggle');
+        
+        if (menu) {
+            menu.classList.toggle('mobile-open', this.mobileMenuOpen);
         }
         
-        .navbar-menu {
-          display: none;
-          position: absolute;
-          top: 100%;
-          left: 0;
-          right: 0;
-          background: white;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-          z-index: 1000;
-          flex-direction: column;
-          padding: 1rem;
+        if (toggle) {
+            toggle.innerHTML = this.mobileMenuOpen ? '✕' : '☰';
+        }
+    }
+
+    closeMobileMenu() {
+        this.mobileMenuOpen = false;
+        const menu = document.querySelector('.navbar-menu');
+        const toggle = document.querySelector('.navbar-toggle');
+        
+        if (menu) {
+            menu.classList.remove('mobile-open');
         }
         
-        .navbar-menu.mobile-open {
-          display: flex;
+        if (toggle) {
+            toggle.innerHTML = '☰';
         }
+    }
+
+    navigateTo(page) {
+        this.currentPage = page;
+        this.closeMobileMenu();
+        this.updateActiveLink();
+        this.loadPage(page);
+    }
+
+    updateActiveLink() {
+        // Remove active class from all links
+        document.querySelectorAll('.navbar-link').forEach(link => {
+            link.classList.remove('navbar-link-active');
+        });
+
+        // Add active class to current page link
+        const activeLink = document.querySelector(`[data-page="${this.currentPage}"]`);
+        if (activeLink) {
+            activeLink.classList.add('navbar-link-active');
+        }
+    }
+
+    loadPage(page) {
+        // Hide all pages
+        document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
         
-        .navbar-link {
-          margin: 0.5rem 0;
-          padding: 0.75rem;
-          border-radius: 8px;
+        // Show target page
+        const targetPage = document.getElementById(`${page}-page`);
+        if (targetPage) {
+            targetPage.style.display = 'block';
+            this.animatePageIn(targetPage);
         }
+
+        // Load page-specific data
+        this.loadPageData(page);
+    }
+
+    animatePageIn(element) {
+        element.style.opacity = '0';
+        element.style.transform = 'translateY(20px)';
         
-        .navbar-user {
-          flex-direction: column;
-          align-items: stretch;
-          margin-top: 1rem;
-          padding-top: 1rem;
-          border-top: 1px solid #eee;
+        requestAnimationFrame(() => {
+            element.style.transition = 'all 0.3s ease';
+            element.style.opacity = '1';
+            element.style.transform = 'translateY(0)';
+        });
+    }
+
+    loadPageData(page) {
+        switch(page) {
+            case 'dashboard':
+                if (window.loadDashboard) window.loadDashboard();
+                break;
+            case 'profile':
+                if (window.loadProfile) window.loadProfile();
+                break;
+            case 'agents':
+                if (window.loadAgents) window.loadAgents();
+                break;
+            case 'reports':
+                if (window.loadReports) window.loadReports();
+                break;
+            case 'admin':
+                if (window.loadAdmin) window.loadAdmin();
+                break;
         }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  toggleMobileMenu() {
-    const menu = document.querySelector('.navbar-menu');
-    if (menu) {
-      menu.classList.toggle('mobile-open');
     }
-  }
 
-  updateActiveLinks() {
-    // Retirer toutes les classes actives
-    document.querySelectorAll('.navbar-link').forEach(link => {
-      link.classList.remove('navbar-link-active');
-    });
+    updateNavbar() {
+        const navbar = document.querySelector('.navbar');
+        if (!navbar) return;
 
-    // Ajouter la classe active à la page courante
-    const activeSelectors = {
-      'home': ['a[href="/"]', 'a[href="/index.html"]'],
-      'profile': 'a[href*="profile"]',
-      'dashboard': 'a[href*="dashboard"]',
-      'agents': 'a[href*="agents"]',
-      'reports': 'a[href*="reports"]',
-      'admin': 'a[href*="admin"]',
-      'map': 'a[href*="map"]',
-      'register': 'a[href*="register"]'
-    };
-
-    const selectors = activeSelectors[this.currentPage];
-    if (selectors) {
-      const selectorArray = Array.isArray(selectors) ? selectors : [selectors];
-      selectorArray.forEach(selector => {
-        const link = document.querySelector(selector);
-        if (link) {
-          link.classList.add('navbar-link-active');
+        // Get user profile
+        const profile = this.getUserProfile();
+        
+        if (profile) {
+            this.updateUserInfo(profile);
+            this.updateMenuForUser(profile);
+        } else {
+            this.showLoginMenu();
         }
-      });
     }
-  }
 
-  // Méthode pour mettre à jour la navbar selon le rôle utilisateur
-  async updateForUser(user) {
-    const links = {
-      'profile-link': true, // Tous les utilisateurs connectés
-      'map-link': true,
-      'dashboard-link': ['admin', 'supervisor'].includes(user?.role),
-      'agents-link': ['admin', 'supervisor'].includes(user?.role),
-      'reports-link': ['admin', 'supervisor'].includes(user?.role),
-      'admin-link': user?.role === 'admin',
-      'register-link': user?.role === 'admin'
-    };
-
-    Object.entries(links).forEach(([linkId, shouldShow]) => {
-      const link = document.getElementById(linkId);
-      if (link) {
-        link.style.display = shouldShow ? 'flex' : 'none';
-      }
-    });
-
-    // Afficher les infos utilisateur
-    const userInfo = document.getElementById('user-info');
-    const navbarUser = document.getElementById('navbar-user');
-    if (user && userInfo) {
-      userInfo.textContent = `${user.name || user.email}`;
+    // Méthode pour la compatibilité avec app.js
+    async updateForUser(profile) {
+        if (profile) {
+            this.currentUser = profile;
+            this.updateUserInfo(profile);
+            this.updateMenuForUser(profile);
+        } else {
+            this.currentUser = null;
+            this.showLoginMenu();
+        }
     }
-    if (navbarUser) {
-      navbarUser.style.display = user ? 'flex' : 'none';
-    }
-  }
 
-  // Méthode pour fermer le menu mobile lors de la navigation
-  closeMobileMenu() {
-    const menu = document.querySelector('.navbar-menu');
-    if (menu) {
-      menu.classList.remove('mobile-open');
+    getUserProfile() {
+        try {
+            const profileData = localStorage.getItem('userProfile');
+            return profileData ? JSON.parse(profileData) : null;
+        } catch {
+            return null;
+        }
     }
-  }
+
+    updateUserInfo(profile) {
+        const userInfo = document.querySelector('.navbar-user-info');
+        if (userInfo) {
+            userInfo.textContent = `${profile.first_name} ${profile.last_name}`;
+        }
+    }
+
+    updateMenuForUser(profile) {
+        const menu = document.querySelector('.navbar-menu');
+        if (!menu) return;
+
+        // Clear existing menu
+        menu.innerHTML = '';
+
+        // Add navigation links based on user role
+        const links = this.getMenuLinks(profile.role);
+        
+        links.forEach(link => {
+            const linkElement = document.createElement('a');
+            linkElement.href = '#';
+            linkElement.className = 'navbar-link';
+            linkElement.dataset.page = link.page;
+            linkElement.innerHTML = `
+                <span class="navbar-icon">${link.icon}</span>
+                ${link.text}
+            `;
+            menu.appendChild(linkElement);
+        });
+
+        // Add user dropdown
+        this.addUserDropdown(menu, profile);
+    }
+
+    getMenuLinks(role) {
+        const baseLinks = [
+            { page: 'dashboard', text: 'Tableau de bord', icon: '🏠' },
+            { page: 'profile', text: 'Profil', icon: '👤' }
+        ];
+
+        switch(role) {
+            case 'admin':
+                return [
+                    ...baseLinks,
+                    { page: 'agents', text: 'Agents', icon: '👥' },
+                    { page: 'reports', text: 'Rapports', icon: '📊' },
+                    { page: 'admin', text: 'Administration', icon: '⚙️' }
+                ];
+            case 'supervisor':
+                return [
+                    ...baseLinks,
+                    { page: 'agents', text: 'Agents', icon: '👥' },
+                    { page: 'reports', text: 'Rapports', icon: '📊' }
+                ];
+            case 'agent':
+            default:
+                return baseLinks;
+        }
+    }
+
+    addUserDropdown(menu, profile) {
+        const dropdown = document.createElement('div');
+        dropdown.className = 'navbar-dropdown';
+        dropdown.innerHTML = `
+            <button class="navbar-dropdown-toggle">
+                <span class="navbar-icon">👤</span>
+                ${profile.first_name} ${profile.last_name}
+                <span class="navbar-arrow">▼</span>
+            </button>
+            <div class="navbar-dropdown-menu">
+                <button class="navbar-dropdown-item" data-page="profile">
+                    <span class="navbar-icon">👤</span>
+                    Mon Profil
+                </button>
+                <button class="navbar-dropdown-item" onclick="navigation.logout()">
+                    <span class="navbar-icon">🚪</span>
+                    Déconnexion
+                </button>
+            </div>
+        `;
+        menu.appendChild(dropdown);
+    }
+
+    showLoginMenu() {
+        const menu = document.querySelector('.navbar-menu');
+        if (!menu) return;
+
+        menu.innerHTML = `
+            <a href="register.html" class="navbar-link">
+                <span class="navbar-icon">📝</span>
+                S'inscrire
+            </a>
+            <a href="index.html" class="navbar-link">
+                <span class="navbar-icon">🔑</span>
+                Connexion
+            </a>
+        `;
+    }
+
+    logout() {
+        // Clear user data
+        localStorage.removeItem('jwt');
+        localStorage.removeItem('userProfile');
+        localStorage.removeItem('loginData');
+        
+        // Redirect to login
+        window.location.href = 'index.html';
+    }
 }
 
-// Initialiser la navigation
+// Initialize navigation
 const navigation = new NavigationManager();
 
-// Fermer le menu mobile lors des clics sur les liens
-document.addEventListener('click', (e) => {
-  if (e.target.closest('.navbar-link')) {
-    navigation.closeMobileMenu();
-  }
-});
-
-// Exporter pour utilisation globale
-window.NavigationManager = NavigationManager;
+// Export for global access
 window.navigation = navigation;

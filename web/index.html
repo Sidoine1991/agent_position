@@ -25632,7 +25632,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
     <script src="/geo-data.js"></script>
     <script src="capacitor-native.js"></script>
-    <script src="navigation.js"></script>
     <!-- Mobile GPS Detector -->
     <script src="test-render-auth.js"></script>
     <script src="clear-cache.js"></script>
@@ -25641,7 +25640,9 @@ document.addEventListener('DOMContentLoaded', function() {
     <script src="gps-enhanced.js"></script>
     <!-- Offline Manager -->
     <script src="offline-manager.js"></script>
-    <script src="/app.js?v=4" type="module"></script>
+    <!-- Navigation Manager -->
+    <script src="navigation.js"></script>
+    <script src="/app.js?v=5" type="module"></script>
     <!-- Service Worker -->
     <script src="register-sw.js"></script>
     <script>
@@ -25673,6 +25674,16 @@ document.addEventListener('DOMContentLoaded', function() {
       </div>
     </footer>
     <script src="/bootstrap-5.3.8-dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Fallback pour les modules non définis -->
+    <script>
+      if (typeof module === 'undefined') {
+        window.module = { exports: {} };
+      }
+      if (typeof exports === 'undefined') {
+        window.exports = {};
+      }
+    </script>
   </body>
 </html>
 
