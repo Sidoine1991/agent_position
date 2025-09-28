@@ -868,16 +868,20 @@ app.post('/api/register', async (req, res) => {
     `, [email, passwordHash, name, role, phone, verificationCode, expiresAt]);
     console.log('Utilisateur créé avec succès');
     
-    // Envoyer l'email de validation
+    // Envoyer l'email de validation (non bloquant si SMTP manquant)
     console.log('Envoi de l\'email de validation...');
     console.log('EMAIL_USER:', process.env.EMAIL_USER ? 'Défini' : 'Non défini');
     console.log('EMAIL_PASS:', process.env.EMAIL_PASS ? 'Défini' : 'Non défini');
-    
+
     const superAdminEmail = 'syebadokpo@gmail.com';
     const recipient = (role && role.toLowerCase() === 'admin') ? superAdminEmail : email;
-    // Pour les admins, envoyer au super admin et inclure l'email demandeur
-    await sendVerificationEmail({ to: recipient, name, code: verificationCode });
-    console.log('Email envoyé avec succès');
+    try {
+      await sendVerificationEmail({ to: recipient, name, code: verificationCode });
+      console.log('Email envoyé avec succès');
+    } catch (mailErr) {
+      console.warn('Email non envoyé (SMTP indisponible):', mailErr?.message);
+      // Continuer le flux d'inscription sans bloquer l'utilisateur
+    }
     
     res.json({
       success: true,

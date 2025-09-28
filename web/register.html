@@ -271,7 +271,7 @@
                 
                 <!-- Formulaire d'inscription -->
                 <div id="register-form">
-                    <form id="registrationForm">
+                    <form id="registrationForm" method="post" enctype="application/x-www-form-urlencoded" novalidate>
                         <div class="form-group">
                             <label for="name">Nom complet *</label>
                             <input type="text" id="name" name="name" required placeholder="Votre nom complet">
@@ -320,7 +320,7 @@
                         <p class="form-subtitle">Entrez le code reçu par email</p>
                     </div>
                     
-                    <form id="verificationForm">
+                    <form id="verificationForm" method="post" enctype="application/x-www-form-urlencoded" novalidate>
                         <div class="form-group">
                             <label for="code">Code de validation *</label>
                             <input type="text" id="code" name="code" required placeholder="Code à 6 chiffres" maxlength="6">
