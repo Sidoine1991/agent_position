@@ -363,9 +363,19 @@ async function init() {
     // Vérifier si on a déjà tenté cette connexion récemment
     const lastAttempt = localStorage.getItem('lastLoginAttempt');
     const now = Date.now();
-    if (lastAttempt && (now - parseInt(lastAttempt)) < 10000) { // 10 secondes
+    if (lastAttempt && (now - parseInt(lastAttempt)) < 30000) { // 30 secondes sur Vercel
       console.log('⚠️ Tentative de connexion trop récente, ignorée');
       return;
+    }
+    
+    // Sur Vercel, limiter les tentatives de connexion automatique
+    if (window.location.hostname.includes('vercel.app')) {
+      const vercelAttempts = parseInt(localStorage.getItem('vercelLoginAttempts') || '0');
+      if (vercelAttempts >= 3) {
+        console.log('⚠️ Trop de tentatives de connexion sur Vercel, arrêt');
+        return;
+      }
+      localStorage.setItem('vercelLoginAttempts', (vercelAttempts + 1).toString());
     }
     
     // Marquer cette tentative
@@ -2474,9 +2484,13 @@ function getCommuneNameById(departementId, communeId) {
 
 // Initialiser la saisie manuelle au chargement
 document.addEventListener('DOMContentLoaded', () => {
-  // Effacer la console au chargement
-  console.clear();
-  console.log('🚀 Application chargée - Console effacée');
+  // Ne pas effacer la console sur Vercel pour éviter les boucles
+  if (!window.location.hostname.includes('vercel.app')) {
+    console.clear();
+    console.log('🚀 Application chargée - Console effacée');
+  } else {
+    console.log('🚀 Application chargée sur Vercel');
+  }
   
   // Vérifier le token au chargement
   const jwt = localStorage.getItem('jwt');

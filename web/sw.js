@@ -3,19 +3,15 @@ const CACHE_NAME = 'presence-ccrb-v1.0.0';
 const STATIC_CACHE = 'presence-static-v1';
 const DYNAMIC_CACHE = 'presence-dynamic-v1';
 
-// Ressources à mettre en cache
+// Ressources à mettre en cache (Vercel-compatible)
 const STATIC_ASSETS = [
   '/',
-  '/index.html',
-  '/styles.css',
-  '/modern-styles.css',
-  '/app.js',
-  '/manifest.webmanifest',
-  '/Media/PP CCRB.png',
-  '/Media/logo-ccrb.png',
-  '/Media/siege_CCRB.png',
-  '/bootstrap-5.3.8-dist/css/bootstrap.min.css',
-  '/bootstrap-5.3.8-dist/js/bootstrap.bundle.min.js'
+  '/web/index.html',
+  '/web/styles.css',
+  '/web/app.js',
+  '/web/manifest.webmanifest',
+  '/web/bootstrap-5.3.8-dist/css/bootstrap.min.css',
+  '/web/bootstrap-5.3.8-dist/js/bootstrap.bundle.min.js'
 ];
 
 // Installation du Service Worker
@@ -24,10 +20,14 @@ self.addEventListener('install', (event) => {
   
   event.waitUntil(
     Promise.all([
-      // Cache des ressources statiques
+      // Cache des ressources statiques avec gestion d'erreur
       caches.open(STATIC_CACHE).then((cache) => {
         console.log('📦 Service Worker: Mise en cache des ressources statiques');
-        return cache.addAll(STATIC_ASSETS);
+        return cache.addAll(STATIC_ASSETS).catch((error) => {
+          console.warn('⚠️ Service Worker: Erreur cache statique:', error);
+          // Continuer même si certaines ressources échouent
+          return Promise.resolve();
+        });
       }),
       // Cache des ressources dynamiques
       caches.open(DYNAMIC_CACHE).then((cache) => {
@@ -36,6 +36,10 @@ self.addEventListener('install', (event) => {
       })
     ]).then(() => {
       console.log('✅ Service Worker: Installation terminée');
+      return self.skipWaiting();
+    }).catch((error) => {
+      console.error('❌ Service Worker: Erreur installation:', error);
+      // Continuer même en cas d'erreur
       return self.skipWaiting();
     })
   );
