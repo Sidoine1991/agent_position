@@ -1468,7 +1468,11 @@ function bindAllButtons() {
     // Boutons d'inscription dans les cartes
     document.querySelectorAll('.btn-register, .btn-inscription, [data-action="register"]').forEach(btn => {
       if (!btn._registerBound) {
-        btn.addEventListener('click', (ev) => { ev.preventDefault(); window.showRegisterForm(); });
+        btn.addEventListener('click', (ev) => { 
+          ev.preventDefault(); 
+          // Rediriger vers la page d'inscription dédiée
+          window.location.href = '/register.html';
+        });
         btn._registerBound = true;
       }
     });
