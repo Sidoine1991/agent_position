@@ -94,7 +94,7 @@ registerForm.addEventListener('submit', async (e) => {
     submitBtn.disabled = true;
     
     // Envoyer la requête d'inscription
-    const result = await api('/register', 'POST', data);
+    const result = await api('/api/register', 'POST', data);
     
     if (result.success) {
       if (result.admin_created) {
