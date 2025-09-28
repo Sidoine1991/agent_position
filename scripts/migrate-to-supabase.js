@@ -40,8 +40,8 @@ async function main() {
     const { rows } = await pg.query(`SELECT * FROM ${table}`);
     if (!rows || rows.length === 0) { console.log('  (vide)'); continue; }
 
-    // Supprime les ids auto si collision possible (Supabase gère identity)
-    const sanitized = rows.map(r => {
+    // Normaliser lignes (dates -> ISO)
+    let sanitized = rows.map(r => {
       const copy = { ...r };
       // Dates en ISO string
       Object.keys(copy).forEach(k => {
@@ -50,12 +50,41 @@ async function main() {
       return copy;
     });
 
+    // Insertion résiliente: si une colonne n'existe pas dans Supabase,
+    // on la retire dynamiquement et on réessaie
+    const removeColumnEverywhere = (col) => {
+      sanitized = sanitized.map(obj => { const o = { ...obj }; delete o[col]; return o; });
+    };
+
+    const tryInsertBatch = async (batch) => {
+      let attempt = 0;
+      const maxAttempts = 15; // gère plusieurs colonnes manquantes
+      let working = batch.map(x => ({ ...x }));
+      while (attempt < maxAttempts) {
+        const { error } = await supabase.from(table).insert(working, { returning: 'minimal' });
+        if (!error) return; // success
+        const msg = error.message || '';
+        const match = msg.match(/'(.*?)' column|column\s+"(.*?)"|column\s+'(.*?)'/i);
+        const col = (match && (match[1] || match[2] || match[3])) || null;
+        if (col) {
+          console.warn(`  ⚠️ Colonne inconnue détectée: ${col}. Suppression et nouvel essai...`);
+          working = working.map(o => { const c = { ...o }; delete c[col]; return c; });
+          attempt++;
+          continue;
+        }
+        // Erreur non liée à une colonne manquante
+        throw error;
+      }
+      throw new Error(`Échec insertion après ${maxAttempts} tentatives (colonnes manquantes multiples).`);
+    };
+
     // Insert par batchs (100)
     const batchSize = 100;
     for (let i = 0; i < sanitized.length; i += batchSize) {
       const batch = sanitized.slice(i, i + batchSize);
-      const { error } = await supabase.from(table).insert(batch, { returning: 'minimal' });
-      if (error) {
+      try {
+        await tryInsertBatch(batch);
+      } catch (error) {
         console.error(`❌ Erreur insertion ${table} batch ${i}-${i+batch.length}:`, error.message);
         process.exit(1);
       }
