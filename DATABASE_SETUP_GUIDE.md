@@ -27,7 +27,7 @@ Basé sur l'analyse des pages HTML, voici les tables requises pour l'application
 
 ## 🚀 **Instructions de Configuration**
 
-### **Étape 1: Créer les Tables Manquantes**
+### **Étape 1: Créer le Schema Complet**
 
 1. **Allez dans Supabase Dashboard**
    - URL: https://supabase.com/dashboard
@@ -36,8 +36,8 @@ Basé sur l'analyse des pages HTML, voici les tables requises pour l'application
 2. **Ouvrez SQL Editor**
    - Cliquez sur "SQL Editor" dans le menu de gauche
 
-3. **Exécutez le Script SQL**
-   - Copiez le contenu du fichier `supabase/additional-tables.sql`
+3. **Exécutez le Script SQL Complet**
+   - Copiez le contenu du fichier `supabase/schema.sql`
    - Collez-le dans l'éditeur SQL
    - Cliquez sur "Run" pour exécuter
 
