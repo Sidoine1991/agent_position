@@ -1,44 +1,58 @@
-# Dependencies
-node_modules/
-backend/node_modules/
-
 # Environment variables
 .env
 .env.local
 .env.production
 .env.development
-.env.test
-.env.*.local
+web/.env
+
+# Secrets and sensitive files
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+config/secrets/
 
 # Database
 *.db
-*.db-shm
-*.db-wal
-data/
+*.sqlite
+*.sqlite3
 
 # Logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
 # Runtime data
-pids
+pids/
 *.pid
 *.seed
 *.pid.lock
 
 # Coverage directory used by tools like istanbul
 coverage/
+*.lcov
 
 # nyc test coverage
 .nyc_output
 
 # Dependency directories
+node_modules/
 jspm_packages/
 
 # Optional npm cache directory
 .npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
 
 # Optional REPL history
 .node_repl_history
@@ -51,34 +65,37 @@ jspm_packages/
 
 # dotenv environment variables file
 .env
+.env.test
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
 
-# next.js build output
+# Next.js build output
 .next
 
-# nuxt.js build output
+# Nuxt.js build / generate output
 .nuxt
+dist
 
-# vuepress build output
-.vuepress/dist
+# Gatsby files
+.cache/
+public
 
-# Serverless directories
-.serverless
+# Storybook build outputs
+.out
+.storybook-out
 
-# FuseBox cache
-.fusebox/
+# Temporary folders
+tmp/
+temp/
 
-# DynamoDB Local files
-.dynamodb/
-
-# TernJS port file
-.tern-port
-
-# Stores VSCode versions used for testing VSCode extensions
-.vscode-test
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
 # OS generated files
 .DS_Store
@@ -89,45 +106,38 @@ jspm_packages/
 ehthumbs.db
 Thumbs.db
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
+# Test results
+test-results/
+playwright-report/
+test-results.xml
 
 # Build outputs
-dist/
 build/
-.vercel
+dist/
+out/
 
-# Test files
-test-*.html
-create-test-*.html
-*test*.html
+# Android
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
 
-# Deployment scripts
-deploy*.ps1
-deploy*.sh
+# Gradle
+.gradle/
+gradle/wrapper/gradle-wrapper.jar
 
-# Temporary data files
-hierarchy-data*.json
-*.db
-*.db-shm
-*.db-wal
+# Capacitor
+android/app/src/main/assets/capacitor.config.json
 
-# Migration scripts
-check-*.js
-create-*.js
-extract-*.js
-fix-*.js
-update-*.js
+# APK files
+*.apk
+*.aab
 
-# Duplicate files
-# server*.js  # Commenté pour permettre server.js principal
-Data/
+# Backup files
+*.backup
+*.bak
+*.tmp
 
-# Documentation duplicates
-README_*.md
-DEPLOY*.md
-MODERNIZATION*.md
-QUICK_*.md
+# Sensitive configuration
+config/database.js
+config/secrets.js

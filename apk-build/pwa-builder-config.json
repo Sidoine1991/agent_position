@@ -1,0 +1,16 @@
+{
+  "url": "https://agent-position.vercel.app",
+  "name": "Presence CCRB",
+  "shortName": "Presence CCRB",
+  "description": "Système de suivi de présence des agents CCRB",
+  "packageName": "com.ccrb.presence",
+  "version": "1.0.0",
+  "icon": "/Media/PP CCRB.png",
+  "features": [
+    "Authentication",
+    "Geolocation",
+    "Offline Support",
+    "Push Notifications",
+    "Background Sync"
+  ]
+}

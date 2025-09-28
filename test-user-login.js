@@ -43,8 +43,8 @@ async function testUserLogin() {
   console.log('🧪 Test de Connexion Utilisateur - Presence CCRB\n');
 
   const userCredentials = {
-    email: 'ntchaostelle4@gmail.com',
-    password: '123456'
+    email: process.env.TEST_EMAIL || 'test@example.com',
+    password: process.env.TEST_PASSWORD || 'testpassword'
   };
 
   console.log('1. Test de connexion avec les identifiants...');

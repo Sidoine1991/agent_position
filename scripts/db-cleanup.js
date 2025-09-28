@@ -17,9 +17,9 @@ if (!databaseUrl) {
 }
 
 const action = getArg('--action', 'preview'); // preview | purge-all | cleanup-users | create-super-admin | migrate-absences | migrate-core | migrate-user-profile | migrate-extra | preview-tables
-const keepEmail = getArg('--keep-email', 'syebadokpo@gmail.com');
-const superAdminEmail = getArg('--email', 'syebadokpo@gmail.com');
-const superAdminPassword = getArg('--password', '123456');
+const keepEmail = getArg('--keep-email', process.env.SUPERADMIN_EMAIL || 'syebadokpo@gmail.com');
+const superAdminEmail = getArg('--email', process.env.SUPERADMIN_EMAIL || 'syebadokpo@gmail.com');
+const superAdminPassword = getArg('--password', process.env.SUPERADMIN_PASSWORD || '123456');
 
 const pool = new Pool({
   connectionString: databaseUrl,

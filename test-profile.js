@@ -47,8 +47,8 @@ async function testCompleteLogin() {
   console.log('🧪 Test Complet - Connexion et Profil\n');
 
   const userCredentials = {
-    email: 'ntchaostelle4@gmail.com',
-    password: '123456'
+    email: process.env.TEST_EMAIL || 'test@example.com',
+    password: process.env.TEST_PASSWORD || 'testpassword'
   };
 
   // 1. Connexion

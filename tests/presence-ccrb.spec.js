@@ -6,10 +6,10 @@ const BASE_URL = process.env.TEST_URL || 'http://localhost:3000';
 const VERCEL_URL = 'https://agent-position.vercel.app';
 const RENDER_URL = process.env.RENDER_URL || 'https://presence-ccrb.onrender.com';
 
-// Credentials de test
+// Credentials de test - Utiliser des variables d'environnement
 const TEST_CREDENTIALS = {
-  email: 'ntchaostelle4@gmail.com',
-  password: '123456'
+  email: process.env.TEST_EMAIL || 'test@example.com',
+  password: process.env.TEST_PASSWORD || 'testpassword'
 };
 
 // Configuration des tests

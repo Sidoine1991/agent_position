@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau de Bord - Presence CCRB</title>
+    <link rel="stylesheet" href="modern-styles.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="Media/logo-ccrb.png">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="navbar-content">
+                <a href="#" class="navbar-brand">
+                    <img src="Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
+                    <div>
+                        <h1 class="navbar-title">Presence CCRB</h1>
+                        <p class="navbar-subtitle">Gestion de présence des agents</p>
+                    </div>
+                </a>
+                
+                <div class="navbar-menu">
+                    <!-- Navigation links will be populated by navigation.js -->
+                </div>
+                
+                <button class="navbar-toggle" onclick="navigation.toggleMobileMenu()">☰</button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Page -->
+            <div id="dashboard-page" class="page active">
+                <!-- Welcome Section -->
+                <div class="card mb-6">
+                    <div class="card-body">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-2xl font-bold text-primary" id="welcome-title">Bienvenue</h2>
+                                <p class="text-secondary mt-1" id="welcome-subtitle">Gérez votre présence et vos missions</p>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm text-muted" id="current-time"></div>
+                                <div class="text-xs text-muted" id="current-date"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mission Status -->
+                <div class="card mb-6">
+                    <div class="card-header">
+                        <h3 class="card-title">Statut de Mission</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="mission-status" class="loading">
+                            <div class="spinner"></div>
+                            <span>Chargement...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="card mb-6">
+                    <div class="card-header">
+                        <h3 class="card-title">Actions Rapides</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="grid grid-cols-2 gap-4">
+                            <button id="start-mission-btn" class="btn btn-primary btn-lg" onclick="startMission()">
+                                <span class="navbar-icon">🚀</span>
+                                Démarrer Mission
+                            </button>
+                            <button id="end-mission-btn" class="btn btn-secondary btn-lg" onclick="endMission()" disabled>
+                                <span class="navbar-icon">🏁</span>
+                                Terminer Mission
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Check-in Section -->
+                <div class="card mb-6">
+                    <div class="card-header">
+                        <h3 class="card-title">Envoi de Présence</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="checkin-note" class="form-label">Note (optionnel)</label>
+                            <textarea id="checkin-note" class="form-control" rows="3" placeholder="Observations sur votre présence..."></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="checkin-photo" class="form-label">Photo (optionnel)</label>
+                            <input type="file" id="checkin-photo" class="form-control" accept="image/*" capture="environment">
+                        </div>
+                        
+                        <button id="checkin-btn" class="btn btn-primary btn-lg w-full" onclick="submitCheckin()" disabled>
+                            <span class="navbar-icon">📍</span>
+                            Envoyer votre présence sur le serveur
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Statistics -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <div class="text-3xl font-bold text-primary mb-2" id="today-presence">0</div>
+                            <div class="text-sm text-secondary">Présences aujourd'hui</div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <div class="text-3xl font-bold text-success mb-2" id="month-presence">0</div>
+                            <div class="text-sm text-secondary">Présences ce mois</div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <div class="text-3xl font-bold text-warning mb-2" id="total-missions">0</div>
+                            <div class="text-sm text-secondary">Missions totales</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="card mb-6">
+                    <div class="card-header">
+                        <h3 class="card-title">Activité Récente</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="recent-activity" class="loading">
+                            <div class="spinner"></div>
+                            <span>Chargement...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mission History -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Historique des Missions</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="mission-history" class="loading">
+                            <div class="spinner"></div>
+                            <span>Chargement...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile Page -->
+            <div id="profile-page" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Mon Profil</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="profile-content" class="loading">
+                            <div class="spinner"></div>
+                            <span>Chargement...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agents Page -->
+            <div id="agents-page" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Gestion des Agents</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="agents-content" class="loading">
+                            <div class="spinner"></div>
+                            <span>Chargement...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports Page -->
+            <div id="reports-page" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Rapports</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="reports-content" class="loading">
+                            <div class="spinner"></div>
+                            <span>Chargement...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Page -->
+            <div id="admin-page" class="page">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Administration</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="admin-content" class="loading">
+                            <div class="spinner"></div>
+                            <span>Chargement...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="navigation.js"></script>
+    <script src="data-manager.js"></script>
+    <script src="dashboard-modern.js"></script>
+</body>
+</html>
