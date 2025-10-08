@@ -131,22 +131,38 @@ async function loadAgents() {
     params.set('sortBy', 'name');
     params.set('sortDir', 'asc');
 
-    const response = await api('/users?' + params.toString());
-    agents = response.items || [];
-    agentPagination.total = response.total || agents.length;
+    // 0) SSR preload: window.__AGENTS__
+    let rows = Array.isArray(window.__AGENTS__) ? window.__AGENTS__ : null;
+    // 1) API /users si pas de preload
+    let response = rows ? { total: rows.length } : await api('/users?' + params.toString());
+    if (!rows) {
+      rows = Array.isArray(response) ? response : (response.items || response.users || response.data || []);
+    }
+    if (!Array.isArray(rows) || rows.length === 0) {
+      // Fallback admin endpoint si /users échoue ou vide
+      try {
+        const alt = await api('/admin/agents');
+        rows = Array.isArray(alt) ? alt : (alt.data || alt.agents || []);
+      } catch {}
+    }
+    agents = Array.isArray(rows) ? rows : [];
+    agentPagination.total = (typeof response.total === 'number' ? response.total : agents.length);
     displayAgents();
     updateStatistics();
     renderAgentPaginator();
     
   } catch (error) {
     console.error('Erreur lors du chargement des agents:', error);
+    const list = $('agents-simple-list');
+    if (list) list.innerHTML = '<div class="no-data" style="padding:12px;">Erreur de chargement</div>';
   }
 }
 
 // Charger les unités administratives
 async function loadAdminUnits() {
   try {
-    adminUnits = await api('/admin-units');
+    const unitsResp = await api('/admin-units');
+    adminUnits = Array.isArray(unitsResp) ? unitsResp : (unitsResp.units || unitsResp.data || []);
     populateAdminUnitsSelect();
   } catch (error) {
     console.error('Erreur lors du chargement des unités administratives:', error);
@@ -184,41 +200,57 @@ function populateAdminUnitsSelect() {
 
 // Afficher les agents dans le tableau
 function displayAgents() {
-  const tbody = $('agents-table-body');
-  
-  if (agents.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="no-data">Aucun agent trouvé</td></tr>';
-    return;
-  }
-  
-  tbody.innerHTML = agents.map(agent => `
-    <tr>
-      <td>
-        <img src="/Media/default-avatar.png" alt="Avatar" class="agent-avatar-small">
-      </td>
-      <td>${agent.name}</td>
-      <td>${agent.email}</td>
-      <td><span class="role-badge role-${agent.role}">${getRoleText(agent.role)}</span></td>
-      <td>${agent.adminUnit || 'Non assigné'}</td>
-      <td><span class="status-badge status-${agent.status}">${getStatusText(agent.status)}</span></td>
-      <td>${formatDate(agent.lastActivity)}</td>
-      <td>
-        <div class="action-buttons">
-          <button class="btn-icon" onclick="editAgent(${agent.id})" title="Modifier">
-            ✏️
-          </button>
-          <button class="btn-icon" onclick="viewAgent(${agent.id})" title="Voir">
-            👁️
-          </button>
-          ${currentUser.role === 'admin' ? `
-            <button class="btn-icon btn-danger" onclick="deleteAgent(${agent.id})" title="Supprimer">
-              🗑️
-            </button>
-          ` : ''}
+  // Nouveau rendu: simple liste compacte
+  const list = $('agents-simple-list');
+  if (list) {
+    if (agents.length === 0) {
+      list.innerHTML = '<div class="no-data" style="padding:12px;">Aucun agent trouvé</div>';
+    } else {
+      list.innerHTML = agents.map(agent => `
+        <div class="agent-row">
+          <div class="agent-main">
+            <img class="agent-avatar" src="${agent.photo_path || '/Media/default-avatar.svg'}" onerror="this.onerror=null;this.src='/Media/default-avatar.svg';" alt="Avatar" />
+            <div class="agent-info">
+              <div class="agent-name">${agent.name || '-'}</div>
+              <div class="agent-sub">${agent.email || '-'} · ${getRoleText(agent.role)} · ${agent.departement || agent.adminUnit || '-'}</div>
+            </div>
+          </div>
+          <div class="agent-actions">
+            <button class="btn-small" onclick="viewAgent(${agent.id})">Voir</button>
+            <button class="btn-small" onclick="editAgent(${agent.id})">Modifier</button>
+            ${currentUser.role === 'admin' ? `<button class="btn-small" onclick="deleteAgent(${agent.id})">Supprimer</button>` : ''}
+          </div>
         </div>
-      </td>
-    </tr>
-  `).join('');
+      `).join('');
+    }
+  }
+
+  // Conserver le fallback tableau si nécessaire
+  const tbody = $('agents-table-body');
+  if (tbody) {
+    if (agents.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="no-data">Aucun agent trouvé</td></tr>';
+    } else {
+      tbody.innerHTML = agents.map(agent => `
+        <tr>
+          <td><img src="${agent.photo_path || '/Media/default-avatar.svg'}" alt="Avatar" class="agent-avatar-small" onerror="this.onerror=null;this.src='/Media/default-avatar.svg';"></td>
+          <td>${agent.name}</td>
+          <td>${agent.email}</td>
+          <td><span class="role-badge role-${agent.role}">${getRoleText(agent.role)}</span></td>
+          <td>${agent.adminUnit || agent.departement || 'Non assigné'}</td>
+          <td><span class="status-badge status-${agent.status}">${getStatusText(agent.status)}</span></td>
+          <td>${formatDate(agent.lastActivity)}</td>
+          <td>
+            <div class="action-buttons">
+              <button class="btn-icon" onclick="editAgent(${agent.id})" title="Modifier">✏️</button>
+              <button class="btn-icon" onclick="viewAgent(${agent.id})" title="Voir">👁️</button>
+              ${currentUser.role === 'admin' ? `<button class="btn-icon btn-danger" onclick="deleteAgent(${agent.id})" title="Supprimer">🗑️</button>` : ''}
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+  }
 }
 
 // Mettre à jour les statistiques
@@ -482,3 +514,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   const form = $('agent-form');
   if (form) form.addEventListener('submit', handleAgentForm);
 });
+
+// Exposer les fonctions au scope global pour les handlers inline (onchange/onclick)
+try {
+  window.filterAgents = filterAgents;
+  window.openCreateAgentModal = openCreateAgentModal;
+  window.closeAgentModal = closeAgentModal;
+  window.refreshAgents = refreshAgents;
+  window.editAgent = editAgent;
+  window.viewAgent = viewAgent;
+  window.deleteAgent = deleteAgent;
+  window.displayAgents = displayAgents;
+  window.updateStatistics = updateStatistics;
+} catch {}

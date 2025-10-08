@@ -121,26 +121,21 @@
       <!-- Liste des agents -->
       <div class="card">
         <h3>👥 Liste des Agents</h3>
-        <div class="agents-table-container">
-          <table class="agents-table">
-            <thead>
-              <tr>
-                <th>Photo</th>
-                <th>Nom</th>
-                <th>Email</th>
-                <th>Rôle</th>
-                <th>Unité Administrative</th>
-                <th>Statut</th>
-                <th>Dernière activité</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="agents-table-body">
-              <tr>
-                <td colspan="8" class="loading">Chargement des agents...</td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- Nouveau design: simple liste compacte -->
+        <style>
+          .agent-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 8px;border-bottom:1px solid #e5e7eb}
+          .agent-main{display:flex;align-items:center;gap:12px;min-width:0}
+          .agent-avatar{width:40px;height:40px;border-radius:9999px;object-fit:cover}
+          .agent-info{min-width:0}
+          .agent-name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .agent-sub{font-size:12px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .agent-actions{display:flex;gap:8px}
+          .btn-small{padding:6px 10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer}
+          .btn-small:hover{background:#f9fafb}
+          #agents-simple-list .loading{padding:12px;color:#6b7280}
+        </style>
+        <div id="agents-simple-list">
+          <div class="loading">Chargement des agents...</div>
         </div>
       </div>
 
@@ -235,6 +230,23 @@
     <script src="/capacitor-native.js"></script>
     <script src="/navigation.js"></script>
     <script src="/app.js"></script>
+    <script src="/web-config.js"></script>
+    <!-- Précharger la liste côté serveur pour éviter tout fetch côté client -->
+    <script src="/agents-list.js"></script>
+    <!-- Rendu immédiat côté client sans dépendre d'autres scripts -->
+    <script>
+      (function(){
+        try {
+          var list = document.getElementById('agents-simple-list');
+          if (!list) return;
+          var rows = Array.isArray(window.__AGENTS__) ? window.__AGENTS__ : [];
+          if (!rows || rows.length === 0) return; // laisse "Chargement..." si vide
+          list.innerHTML = rows.map(function(a){
+            return '\n        <div class="agent-row">\n          <div class="agent-main">\n            <img class="agent-avatar" src="'+(a.photo_path||'/Media/default-avatar.svg')+'" onerror="this.src=\'/Media/default-avatar.svg\'" alt="Avatar">\n            <div class="agent-info">\n              <div class="agent-name">'+(a.name||'-')+'</div>\n              <div class="agent-sub">'+(a.email||'-')+' · '+(a.role||'-')+' · '+(a.departement||'-')+'</div>\n            </div>\n          </div>\n          <div class="agent-actions">\n            <button class="btn-small">Voir</button>\n            <button class="btn-small">Modifier</button>\n            <button class="btn-small">Supprimer</button>\n          </div>\n        </div>';
+          }).join('');
+        } catch(e) {}
+      })();
+    </script>
     <script src="/agents.js"></script>
     <script>
       // Vercel Speed Insights

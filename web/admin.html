@@ -76,7 +76,7 @@
       </div>
 
       <!-- Tableau de bord administrateur -->
-      <div class="admin-dashboard">
+      <div class="admin-dashboard" id="admin-guard" style="display:none;">
         <div class="admin-stats">
           <div class="stat-card">
             <div class="stat-icon">👥</div>
@@ -93,17 +93,17 @@
             </div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon">📊</div>
+            <div class="stat-icon">🧭</div>
             <div class="stat-content">
-              <div class="stat-value" id="system-uptime">99.9%</div>
-              <div class="stat-label">Disponibilité</div>
+              <div class="stat-value" id="active-missions">0</div>
+              <div class="stat-label">Missions actives</div>
             </div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon">💾</div>
+            <div class="stat-icon">📝</div>
             <div class="stat-content">
-              <div class="stat-value" id="storage-used">45%</div>
-              <div class="stat-label">Stockage Utilisé</div>
+              <div class="stat-value" id="checkins-today">0</div>
+              <div class="stat-label">Check-ins aujourd'hui</div>
             </div>
           </div>
         </div>
@@ -111,47 +111,14 @@
 
       <!-- Sections d'administration -->
       <div class="admin-sections">
-        <!-- Gestion des Unités Administratives -->
+        <!-- Liens rapides pertinents -->
         <div class="card">
-          <h3>🏢 Unités Administratives</h3>
-          <p>Configurez les unités et départements de l'organisation</p>
-          
-          <div class="admin-actions">
-            <button class="btn-primary" onclick="openUnitModal()">
-              <span class="btn-icon">➕</span>
-              Nouvelle Unité
-            </button>
-            <button class="btn-secondary" onclick="refreshUnits()">
-              <span class="btn-icon">🔄</span>
-              Actualiser
-            </button>
-          </div>
-
-          <div class="units-list" id="units-list">
-            <div class="unit-item">
-              <div class="unit-info">
-                <h4>Direction Générale</h4>
-                <p>Direction principale de l'organisation</p>
-                <small>Code: DG | Responsable: Admin Principal</small>
-              </div>
-              <div class="unit-actions">
-                <button class="btn-icon" onclick="editUnit(1)" title="Modifier">✏️</button>
-                <button class="btn-icon" onclick="viewUnitDetails(1)" title="Détails">👁️</button>
-                <button class="btn-icon btn-danger" onclick="deleteUnit(1)" title="Supprimer">🗑️</button>
-              </div>
-            </div>
-            <div class="unit-item">
-              <div class="unit-info">
-                <h4>Ressources Humaines</h4>
-                <p>Gestion du personnel et des ressources humaines</p>
-                <small>Code: RH | Responsable: Superviseur Principal</small>
-              </div>
-              <div class="unit-actions">
-                <button class="btn-icon" onclick="editUnit(2)" title="Modifier">✏️</button>
-                <button class="btn-icon" onclick="viewUnitDetails(2)" title="Détails">👁️</button>
-                <button class="btn-icon btn-danger" onclick="deleteUnit(2)" title="Supprimer">🗑️</button>
-              </div>
-            </div>
+          <h3>📦 Paramètres essentiels</h3>
+          <p>Configuration utile au fonctionnement de l'application</p>
+          <div class="config-sections">
+            <div class="config-item"><a href="/admin-agents.html">👥 Gérer les agents</a></div>
+            <div class="config-item"><a href="/reports.html">📈 Rapports de présence</a></div>
+            <div class="config-item"><a href="/dashboard.html">📊 Dashboard opérationnel</a></div>
           </div>
         </div>
 
@@ -336,8 +303,35 @@
 
     <script src="/capacitor-native.js"></script>
     <script src="/navigation.js"></script>
-    <script src="/app.js"></script>
     <script src="/admin.js"></script>
+    <script>
+      // Superadmin only guard + stats
+      (async function(){
+        try {
+          const jwt = localStorage.getItem('jwt') || '';
+          const headers = { 'Content-Type': 'application/json' };
+          if (jwt) headers.Authorization = 'Bearer ' + jwt;
+          const me = await fetch('/api/me', { headers });
+          const meJson = me.ok ? await me.json() : null;
+          const email = meJson?.user?.email || meJson?.email || '';
+          if (email.toLowerCase() !== 'syebadokpo@gmail.com') {
+            alert('Accès refusé: réservé au superadmin');
+            location.href = '/';
+            return;
+          }
+          const guard = document.getElementById('admin-guard');
+          if (guard) guard.style.display = '';
+
+          const st = await fetch('/api/admin/stats', { headers });
+          const sj = st.ok ? await st.json() : { data: {} };
+          const d = sj.data || {};
+          const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = String(val ?? '0'); };
+          set('total-users', d.totalUsers);
+          set('active-missions', d.activeMissions);
+          set('checkins-today', d.checkinsToday);
+        } catch (e) { console.warn('Admin init error', e); }
+      })();
+    </script>
     <script>
       // Vercel Speed Insights
       if (typeof window !== 'undefined') {

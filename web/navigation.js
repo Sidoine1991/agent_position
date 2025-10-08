@@ -11,6 +11,12 @@ class NavigationManager {
         this.setupEventListeners();
         this.updateNavbar();
         this.handleResponsive();
+        // Re-rendre la navbar dès que le token ou le profil change
+        window.addEventListener('storage', (e) => {
+            if (e && (e.key === 'jwt' || e.key === 'userProfile' || e.key === 'loginData')) {
+                this.updateNavbar();
+            }
+        });
     }
 
     setupEventListeners() {
@@ -175,7 +181,20 @@ class NavigationManager {
     getUserProfile() {
         try {
             const profileData = localStorage.getItem('userProfile');
-            return profileData ? JSON.parse(profileData) : null;
+            if (profileData) return JSON.parse(profileData);
+            // Fallback doux: si le token existe mais pas de profil encore, retourner un profil minimal
+            const jwt = localStorage.getItem('jwt');
+            if (jwt && jwt.length > 20) {
+                const loginData = localStorage.getItem('loginData');
+                const login = loginData ? JSON.parse(loginData) : {};
+                return {
+                    name: login.name || login.email || localStorage.getItem('userEmail') || 'Compte',
+                    email: login.email || localStorage.getItem('userEmail') || '',
+                    role: login.role || 'agent',
+                    avatar: login.photo_url || login.photo_path || '/Media/default-avatar.png'
+                };
+            }
+            return null;
         } catch {
             return null;
         }
@@ -185,7 +204,13 @@ class NavigationManager {
         const userInfo = document.querySelector('.navbar-user-info');
         if (userInfo) {
             const fullName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
-            userInfo.textContent = fullName || profile.name || (profile.email || 'Utilisateur');
+            const displayName = fullName || profile.name || (profile.email || 'Utilisateur');
+            // Inject avatar + name
+            const avatarUrl = (profile.photo_url || profile.photo_path || profile.avatar) || '/Media/default-avatar.png';
+            userInfo.innerHTML = `
+                <img src="${avatarUrl}" alt="Avatar" class="agent-avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.6)">
+                <span style="margin-left:8px">${displayName}</span>
+            `;
         }
     }
 
@@ -201,9 +226,8 @@ class NavigationManager {
         
         links.forEach(link => {
             const linkElement = document.createElement('a');
-            linkElement.href = '#';
+            linkElement.href = link.href || '#';
             linkElement.className = 'navbar-link';
-            linkElement.dataset.page = link.page;
             linkElement.innerHTML = `
                 <span class="navbar-icon">${link.icon}</span>
                 ${link.text}
@@ -219,23 +243,25 @@ class NavigationManager {
         const normRole = String(role || '').toLowerCase();
         const roleKey = (normRole === 'superviseur') ? 'supervisor' : normRole;
         const baseLinks = [
-            { page: 'dashboard', text: 'Tableau de bord', icon: '🏠' },
-            { page: 'profile', text: 'Profil', icon: '👤' }
+            { page: 'presence', href: '/index.html', text: 'Présence', icon: '📍' },
+            { page: 'planning', href: '/planning.html', text: 'Planification', icon: '🗓️' },
+            { page: 'dashboard', href: '/dashboard.html', text: 'Dashboard', icon: '📊' },
+            { page: 'profile', href: '/profile.html', text: 'Profil', icon: '👤' }
         ];
 
         switch(roleKey) {
             case 'admin':
                 return [
                     ...baseLinks,
-                    { page: 'agents', text: 'Agents', icon: '👥' },
-                    { page: 'reports', text: 'Rapports', icon: '📊' },
-                    { page: 'admin', text: 'Administration', icon: '⚙️' }
+                    { page: 'agents', href: '/agents.html', text: 'Agents', icon: '👥' },
+                    { page: 'reports', href: '/reports.html', text: 'Rapports', icon: '📈' },
+                    { page: 'admin', href: '/admin.html', text: 'Administration', icon: '⚙️' }
                 ];
             case 'supervisor':
                 return [
                     ...baseLinks,
-                    { page: 'agents', text: 'Agents', icon: '👥' },
-                    { page: 'reports', text: 'Rapports', icon: '📊' }
+                    { page: 'agents', href: '/agents.html', text: 'Agents', icon: '👥' },
+                    { page: 'reports', href: '/reports.html', text: 'Rapports', icon: '📈' }
                 ];
             case 'agent':
             default:
@@ -248,9 +274,10 @@ class NavigationManager {
         dropdown.className = 'navbar-dropdown';
         const fullName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
         const displayName = fullName || profile.name || (profile.email || 'Compte');
+        const avatarUrl = (profile.photo_url || profile.photo_path || profile.avatar) || '/Media/default-avatar.png';
         dropdown.innerHTML = `
             <button class="navbar-dropdown-toggle">
-                <span class="navbar-icon">👤</span>
+                <img src="${avatarUrl}" alt="Avatar" class="agent-avatar" style="width:28px;height:28px;border-radius:50%;object-fit:cover;margin-right:8px">
                 ${displayName}
                 <span class="navbar-arrow">▼</span>
             </button>

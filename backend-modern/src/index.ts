@@ -6,15 +6,15 @@ import dotenv from 'dotenv';
 import { version } from '../package.json'; // Import version from package.json
 
 // Import routes
-import authRoutes from './routes/auth.js';
-import userRoutes from './routes/users.js';
-import presenceRoutes from './routes/presence.js';
-import reportRoutes from './routes/reports.js';
-import missionRoutes from './routes/missions.js';
+import authRoutes from './routes/auth';
+import userRoutes from './routes/users';
+import presenceRoutes from './routes/presence';
+import reportRoutes from './routes/reports';
+import missionRoutes from './routes/missions';
 
 // Import middleware
-import { errorHandler } from './middleware/errorHandler.js';
-import { rateLimiter } from './middleware/rateLimiter.js';
+import { errorHandler } from './middleware/errorHandler';
+import { rateLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
 dotenv.config();
@@ -54,7 +54,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/missions', missionRoutes);
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({ 
     error: 'Route not found',
     path: req.originalUrl 

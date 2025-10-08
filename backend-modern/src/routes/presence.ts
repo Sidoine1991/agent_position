@@ -1,12 +1,16 @@
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { authenticateToken, requireRole } from '../middleware/auth';
-import { PresenceRequest, ApiResponse, PaginatedResponse } from '../types';
+// Local lightweight types to avoid coupling
+type PresenceRequest = { latitude: number; longitude: number; address?: string; status?: string; notes?: string };
+type ApiResponse<T = any> = { success: boolean; data?: T; error?: string; message?: string };
+type PaginatedResponse<T = any> = { success: boolean; data: T[]; pagination: { page: number; limit: number; total: number; totalPages: number } };
+import { validatePresenceGeo } from '../utils/geo';
 
 const router = express.Router();
 
-const supabaseUrl = process.env['SUPABASE_URL'] || '';
-const supabaseKey = process.env['SUPABASE_ANON_KEY'] || '';
+const supabaseUrl = process.env['SUPABASE_URL'] || 'https://test.supabase.co';
+const supabaseKey = process.env['SUPABASE_ANON_KEY'] || 'test_key';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Mark presence
@@ -235,3 +239,52 @@ router.get('/stats', authenticateToken, async (req, res) => {
 });
 
 export default router;
+
+// NEW: Validate presence with geofencing and planning
+router.post('/validate', authenticateToken, async (req, res) => {
+  try {
+    const userId = (req as any).user!.id;
+    const { latitude, longitude }: PresenceRequest = req.body || {};
+
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+      res.status(400).json({ success: false, error: 'Latitude et longitude sont requis' });
+      return;
+    }
+
+    // Fetch user reference point and tolerance
+    const { data: userRow, error: userErr } = await supabase
+      .from('users')
+      .select('id, reference_lat, reference_lon, tolerance_radius_meters')
+      .eq('id', userId)
+      .single();
+
+    if (userErr || !userRow) {
+      res.status(404).json({ success: false, error: 'Utilisateur non trouvé' });
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: planRow } = await supabase
+      .from('planifications')
+      .select('planned_start_time, planned_end_time')
+      .eq('agent_id', userId)
+      .eq('date', today)
+      .single();
+
+    const result = validatePresenceGeo({
+      userId,
+      checkinLat: latitude,
+      checkinLon: longitude,
+      referenceLat: userRow.reference_lat,
+      referenceLon: userRow.reference_lon,
+      toleranceMeters: userRow.tolerance_radius_meters ?? 100,
+      plannedStart: planRow?.planned_start_time ?? null,
+      plannedEnd: planRow?.planned_end_time ?? null,
+    });
+
+    const response: ApiResponse = { success: true, data: result };
+    res.json(response);
+  } catch (e) {
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});

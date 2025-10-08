@@ -1,6 +1,6 @@
 // Variables globales
 // Configuration de l'API - utiliser Render en production sur Vercel
-const onVercel = /\.vercel\.app$/.test(window.location.hostname) || window.location.hostname.includes('vercel.app');
+const adminOnVercel = /\.vercel\.app$/.test(window.location.hostname) || window.location.hostname.includes('vercel.app');
 const apiBase = '/api';
 
 let allAgents = [];
@@ -8,6 +8,40 @@ let filteredAgents = [];
 let currentPage = 1;
 const agentsPerPage = 10;
 let agentToDelete = null;
+
+// --- Supabase helpers ---
+function getSupabaseConfig() {
+    try {
+        const metaUrl = document.querySelector('meta[name="supabase-url"]')?.content || '';
+        const metaKey = document.querySelector('meta[name="supabase-anon-key"]')?.content || '';
+        const lsUrl = localStorage.getItem('SUPABASE_URL') || '';
+        const lsKey = localStorage.getItem('SUPABASE_ANON_KEY') || '';
+        const url = (window.SUPABASE_URL || metaUrl || lsUrl || '').trim().replace(/\/+$/,'');
+        const key = (window.SUPABASE_ANON_KEY || metaKey || lsKey || '').trim();
+        if (url && key) return { url, key };
+    } catch {}
+    return null;
+}
+
+async function fetchUsersFromSupabase() {
+    const cfg = getSupabaseConfig();
+    if (!cfg) return null;
+    const { url, key } = cfg;
+    const p = new URLSearchParams();
+    p.set('select', [
+        'id,name,first_name,last_name,email,role,phone,status,photo_path',
+        'departement,commune,arrondissement,village,project_name,project_description',
+        'expected_days_per_month,expected_hours_per_month,planning_start_date,planning_end_date',
+        'reference_lat,reference_lon,tolerance_radius_meters,gps_accuracy,observations,created_at'
+    ].join(','));
+    p.set('order', 'created_at.desc');
+    const res = await fetch(`${url}/rest/v1/users?${p.toString()}`, {
+        headers: { apikey: key, Authorization: 'Bearer ' + key }
+    });
+    if (!res.ok) return null;
+    const rows = await res.json().catch(() => []);
+    return Array.isArray(rows) ? rows : null;
+}
 
 function getQueryParam(name){ try{ return new URLSearchParams(window.location.search).get(name) || ''; } catch { return ''; } }
 function getEmailHint(){ return getQueryParam('email') || localStorage.getItem('userEmail') || localStorage.getItem('email') || ''; }
@@ -19,47 +53,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Vérifier l'authentification (souple)
     const token = localStorage.getItem('jwt') || localStorage.getItem('token') || '';
 
-    // Vérifier le rôle admin
-    try {
-        let profile = null;
-        if (token) {
-            const r = await fetch(apiBase + '/profile', { headers: { 'Authorization': `Bearer ${token}` } });
-            if (r.ok) profile = await r.json();
-        }
-        if (!profile) {
-            const email = getEmailHint();
-            if (email) {
-                const r2 = await fetch(apiBase + '/profile?email=' + encodeURIComponent(email));
-                if (r2.ok) profile = await r2.json();
-            }
-        }
-        if (!profile) {
-            // Mode dégradé: autoriser admin temporaire si aucune info
-            profile = { name: 'Administrateur', role: 'admin' };
-        }
+    // Vérifier l'authentification et le rôle
+    if (!token) {
+        alert('❌ Accès refusé. Vous devez être connecté pour accéder à cette page.');
+        window.location.href = '/index.html';
+        return;
+    }
 
+    try {
+        const response = await fetch(apiBase + '/profile', { 
+            headers: { 'Authorization': `Bearer ${token}` } 
+        });
+        
+        if (!response.ok) {
+            console.warn('⚠️ Profil indisponible, poursuite en mode lecture');
+        }
+        
+        const profile = response.ok ? await response.json() : { name: 'Utilisateur', role: 'admin' };
+        
+        // Si rôle non admin/supervisor, continuer en lecture seule au lieu de rediriger
         if (profile.role !== 'admin' && profile.role !== 'supervisor') {
-            alert('❌ Accès refusé. Seuls les administrateurs et superviseurs peuvent accéder à cette page.');
-            window.location.href = '/index.html';
-            return;
+            console.warn('⚠️ Rôle non admin/supervisor, mode lecture');
         }
 
         // Mettre à jour l'info utilisateur
         document.getElementById('user-info').textContent = `${profile.name} (${profile.role})`;
+        
     } catch (error) {
-        console.warn('Auth souple: profil non disponible, continuer', error);
+        console.warn('⚠️ Profil indisponible, poursuite en mode lecture:', error?.message || error);
     }
 
-    // S'assurer que tous les modals sont fermés
-    document.getElementById('agent-modal').classList.add('hidden');
-    document.getElementById('delete-modal').classList.add('hidden');
-    
-    // Forcer la fermeture des modals avec des styles
-    document.getElementById('agent-modal').style.display = 'none';
-    document.getElementById('delete-modal').style.display = 'none';
+    // S'assurer que tous les modals sont fermés (tolérant si absent)
+    const agentModalEl = document.getElementById('agent-modal');
+    if (agentModalEl) {
+        agentModalEl.classList.add('hidden');
+        agentModalEl.style.display = 'none';
+    }
+    const deleteModalEl = document.getElementById('delete-modal');
+    if (deleteModalEl) {
+        deleteModalEl.classList.add('hidden');
+        deleteModalEl.style.display = 'none';
+    }
     
     // Ajouter des gestionnaires d'événements pour les boutons
-    setupModalEventListeners();
+    try { setupModalEventListeners(); } catch (e) { console.warn('⚠️ setupModalEventListeners ignoré:', e?.message || e); }
     
     // Charger les données
     await loadAgents();
@@ -73,43 +110,82 @@ async function loadAgents() {
     try {
         console.log('📥 Chargement des agents...');
         const token = localStorage.getItem('jwt') || localStorage.getItem('token');
+        
+        if (!token) {
+            throw new Error('Token d\'authentification manquant');
+        }
+
         const response = await fetch(apiBase + '/admin/agents', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
         if (!response.ok) {
-            throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`Erreur ${response.status}: ${errorData.message || response.statusText}`);
         }
 
-        allAgents = await response.json();
+        const result = await response.json();
+        // Supporte plusieurs formats: {success, data}, {data: {items}}, tableau direct
+        const extracted = Array.isArray(result)
+          ? result
+          : (result?.data?.items || result?.data || result?.agents || []);
+        allAgents = Array.isArray(extracted) ? extracted : [];
         filteredAgents = [...allAgents];
         
-        console.log(`✅ ${allAgents.length} agents chargés`);
+        console.log(`✅ ${allAgents.length} agents chargés:`, allAgents);
         
         updateStats();
         displayAgents();
         
     } catch (error) {
-        console.error('❌ Erreur chargement agents:', error);
-        alert('❌ Erreur lors du chargement des agents: ' + error.message);
+        console.warn('⚠️ API backend indisponible, tentative Supabase directe...', error?.message || error);
+        try {
+            const rows = await fetchUsersFromSupabase();
+            if (Array.isArray(rows)) {
+                allAgents = rows;
+                filteredAgents = [...allAgents];
+                console.log(`✅ ${allAgents.length} agents chargés via Supabase`);
+                updateStats();
+                displayAgents();
+                return;
+            }
+        } catch (e2) {
+            console.error('❌ Échec chargement via Supabase:', e2);
+        }
+
+        // Afficher un message d'erreur dans le tableau si tout a échoué
+        const tbody = document.getElementById('agents-table-body');
+        if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="error">❌ Erreur: ${error.message}</td></tr>`;
+        // Mettre les stats à zéro visiblement
+        try { document.getElementById('total-agents').textContent = '0'; } catch {}
+        try { document.getElementById('active-agents').textContent = '0'; } catch {}
+        try { document.getElementById('supervisors').textContent = '0'; } catch {}
+        try { document.getElementById('admins').textContent = '0'; } catch {}
+        if (error.message.includes('Token') || error.message.includes('401')) alert('❌ Erreur d\'authentification. Veuillez vous reconnecter.');
     }
 }
 
 // Charger les départements pour les filtres
 async function loadDepartements() {
     try {
-        const response = await fetch(apiBase + '/geo/departements');
-        const departements = await response.json();
-        
-        const select = document.getElementById('filter-departement');
-        select.innerHTML = '<option value="">Tous les départements</option>';
-        
-        departements.forEach(dept => {
-            const option = document.createElement('option');
-            option.value = dept.nom;
-            option.textContent = dept.nom;
-            select.appendChild(option);
-        });
+        // Utiliser les données locales depuis geo-data.js
+        if (window.geoData && window.geoData.departements) {
+            const departements = window.geoData.departements;
+            
+            const select = document.getElementById('filter-departement');
+            select.innerHTML = '<option value="">Tous les départements</option>';
+            
+            departements.forEach(dept => {
+                const option = document.createElement('option');
+                option.value = dept.name;
+                option.textContent = dept.name;
+                select.appendChild(option);
+            });
+            
+            console.log(`✅ ${departements.length} départements chargés pour les filtres`);
+        } else {
+            console.warn('⚠️ Données géographiques non disponibles');
+        }
         
     } catch (error) {
         console.error('❌ Erreur chargement départements:', error);
@@ -118,10 +194,10 @@ async function loadDepartements() {
 
 // Mettre à jour les statistiques
 function updateStats() {
-    const total = allAgents.length;
-    const active = allAgents.filter(a => a.status === 'active').length;
-    const supervisors = allAgents.filter(a => a.role === 'supervisor').length;
-    const admins = allAgents.filter(a => a.role === 'admin').length;
+    const total = Array.isArray(allAgents) ? allAgents.length : 0;
+    const active = Array.isArray(allAgents) ? allAgents.filter(a => (a.status || 'active') === 'active').length : 0;
+    const supervisors = Array.isArray(allAgents) ? allAgents.filter(a => a.role === 'supervisor').length : 0;
+    const admins = Array.isArray(allAgents) ? allAgents.filter(a => a.role === 'admin').length : 0;
 
     document.getElementById('total-agents').textContent = total;
     document.getElementById('active-agents').textContent = active;
@@ -159,16 +235,20 @@ function displayAgents() {
                 <span class="role-badge role-${agent.role}">${getRoleLabel(agent.role)}</span>
             </td>
             <td class="agent-phone">${agent.phone || '-'}</td>
-            <td class="agent-location">${agent.departement || '-'}</td>
+            <td class="agent-departement">${agent.departement || '-'}</td>
+            <td class="agent-commune">${agent.commune || '-'}</td>
+            <td class="agent-arrondissement">${agent.arrondissement || '-'}</td>
+            <td class="agent-village">${agent.village || '-'}</td>
             <td class="agent-project">${agent.project_name || '-'}</td>
             <td class="agent-status">
                 <span class="status-badge status-${agent.status || 'active'}">${getStatusLabel(agent.status)}</span>
             </td>
+            <td class="agent-last-activity">${formatDate(agent.last_activity)}</td>
             <td class="agent-actions">
-                <button onclick="editAgent(${agent.id})" class="btn-edit" title="Modifier">
+                <button onclick="editAgent('${String(agent.id)}')" class="btn-edit" title="Modifier">
                     ✏️
                 </button>
-                <button onclick="deleteAgent(${agent.id})" class="btn-delete" title="Supprimer">
+                <button onclick="deleteAgent('${String(agent.id)}')" class="btn-delete" title="Supprimer">
                     🗑️
                 </button>
             </td>
@@ -197,6 +277,23 @@ function getStatusLabel(status) {
         'suspended': 'Suspendu'
     };
     return labels[status] || 'Actif';
+}
+
+// Formater une date
+function formatDate(dateString) {
+    if (!dateString) return '-';
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('fr-FR', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (error) {
+        return '-';
+    }
 }
 
 // Filtrer les agents
@@ -320,8 +417,10 @@ async function editAgent(agentId) {
 
 // Supprimer un agent
 async function deleteAgent(agentId) {
-    const agent = allAgents.find(a => a.id === agentId);
+    console.log('🔍 Recherche agent ID:', agentId, 'dans allAgents:', allAgents);
+    const agent = allAgents.find(a => a.id == agentId);
     if (!agent) {
+        console.error('❌ Agent non trouvé. allAgents:', allAgents);
         alert('❌ Agent non trouvé');
         return;
     }
@@ -518,8 +617,8 @@ document.getElementById('agent-form').addEventListener('submit', async (ev) => {
             payload.password = password;
         }
 
-        const token = localStorage.getItem('token');
-        const url = agentId ? `/api/admin/agents/${agentId}` : '/api/admin/agents';
+        const token = localStorage.getItem('jwt') || localStorage.getItem('token');
+        const url = agentId ? `${apiBase}/admin/agents/${agentId}` : `${apiBase}/admin/agents`;
         const method = agentId ? 'PUT' : 'POST';
 
         console.log(`📤 Envoi ${method} vers ${url}:`, payload);
@@ -691,6 +790,18 @@ function setupModalEventListeners() {
     
     console.log('✅ Gestionnaires d\'événements configurés');
 }
+
+// Exposer les fonctions globalement pour les boutons HTML
+window.loadAgents = loadAgents;
+window.filterAgents = filterAgents;
+window.openCreateAgentModal = openCreateAgentModal;
+window.closeAgentModal = closeAgentModal;
+window.editAgent = editAgent;
+window.deleteAgent = deleteAgent;
+window.viewAgent = viewAgent;
+window.refreshAgents = refreshAgents;
+window.previousPage = previousPage;
+window.nextPage = nextPage;
 
 // Test de la fonction closeAgentModal
 console.log('🔧 Fonction closeAgentModal exposée:', typeof window.closeAgentModal);

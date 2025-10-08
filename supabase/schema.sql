@@ -32,11 +32,61 @@ CREATE TABLE IF NOT EXISTS users (
   project_name TEXT,
   expected_days_per_month INTEGER DEFAULT 20,
   expected_hours_per_month INTEGER DEFAULT 160,
-  planning_start_date DATE,
-  planning_end_date DATE,
+  contract_start_date DATE,
+  contract_end_date DATE,
+  years_of_service DECIMAL(4,1) DEFAULT 0.0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  hire_date DATE,
+  age INTEGER
+);
+
+-- Table profiles (informations détaillées par utilisateur)
+CREATE TABLE IF NOT EXISTS profiles (
+  user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  photo_path TEXT,
+  first_name TEXT,
+  last_name TEXT,
+  phone TEXT,
+  departement TEXT,
+  commune TEXT,
+  arrondissement TEXT,
+  village TEXT,
+  reference_lat NUMERIC(10,8),
+  reference_lon NUMERIC(11,8),
+  tolerance_radius_meters INTEGER DEFAULT 500,
+  project_name TEXT,
+  contract_start_date DATE,
+  contract_end_date DATE,
+  years_of_service DECIMAL(4,1) DEFAULT 0.0,
+  hire_date DATE,
+  age INTEGER,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- RLS profiles
+DROP POLICY IF EXISTS "User can manage own profile" ON profiles;
+CREATE POLICY "User can manage own profile" ON profiles
+  FOR ALL USING (user_id = (SELECT id FROM users WHERE email = public.jwt_email()))
+  WITH CHECK (user_id = (SELECT id FROM users WHERE email = public.jwt_email()));
+
+GRANT SELECT, INSERT, UPDATE ON TABLE profiles TO authenticated;
+
+-- Table des planifications (hebdomadaire/journalière, cumulable en mensuel)
+CREATE TABLE IF NOT EXISTS planifications (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  agent_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  planned_start_time TIME,
+  planned_end_time TIME,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(agent_id, date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_planifications_agent_date ON planifications(agent_id, date);
 
 -- Table des missions
 CREATE TABLE IF NOT EXISTS missions (
@@ -51,6 +101,7 @@ CREATE TABLE IF NOT EXISTS missions (
   arrondissement TEXT,
   village TEXT,
   note TEXT,
+  total_distance_m NUMERIC,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -66,6 +117,25 @@ CREATE TABLE IF NOT EXISTS checkins (
   timestamp TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Table des validations de checkins (résultats et calculs intermédiaires)
+CREATE TABLE IF NOT EXISTS checkin_validations (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  checkin_id BIGINT REFERENCES checkins(id) ON DELETE CASCADE,
+  agent_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+  valid BOOLEAN,
+  reason TEXT,
+  distance_m NUMERIC,
+  reference_lat NUMERIC,
+  reference_lon NUMERIC,
+  tolerance_m NUMERIC,
+  planned_start_time TIME,
+  planned_end_time TIME,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_checkin_validations_agent ON checkin_validations(agent_id);
+CREATE INDEX IF NOT EXISTS idx_checkin_validations_checkin ON checkin_validations(checkin_id);
 
 -- Table des absences
 CREATE TABLE IF NOT EXISTS absences (
@@ -184,6 +254,27 @@ CREATE TABLE IF NOT EXISTS system_settings (
 -- 4. TABLES DE FONCTIONNALITÉS AVANCÉES
 -- =====================================================
 
+-- Table de statistiques de présence/planification (agrégats par période)
+CREATE TABLE IF NOT EXISTS presence_stats (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  agent_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+  period_type VARCHAR(20) NOT NULL, -- 'day' | 'week' | 'month'
+  period_key VARCHAR(20) NOT NULL,  -- 'YYYY-MM-DD' | 'YYYY-Www' | 'YYYY-MM'
+  year INT NOT NULL,
+  month INT,
+  week INT,
+  day DATE,
+  planned_days INT DEFAULT 0,
+  planned_minutes INT DEFAULT 0,
+  present_days INT DEFAULT 0,
+  present_minutes INT DEFAULT 0,
+  last_lat NUMERIC(10,8),
+  last_lon NUMERIC(11,8),
+  last_distance_m INT,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(agent_id, period_type, period_key)
+);
+
 -- Table des rapports personnalisés
 CREATE TABLE IF NOT EXISTS custom_reports (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -278,6 +369,8 @@ CREATE INDEX IF NOT EXISTS idx_system_settings_public ON system_settings(is_publ
 -- Index pour les fonctionnalités avancées
 CREATE INDEX IF NOT EXISTS idx_custom_reports_user ON custom_reports(user_id);
 CREATE INDEX IF NOT EXISTS idx_custom_reports_active ON custom_reports(is_active);
+CREATE INDEX IF NOT EXISTS idx_presence_stats_agent_period ON presence_stats(agent_id, period_type, period_key);
+
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
 CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read) WHERE is_read = FALSE;
@@ -358,37 +451,48 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE checkins TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE absences TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE reports TO authenticated;
 GRANT SELECT ON TABLE app_settings TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE planifications TO authenticated;
 
 -- Politiques pour la table users
+-- Rendre idempotent: supprimer si déjà existantes avant de créer
+DROP POLICY IF EXISTS "Users can view their own profile" ON users;
 CREATE POLICY "Users can view their own profile" ON users
   FOR SELECT USING (email = public.jwt_email());
 
+DROP POLICY IF EXISTS "Users can update their own profile" ON users;
 CREATE POLICY "Users can update their own profile" ON users
   FOR UPDATE USING (email = public.jwt_email()) WITH CHECK (email = public.jwt_email());
 
+DROP POLICY IF EXISTS "Admins can view all user profiles" ON users;
 CREATE POLICY "Admins can view all user profiles" ON users
   FOR SELECT USING (public.is_admin());
 
+DROP POLICY IF EXISTS "Admins can create users" ON users;
 CREATE POLICY "Admins can create users" ON users
-  FOR INSERT USING (public.is_admin());
+  FOR INSERT WITH CHECK (public.is_admin());
 
+DROP POLICY IF EXISTS "Admins can update all user profiles" ON users;
 CREATE POLICY "Admins can update all user profiles" ON users
   FOR UPDATE USING (public.is_admin());
 
+DROP POLICY IF EXISTS "Admins can delete users" ON users;
 CREATE POLICY "Admins can delete users" ON users
   FOR DELETE USING (public.is_admin());
 
 -- Politiques pour la table missions
+DROP POLICY IF EXISTS "Agents can view their own missions" ON missions;
 CREATE POLICY "Agents can view their own missions" ON missions
   FOR SELECT USING (
     EXISTS (SELECT 1 FROM users WHERE id = missions.agent_id AND email = public.jwt_email())
   );
 
+DROP POLICY IF EXISTS "Agents can create their own missions" ON missions;
 CREATE POLICY "Agents can create their own missions" ON missions
   FOR INSERT WITH CHECK (
     EXISTS (SELECT 1 FROM users WHERE id = missions.agent_id AND email = public.jwt_email())
   );
 
+DROP POLICY IF EXISTS "Agents can update their own missions" ON missions;
 CREATE POLICY "Agents can update their own missions" ON missions
   FOR UPDATE USING (
     EXISTS (SELECT 1 FROM users WHERE id = missions.agent_id AND email = public.jwt_email())
@@ -396,16 +500,20 @@ CREATE POLICY "Agents can update their own missions" ON missions
     EXISTS (SELECT 1 FROM users WHERE id = missions.agent_id AND email = public.jwt_email())
   );
 
+DROP POLICY IF EXISTS "Admins and supervisors can view all missions" ON missions;
 CREATE POLICY "Admins and supervisors can view all missions" ON missions
   FOR SELECT USING (public.is_supervisor_or_admin());
 
+DROP POLICY IF EXISTS "Admins and supervisors can create missions for any agent" ON missions;
 CREATE POLICY "Admins and supervisors can create missions for any agent" ON missions
-  FOR INSERT USING (public.is_supervisor_or_admin());
+  FOR INSERT WITH CHECK (public.is_supervisor_or_admin());
 
+DROP POLICY IF EXISTS "Admins and supervisors can update all missions" ON missions;
 CREATE POLICY "Admins and supervisors can update all missions" ON missions
   FOR UPDATE USING (public.is_supervisor_or_admin());
 
 -- Politiques pour la table checkins
+DROP POLICY IF EXISTS "Agents can view their own checkins" ON checkins;
 CREATE POLICY "Agents can view their own checkins" ON checkins
   FOR SELECT USING (
     EXISTS (
@@ -415,6 +523,7 @@ CREATE POLICY "Agents can view their own checkins" ON checkins
     )
   );
 
+DROP POLICY IF EXISTS "Agents can create their own checkins" ON checkins;
 CREATE POLICY "Agents can create their own checkins" ON checkins
   FOR INSERT WITH CHECK (
     EXISTS (
@@ -424,34 +533,41 @@ CREATE POLICY "Agents can create their own checkins" ON checkins
     )
   );
 
+DROP POLICY IF EXISTS "Admins and supervisors can view all checkins" ON checkins;
 CREATE POLICY "Admins and supervisors can view all checkins" ON checkins
   FOR SELECT USING (public.is_supervisor_or_admin());
 
 -- Politiques pour la table absences
+DROP POLICY IF EXISTS "Users can view their own absences" ON absences;
 CREATE POLICY "Users can view their own absences" ON absences
   FOR SELECT USING (
     EXISTS (SELECT 1 FROM users WHERE id = absences.user_id AND email = public.jwt_email())
   );
 
+DROP POLICY IF EXISTS "Users can create their own absences" ON absences;
 CREATE POLICY "Users can create their own absences" ON absences
   FOR INSERT WITH CHECK (
     EXISTS (SELECT 1 FROM users WHERE id = absences.user_id AND email = public.jwt_email())
   );
 
+DROP POLICY IF EXISTS "Admins and supervisors can view all absences" ON absences;
 CREATE POLICY "Admins and supervisors can view all absences" ON absences
   FOR SELECT USING (public.is_supervisor_or_admin());
 
 -- Politiques pour la table reports
+DROP POLICY IF EXISTS "Users can view their own reports" ON reports;
 CREATE POLICY "Users can view their own reports" ON reports
   FOR SELECT USING (
     EXISTS (SELECT 1 FROM users WHERE id = reports.user_id AND email = public.jwt_email())
   );
 
+DROP POLICY IF EXISTS "Users can create their own reports" ON reports;
 CREATE POLICY "Users can create their own reports" ON reports
   FOR INSERT WITH CHECK (
     EXISTS (SELECT 1 FROM users WHERE id = reports.user_id AND email = public.jwt_email())
   );
 
+DROP POLICY IF EXISTS "Admins and supervisors can view all reports" ON reports;
 CREATE POLICY "Admins and supervisors can view all reports" ON reports
   FOR SELECT USING (public.is_supervisor_or_admin());
 
@@ -459,72 +575,115 @@ CREATE POLICY "Admins and supervisors can view all reports" ON reports
 -- Aucune politique publique - accès uniquement via service role
 
 -- Politiques pour app_settings (lecture publique)
+DROP POLICY IF EXISTS "App settings are publicly readable" ON app_settings;
 CREATE POLICY "App settings are publicly readable" ON app_settings
   FOR SELECT USING (true);
 
 -- Politiques pour les données géographiques (lecture publique)
+DROP POLICY IF EXISTS "Geographic data is publicly readable" ON departements;
 CREATE POLICY "Geographic data is publicly readable" ON departements
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Geographic data is publicly readable" ON communes;
 CREATE POLICY "Geographic data is publicly readable" ON communes
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Geographic data is publicly readable" ON arrondissements;
 CREATE POLICY "Geographic data is publicly readable" ON arrondissements
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Geographic data is publicly readable" ON villages;
 CREATE POLICY "Geographic data is publicly readable" ON villages
   FOR SELECT USING (true);
 
 -- Politiques pour admin_units
+DROP POLICY IF EXISTS "Admin units are publicly readable" ON admin_units;
 CREATE POLICY "Admin units are publicly readable" ON admin_units
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Admin units can be managed by admins" ON admin_units;
 CREATE POLICY "Admin units can be managed by admins" ON admin_units
   FOR ALL USING (public.is_admin());
 
 -- Politiques pour system_settings
+DROP POLICY IF EXISTS "Public settings are readable by all" ON system_settings;
 CREATE POLICY "Public settings are readable by all" ON system_settings
   FOR SELECT USING (is_public = true);
 
+DROP POLICY IF EXISTS "All settings readable by admins" ON system_settings;
 CREATE POLICY "All settings readable by admins" ON system_settings
   FOR SELECT USING (public.is_admin());
 
+DROP POLICY IF EXISTS "Settings can be updated by admins" ON system_settings;
 CREATE POLICY "Settings can be updated by admins" ON system_settings
   FOR ALL USING (public.is_admin());
 
 -- Politiques pour custom_reports
+-- Politiques pour presence_stats (lecture/écriture par l'agent et admin/superviseur)
+ALTER TABLE presence_stats ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Agents can manage own stats" ON presence_stats;
+CREATE POLICY "Agents can manage own stats" ON presence_stats
+  FOR ALL USING (agent_id = (SELECT id FROM users WHERE email = public.jwt_email()))
+  WITH CHECK (agent_id = (SELECT id FROM users WHERE email = public.jwt_email()));
+DROP POLICY IF EXISTS "Admins can read all stats" ON presence_stats;
+CREATE POLICY "Admins can read all stats" ON presence_stats
+  FOR SELECT USING (public.is_supervisor_or_admin());
+
+DROP POLICY IF EXISTS "Users can read their own reports" ON custom_reports;
 CREATE POLICY "Users can read their own reports" ON custom_reports
   FOR SELECT USING (user_id = (SELECT id FROM users WHERE email = public.jwt_email()));
 
+DROP POLICY IF EXISTS "Users can manage their own reports" ON custom_reports;
 CREATE POLICY "Users can manage their own reports" ON custom_reports
   FOR ALL USING (user_id = (SELECT id FROM users WHERE email = public.jwt_email()));
 
+DROP POLICY IF EXISTS "Admins can read all reports" ON custom_reports;
 CREATE POLICY "Admins can read all reports" ON custom_reports
   FOR SELECT USING (public.is_supervisor_or_admin());
 
+-- Politiques pour la table planifications
+DROP POLICY IF EXISTS "Agents can manage their own planifications" ON planifications;
+CREATE POLICY "Agents can manage their own planifications" ON planifications
+  FOR ALL USING (
+    agent_id = (SELECT id FROM users WHERE email = public.jwt_email())
+  ) WITH CHECK (
+    agent_id = (SELECT id FROM users WHERE email = public.jwt_email())
+  );
+
+DROP POLICY IF EXISTS "Supervisors can view all planifications" ON planifications;
+CREATE POLICY "Supervisors can view all planifications" ON planifications
+  FOR SELECT USING (public.is_supervisor_or_admin());
+
 -- Politiques pour notifications
+DROP POLICY IF EXISTS "Users can read their own notifications" ON notifications;
 CREATE POLICY "Users can read their own notifications" ON notifications
   FOR SELECT USING (user_id = (SELECT id FROM users WHERE email = public.jwt_email()));
 
+DROP POLICY IF EXISTS "Users can update their own notifications" ON notifications;
 CREATE POLICY "Users can update their own notifications" ON notifications
   FOR UPDATE USING (user_id = (SELECT id FROM users WHERE email = public.jwt_email()));
 
+DROP POLICY IF EXISTS "System can create notifications" ON notifications;
 CREATE POLICY "System can create notifications" ON notifications
-  FOR INSERT USING (true);
+  FOR INSERT WITH CHECK (true);
 
 -- Politiques pour user_sessions
+DROP POLICY IF EXISTS "Users can read their own sessions" ON user_sessions;
 CREATE POLICY "Users can read their own sessions" ON user_sessions
   FOR SELECT USING (user_id = (SELECT id FROM users WHERE email = public.jwt_email()));
 
+DROP POLICY IF EXISTS "Users can manage their own sessions" ON user_sessions;
 CREATE POLICY "Users can manage their own sessions" ON user_sessions
   FOR ALL USING (user_id = (SELECT id FROM users WHERE email = public.jwt_email()));
 
 -- Politiques pour activity_logs
+DROP POLICY IF EXISTS "Activity logs readable by admins" ON activity_logs;
 CREATE POLICY "Activity logs readable by admins" ON activity_logs
   FOR SELECT USING (public.is_admin());
 
+DROP POLICY IF EXISTS "Activity logs can be created by system" ON activity_logs;
 CREATE POLICY "Activity logs can be created by system" ON activity_logs
-  FOR INSERT USING (true);
+  FOR INSERT WITH CHECK (true);
 
 -- =====================================================
 -- 9. DONNÉES INITIALES

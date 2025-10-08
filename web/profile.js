@@ -21,7 +21,8 @@ function setAvatarFromCache() {
 const onVercel = /\.vercel\.app$/.test(window.location.hostname) || window.location.hostname.includes('vercel.app');
 const apiBase = '/api';
 // Harmoniser la déconnexion pour cette page
-if (typeof window !== 'undefined' && typeof window.logout !== 'function') {
+// Exposer un handler de déconnexion unique et global
+if (typeof window !== 'undefined') {
   window.logout = function() {
     try {
       localStorage.removeItem('jwt');
@@ -29,7 +30,8 @@ if (typeof window !== 'undefined' && typeof window.logout !== 'function') {
       localStorage.removeItem('userProfile');
       localStorage.setItem('presence_update', JSON.stringify({ type: 'logout', ts: Date.now() }));
     } catch {}
-    window.location.href = '/register.html';
+    // Toujours rester cohérent: retour à l'accueil sans vider tout le storage
+    window.location.href = '/';
   };
 }
 
@@ -102,8 +104,11 @@ async function loadProfile() {
                  localStorage.getItem('lastUserEmail') ||
                  '';
     let profile = email ? await api('/profile?email=' + encodeURIComponent(email)) : await api('/profile');
+    // Fusionner les champs imbriqués user.profile au premier niveau si présents
+    try { if (profile && profile.profile && typeof profile.profile === 'object') { profile = { ...profile, ...profile.profile }; } } catch {}
     // Fallback depuis le cache local si certains champs manquent
     // Mode strict: ne pas fusionner avec le cache; n'afficher que ce que renvoie l'API
+    try { localStorage.setItem('userProfile', JSON.stringify(profile)); } catch {}
     
     // Afficher les informations
     $('profile-name').textContent = profile.name || [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Non défini';
@@ -125,8 +130,8 @@ async function loadProfile() {
       $('edit-commune').value = profile.commune || '';
       $('edit-arrondissement').value = profile.arrondissement || '';
       $('edit-village').value = profile.village || '';
-      if (profile.reference_lat) $('edit-ref-lat').value = profile.reference_lat;
-      if (profile.reference_lon) $('edit-ref-lon').value = profile.reference_lon;
+      if (profile.reference_lat) $('edit-lat').value = profile.reference_lat;
+      if (profile.reference_lon) $('edit-lon').value = profile.reference_lon;
       if (profile.tolerance_radius_meters) $('edit-tolerance').value = profile.tolerance_radius_meters;
       if (profile.planning_start_date) $('edit-plan-start').value = profile.planning_start_date;
       if (profile.planning_end_date) $('edit-plan-end').value = profile.planning_end_date;
@@ -134,11 +139,61 @@ async function loadProfile() {
       if (profile.expected_hours_per_month) $('edit-exp-hours').value = profile.expected_hours_per_month;
     } catch {}
     
-    // Date de création (simulée)
-    $('profile-created').textContent = new Date().toLocaleDateString('fr-FR');
+    // Date d'inscription (depuis la table users)
+    try {
+      const created = profile.created_at || profile.createdAt || profile.created || null;
+      if (created) {
+        const d = new Date(created);
+        $('profile-created').textContent = isNaN(d.getTime()) ? String(created) : d.toLocaleDateString('fr-FR');
+      }
+    } catch {}
     
     // Charger les statistiques
     await loadStatistics();
+
+    // Calculer la complétion du profil sur la base des colonnes de la table users
+    try {
+      const fields = {
+        // Informations personnelles (obligatoires)
+        first_name: !!profile.first_name,
+        last_name: !!profile.last_name,
+        phone: !!profile.phone,
+        
+        // Localisation (optionnelles)
+        departement: !!profile.departement,
+        commune: !!profile.commune,
+        arrondissement: !!profile.arrondissement,
+        village: !!profile.village,
+        
+        // Projet et contrat (optionnelles)
+        project_name: !!profile.project_name,
+        contract_start_date: !!profile.contract_start_date,
+        contract_end_date: !!profile.contract_end_date,
+        years_of_service: profile.years_of_service !== null && profile.years_of_service !== undefined && profile.years_of_service > 0,
+        
+        // Paramètres GPS (optionnelles)
+        reference_lat: profile.reference_lat !== null && profile.reference_lat !== undefined,
+        reference_lon: profile.reference_lon !== null && profile.reference_lon !== undefined,
+        tolerance_radius_meters: profile.tolerance_radius_meters !== null && profile.tolerance_radius_meters !== undefined,
+        
+        // Planification (optionnelles)
+        expected_days_per_month: profile.expected_days_per_month !== null && profile.expected_days_per_month !== undefined,
+        expected_hours_per_month: profile.expected_hours_per_month !== null && profile.expected_hours_per_month !== undefined
+      };
+      const total = Object.keys(fields).length;
+      const filled = Object.values(fields).filter(Boolean).length;
+      const pct = total > 0 ? Math.round((filled / total) * 100) : 0;
+      const bar = document.getElementById('profile-completion-bar');
+      const label = document.getElementById('profile-completion-label');
+      if (bar) {
+        bar.style.width = pct + '%';
+        bar.setAttribute('aria-valuenow', String(pct));
+        bar.classList.toggle('bg-success', pct >= 80);
+        bar.classList.toggle('bg-warning', pct >= 40 && pct < 80);
+        bar.classList.toggle('bg-danger', pct < 40);
+      }
+      if (label) label.textContent = pct + '%';
+    } catch {}
     
   } catch (error) {
     console.error('Erreur lors du chargement du profil:', error);
@@ -151,34 +206,56 @@ async function loadProfile() {
 // Charger les statistiques
 async function loadStatistics() {
   try {
-    // Stats réelles via API; par défaut: 0 pour un nouvel agent
+    console.log('📊 Chargement des statistiques...');
+    
+    // Stats réelles via API
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth() + 1;
-    const email = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
+    const email = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail') || localStorage.getItem('email');
+    
+    console.log(`📅 Période: ${year}-${month.toString().padStart(2, '0')}, Email: ${email}`);
+    
     let response = null;
     try {
       response = await api(`/presence/stats?year=${year}&month=${month}&email=${encodeURIComponent(email || '')}`);
-    } catch {}
+      console.log('📊 Réponse API:', response);
+    } catch (apiError) {
+      console.error('❌ Erreur API stats:', apiError);
+    }
+    
     const apiStats = response && response.success ? (response.stats || {}) : {};
     const totalDays = Number(apiStats.days_worked) || 0;
     const totalHours = Number(apiStats.hours_worked) || 0;
     const expectedDays = Number(apiStats.expected_days) || 22;
     const attendanceRate = expectedDays > 0 ? Math.min(100, Math.round((totalDays / expectedDays) * 100)) : 0;
-    const currentMission = apiStats.current_position ? 'Mission active' : 'Aucune mission';
+    const currentMission = apiStats.current_position || 'Aucune mission';
 
-    $('total-days').textContent = totalDays;
-    $('total-hours').textContent = totalHours + 'h';
-    $('attendance-rate').textContent = attendanceRate + '%';
-    $('current-mission').textContent = currentMission;
+    // Mettre à jour l'affichage
+    const totalDaysEl = $('total-days');
+    const totalHoursEl = $('total-hours');
+    const attendanceRateEl = $('attendance-rate');
+    const currentMissionEl = $('current-mission');
+
+    if (totalDaysEl) totalDaysEl.textContent = totalDays;
+    if (totalHoursEl) totalHoursEl.textContent = totalHours + 'h';
+    if (attendanceRateEl) attendanceRateEl.textContent = attendanceRate + '%';
+    if (currentMissionEl) currentMissionEl.textContent = currentMission;
+    
+    console.log(`✅ Statistiques chargées: ${totalDays} jours, ${totalHours}h, ${attendanceRate}% présence`);
     
   } catch (error) {
-    console.error('Erreur lors du chargement des statistiques:', error);
+    console.error('❌ Erreur lors du chargement des statistiques:', error);
     // Fallback: afficher 0 partout pour les nouveaux agents
-    $('total-days').textContent = 0;
-    $('total-hours').textContent = '0h';
-    $('attendance-rate').textContent = '0%';
-    $('current-mission').textContent = 'Aucune mission';
+    const totalDaysEl = $('total-days');
+    const totalHoursEl = $('total-hours');
+    const attendanceRateEl = $('attendance-rate');
+    const currentMissionEl = $('current-mission');
+
+    if (totalDaysEl) totalDaysEl.textContent = 0;
+    if (totalHoursEl) totalHoursEl.textContent = '0h';
+    if (attendanceRateEl) attendanceRateEl.textContent = '0%';
+    if (currentMissionEl) currentMissionEl.textContent = 'Aucune mission';
   }
 }
 
@@ -284,10 +361,7 @@ async function changePassword() {
 }
 
 // Déconnexion
-function logout() {
-  localStorage.removeItem('jwt');
-  window.location.href = window.location.origin + '/';
-}
+// (supprimé) Définition redondante de logout()
 
 // Mettre à jour la navbar
 async function updateNavbar() {
@@ -361,6 +435,107 @@ document.addEventListener('DOMContentLoaded', async () => {
       await changePassword();
     });
 
+    // Edition inline: Nom complet
+    const btnEditIdentity = document.getElementById('btn-edit-identity');
+    const btnSaveIdentity = document.getElementById('btn-save-identity');
+    const btnCancelIdentity = document.getElementById('btn-cancel-identity');
+    const editFullName = document.getElementById('edit-full-name');
+    if (btnEditIdentity && btnSaveIdentity && btnCancelIdentity && editFullName) {
+      btnEditIdentity.addEventListener('click', () => {
+        editFullName.style.display = 'inline-block';
+        btnSaveIdentity.style.display = 'inline-block';
+        btnCancelIdentity.style.display = 'inline-block';
+        btnEditIdentity.style.display = 'none';
+        try {
+          const current = document.getElementById('profile-name')?.textContent || '';
+          editFullName.value = current.trim();
+        } catch {}
+      });
+      btnCancelIdentity.addEventListener('click', () => {
+        editFullName.style.display = 'none';
+        btnSaveIdentity.style.display = 'none';
+        btnCancelIdentity.style.display = 'none';
+        btnEditIdentity.style.display = 'inline-block';
+      });
+      btnSaveIdentity.addEventListener('click', async () => {
+        const val = (editFullName.value || '').trim();
+        if (!val) { alert('Nom complet requis'); return; }
+        const [first, ...rest] = val.split(' ');
+        const payload = { first_name: first, last_name: rest.join(' ').trim() || null };
+        try {
+          await api('/me/profile', { method: 'POST', body: payload });
+          document.getElementById('profile-name').textContent = val;
+          btnCancelIdentity.click();
+          updateProfileCompletion();
+        } catch (e) {
+          alert('Erreur mise à jour nom: ' + (e.message || ''));
+        }
+      });
+    }
+
+    // Edition inline: Téléphone
+    const btnEditPhone = document.getElementById('btn-edit-phone');
+    const btnSavePhone = document.getElementById('btn-save-phone');
+    const btnCancelPhone = document.getElementById('btn-cancel-phone');
+    const editPhoneInline = document.getElementById('edit-phone-inline');
+    if (btnEditPhone && btnSavePhone && btnCancelPhone && editPhoneInline) {
+      btnEditPhone.addEventListener('click', () => {
+        editPhoneInline.style.display = 'inline-block';
+        btnSavePhone.style.display = 'inline-block';
+        btnCancelPhone.style.display = 'inline-block';
+        btnEditPhone.style.display = 'none';
+        try {
+          editPhoneInline.value = (document.getElementById('profile-phone')?.textContent || '').trim();
+        } catch {}
+      });
+      btnCancelPhone.addEventListener('click', () => {
+        editPhoneInline.style.display = 'none';
+        btnSavePhone.style.display = 'none';
+        btnCancelPhone.style.display = 'none';
+        btnEditPhone.style.display = 'inline-block';
+      });
+      btnSavePhone.addEventListener('click', async () => {
+        const phone = (editPhoneInline.value || '').trim();
+        if (!phone) { alert('Téléphone requis'); return; }
+        try {
+          await api('/me/profile', { method: 'POST', body: { phone } });
+          document.getElementById('profile-phone').textContent = phone;
+          btnCancelPhone.click();
+          updateProfileCompletion();
+        } catch (e) {
+          alert('Erreur mise à jour téléphone: ' + (e.message || ''));
+        }
+      });
+    }
+
+    // Sauvegarde dédiée Paramètres GPS
+    const btnSaveGps = document.getElementById('btn-save-gps');
+    const btnCancelGps = document.getElementById('btn-cancel-gps');
+    if (btnSaveGps) {
+      btnSaveGps.addEventListener('click', async () => {
+        const latStr = $('edit-lat')?.value;
+        const lonStr = $('edit-lon')?.value;
+        const tolStr = $('edit-tolerance')?.value;
+        const lat = latStr ? Number(latStr) : NaN;
+        const lon = lonStr ? Number(lonStr) : NaN;
+        const tol = tolStr ? Number(tolStr) : NaN;
+        if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(tol)) {
+          alert('Veuillez renseigner une latitude, une longitude et un rayon valides.');
+          return;
+        }
+        try {
+          await api('/me/profile', { method: 'POST', body: { reference_lat: lat, reference_lon: lon, tolerance_radius_meters: tol } });
+          alert('Paramètres GPS enregistrés');
+          updateProfileCompletion();
+        } catch (e) {
+          alert('Erreur enregistrement GPS: ' + (e.message || ''));
+        }
+      });
+    }
+    if (btnCancelGps) {
+      btnCancelGps.addEventListener('click', async () => { await loadProfile(); });
+    }
+
     // Gestion de l'enregistrement du profil (auto-service)
     const saveBtn = document.getElementById('save-profile-btn');
     if (saveBtn) {
@@ -375,14 +550,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             commune: $('edit-commune')?.value?.trim() || null,
             arrondissement: $('edit-arrondissement')?.value?.trim() || null,
             village: $('edit-village')?.value?.trim() || null,
-            reference_lat: $('edit-ref-lat')?.value ? Number($('edit-ref-lat').value) : null,
-            reference_lon: $('edit-ref-lon')?.value ? Number($('edit-ref-lon').value) : null,
+            reference_lat: $('edit-lat')?.value ? Number($('edit-lat').value) : null,
+            reference_lon: $('edit-lon')?.value ? Number($('edit-lon').value) : null,
             tolerance_radius_meters: $('edit-tolerance')?.value ? Number($('edit-tolerance').value) : null,
-            planning_start_date: $('edit-plan-start')?.value || null,
-            planning_end_date: $('edit-plan-end')?.value || null,
+            contract_start_date: $('edit-contract-start')?.value || null,
+            contract_end_date: $('edit-contract-end')?.value || null,
+            years_of_service: $('edit-years-service')?.value ? Number($('edit-years-service').value) : null,
             expected_days_per_month: $('edit-exp-days')?.value ? Number($('edit-exp-days').value) : null,
             expected_hours_per_month: $('edit-exp-hours')?.value ? Number($('edit-exp-hours').value) : null
           };
+          // Validation obligatoire: référence et rayon
+          const latOk = typeof payload.reference_lat === 'number' && !Number.isNaN(payload.reference_lat);
+          const lonOk = typeof payload.reference_lon === 'number' && !Number.isNaN(payload.reference_lon);
+          const tolOk = typeof payload.tolerance_radius_meters === 'number' && !Number.isNaN(payload.tolerance_radius_meters);
+          if (!latOk || !lonOk || !tolOk) {
+            alert('Latitude, longitude de référence et rayon de tolérance sont requis.');
+            return;
+          }
           // Nettoyer payload (supprimer null/undefined)
           Object.keys(payload).forEach(k => (payload[k] === null || payload[k] === undefined) && delete payload[k]);
           if (Object.keys(payload).length === 0) {
@@ -392,7 +576,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           await api('/me/profile', { method: 'POST', body: payload });
           try { localStorage.setItem('onboardingPrompted', '1'); } catch {}
           alert('Profil mis à jour');
-          setTimeout(() => { window.location.href = '/'; }, 300);
+          await loadProfile();
+          // Recalculer le pourcentage de complétion après la mise à jour
+          updateProfileCompletion();
+          // Rafraîchir les statistiques
+          await loadStatistics();
         } catch (err) {
           alert('Erreur lors de la mise à jour: ' + (err.message || ''));
         }
@@ -404,5 +592,81 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadProfile();
       });
     }
+    
+    // Ajouter des événements pour recalculer la complétion en temps réel
+    const formFields = [
+      'edit-first-name', 'edit-last-name', 'edit-phone',
+      'edit-departement', 'edit-commune', 'edit-arrondissement', 'edit-village',
+      'edit-project', 'edit-contract-start', 'edit-contract-end', 'edit-years-service',
+      'edit-lat', 'edit-lon', 'edit-tolerance',
+      'edit-exp-days', 'edit-exp-hours'
+    ];
+    
+    formFields.forEach(fieldId => {
+      const field = document.getElementById(fieldId);
+      if (field) {
+        field.addEventListener('input', updateProfileCompletion);
+        field.addEventListener('change', updateProfileCompletion);
+      }
+    });
   }
 });
+
+// Fonction pour recalculer le pourcentage de complétion du profil
+function updateProfileCompletion() {
+  try {
+    // Récupérer les valeurs actuelles des champs de formulaire
+    const fields = {
+      // Informations personnelles (obligatoires)
+      first_name: !!($('edit-first-name')?.value?.trim()),
+      last_name: !!($('edit-last-name')?.value?.trim()),
+      phone: !!($('edit-phone')?.value?.trim()),
+      
+      // Localisation (optionnelles)
+      departement: !!($('edit-departement')?.value?.trim()),
+      commune: !!($('edit-commune')?.value?.trim()),
+      arrondissement: !!($('edit-arrondissement')?.value?.trim()),
+      village: !!($('edit-village')?.value?.trim()),
+      
+      // Projet et contrat (optionnelles)
+      project_name: !!($('edit-project')?.value?.trim()),
+      contract_start_date: !!($('edit-contract-start')?.value),
+      contract_end_date: !!($('edit-contract-end')?.value),
+      years_of_service: !!($('edit-years-service')?.value) && Number($('edit-years-service').value) > 0,
+      
+      // Paramètres GPS (optionnelles)
+      reference_lat: !!($('edit-lat')?.value) && !isNaN(Number($('edit-lat').value)),
+      reference_lon: !!($('edit-lon')?.value) && !isNaN(Number($('edit-lon').value)),
+      tolerance_radius_meters: !!($('edit-tolerance')?.value) && !isNaN(Number($('edit-tolerance').value)),
+      
+      // Planification (optionnelles)
+      expected_days_per_month: !!($('edit-exp-days')?.value) && !isNaN(Number($('edit-exp-days').value)),
+      expected_hours_per_month: !!($('edit-exp-hours')?.value) && !isNaN(Number($('edit-exp-hours').value))
+    };
+    
+    const total = Object.keys(fields).length;
+    const filled = Object.values(fields).filter(Boolean).length;
+    const pct = total > 0 ? Math.round((filled / total) * 100) : 0;
+    
+    // Mettre à jour l'affichage
+    const bar = document.getElementById('profile-completion-bar');
+    const label = document.getElementById('profile-completion-label');
+    
+    if (bar) {
+      bar.style.width = pct + '%';
+      bar.setAttribute('aria-valuenow', String(pct));
+      bar.classList.toggle('bg-success', pct >= 80);
+      bar.classList.toggle('bg-warning', pct >= 40 && pct < 80);
+      bar.classList.toggle('bg-danger', pct < 40);
+    }
+    
+    if (label) {
+      label.textContent = pct + '%';
+    }
+    
+    console.log(`📊 Complétion du profil mise à jour: ${pct}% (${filled}/${total} champs remplis)`);
+    
+  } catch (error) {
+    console.error('Erreur lors du calcul de complétion:', error);
+  }
+}

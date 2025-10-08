@@ -7,6 +7,12 @@ let presenceData = {};
 let appSettings = null;
 let isLoadingProfile = false; // Protection contre les appels répétés
 
+// Configuration des heures de présence sur le terrain
+const WORK_HOURS = {
+  start: { hour: 6, minute: 30 }, // 06h30
+  end: { hour: 18, minute: 0 }    // 18h00
+};
+
 // Protection contre les boucles de connexion
 let loginAttempts = 0;
 const MAX_LOGIN_ATTEMPTS = 3;
@@ -17,11 +23,10 @@ function clearCachedUserData() {
     localStorage.removeItem('loginData');
     localStorage.removeItem('userProfile');
     localStorage.removeItem('userEmail');
-    localStorage.removeItem('jwt');
     localStorage.removeItem('lastGPS');
     localStorage.removeItem('vercelLoginAttempts');
     localStorage.removeItem('lastLoginAttempt');
-    console.log('🧹 Cache utilisateur nettoyé');
+    console.log('🧹 Cache utilisateur nettoyé (jwt conservé)');
   } catch {}
   try { presenceData = {}; } catch {}
 }
@@ -42,6 +47,114 @@ function isProfileComplete(profile) {
     }
   }
   return true;
+}
+
+// Fonction pour valider les heures de présence sur le terrain
+function isWithinWorkHours(date = new Date()) {
+  const currentHour = date.getHours();
+  const currentMinute = date.getMinutes();
+  const currentTimeInMinutes = currentHour * 60 + currentMinute;
+  
+  const startTimeInMinutes = WORK_HOURS.start.hour * 60 + WORK_HOURS.start.minute;
+  const endTimeInMinutes = WORK_HOURS.end.hour * 60 + WORK_HOURS.end.minute;
+  
+  return currentTimeInMinutes >= startTimeInMinutes && currentTimeInMinutes <= endTimeInMinutes;
+}
+
+// Fonction pour formater les heures de travail
+function formatWorkHours() {
+  const startTime = `${WORK_HOURS.start.hour.toString().padStart(2, '0')}h${WORK_HOURS.start.minute.toString().padStart(2, '0')}`;
+  const endTime = `${WORK_HOURS.end.hour.toString().padStart(2, '0')}h${WORK_HOURS.end.minute.toString().padStart(2, '0')}`;
+  return `${startTime} - ${endTime}`;
+}
+
+// Fonction pour obtenir le temps restant avant/après les heures de travail
+function getWorkHoursStatus() {
+  const now = new Date();
+  const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
+  const startTimeInMinutes = WORK_HOURS.start.hour * 60 + WORK_HOURS.start.minute;
+  const endTimeInMinutes = WORK_HOURS.end.hour * 60 + WORK_HOURS.end.minute;
+  
+  if (currentTimeInMinutes < startTimeInMinutes) {
+    const minutesUntilStart = startTimeInMinutes - currentTimeInMinutes;
+    const hours = Math.floor(minutesUntilStart / 60);
+    const minutes = minutesUntilStart % 60;
+    return {
+      status: 'before',
+      message: `Les heures de présence commencent dans ${hours}h${minutes.toString().padStart(2, '0')}`
+    };
+  } else if (currentTimeInMinutes > endTimeInMinutes) {
+    const minutesSinceEnd = currentTimeInMinutes - endTimeInMinutes;
+    const hours = Math.floor(minutesSinceEnd / 60);
+    const minutes = minutesSinceEnd % 60;
+    return {
+      status: 'after',
+      message: `Les heures de présence sont terminées depuis ${hours}h${minutes.toString().padStart(2, '0')}`
+    };
+  } else {
+    const minutesUntilEnd = endTimeInMinutes - currentTimeInMinutes;
+    const hours = Math.floor(minutesUntilEnd / 60);
+    const minutes = minutesUntilEnd % 60;
+    return {
+      status: 'during',
+      message: `Temps restant: ${hours}h${minutes.toString().padStart(2, '0')}`
+    };
+  }
+}
+
+// Fonction pour mettre à jour l'affichage du statut des heures de travail
+function updateWorkHoursDisplay() {
+  const statusEl = $('work-hours-status');
+  if (!statusEl) return;
+  
+  const workStatus = getWorkHoursStatus();
+  const now = new Date();
+  const currentTime = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  
+  let statusText = '';
+  let statusColor = '';
+  
+  switch (workStatus.status) {
+    case 'before':
+      statusText = `🕐 ${currentTime} - ${workStatus.message}`;
+      statusColor = '#ff9800'; // Orange
+      break;
+    case 'during':
+      statusText = `✅ ${currentTime} - Présence autorisée - ${workStatus.message}`;
+      statusColor = '#4caf50'; // Vert
+      break;
+    case 'after':
+      statusText = `🕘 ${currentTime} - ${workStatus.message}`;
+      statusColor = '#f44336'; // Rouge
+      break;
+  }
+  
+  statusEl.textContent = statusText;
+  statusEl.style.color = statusColor;
+  
+  // Désactiver/activer les boutons selon les heures
+  const startBtn = $('start-mission');
+  const endBtn = $('end-mission');
+  
+  if (workStatus.status !== 'during') {
+    if (startBtn && !startBtn.disabled) {
+      startBtn.style.opacity = '0.6';
+      startBtn.title = `Présence autorisée uniquement de ${formatWorkHours()}`;
+    }
+    if (endBtn && !endBtn.disabled) {
+      endBtn.style.opacity = '0.6';
+      endBtn.title = `Présence autorisée uniquement de ${formatWorkHours()}`;
+    }
+  } else {
+    if (startBtn) {
+      startBtn.style.opacity = '1';
+      startBtn.title = '';
+    }
+    if (endBtn) {
+      endBtn.style.opacity = '1';
+      endBtn.title = '';
+    }
+  }
 }
 
 function $(id) { return document.getElementById(id); }
@@ -153,6 +266,43 @@ function addScrollAnimations() {
   });
 }
 
+// Assurer un binding explicite des liens navbar (certains navigateurs bloquent la délégation globale)
+function bindNavbarLinks() {
+  try {
+    document.querySelectorAll('a.navbar-link').forEach((a) => {
+      if (a._navBound) return; a._navBound = true;
+      a.addEventListener('click', (ev) => {
+        const href = a.getAttribute('href');
+        if (href && !href.startsWith('#')) { ev.preventDefault(); window.location.href = href; }
+      });
+    });
+    document.querySelectorAll('.navbar-logout, [data-action="logout"]').forEach((btn) => {
+      if (btn._logoutBound) return; btn._logoutBound = true;
+      btn.addEventListener('click', (ev) => { ev.preventDefault(); try { window.logout && window.logout(); } catch {} });
+    });
+    // IDs fallback
+    const idToUrl = {
+      'home-link': '/',
+      'presence-link': '/',
+      'planning-link': '/planning.html',
+      'map-link': '/map.html',
+      'help-link': '/admin-settings.html',
+      'profile-link': '/profile.html',
+      'dashboard-link': '/dashboard.html',
+      'agents-link': '/admin-agents.html',
+      'reports-link': '/reports.html',
+      'admin-link': '/admin.html'
+    };
+    Object.keys(idToUrl).forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && !el._idNavBound) {
+        el._idNavBound = true;
+        el.addEventListener('click', (ev) => { ev.preventDefault(); window.location.href = idToUrl[id]; });
+      }
+    });
+  } catch (e) { console.warn('bindNavbarLinks failed', e); }
+}
+
 // Bootstrap: appliquer des classes aux éléments existants sans casser le markup
 function applyBootstrapEnhancements() {
   try {
@@ -193,10 +343,73 @@ function initHeroImage() {
     };
     img.onerror = () => {
       console.warn('❌ Erreur de chargement de l\'image hero');
+      try {
+        // Fallback vers une image par défaut si disponible
+        heroImage.src = '/Media/default-hero.png';
+        heroImage.classList.add('loaded');
+      } catch {}
     };
     img.src = heroImage.src;
   }
 }
+
+// Assurer la navigation des liens de la navbar même si des handlers bloquent le comportement par défaut
+document.addEventListener('click', (ev) => {
+  try {
+    const link = ev.target && ev.target.closest && ev.target.closest('.navbar a, .navbar-link');
+    if (link && link.getAttribute) {
+      const href = link.getAttribute('href');
+      if (href && !href.startsWith('#')) {
+        ev.preventDefault();
+        window.location.href = href;
+      }
+    }
+    // Click sur le logo/icone: retourner à l'accueil
+    const logo = ev.target && ev.target.closest && ev.target.closest('.navbar-logo, .navbar-brand-link, .org-logo, #site-logo');
+    if (logo && !(logo.tagName && logo.tagName.toLowerCase() === 'a')) {
+      ev.preventDefault();
+      window.location.href = '/home.html';
+      return;
+    }
+    // Logout buttons
+    const logoutBtn = ev.target && ev.target.closest && ev.target.closest('.navbar-logout, [data-action="logout"]');
+    if (logoutBtn) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      try { window.logout && window.logout(); } catch {}
+      return;
+    }
+  } catch {}
+});
+
+// Bind navbar dès que le DOM est prêt (renforce la délégation globale)
+document.addEventListener('DOMContentLoaded', bindNavbarLinks);
+window.addEventListener('load', bindNavbarLinks);
+
+// Gestion centralisée de l'affichage des actions circulaires (index.html)
+function updateCircleActionsVisibility() {
+  try {
+    const token = localStorage.getItem('jwt') || '';
+    const actions = document.getElementById('circle-actions');
+    if (actions) actions.style.display = token ? 'grid' : 'none';
+  } catch {}
+}
+document.addEventListener('DOMContentLoaded', updateCircleActionsVisibility);
+window.addEventListener('storage', (e) => {
+  if (e && e.key === 'jwt') updateCircleActionsVisibility();
+});
+
+// Bouton retour générique
+function attachBackButtons() {
+  try {
+    document.querySelectorAll('[data-back]')?.forEach((b)=>{
+      if (b._backBound) return; b._backBound = true;
+      b.addEventListener('click', (e)=>{ e.preventDefault(); history.length > 1 ? history.back() : (window.location.href = '/'); });
+    });
+  } catch {}
+}
+document.addEventListener('DOMContentLoaded', attachBackButtons);
+window.addEventListener('load', attachBackButtons);
 
 async function api(path, opts={}) {
   const headers = opts.headers || {};
@@ -214,8 +427,19 @@ async function api(path, opts={}) {
   console.log('API response:', res.status, res.statusText);
   
   if (res.status === 401) {
-    // Ne pas supprimer le token automatiquement pour éviter les blocages cross-page
+    // Ne pas supprimer le token automatiquement ni rediriger.
     console.warn('401 détecté: accès non autorisé');
+    try {
+      let banner = document.getElementById('global-auth-banner');
+      const container = document.querySelector('.main-content') || document.querySelector('.container') || document.body;
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'global-auth-banner';
+        banner.style.cssText = 'margin:12px 0;padding:12px 16px;border-radius:8px;background:#fff3cd;color:#664d03;border:1px solid #ffe69c;';
+        banner.textContent = '🔒 Session requise. Ouvrez la page d\'accueil pour vous connecter, puis revenez.';
+        container.prepend(banner);
+      }
+    } catch {}
     throw new Error(JSON.stringify({ success:false, unauthorized:true, message: "Accès non autorisé" }));
   }
   if (!res.ok) {
@@ -346,6 +570,13 @@ async function init() {
     const s = await api('/settings');
     if (s && s.success) appSettings = s.settings || null;
   } catch {}
+  
+  // Assurer que navigation.js est chargé avant de l'utiliser
+  if (!window.navigation || typeof window.navigation.updateForUser !== 'function') {
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    } catch {}
+  }
   if ('serviceWorker' in navigator) {
     try { await navigator.serviceWorker.register('/service-worker.js'); } catch {}
   }
@@ -405,12 +636,22 @@ async function init() {
   // Initialiser les notifications
   await initializeNotifications();
   
-  // Gérer la navbar selon l'état de connexion
-  await updateNavbar();
+    // Gérer la navbar selon l'état de connexion
+  try { await updateNavbar(); } catch {}
   
   const authSection = $('auth-section');
   const appSection = $('app-section');
   if (jwt) { 
+    // Vérifier d'abord la validité du token
+    try {
+      const testResponse = await api('/profile');
+      if (!testResponse || testResponse.error) {
+        console.warn('⚠️ Token possiblement invalide; poursuivre sans déconnecter');
+      }
+    } catch (error) {
+      console.warn('⚠️ Erreur de validation du token; poursuivre sans déconnecter:', error.message);
+    }
+
     // Charger le profil et vérifier l'onboarding (une seule fois)
     try {
       const emailForProfile = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
@@ -423,10 +664,20 @@ async function init() {
       const alreadyPrompted = localStorage.getItem('onboardingPrompted') === '1';
       if (!isProfileComplete(profileData) && !alreadyPrompted) {
         localStorage.setItem('onboardingPrompted', '1');
-        if (!location.pathname.includes('profile.html')) {
-          window.location.href = '/profile.html?onboard=1';
-        }
-        return;
+        // Ne plus rediriger automatiquement. Afficher une notification et mettre en avant le lien Profil.
+        try {
+          showNotification('Complétez votre profil depuis le menu « Mon Profil »', 'warning', 6000);
+          const profileNav = document.querySelector('a[href="/profile.html"]');
+          if (profileNav) {
+            profileNav.style.boxShadow = '0 0 0 3px rgba(245, 158, 11, 0.6)';
+            profileNav.style.transform = 'scale(1.02)';
+            setTimeout(() => {
+              profileNav.style.boxShadow = '';
+              profileNav.style.transform = '';
+            }, 3000);
+          }
+        } catch {}
+        // Continuer sans forcer la navigation
       }
     } catch {}
 
@@ -449,7 +700,8 @@ async function init() {
     }
   }
 
-  $('login-form').addEventListener('submit', async (ev) => {
+  const loginFormEl = document.getElementById('login-form');
+  if (loginFormEl && typeof loginFormEl.addEventListener === 'function') loginFormEl.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     try {
       const email = $('email').value.trim();
@@ -473,10 +725,20 @@ async function init() {
       try {
         const prof = normalizeProfileResponse(await api(`/profile?email=${encodeURIComponent(data.user.email || email)}`));
         if (!isProfileComplete(prof)) {
-          if (!location.pathname.includes('profile.html')) {
-            window.location.href = '/profile.html?onboard=1';
-          }
-          return;
+          // Ne plus rediriger automatiquement. Informer l'utilisateur.
+          try {
+            showNotification('Profil incomplet: cliquez sur « Mon Profil » pour terminer', 'warning', 6000);
+            const profileNav = document.querySelector('a[href="/profile.html"]');
+            if (profileNav) {
+              profileNav.style.boxShadow = '0 0 0 3px rgba(245, 158, 11, 0.6)';
+              profileNav.style.transform = 'scale(1.02)';
+              setTimeout(() => {
+                profileNav.style.boxShadow = '';
+                profileNav.style.transform = '';
+              }, 3000);
+            }
+          } catch {}
+          // Ne pas interrompre le flux de la page d'accueil
         }
       } catch {}
 
@@ -502,25 +764,99 @@ async function init() {
       }, 100);
       
       await updateNavbar(); // Mettre à jour la navbar après connexion
+      // Rendre immédiatement les actions circulaires
+      try { updateCircleActionsVisibility(); } catch {}
     } catch (e) { 
       console.error('Erreur de connexion:', e);
-      alert('Connexion échouée: ' + e.message); 
+      
+      // Gestion intelligente des erreurs de connexion
+      let errorMessage = 'Erreur de connexion.';
+      let suggestions = [];
+      
+      if (e.message && e.message.includes('401')) {
+        errorMessage = 'Identifiants incorrects.';
+        suggestions = [
+          'Vérifiez votre email et mot de passe',
+          'Si vous avez oublié votre mot de passe, cliquez sur "Mot de passe oublié"',
+          'Si vous n\'avez pas encore de compte, cliquez sur "Inscription Agent"'
+        ];
+      } else if (e.message && e.message.includes('404')) {
+        errorMessage = 'Compte non trouvé.';
+        suggestions = [
+          'Vérifiez votre adresse email',
+          'Si vous n\'avez pas encore de compte, cliquez sur "Inscription Agent"',
+          'Contactez votre administrateur si vous pensez que c\'est une erreur'
+        ];
+      } else if (e.message && e.message.includes('429')) {
+        errorMessage = 'Trop de tentatives de connexion.';
+        suggestions = [
+          'Attendez quelques minutes avant de réessayer',
+          'Si le problème persiste, contactez votre administrateur'
+        ];
+      } else {
+        suggestions = [
+          'Vérifiez votre connexion internet',
+          'Réessayez dans quelques instants',
+          'Contactez votre administrateur si le problème persiste'
+        ];
+      }
+      
+      showEnhancedErrorMessage(errorMessage, suggestions);
     }
   });
+
+  // Variables pour la récupération de mot de passe
+  let recoveryEmail = '';
+  
+  // Fonctions pour la récupération de mot de passe
+  function showForgotPasswordForm() {
+    const loginContainer = $('login-form-container');
+    const registerContainer = $('register-form-container');
+    const forgotContainer = $('forgot-password-container');
+    const resetContainer = $('reset-password-container');
+    
+    if (loginContainer) loginContainer.style.display = 'none';
+    if (registerContainer) registerContainer.style.display = 'none';
+    if (forgotContainer) forgotContainer.style.display = 'block';
+    if (resetContainer) resetContainer.style.display = 'none';
+    
+    // Masquer les onglets
+    document.querySelectorAll('.auth-tab').forEach(tab => tab.style.display = 'none');
+  }
+  
+  function showResetPasswordForm() {
+    const loginContainer = $('login-form-container');
+    const registerContainer = $('register-form-container');
+    const forgotContainer = $('forgot-password-container');
+    const resetContainer = $('reset-password-container');
+    
+    if (loginContainer) loginContainer.style.display = 'none';
+    if (registerContainer) registerContainer.style.display = 'none';
+    if (forgotContainer) forgotContainer.style.display = 'none';
+    if (resetContainer) resetContainer.style.display = 'block';
+    
+    // Masquer les onglets
+    document.querySelectorAll('.auth-tab').forEach(tab => tab.style.display = 'none');
+  }
 
   // Gestion des onglets d'authentification
   function showLoginForm() {
     const loginContainer = $('login-form-container');
     const registerContainer = $('register-form-container');
+    const forgotContainer = $('forgot-password-container');
+    const resetContainer = $('reset-password-container');
     
     if (loginContainer) {
-      loginContainer.classList.remove('hidden');
-      loginContainer.classList.add('block');
+      loginContainer.style.display = 'block';
     }
-    
     if (registerContainer) {
-      registerContainer.classList.add('hidden');
-      registerContainer.classList.remove('block');
+      registerContainer.style.display = 'none';
+    }
+    if (forgotContainer) {
+      forgotContainer.style.display = 'none';
+    }
+    if (resetContainer) {
+      resetContainer.style.display = 'none';
     }
     
     document.querySelectorAll('.auth-tab').forEach(tab => tab.classList.remove('active'));
@@ -529,8 +865,12 @@ async function init() {
       loginTab.classList.add('active');
     }
   }
-  
-  window.showLoginForm = showLoginForm;
+  // Expose globally for navbar buttons without inline JS (guarded)
+  if (typeof window !== 'undefined') {
+    window.showLoginForm = showLoginForm;
+    try { window.showForgotPasswordForm = showForgotPasswordForm; } catch {}
+    try { window.showResetPasswordForm = showResetPasswordForm; } catch {}
+  }
 
   window.showRegisterForm = () => {
     $('login-form-container').classList.add('hidden');
@@ -572,7 +912,7 @@ async function init() {
         alert(data.message || 'Erreur lors de l\'inscription');
       }
       await loadAgentProfile();
-      await updateNavbar();
+    try { await updateNavbar(); } catch {}
     } catch (e) { 
       alert('Échec de la création du compte: ' + (e.message || 'Erreur inconnue'));
     }
@@ -582,28 +922,91 @@ async function init() {
   // Bouton simple: débuter la mission
   const startBtnEl = $('start-mission');
   const endBtnEl = $('end-mission');
-  if (startBtnEl) {
+  if (startBtnEl && !startBtnEl._bound) {
     startBtnEl.addEventListener('click', async () => {
       const status = $('status');
       await startMission(startBtnEl, status);
     });
+    startBtnEl._bound = true;
   }
 
-  if (endBtnEl) {
+  // Bouton pour forcer l'envoi des présences en file (offline)
+  const flushBtn = $('flush-queue');
+  if (flushBtn && !flushBtn._bound) {
+    flushBtn.addEventListener('click', async () => {
+      try {
+        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+          const mc = new MessageChannel();
+          const promise = new Promise((resolve) => {
+            mc.port1.onmessage = () => resolve(true);
+            setTimeout(() => resolve(false), 5000);
+          });
+          navigator.serviceWorker.controller.postMessage({ type: 'flush-queue' }, [mc.port2]);
+          const ok = await promise;
+          showNotification(ok ? 'Présences envoyées au serveur' : 'File traitée (vérifiez le réseau)', ok ? 'success' : 'info');
+          try { await refreshCheckins(); } catch {}
+          try { await loadPresenceData(); } catch {}
+        } else {
+          showNotification('Service Worker non actif', 'warning');
+        }
+      } catch {
+        showNotification("Impossible d'envoyer maintenant", 'warning');
+      }
+    });
+    flushBtn._bound = true;
+  }
+
+  if (endBtnEl && !endBtnEl._bound) {
     endBtnEl.addEventListener('click', async () => {
       const status = $('status');
       await endMission(currentMissionId, endBtnEl, status);
     });
+    endBtnEl._bound = true;
     try { endBtnEl.textContent = 'Finir mission'; } catch {}
   }
+
+  // Si une mission a été démarrée en offline, activer le bouton de fin et le flush
+  try {
+    const offlineActive = localStorage.getItem('hasActiveMissionOffline') === 'true';
+    if (offlineActive) {
+      const endBtn = $('end-mission');
+      if (endBtn) endBtn.disabled = false;
+      const startBtn = $('start-mission');
+      if (startBtn) startBtn.disabled = true;
+      const flushBtn2 = $('flush-queue');
+      if (flushBtn2) flushBtn2.disabled = false;
+    }
+  } catch {}
 
   // Fonction pour commencer une mission
   async function startMission(button, status) {
     try {
+      // Vérifier les heures de présence avant de commencer
+      if (!isWithinWorkHours()) {
+        const workStatus = getWorkHoursStatus();
+        removeLoadingState(button);
+        status.textContent = `❌ ${workStatus.message}`;
+        status.style.color = '#dc3545';
+        showNotification(`Présence autorisée uniquement de ${formatWorkHours()}. ${workStatus.message}`, 'warning');
+        return;
+      }
+      
       createRippleEffect({ currentTarget: button, clientX: 0, clientY: 0 });
       addLoadingState(button, 'Récupération GPS...');
       
       let coords = await getCurrentLocationWithValidation();
+      // Sauvegarder immédiatement la position trouvée (si valide) et notifier
+      if (coords && isFinite(coords.latitude) && isFinite(coords.longitude)) {
+        try {
+          localStorage.setItem('lastGPS', JSON.stringify({
+            lat: Number(coords.latitude),
+            lon: Number(coords.longitude),
+            accuracy: Number(coords.accuracy || 0),
+            timestamp: Date.now()
+          }));
+        } catch {}
+        try { showNotification(`Position sauvegardée: ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)} (~${Math.round(coords.accuracy||0)}m)`, 'success'); } catch {}
+      }
       // Fallback: si coords invalides ou précision extrême, utiliser le dernier GPS stocké
       if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 10000) {
         try {
@@ -696,6 +1099,8 @@ async function init() {
       
       await refreshCheckins();
       await loadPresenceData();
+      try { await computeAndStoreDailyDistance(currentMissionId); } catch {}
+      try { markTodayPresentOnCalendar(); } catch {}
       try { notifyPresenceUpdate('start'); } catch {}
       
       // Activer le bouton Finir position et désactiver début
@@ -706,29 +1111,35 @@ async function init() {
       if (checkinBtn) checkinBtn.disabled = false;
       
     } catch (e) {
-      console.error('Erreur début mission:', e);
-      status.textContent = 'Erreur début mission';
-      const msg = (e && e.message) || '';
-      if (String(msg).includes('Coordonnées invalides') || String(msg).includes('400')) {
-        showNotification('Coordonnées GPS invalides: rapprochez-vous d’une zone ouverte ou activez le GPS.', 'error');
-      } else {
-        showNotification('Hors ligne: mission en file et sera envoyée dès retour réseau', 'warning');
-        try {
-          const payload = {
-            lat: Number(fd.get('lat')),
-            lon: Number(fd.get('lon')),
-            note: fd.get('note') || 'Début de mission (offline)'
-          };
-          if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({
-              type: 'queue-presence',
-              endpoint: '/api/presence/start',
-              method: 'POST',
-              payload
-            });
-          }
-        } catch {}
-      }
+      // Pas d'erreur bloquante: mettre en file et notifier doucement
+      console.warn('Début mission offline ou erreur réseau, mise en file:', e?.message || e);
+      status.textContent = 'Présence en file (offline)';
+      try {
+        const payload = {
+          lat: Number(fd.get('lat')),
+          lon: Number(fd.get('lon')),
+          note: fd.get('note') || 'Début de mission (offline)'
+        };
+        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'queue-presence',
+            endpoint: '/api/presence/start',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('jwt') || '') },
+            payload
+          });
+        }
+      } catch {}
+      try { showNotification('Hors ligne: présence mise en file. Elle sera envoyée dès retour réseau.', 'info'); } catch {}
+      // Considérer la mission comme active côté UI pour permettre la fin même offline
+      try {
+        localStorage.setItem('hasActiveMissionOffline', 'true');
+      } catch {}
+      const endBtn = $('end-mission');
+      if (endBtn) endBtn.disabled = false;
+      if (button) button.disabled = true;
+      const flushBtn3 = $('flush-queue');
+      if (flushBtn3) flushBtn3.disabled = false;
     } finally {
       removeLoadingState(button);
     }
@@ -737,10 +1148,32 @@ async function init() {
   // Fonction pour finir une mission
   async function endMission(missionId, button, status) {
     try {
+      // Vérifier les heures de présence avant de finir
+      if (!isWithinWorkHours()) {
+        const workStatus = getWorkHoursStatus();
+        removeLoadingState(button);
+        status.textContent = `❌ ${workStatus.message}`;
+        status.style.color = '#dc3545';
+        showNotification(`Présence autorisée uniquement de ${formatWorkHours()}. ${workStatus.message}`, 'warning');
+        return;
+      }
+      
       createRippleEffect({ currentTarget: button, clientX: 0, clientY: 0 });
       addLoadingState(button, 'Récupération GPS...');
       
       let coords = await getCurrentLocationWithValidation();
+      // Sauvegarder immédiatement la position trouvée (si valide) et notifier
+      if (coords && isFinite(coords.latitude) && isFinite(coords.longitude)) {
+        try {
+          localStorage.setItem('lastGPS', JSON.stringify({
+            lat: Number(coords.latitude),
+            lon: Number(coords.longitude),
+            accuracy: Number(coords.accuracy || 0),
+            timestamp: Date.now()
+          }));
+        } catch {}
+        try { showNotification(`Position sauvegardée: ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)} (~${Math.round(coords.accuracy||0)}m)`, 'success'); } catch {}
+      }
       if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 10000) {
         try {
           const last = JSON.parse(localStorage.getItem('lastGPS') || '{}');
@@ -781,15 +1214,11 @@ async function init() {
         const baseNote = $('note').value || 'Fin de mission';
         fd.set('note', `${baseNote} (faible précision ~${Math.round(coords.accuracy)}m)`);
       }
-      if (lowPrecision) {
-        const baseNote = $('note').value || 'Début de mission';
-        fd.set('note', `${baseNote} (faible précision ~${Math.round(coords.accuracy)}m)`);
-      }
       
       status.textContent = 'Envoi...';
       
-      // Inclure mission_id si connu
-      if (missionId) fd.append('mission_id', String(missionId));
+      // Inclure mission_id si connu (éviter doublon)
+      if (missionId && !fd.has('mission_id')) fd.append('mission_id', String(missionId));
       await api('/presence/end', { method: 'POST', body: fd });
 
       status.textContent = 'Position signalée - Mission terminée';
@@ -798,6 +1227,7 @@ async function init() {
       
       await refreshCheckins();
       await loadPresenceData();
+      try { await computeAndStoreDailyDistance(missionId); } catch {}
       try { notifyPresenceUpdate('end'); } catch {}
       
       // Réactiver le bouton Débuter et désactiver Finir
@@ -810,60 +1240,35 @@ async function init() {
       currentMissionId = null;
       try { localStorage.removeItem('currentMissionId'); } catch {}
       
-      // Recharger l'historique des missions
+      // Recharger l'historique des missions avec heures de début/fin fiables
       try {
         const missionsResponse = await api('/me/missions');
         const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
-        const historyEl = $('missions-history');
-        if (historyEl) {
-          historyEl.innerHTML = '';
-          missions.forEach(m => {
-            const li = document.createElement('li');
-            const start = m.start_time ? new Date(m.start_time).toLocaleString() : '-';
-            const end = m.end_time ? new Date(m.end_time).toLocaleString() : '-';
-            const depName = getDepartementNameById(m.departement);
-            const comName = getCommuneNameById(m.departement, m.commune);
-            li.innerHTML = `
-              <div class="list-item">
-                <div><strong>Mission #${m.id}</strong> — ${m.status}</div>
-                <div>Début: ${start} • Fin: ${end}</div>
-                <div>Département: ${depName || '-'} • Commune: ${comName || '-'}</div>
-                <div>Start GPS: ${m.start_lat ?? '-'}, ${m.start_lon ?? '-'} | End GPS: ${m.end_lat ?? '-'}, ${m.end_lon ?? '-'}</div>
-              </div>
-            `;
-            historyEl.appendChild(li);
-          });
-        }
+        await renderMissionHistory(missions);
       } catch {}
       
     } catch (e) {
-      console.error('Erreur fin mission:', e);
-      status.textContent = 'Erreur GPS - Utilisez le bouton de secours';
-      
-      // Afficher le bouton de secours si pas déjà affiché
-      showForceEndButton(missionId, status);
-      
-      showNotification('Erreur GPS. Utilisez le bouton "Finir sans GPS" ci-dessous', 'warning');
-      
-      // Essayer de sauvegarder en mode offline
+      // Pas d'erreur bloquante: mettre en file et notifier doucement
+      console.warn('Fin mission offline ou erreur réseau, mise en file:', e?.message || e);
+      status.textContent = 'Fin en file (offline)';
       try {
-        const fd = new FormData();
-        if (missionId) fd.append('mission_id', String(missionId));
-        fd.append('note', $('note').value || 'Fin de mission (offline)');
-        
         const payload = {
           mission_id: missionId,
-          note: fd.get('note') || 'Fin de mission (offline)'
+          note: $('note').value || 'Fin de mission (offline)'
         };
         if (navigator.serviceWorker && navigator.serviceWorker.controller) {
           navigator.serviceWorker.controller.postMessage({
             type: 'queue-presence',
             endpoint: '/api/presence/end',
             method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('jwt') || '') },
             payload
           });
         }
       } catch {}
+      try { showNotification('Hors ligne: fin de mission mise en file. Elle sera envoyée dès retour réseau.', 'info'); } catch {}
+      // Fin en offline: marquer la mission locale comme terminée
+      try { localStorage.removeItem('hasActiveMissionOffline'); } catch {}
     } finally {
       removeLoadingState(button);
     }
@@ -955,139 +1360,171 @@ async function init() {
   // Ancien bouton end-mission supprimé
 
   const checkinBtn = $('checkin-btn');
-  if (checkinBtn) {
+  if (checkinBtn && !checkinBtn._bound) {
     checkinBtn.addEventListener('click', async () => {
+      // Vérifier les heures de présence avant d'enregistrer
+      if (!isWithinWorkHours()) {
+        const workStatus = getWorkHoursStatus();
+        const status = $('status');
+        if (status) {
+          status.textContent = `❌ ${workStatus.message}`;
+          status.style.color = '#dc3545';
+        }
+        showNotification(`Présence autorisée uniquement de ${formatWorkHours()}. ${workStatus.message}`, 'warning');
+        return;
+      }
+      
+      // Enregistrer la mission de la journée: clôturer sans GPS
+      // Restaurer mission active si manquante
     if (!currentMissionId) {
-      // Try restore from local storage first (faster UX)
       try {
         const saved = localStorage.getItem('currentMissionId');
         if (saved) currentMissionId = Number(saved);
       } catch {}
-      
       try {
+          if (!currentMissionId) {
         const missionsResponse = await api('/me/missions');
         const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
         const active = missions.find(m => m.status === 'active');
         if (active) { currentMissionId = active.id; try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch {} }
+          }
       } catch {}
       if (!currentMissionId) {
-        // Aucun ID mission: démarrer automatiquement la mission et considérer cela comme le check-in demandé
         const status = $('status');
-        const checkinBtn = $('checkin-btn');
-        try {
-          status.textContent = 'Démarrage mission...';
-          addLoadingState(checkinBtn, 'Démarrage...');
-          let coords = await getCurrentLocationWithValidation();
-          if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 10000) {
-            try {
-              const last = JSON.parse(localStorage.getItem('lastGPS') || '{}');
-              if (isFinite(last.lat) && isFinite(last.lon)) {
-                coords = { latitude: Number(last.lat), longitude: Number(last.lon), accuracy: Number(last.accuracy || 9999) };
-              }
-            } catch {}
-          }
-          const fdStart = new FormData();
-          fdStart.append('lat', String(coords.latitude));
-          fdStart.append('lon', String(coords.longitude));
-          if (typeof coords.accuracy !== 'undefined') fdStart.append('accuracy', String(Math.round(coords.accuracy)));
-          fdStart.append('note', $('note').value || 'Début de mission');
-          const photoStart = $('photo').files[0];
-          if (photoStart) fdStart.append('photo', photoStart);
-          const data = await api('/presence/start', { method: 'POST', body: fdStart });
-          if (data && (data.mission_id || (data.mission && data.mission.id))) {
-            currentMissionId = data.mission_id || data.mission.id;
-            try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch {}
-          }
-          status.textContent = 'Mission démarrée et check-in enregistré';
-          animateElement(status, 'bounce');
-          showNotification('Mission démarrée automatiquement et check-in enregistré.', 'success');
-          await refreshCheckins();
-          try { notifyPresenceUpdate('start'); } catch {}
-          removeLoadingState(checkinBtn);
-          return; // Ne pas envoyer un second check-in
-        } catch (e) {
-          removeLoadingState(checkinBtn);
-          showNotification('Impossible de démarrer la mission automatiquement. Réessayez.', 'error');
+          status.textContent = 'Aucune mission active';
+          showNotification('Aucune mission active à enregistrer.', 'warning');
           return;
         }
       }
-    }
-    
-    const status = $('status');
-    const checkinBtn = $('checkin-btn');
-    
-    // Ajouter l'effet ripple
-    createRippleEffect({ currentTarget: checkinBtn, clientX: 0, clientY: 0 });
-    addLoadingState(checkinBtn, 'Récupération GPS...');
-    
-    try {
-      status.textContent = 'Récupération GPS...';
-      let coords = await getCurrentLocationWithValidation();
-      if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 10000) {
+      const status = $('status');
+      const btn = $('checkin-btn');
+      createRippleEffect({ currentTarget: btn, clientX: 0, clientY: 0 });
+      addLoadingState(btn, 'Enregistrement...');
+      try {
+        await api(`/missions/${currentMissionId}/complete`, { method: 'POST', body: { note: $('note').value || '' } });
+        status.textContent = 'Mission enregistrée';
+          animateElement(status, 'bounce');
+        showNotification('Mission de la journée enregistrée et clôturée.', 'success');
+        const startBtn = $('start-mission'); if (startBtn) startBtn.disabled = false;
+        const endBtn = $('end-mission'); if (endBtn) endBtn.disabled = true;
+        try { await computeAndStoreDailyDistance(currentMissionId); } catch {}
+        currentMissionId = null; try { localStorage.removeItem('currentMissionId'); } catch {}
+          await refreshCheckins();
+        await loadPresenceData();
+        // Rafraîchir l'historique des missions pour voir le statut "completed"
         try {
-          const last = JSON.parse(localStorage.getItem('lastGPS') || '{}');
-          if (isFinite(last.lat) && isFinite(last.lon)) {
-            coords = { latitude: Number(last.lat), longitude: Number(last.lon), accuracy: Number(last.accuracy || 9999) };
-          }
+          const missionsResponse = await api('/me/missions');
+          const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
+          await renderMissionHistory(missions);
+        } catch {}
+        try { notifyPresenceUpdate('complete'); } catch {}
+        } catch (e) {
+        status.textContent = 'Erreur enregistrement';
+        showNotification("Erreur lors de l'enregistrement de la mission.", 'error');
+      } finally {
+        removeLoadingState(btn);
+      }
+    });
+    checkinBtn._bound = true;
+  }
+
+  // Helper: rendu de l'historique avec calcul des heures si manquantes
+  async function renderMissionHistory(missions) {
+    const historyEl = $('missions-history');
+    if (!historyEl) return;
+    historyEl.innerHTML = '';
+    // Rendre en parallèle pour rapidité
+    const items = await Promise.all((missions || []).map(async (m) => {
+      let startStr = '-';
+      let endStr = '-';
+      let distanceStr = null;
+      try {
+        if (m.start_time) startStr = new Date(m.start_time).toLocaleString();
+        if (m.end_time) endStr = new Date(m.end_time).toLocaleString();
+        // Distance: depuis mission si présent, sinon depuis cache, sinon calcul
+        if (typeof m.total_distance_m !== 'undefined' && m.total_distance_m !== null) {
+          const d = Number(m.total_distance_m);
+          if (Number.isFinite(d)) distanceStr = `${Math.round(d)} m`;
+        }
+        if (!distanceStr) {
+          try {
+            const cached = localStorage.getItem(`mission:${m.id}:total_distance_m`);
+            if (cached && Number.isFinite(Number(cached))) distanceStr = `${Math.round(Number(cached))} m`;
+          } catch {}
+        }
+        if (startStr === '-' || endStr === '-') {
+          const resp = await api(`/missions/${m.id}/checkins`);
+          const rows = Array.isArray(resp) ? resp : (resp.items || resp.checkins || (resp.data && (resp.data.items || resp.data.checkins)) || []);
+          if (rows && rows.length) {
+            const sorted = rows.slice().sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
+            if (startStr === '-' && sorted[0] && sorted[0].timestamp) startStr = new Date(sorted[0].timestamp).toLocaleString();
+            if (endStr === '-' && sorted[sorted.length-1] && sorted[sorted.length-1].timestamp) endStr = new Date(sorted[sorted.length-1].timestamp).toLocaleString();
+            if (!distanceStr) {
+              try { await computeAndStoreDailyDistance(m.id); } catch {}
+              try {
+                const cached2 = localStorage.getItem(`mission:${m.id}:total_distance_m`);
+                if (cached2 && Number.isFinite(Number(cached2))) distanceStr = `${Math.round(Number(cached2))} m`;
         } catch {}
       }
-      const fd = new FormData();
-      fd.set('mission_id', String(currentMissionId));
-      fd.set('lat', String(coords.latitude));
-      fd.set('lon', String(coords.longitude));
-      fd.set('note', $('note').value || '');
-      if (typeof coords.accuracy !== 'undefined') fd.set('accuracy', String(Math.round(coords.accuracy)));
-      const file = $('photo').files[0];
-      if (file) fd.set('photo', file);
-      if (lowPrecision) {
-        const baseNote = $('note').value || '';
-        fd.set('note', `${baseNote} (faible précision ~${Math.round(coords.accuracy)}m)`);
-      }
-      
-      status.textContent = 'Envoi...';
-      addLoadingState(checkinBtn, 'Envoi...');
-      const resp = await api('/mission/checkin', { method: 'POST', body: fd });
-      
-      status.textContent = 'Check-in envoyé';
-      animateElement(status, 'bounce');
-      showNotification('Check-in enregistré avec succès !', 'success');
-      
-      await refreshCheckins();
-      try { notifyPresenceUpdate('checkin'); } catch {}
-    } catch (e) { 
-      status.textContent = 'Erreur check-in';
-      const msg = (e && e.message) || '';
-      if (String(msg).includes('Coordonnées invalides') || String(msg).includes('400')) {
-        showNotification('Coordonnées GPS invalides pour le check-in. Réessayez avec un meilleur signal.', 'error');
-        return;
-      }
-      showNotification('Hors ligne: check-in en file et sera envoyé au retour réseau', 'warning');
-      try {
-        const payload = {
-          mission_id: Number(fd.get('mission_id')),
-          lat: Number(fd.get('lat')),
-          lon: Number(fd.get('lon')),
-          note: fd.get('note') || ''
-        };
-// Notifier les autres onglets/pages qu'une mise à jour de présence a eu lieu
-function notifyPresenceUpdate(type) {
-  try {
-    localStorage.setItem('presence_update', JSON.stringify({ type, ts: Date.now() }));
-  } catch {}
-}
-        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage({
-            type: 'queue-presence',
-            endpoint: '/api/mission/checkin',
-            method: 'POST',
-            payload
-          });
+          }
         }
+  } catch {}
+      const li = document.createElement('li');
+      const depName = getDepartementNameById(m.departement);
+      // Préférer champs manuels si lookups manquent
+      const manualCommune = m.commune && !isFinite(Number(m.commune)) ? m.commune : null;
+      const manualArr = m.arrondissement && !isFinite(Number(m.arrondissement)) ? m.arrondissement : null;
+      const manualVil = m.village && !isFinite(Number(m.village)) ? m.village : null;
+      const comName = manualCommune || getCommuneNameById(m.departement, m.commune);
+      const arrText = manualArr || '';
+      const vilText = manualVil || '';
+      li.innerHTML = `
+        <div class="list-item">
+          <div><strong>Mission #${m.id}</strong> — ${m.status}</div>
+          <div>Début: ${startStr} • Fin: ${endStr}</div>
+          <div>Département: ${depName || '-'} • Commune: ${comName || '-'}</div>
+          ${arrText ? `<div>Arrondissement: ${arrText}</div>` : ''}
+          ${vilText ? `<div>Village: ${vilText}</div>` : ''}
+          <div>Start GPS: ${m.start_lat ?? '-'}, ${m.start_lon ?? '-'} | End GPS: ${m.end_lat ?? '-'}, ${m.end_lon ?? '-'}</div>
+          ${distanceStr ? `<div>Distance totale: ${distanceStr}</div>` : ''}
+        </div>
+      `;
+      return li;
+    }));
+    items.forEach(li => historyEl.appendChild(li));
+  }
+
+  // Calculer distance totale parcourue pour la mission du jour et stocker côté serveur si dispo
+  async function computeAndStoreDailyDistance(missionId) {
+    try {
+      if (!missionId) return;
+      const resp = await api(`/missions/${missionId}/checkins`);
+      const rows = Array.isArray(resp) ? resp : (resp.items || resp.checkins || (resp.data && (resp.data.items || resp.data.checkins)) || []);
+      if (!rows || rows.length < 2) return; // besoin d'au moins deux points
+      const points = rows
+        .filter(r => Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon)))
+        .map(r => ({ lat: Number(r.lat), lon: Number(r.lon), t: new Date(r.timestamp).getTime() }))
+        .sort((a,b)=> a.t - b.t);
+      if (points.length < 2) return;
+      const toRad = (v) => (v * Math.PI) / 180;
+      const R = 6371000;
+      let total = 0;
+      for (let i = 1; i < points.length; i++) {
+        const a = points[i-1];
+        const b = points[i];
+        const dLat = toRad(b.lat - a.lat);
+        const dLon = toRad(b.lon - a.lon);
+        const lat1 = toRad(a.lat);
+        const lat2 = toRad(b.lat);
+        const hav = Math.sin(dLat/2)**2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon/2)**2;
+        const c = 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1 - hav));
+        total += R * c;
+      }
+      const totalMeters = Math.round(total);
+      try { localStorage.setItem(`mission:${missionId}:total_distance_m`, String(totalMeters)); } catch {}
+      // Si un endpoint existe pour stocker, l'appeler (fallback silencieux si 404)
+      try { await api(`/missions/${missionId}/distance`, { method: 'POST', body: { total_distance_m: totalMeters } }); } catch {}
       } catch {}
-    } finally {
-      removeLoadingState(checkinBtn);
-    }
-    });
   }
 
   // Restore current mission (uniquement si connecté)
@@ -1102,28 +1539,14 @@ function notifyPresenceUpdate(type) {
       $('checkin-btn').disabled = false;
       await refreshCheckins();
     }
-    // Render missions history list
-    const historyEl = $('missions-history');
-    if (historyEl) {
-      historyEl.innerHTML = '';
-      missions.forEach(m => {
-        const li = document.createElement('li');
-        const start = m.start_time ? new Date(m.start_time).toLocaleString() : '-';
-        const end = m.end_time ? new Date(m.end_time).toLocaleString() : '-';
-        const depName = getDepartementNameById(m.departement);
-        const comName = getCommuneNameById(m.departement, m.commune);
-        li.innerHTML = `
-          <div class="list-item">
-            <div><strong>Mission #${m.id}</strong> — ${m.status}</div>
-            <div>Début: ${start} • Fin: ${end}</div>
-            <div>Département: ${depName || '-'} • Commune: ${comName || '-'}</div>
-            <div>Start GPS: ${m.start_lat ?? '-'}, ${m.start_lon ?? '-'} | End GPS: ${m.end_lat ?? '-'}, ${m.end_lon ?? '-'}</div>
-          </div>
-        `;
-        historyEl.appendChild(li);
-      });
-    }
+    // Render missions history list (avec heures fiables)
+    await renderMissionHistory(missions);
   } catch {}
+
+  // Initialiser l'affichage des heures de travail
+  updateWorkHoursDisplay();
+  // Mettre à jour toutes les minutes
+  setInterval(updateWorkHoursDisplay, 60000);
 
   // Load geo cascade
   await loadDepartements();
@@ -1166,9 +1589,12 @@ function notifyPresenceUpdate(type) {
   // Initialiser les animations de scroll
   addScrollAnimations();
   
-  // Ajouter les effets ripple aux boutons
+  // Ajouter les effets ripple aux boutons (éviter multiples bindings)
   document.querySelectorAll('button, .btn-primary, .btn-secondary').forEach(btn => {
+    if (!btn._rippleBound) {
     btn.addEventListener('click', createRippleEffect);
+      btn._rippleBound = true;
+    }
   });
   
   // Charger les statistiques mensuelles
@@ -1285,9 +1711,16 @@ async function calculateMonthlyStats() {
     const urlParams = new URLSearchParams(window.location.search);
     const email = urlParams.get('email') || localStorage.getItem('userEmail');
     if (!email) return;
-    const response = await api(`/presence/stats?year=${year}&month=${month}&email=${encodeURIComponent(email)}`);
-    
-    if (response.success) {
+    let response;
+    try {
+      response = await api(`/presence/stats?year=${year}&month=${month}&email=${encodeURIComponent(email)}`);
+    } catch (err) {
+      // tolerate 404 or HTML error bodies
+      console.warn('Presence stats request failed, using defaults:', err && err.message);
+      response = { success: false };
+    }
+
+    if (response && response.success) {
       const stats = response.stats;
       
       // Calculer les jours travaillés
@@ -1400,16 +1833,119 @@ async function checkDailyAbsences() {
 
 // Fonction de déconnexion
 function logout() {
-  if (confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) {
-    try {
-      localStorage.removeItem('jwt');
-      localStorage.removeItem('loginData');
-      localStorage.removeItem('userProfile');
-      localStorage.setItem('presence_update', JSON.stringify({ type: 'logout', ts: Date.now() }));
-    } catch {}
-    jwt = '';
-    window.location.href = '/';
+  try {
+    localStorage.removeItem('jwt');
+    localStorage.removeItem('loginData');
+    localStorage.removeItem('userProfile');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('lastUserEmail');
+    localStorage.removeItem('vercelLoginAttempts');
+    localStorage.setItem('presence_update', JSON.stringify({ type: 'logout', ts: Date.now() }));
+  } catch {}
+  jwt = '';
+  try { showNotification('Déconnexion réussie', 'success', 1500); } catch {}
+  setTimeout(() => { window.location.href = '/'; }, 150);
+}
+
+// Exposer la fonction logout globalement
+window.logout = logout;
+window.addEventListener('load', () => { window.logout = logout; });
+
+// Fonction pour afficher des messages d'erreur avec suggestions
+function showEnhancedErrorMessage(message, suggestions = [], type = 'error') {
+  // Supprimer les anciens messages d'erreur
+  const existingError = document.getElementById('enhanced-error-message');
+  if (existingError) {
+    existingError.remove();
   }
+  
+  // Créer le conteneur d'erreur
+  const errorContainer = document.createElement('div');
+  errorContainer.id = 'enhanced-error-message';
+  errorContainer.className = 'enhanced-error-message';
+  
+  // Styles selon le type
+  if (type === 'success') {
+    errorContainer.style.cssText = `
+      background: #efe;
+      border: 1px solid #cfc;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+      color: #363;
+      font-size: 14px;
+      line-height: 1.5;
+    `;
+  } else {
+    errorContainer.style.cssText = `
+      background: #fee;
+      border: 1px solid #fcc;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+      color: #c33;
+      font-size: 14px;
+      line-height: 1.5;
+    `;
+  }
+  
+  // Message principal
+  const mainMessage = document.createElement('div');
+  mainMessage.style.cssText = 'font-weight: bold; margin-bottom: 12px; font-size: 16px;';
+  const icon = type === 'success' ? '✅' : '❌';
+  mainMessage.textContent = `${icon} ${message}`;
+  errorContainer.appendChild(mainMessage);
+  
+  // Suggestions
+  if (suggestions.length > 0) {
+    const suggestionsTitle = document.createElement('div');
+    suggestionsTitle.style.cssText = 'font-weight: bold; margin-bottom: 8px; color: #666;';
+    suggestionsTitle.textContent = '💡 Que faire :';
+    errorContainer.appendChild(suggestionsTitle);
+    
+    const suggestionsList = document.createElement('ul');
+    suggestionsList.style.cssText = 'margin: 0; padding-left: 20px; color: #666;';
+    
+    suggestions.forEach(suggestion => {
+      const li = document.createElement('li');
+      li.textContent = suggestion;
+      li.style.marginBottom = '4px';
+      suggestionsList.appendChild(li);
+    });
+    
+    errorContainer.appendChild(suggestionsList);
+  }
+  
+  // Bouton de fermeture
+  const closeButton = document.createElement('button');
+  closeButton.textContent = '✕';
+  closeButton.style.cssText = `
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: #999;
+    padding: 4px;
+  `;
+  closeButton.onclick = () => errorContainer.remove();
+  errorContainer.style.position = 'relative';
+  errorContainer.appendChild(closeButton);
+  
+  // Insérer le message d'erreur
+  const authSection = document.getElementById('auth-section');
+  if (authSection) {
+    authSection.insertBefore(errorContainer, authSection.firstChild);
+  }
+  
+  // Auto-suppression après 10 secondes
+  setTimeout(() => {
+    if (errorContainer.parentNode) {
+      errorContainer.remove();
+    }
+  }, 10000);
 }
 
 // Fonction pour nettoyer complètement le cache (utile pour les bases vierges)
@@ -1431,8 +1967,9 @@ if (typeof window !== 'undefined') {
   window.logout = logout;
   window.clearAllCache = clearAllCache;
   window.clearCachedUserData = clearCachedUserData;
-  window.showLoginForm = showLoginForm;
-  window.showRegisterForm = showRegisterForm;
+  // Guard assignments in case functions are not defined yet
+  try { window.showLoginForm = showLoginForm; } catch {}
+  try { window.showRegisterForm = showRegisterForm; } catch {}
 }
 
 // Attacher les handlers de déconnexion sans inline (CSP-compatible)
@@ -1632,6 +2169,9 @@ function createDayElement(day, isOtherMonth) {
     switch (presenceStatus.status) {
       case 'present':
         dayElement.classList.add('present');
+        // Contraste fort demandé: vert pur en fond et texte noir
+        dayElement.style.backgroundColor = '#00ff00';
+        dayElement.style.color = '#000';
         break;
       case 'absent':
         dayElement.classList.add('absent');
@@ -1646,6 +2186,27 @@ function createDayElement(day, isOtherMonth) {
   dayElement.addEventListener('click', () => handleDayClick(day, isOtherMonth));
   
   return dayElement;
+}
+
+// Marquer le jour courant comme présent en vert
+function markTodayPresentOnCalendar() {
+  const calendarGrid = $('calendar-grid');
+  const monthYearHeader = $('current-month-year');
+  if (!calendarGrid || !monthYearHeader) return;
+  const today = new Date();
+  const displayed = new Date(monthYearHeader.dataset.year || today.getFullYear(), monthYearHeader.dataset.month || today.getMonth(), 1);
+  const isSameMonth = (displayed.getMonth() === today.getMonth() && displayed.getFullYear() === today.getFullYear());
+  if (!isSameMonth) return;
+  // les 7 premières cellules sont les en-têtes
+  const cells = Array.from(calendarGrid.children).slice(7);
+  for (const cell of cells) {
+    if (cell.classList.contains('calendar-day') && Number(cell.textContent) === today.getDate()) {
+      cell.classList.add('present');
+      cell.style.background = '#dcfce7';
+      cell.style.borderColor = '#16a34a';
+      break;
+    }
+  }
 }
 
 function formatDateKey(year, month, day) {
@@ -1699,27 +2260,52 @@ async function loadPresenceData() {
     const year = currentCalendarDate.getFullYear();
     const month = currentCalendarDate.getMonth() + 1;
     
-    // Simuler des données de présence (à remplacer par un appel API réel)
-    // Pour l'instant, on va charger les missions existantes (si connecté)
     if (!jwt) return;
-    const missionsResponse = await api('/me/missions');
+    
+    // Charger les missions ET les check-ins pour avoir l'historique complet
+    const [missionsResponse, checkinsResponse] = await Promise.all([
+      api('/me/missions').catch(() => ({ missions: [] })),
+      api('/checkins/mine').catch(() => ({ items: [] }))
+    ]);
+    
     const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
+    const checkins = checkinsResponse?.items || checkinsResponse?.data?.items || [];
     
     // Traiter les données de présence
     presenceData = {};
     
+    // 1) Marquer les jours avec des missions
     missions.forEach(mission => {
       if ((mission.status === 'completed' || mission.status === 'active') && mission.start_time) {
         const startDate = new Date(mission.start_time);
         const dateKey = formatDateKey(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
         
-        presenceData[dateKey] = {
+      presenceData[dateKey] = {
           status: 'present',
           startTime: mission.start_time ? new Date(mission.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null,
           endTime: mission.end_time ? new Date(mission.end_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null,
           note: mission.notes || '',
           location: mission.location || ''
         };
+      }
+    });
+    
+    // 2) Marquer aussi les jours avec des check-ins (même sans mission complète)
+    checkins.forEach(checkin => {
+      if (checkin.timestamp) {
+        const checkinDate = new Date(checkin.timestamp);
+        const dateKey = formatDateKey(checkinDate.getFullYear(), checkinDate.getMonth(), checkinDate.getDate());
+        
+        // Si pas déjà marqué par une mission, marquer comme présent
+        if (!presenceData[dateKey]) {
+          presenceData[dateKey] = {
+            status: 'present',
+            startTime: checkinDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+            endTime: null,
+            note: checkin.note || '',
+            location: checkin.commune || checkin.village || ''
+          };
+        }
       }
     });
     
@@ -1770,7 +2356,7 @@ function schedulePresenceReminders() {
     // Rappel de fin de journée (17h00)
     if (inPlannedWindow) scheduleReminder(17, 0, 'Fin de journée', 'Pensez à marquer la fin de votre présence.');
 
-    // Rappel d’absence à 18h: si aucune présence, notifier
+    // Rappel d'absence à 18h: si aucune présence, notifier
     const hour = 18; const minute = 0;
     const title = 'Rappel présence: fin de journée';
     const message = 'Aucune présence détectée aujourd\'hui. Marquez votre présence sinon la journée sera comptée absente.';
@@ -1861,9 +2447,18 @@ async function getCurrentLocationWithValidation() {
     //   }
     // }
     
-    // Utiliser le GPS Manager amélioré si disponible
+    // Utiliser le GPS Manager amélioré si disponible, avec repli natif si échec/coordonnées invalides
     if (window.gpsManager) {
-      return await getCurrentLocationWithNotifications();
+      try {
+        const pos = await getCurrentLocationWithNotifications();
+        if (pos && Number.isFinite(pos.latitude) && Number.isFinite(pos.longitude)) {
+          return pos;
+        }
+        console.warn('gpsManager a renvoyé des coordonnées invalides, recours au navigateur');
+      } catch (gmErr) {
+        console.warn('gpsManager échec, recours au navigateur:', gmErr);
+        // Continuer avec la méthode navigateur ci-dessous
+      }
     }
 
     // Fallback vers l'ancienne méthode
@@ -1905,9 +2500,21 @@ async function getCurrentLocationWithValidation() {
     // Lecture multi-essais pour améliorer la précision
     const getOnce = () => new Promise((resolve, reject) => {
       if (!navigator.geolocation) return reject(new Error('Géolocalisation non supportée'));
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
+      navigator.geolocation.getCurrentPosition((p)=>{
+        try {
+          const { latitude, longitude, accuracy } = p && p.coords ? p.coords : {};
+          if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            return reject(new Error('Coordonnées GPS invalides'));
+          }
+          resolve(p);
+        } catch (e) {
+          reject(e);
+        }
+      }, (err)=>{
+        reject(err);
+      }, {
         enableHighAccuracy: true,
-        timeout: 5000,
+        timeout: 8000,
         maximumAge: 0
       });
     });
@@ -1998,22 +2605,161 @@ function showLocationInfo(coords) {
 
 async function loadDashboardMetrics() {
   try {
-    // Charger les données de présence pour le mois actuel (si connecté)
     if (!jwt) return;
-    const missionsResponse = await api('/me/missions');
-    const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    
-    // Calculer les métriques
-    const metrics = calculateMetrics(missions, currentMonth, currentYear);
-    
-    // Afficher les métriques avec animation
-    displayMetrics(metrics);
-    
-    // Mettre à jour la position actuelle
+
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth(), 1);
+    const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    // Profil utilisateur
+    let me = null;
+    try { const res = await api('/me'); me = res?.data?.user || res?.user || null; } catch {}
+    const userId = me?.id;
+
+    // Supabase config
+    const metaUrl = document.querySelector('meta[name="supabase-url"]')?.content || localStorage.getItem('SUPABASE_URL') || window.SUPABASE_URL || '';
+    const metaKey = document.querySelector('meta[name="supabase-anon-key"]')?.content || localStorage.getItem('SUPABASE_ANON_KEY') || window.SUPABASE_ANON_KEY || '';
+    const sbUrl = (metaUrl || '').trim().replace(/\/+$/,'');
+    const sbKey = (metaKey || '').trim();
+    const disableSb = String(localStorage.getItem('DISABLE_SB_DIRECT') || '').trim() === '1';
+
+    const fallbackMetrics = async () => {
+      const missionsResponse = await api('/me/missions');
+      const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
+      const metrics = calculateMetrics(missions, now.getMonth(), now.getFullYear());
+      displayMetrics(metrics);
+      await updateCurrentLocation();
+    };
+
+    if (disableSb || !sbUrl || !sbKey || !userId) { await fallbackMetrics(); return; }
+
+    // 1) Référence et rayon depuis Supabase
+    let refLat = null, refLon = null, tol = 500, expectedDays = null;
+    try {
+      const p = new URLSearchParams();
+      p.set('select', 'id,reference_lat,reference_lon,tolerance_radius_meters,expected_days_per_month');
+      p.set('id', 'eq.' + Number(userId));
+      const res = await fetch(`${sbUrl}/rest/v1/users?${p.toString()}`, { headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey } });
+      if (res.ok) {
+        const arr = await res.json().catch(() => []);
+        const u = Array.isArray(arr) ? arr[0] : null;
+        if (u) {
+          if (u.reference_lat != null) refLat = Number(u.reference_lat);
+          if (u.reference_lon != null) refLon = Number(u.reference_lon);
+          if (u.tolerance_radius_meters != null) tol = Number(u.tolerance_radius_meters);
+          if (u.expected_days_per_month != null) expectedDays = Number(u.expected_days_per_month);
+        }
+      }
+    } catch {}
+
+    // 2) Check-ins utilisateur (mois courant)
+    let checkins = [];
+    try {
+      const fromIso = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 0,0,0).toISOString();
+      const toIso = new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23,59,59).toISOString();
+
+      // Tentative 1: colonne created_at
+      const s1 = new URLSearchParams();
+      s1.set('select', 'id,user_id,lat,lon,created_at,timestamp');
+      s1.set('user_id', 'eq.' + Number(userId));
+      s1.set('created_at', 'gte.' + fromIso);
+      s1.append('created_at', 'lte.' + toIso);
+      s1.set('order', 'created_at.desc');
+      let res = await fetch(`${sbUrl}/rest/v1/checkins?${s1.toString()}`, { headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey } });
+      if (!res.ok) {
+        // Tentative 2: colonne timestamp
+        const s2 = new URLSearchParams();
+        s2.set('select', 'id,user_id,lat,lon,timestamp,created_at');
+        s2.set('user_id', 'eq.' + Number(userId));
+        s2.set('timestamp', 'gte.' + fromIso);
+        s2.append('timestamp', 'lte.' + toIso);
+        s2.set('order', 'timestamp.desc');
+        res = await fetch(`${sbUrl}/rest/v1/checkins?${s2.toString()}`, { headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey } });
+        if (!res.ok) {
+          // Tentative 3: sans filtre de date (limite + tri), on filtrera côté client
+          const s3 = new URLSearchParams();
+          s3.set('select', 'id,user_id,lat,lon,created_at,timestamp,date');
+          s3.set('user_id', 'eq.' + Number(userId));
+          s3.set('order', 'id.desc');
+          s3.set('limit', '1000');
+          res = await fetch(`${sbUrl}/rest/v1/checkins?${s3.toString()}`, { headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey } });
+        }
+      }
+      if (res.ok) checkins = await res.json().catch(() => []);
+    } catch {}
+
+    // 3) Calcul distance min/jour
+    const toIsoDate = d => d.toISOString().split('T')[0];
+    const computeDistanceMeters = (lat1, lon1, lat2, lon2) => {
+      try { const toRad = v => (Number(v)*Math.PI)/180; const R=6371000; const dLat=toRad(lat2-lat1); const dLon=toRad(lon2-lon1); const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2; const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); return Math.round(R*c);} catch { return null; }
+    };
+    const perDay = new Map();
+    const isInRange = (d) => {
+      try { const x = new Date(d).getTime(); return x >= new Date(from).getTime() && x <= new Date(to).getTime(); } catch { return false; }
+    };
+    for (const c of checkins) {
+      const raw = c.created_at || c.timestamp || c.date;
+      if (!raw) continue;
+      const dt = new Date(raw);
+      if (isNaN(dt.getTime())) continue;
+      if (!isInRange(dt)) continue;
+      const day = toIsoDate(dt);
+      let d = null;
+      if (refLat != null && refLon != null && c.lat != null && c.lon != null) d = computeDistanceMeters(Number(refLat), Number(refLon), Number(c.lat), Number(c.lon));
+      const prev = perDay.get(day) || { minDist: null, any: false };
+      const minDist = (prev.minDist == null) ? d : (d == null ? prev.minDist : Math.min(prev.minDist, d));
+      perDay.set(day, { minDist, any: true });
+    }
+
+    // 3b) Planifications (jours/ heures planifiées)
+    let plannedDaysSet = new Set();
+    let plannedHoursTotal = 0;
+    try {
+      const p = new URLSearchParams();
+      p.set('select', 'agent_id,date,planned_start_time,planned_end_time');
+      p.set('agent_id', 'eq.' + Number(userId));
+      p.set('date', 'gte.' + toIsoDate(from));
+      p.append('date', 'lte.' + toIsoDate(to));
+      const resPlan = await fetch(`${sbUrl}/rest/v1/planifications?${p.toString()}`, { headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey } });
+      if (resPlan.ok) {
+        const plans = await resPlan.json().catch(() => []);
+        for (const pl of plans) {
+          const day = (pl.date || '').toString().slice(0,10);
+          if (day) plannedDaysSet.add(day);
+          if (pl.planned_start_time && pl.planned_end_time) {
+            try {
+              const start = new Date(`${day}T${pl.planned_start_time}`);
+              const end = new Date(`${day}T${pl.planned_end_time}`);
+              const hours = Math.max(0, (end - start) / (1000*60*60));
+              plannedHoursTotal += hours;
+            } catch {}
+          }
+        }
+      }
+    } catch {}
+
+    const presentDays = new Set();
+    perDay.forEach((v, day) => { if (v.minDist != null ? v.minDist <= tol : v.any) presentDays.add(day); });
+
+    const daysWorked = presentDays.size;
+    const plannedDays = plannedDaysSet.size;
+    const plannedHours = Math.round(plannedHoursTotal * 10) / 10;
+    const denom = (expectedDays && expectedDays > 0) ? expectedDays : (plannedDays > 0 ? plannedDays : to.getDate());
+    const attendanceRate = Math.min(100, Math.round((daysWorked / denom) * 100));
+
+    // Afficher
+    const daysEl = $('days-worked'); if (daysEl) daysEl.textContent = String(daysWorked);
+    const hoursEl = $('hours-worked'); if (hoursEl) hoursEl.textContent = '—';
+    const rateEl = $('attendance-rate'); if (rateEl) rateEl.textContent = `${attendanceRate}%`;
+    // valeurs planifiées si des placeholders existent
+    try {
+      const plannedDaysEl = document.getElementById('planned-days');
+      if (plannedDaysEl) plannedDaysEl.textContent = String(plannedDays);
+      const plannedHoursEl = document.getElementById('planned-hours');
+      if (plannedHoursEl) plannedHoursEl.textContent = `${plannedHours}h`;
+    } catch {}
+
     await updateCurrentLocation();
-    
   } catch (error) {
     console.error('Erreur lors du chargement des métriques:', error);
   }
@@ -2067,18 +2813,23 @@ function displayMetrics(metrics) {
   });
   
   // Afficher les valeurs
-  $('days-worked').textContent = metrics.daysWorked;
-  $('hours-worked').textContent = `${metrics.hoursWorked}h`;
-  $('attendance-rate').textContent = `${metrics.attendanceRate}%`;
+  const daysEl = $('days-worked');
+  const hoursEl = $('hours-worked');
+  const rateEl = $('attendance-rate');
+  if (daysEl) daysEl.textContent = metrics.daysWorked;
+  if (hoursEl) hoursEl.textContent = `${metrics.hoursWorked}h`;
+  if (rateEl) rateEl.textContent = `${metrics.attendanceRate}%`;
   
   // Ajouter des couleurs selon les performances
   const attendanceRateElement = $('attendance-rate');
-  if (metrics.attendanceRate >= 90) {
-    attendanceRateElement.style.color = '#10b981';
-  } else if (metrics.attendanceRate >= 70) {
-    attendanceRateElement.style.color = '#f59e0b';
-  } else {
-    attendanceRateElement.style.color = '#ef4444';
+  if (attendanceRateElement) {
+    if (metrics.attendanceRate >= 90) {
+      attendanceRateElement.style.color = '#10b981';
+    } else if (metrics.attendanceRate >= 70) {
+      attendanceRateElement.style.color = '#f59e0b';
+    } else {
+      attendanceRateElement.style.color = '#ef4444';
+    }
   }
 }
 
@@ -2086,9 +2837,11 @@ async function updateCurrentLocation() {
   try {
     const coords = await geoPromise();
     const location = await getLocationName(coords.latitude, coords.longitude);
-    $('current-location').textContent = location || 'Position inconnue';
+    const el = $('current-location');
+    if (el) el.textContent = location || 'Position inconnue';
   } catch (error) {
-    $('current-location').textContent = 'Non disponible';
+    const el = $('current-location');
+    if (el) el.textContent = 'Non disponible';
   }
 }
 
@@ -2102,8 +2855,8 @@ async function updateNavbar() {
   try {
     if (!jwt) {
       // Utilisateur non connecté
-      if (window.navigation) {
-        await window.navigation.updateForUser(null);
+    if (window.navigation && typeof window.navigation.updateForUser === 'function') {
+      await window.navigation.updateForUser(null);
       }
       return;
     }
@@ -2125,9 +2878,9 @@ async function updateNavbar() {
     }
     
     // Utiliser le nouveau système de navigation
-    if (window.navigation) {
-      await window.navigation.updateForUser(profile);
-    }
+  if (window.navigation && typeof window.navigation.updateForUser === 'function') {
+    await window.navigation.updateForUser(profile);
+  }
     
     // Ajouter un bouton Paramètres Admin si absent (pour les admins)
     if (profile && profile.role === 'admin') {
@@ -2157,7 +2910,7 @@ async function updateNavbar() {
   } catch (e) {
     console.error('Error updating navbar:', e);
     // En cas d'erreur, masquer les éléments sensibles
-    if (window.navigation) {
+    if (window.navigation && typeof window.navigation.updateForUser === 'function') {
       await window.navigation.updateForUser(null);
     }
   }
@@ -2256,19 +3009,19 @@ async function loadDepartements() {
       await window.loadGeoData();
     }
     
-    // Utiliser les données locales qui fonctionnent
+    // Utiliser uniquement les données locales (plus fiables)
     if (window.geoData && window.geoData.departements) {
       window.geoData.departements.forEach(d => {
         const opt = document.createElement('option');
         opt.value = d.id;
-        opt.textContent = d.name; // Utiliser 'name' au lieu de 'nom'
+        opt.textContent = d.name;
         deptSelect.appendChild(opt);
       });
       deptSelect.dataset.loaded = '1';
       deptSelect.disabled = false;
       console.log('✅ Départements chargés depuis les données locales:', window.geoData.departements.length);
     } else {
-      console.error('❌ Données géographiques locales non disponibles');
+      console.error('❌ Aucune source de données géographiques disponible');
     }
     deptSelect.dataset.loading = '0';
   } catch (error) {
@@ -2301,7 +3054,7 @@ async function loadCommunes(departementId) {
       console.log('🔍 Communes pour departementId', departementId, ':', window.geoData.communes[departementId]);
     }
     
-    // Utiliser les données de geo-data.js qui utilisent des IDs numériques
+    // Utiliser uniquement les données locales (plus fiables)
     if (window.geoData && window.geoData.communes && window.geoData.communes[departementId]) {
       const communes = window.geoData.communes[departementId];
       communes.forEach(c => {
@@ -2338,7 +3091,7 @@ async function loadArrondissements(communeId) {
     arrSelect.disabled = true;
     if (vilSelect) vilSelect.disabled = true;
     
-    // Sélectionner par différentes stratégies selon la structure des données
+    // Utiliser uniquement les données locales (plus fiables)
     let arrondissements = [];
     if (window.geoData && window.geoData.arrondissements) {
       // 1) Direct: clé numérique par communeId
@@ -2409,6 +3162,7 @@ async function loadVillages(arrondissementId) {
       try { await window.loadGeoData(); } catch {}
     }
     
+    // Utiliser uniquement les données locales (plus fiables)
     let villages = [];
     if (window.geoData && window.geoData.villages) {
       // 1) Direct: clé numérique par arrondissementId
@@ -2630,6 +3384,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Ne pas forcer la reconnexion, laisser l'utilisateur naviguer normalement
   }
   
+  // Nettoyer les tokens potentiellement corrompus
+  if (jwt && (jwt.includes('undefined') || jwt.includes('null') || jwt === 'null' || jwt === 'undefined')) {
+    console.warn('⚠️ Token corrompu détecté, nettoyage automatique');
+    localStorage.removeItem('jwt');
+    localStorage.removeItem('loginData');
+    localStorage.removeItem('userProfile');
+  }
+  
   // Vérifier si la base de données est vierge et nettoyer le cache si nécessaire
   try {
     const response = await api('/settings');
@@ -2648,6 +3410,157 @@ document.addEventListener('DOMContentLoaded', async () => {
     clearCachedUserData();
   }
   
+  // Gestionnaires pour la récupération de mot de passe
+  const forgotPasswordBtn = document.getElementById('forgot-password-btn');
+  if (forgotPasswordBtn) {
+    const forgotHandler = (typeof showForgotPasswordForm === 'function') 
+      ? showForgotPasswordForm 
+      : (() => { try { if (window.showForgotPasswordForm) window.showForgotPasswordForm(); } catch {} });
+    forgotPasswordBtn.addEventListener('click', forgotHandler);
+  }
+  
+  const backToLoginBtn = document.getElementById('back-to-login-btn');
+  if (backToLoginBtn) {
+    const loginHandler = (typeof showLoginForm === 'function')
+      ? showLoginForm
+      : (() => { try { if (window.showLoginForm) window.showLoginForm(); } catch {} });
+    backToLoginBtn.addEventListener('click', loginHandler);
+  }
+  
+  const backToForgotBtn = document.getElementById('back-to-forgot-btn');
+  if (backToForgotBtn) {
+    const forgotHandler2 = (typeof showForgotPasswordForm === 'function') 
+      ? showForgotPasswordForm 
+      : (() => { try { if (window.showForgotPasswordForm) window.showForgotPasswordForm(); } catch {} });
+    backToForgotBtn.addEventListener('click', forgotHandler2);
+  }
+  
+  // Formulaire de demande de récupération
+  const forgotPasswordForm = document.getElementById('forgot-password-form');
+  if (forgotPasswordForm) {
+    forgotPasswordForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const email = document.getElementById('forgot-email').value.trim();
+      if (!email) {
+        showEnhancedErrorMessage('Veuillez entrer votre adresse email.', [
+          'Vérifiez que l\'email est correct',
+          'Assurez-vous d\'avoir un compte sur cette plateforme'
+        ]);
+        return;
+      }
+      
+      try {
+        const response = await api('/forgot-password', {
+          method: 'POST',
+          body: { email }
+        });
+        
+        if (response.success) {
+          recoveryEmail = email;
+          showResetPasswordForm();
+          showEnhancedErrorMessage('Code envoyé !', [
+            'Vérifiez votre boîte email',
+            'Entrez le code à 6 chiffres reçu',
+            'Le code est valide pendant 15 minutes'
+          ], 'success');
+          try { alert('Code de récupération envoyé avec succès à ' + email); } catch {}
+        } else {
+          showEnhancedErrorMessage(response.message || 'Erreur lors de l\'envoi du code.', [
+            'Vérifiez que l\'email est correct',
+            'Assurez-vous d\'avoir un compte sur cette plateforme',
+            'Réessayez dans quelques instants'
+          ]);
+          try { alert('Échec de l\'envoi du mail de récupération'); } catch {}
+        }
+      } catch (error) {
+        console.error('Erreur récupération mot de passe:', error);
+        showEnhancedErrorMessage('Erreur lors de l\'envoi du code de récupération.', [
+          'Vérifiez votre connexion internet',
+          'Réessayez dans quelques instants',
+          'Contactez votre administrateur si le problème persiste'
+        ]);
+        try { alert('Échec de l\'envoi du mail de récupération'); } catch {}
+      }
+    });
+  }
+  
+  // Formulaire de réinitialisation du mot de passe
+  const resetPasswordForm = document.getElementById('reset-password-form');
+  if (resetPasswordForm) {
+    resetPasswordForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const code = document.getElementById('reset-code').value.trim();
+      const password = document.getElementById('reset-password').value;
+      const confirmPassword = document.getElementById('reset-confirm-password').value;
+      
+      // Validations
+      if (!code || code.length !== 6) {
+        showEnhancedErrorMessage('Code invalide.', [
+          'Le code doit contenir exactement 6 chiffres',
+          'Vérifiez votre boîte email'
+        ]);
+        return;
+      }
+      
+      if (password.length < 6) {
+        showEnhancedErrorMessage('Mot de passe trop court.', [
+          'Le mot de passe doit contenir au moins 6 caractères'
+        ]);
+        return;
+      }
+      
+      if (password !== confirmPassword) {
+        showEnhancedErrorMessage('Les mots de passe ne correspondent pas.', [
+          'Vérifiez que les deux mots de passe sont identiques'
+        ]);
+        return;
+      }
+      
+      try {
+        const response = await api('/reset-password', {
+          method: 'POST',
+          body: { 
+            email: recoveryEmail,
+            code: code,
+            password: password
+          }
+        });
+        
+        if (response.success) {
+          showEnhancedErrorMessage('Mot de passe réinitialisé avec succès !', [
+            'Vous pouvez maintenant vous connecter avec votre nouveau mot de passe'
+          ], 'success');
+          
+          // Retourner au formulaire de connexion après 3 secondes
+          setTimeout(() => {
+            showLoginForm();
+            // Pré-remplir l'email
+            const emailInput = document.getElementById('email');
+            if (emailInput) {
+              emailInput.value = recoveryEmail;
+            }
+            recoveryEmail = '';
+          }, 3000);
+        } else {
+          showEnhancedErrorMessage(response.message || 'Erreur lors de la réinitialisation.', [
+            'Vérifiez que le code est correct',
+            'Le code peut avoir expiré (15 minutes)',
+            'Demandez un nouveau code si nécessaire'
+          ]);
+        }
+      } catch (error) {
+        console.error('Erreur réinitialisation mot de passe:', error);
+        showEnhancedErrorMessage('Erreur lors de la réinitialisation du mot de passe.', [
+          'Vérifiez votre connexion internet',
+          'Vérifiez que le code est correct',
+          'Réessayez ou demandez un nouveau code'
+        ]);
+      }
+    });
+  }
+
   // Attacher tous les gestionnaires d'événements
   setTimeout(() => {
     bindAllButtons();

@@ -3,15 +3,15 @@ const CACHE_NAME = 'presence-ccrb-v1.0.0';
 const STATIC_CACHE = 'presence-static-v1';
 const DYNAMIC_CACHE = 'presence-dynamic-v1';
 
-// Ressources à mettre en cache (Vercel-compatible)
+// Ressources à mettre en cache (chemins côté client, car Express sert 'web' à la racine)
 const STATIC_ASSETS = [
   '/',
-  '/web/index.html',
-  '/web/styles.css',
-  '/web/app.js',
-  '/web/manifest.webmanifest',
-  '/web/bootstrap-5.3.8-dist/css/bootstrap.min.css',
-  '/web/bootstrap-5.3.8-dist/js/bootstrap.bundle.min.js'
+  '/index.html',
+  '/styles.css',
+  '/app.js',
+  '/manifest.webmanifest',
+  '/bootstrap-5.3.8-dist/css/bootstrap.min.css',
+  '/bootstrap-5.3.8-dist/js/bootstrap.bundle.min.js'
 ];
 
 // Installation du Service Worker

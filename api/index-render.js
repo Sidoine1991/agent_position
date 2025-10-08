@@ -553,9 +553,24 @@ module.exports = async (req, res) => {
         departement: u.departement || '',
         project_name: u.project_name || '',
         status: u.status || 'active',
-        photo_path: u.photo_url || ''
+        photo_path: u.photo_url || '',
+        first_name: u.first_name || '',
+        last_name: u.last_name || '',
+        project_description: u.project_description || '',
+        planning_start_date: u.planning_start_date || '',
+        planning_end_date: u.planning_end_date || '',
+        expected_days_per_month: u.expected_days_per_month || '',
+        expected_hours_per_month: u.expected_hours_per_month || '',
+        work_schedule: u.work_schedule || '',
+        contract_type: u.contract_type || '',
+        reference_lat: u.reference_lat || '',
+        reference_lon: u.reference_lon || '',
+        tolerance_radius_meters: u.tolerance_radius_meters || '',
+        gps_accuracy: u.gps_accuracy || '',
+        observations: u.observations || '',
+        created_at: u.created_at || ''
       }));
-      res.status(200).json(rows);
+      res.status(200).json({ success: true, data: rows });
       return;
     }
 

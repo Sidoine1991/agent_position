@@ -33,6 +33,21 @@ async function api(endpoint, method = 'GET', data = null) {
   }
   
   const response = await fetch(`${apiBase}${endpoint}`, options);
+  
+  if (!response.ok) {
+    console.error('Erreur HTTP:', response.status, response.statusText);
+    const text = await response.text();
+    console.error('Réponse serveur:', text);
+    
+    // Retourner l'erreur au lieu de lancer une exception
+    try {
+      const errorData = JSON.parse(text);
+      return { success: false, message: errorData.error || `HTTP ${response.status}: ${response.statusText}` };
+    } catch (parseError) {
+      return { success: false, message: `HTTP ${response.status}: ${response.statusText}` };
+    }
+  }
+  
   return await response.json();
 }
 
@@ -57,6 +72,27 @@ function showMessage(message, type = 'success') {
   }, 5000);
 }
 
+// Fonction pour afficher les messages d'erreur améliorés
+function showEnhancedErrorMessage(message, suggestions = []) {
+  // Cacher tous les messages
+  successMessage.style.display = 'none';
+  errorMessage.style.display = 'none';
+  
+  // Construire le message d'erreur avec suggestions
+  let errorText = message;
+  if (suggestions && suggestions.length > 0) {
+    errorText += '\n\nSuggestions :\n• ' + suggestions.join('\n• ');
+  }
+  
+  errorMessage.textContent = errorText;
+  errorMessage.style.display = 'block';
+  
+  // Auto-masquer après 8 secondes (plus long pour les messages détaillés)
+  setTimeout(() => {
+    errorMessage.style.display = 'none';
+  }, 8000);
+}
+
 // Fonction pour basculer entre les formulaires
 function showForm(formType) {
   registerFormDiv.style.display = formType === 'register' ? 'block' : 'none';
@@ -76,6 +112,39 @@ registerForm.addEventListener('submit', async (e) => {
     role: formData.get('role'),
     password: formData.get('password')
   };
+
+  // Champs supplémentaires mappés à la table `users` (si présents dans le formulaire)
+  const extraFields = {
+    departement: formData.get('departement'),
+    commune: formData.get('commune'),
+    arrondissement: formData.get('arrondissement'),
+    village: formData.get('village'),
+    project_name: formData.get('project_name'),
+    expected_days_per_month: formData.get('expected_days_per_month'),
+    expected_hours_per_month: formData.get('expected_hours_per_month'),
+    contract_start_date: formData.get('contract_start_date'),
+    contract_end_date: formData.get('contract_end_date'),
+    years_of_service: formData.get('years_of_service'),
+    reference_lat: formData.get('reference_lat'),
+    reference_lon: formData.get('reference_lon')
+  };
+
+  Object.entries(extraFields).forEach(([k, v]) => {
+    if (v !== null && v !== undefined && String(v).trim() !== '') {
+      if (k === 'reference_lat' || k === 'reference_lon') {
+        const num = parseFloat(String(v).replace(',', '.'));
+        if (!Number.isNaN(num)) data[k] = num;
+      } else if (k === 'expected_days_per_month' || k === 'expected_hours_per_month') {
+        const num = parseInt(String(v), 10);
+        if (!Number.isNaN(num)) data[k] = num;
+      } else if (k === 'years_of_service') {
+        const num = parseFloat(String(v).replace(',', '.'));
+        if (!Number.isNaN(num)) data[k] = num;
+      } else {
+        data[k] = v;
+      }
+    }
+  });
   
   // Validation côté client
   if (data.password !== formData.get('confirmPassword')) {
@@ -94,7 +163,7 @@ registerForm.addEventListener('submit', async (e) => {
     submitBtn.disabled = true;
     
     // Envoyer la requête d'inscription
-    const result = await api('/api/register', 'POST', data);
+    const result = await api('/register', 'POST', data);
     
     if (result.success) {
       if (result.admin_created) {
@@ -121,12 +190,51 @@ registerForm.addEventListener('submit', async (e) => {
         }
       }
     } else {
-      showMessage(result.message || 'Erreur lors de l\'inscription', 'error');
+      // Gestion intelligente des erreurs d'inscription
+      let errorMessage = result.message || 'Erreur lors de l\'inscription';
+      let suggestions = [];
+      
+      if (result.message && result.message.includes('déjà')) {
+        errorMessage = 'Email déjà utilisé.';
+        suggestions = [
+          'Si vous avez déjà un compte, essayez de vous connecter',
+          'Si vous avez oublié votre mot de passe, cliquez sur "Mot de passe oublié"',
+          'Vérifiez que l\'email est correct'
+        ];
+      } else if (result.message && result.message.includes('email')) {
+        errorMessage = 'Adresse email invalide.';
+        suggestions = [
+          'Vérifiez que l\'email est correct',
+          'Assurez-vous que l\'email contient @ et un domaine valide'
+        ];
+      } else if (result.message && result.message.includes('mot de passe')) {
+        errorMessage = 'Mot de passe invalide.';
+        suggestions = [
+          'Le mot de passe doit contenir au moins 6 caractères',
+          'Choisissez un mot de passe sécurisé'
+        ];
+      } else {
+        suggestions = [
+          'Vérifiez tous les champs du formulaire',
+          'Assurez-vous d\'avoir une connexion internet stable',
+          'Réessayez dans quelques instants'
+        ];
+      }
+      
+      showEnhancedErrorMessage(errorMessage, suggestions);
     }
     
   } catch (error) {
     console.error('Erreur inscription:', error);
-    showMessage('Erreur lors de l\'inscription. Veuillez réessayer.', 'error');
+    console.error('URL appelée:', `${apiBase}/register`);
+    console.error('Données envoyées:', data);
+    
+    showEnhancedErrorMessage('Erreur lors de l\'inscription.', [
+      'Vérifiez votre connexion internet',
+      'Assurez-vous que tous les champs sont remplis correctement',
+      'Réessayez dans quelques instants',
+      'Contactez votre administrateur si le problème persiste'
+    ]);
   } finally {
     // Restaurer le bouton
     btnText.textContent = '📝 Créer mon compte';

@@ -92,26 +92,24 @@ async function checkAuth() {
 
 // Mettre à jour les filtres selon le type de rapport
 function updateReportFilters() {
-  const reportType = $('report-type').value;
-  const agentFilter = $('agent-filter');
-  
-  // Ajuster les options d'agent selon le type de rapport
-  if (reportType === 'performance') {
-    // Pour les rapports de performance, on peut vouloir tous les agents
-    agentFilter.innerHTML = `
-      <option value="all">Tous les agents</option>
-      <option value="1">Admin Principal</option>
-      <option value="2">Superviseur Principal</option>
-      <option value="3">Agent Test</option>
-    `;
-  } else {
-    // Pour les autres rapports, on peut filtrer par agent spécifique
-    agentFilter.innerHTML = `
-      <option value="all">Tous les agents</option>
-      <option value="1">Admin Principal</option>
-      <option value="2">Superviseur Principal</option>
-      <option value="3">Agent Test</option>
-    `;
+  // Plus d'options fictives: la liste d'agents est remplie depuis Supabase
+  // (voir loadAgentsOptions)
+}
+
+// Charger la liste réelle des agents depuis Supabase
+async function loadAgentsOptions() {
+  try {
+    const key  = window.SUPABASE_ANON_KEY || localStorage.getItem('SUPABASE_ANON_KEY') || '';
+    const base = (window.SUPABASE_URL || localStorage.getItem('SUPABASE_URL') || '').replace(/\/+$/,'');
+    const sel = $('agent-filter'); if (!sel || !base || !key) return;
+    const r = await fetch(`${base}/rest/v1/users?select=id,name&order=name`, {
+      headers: { apikey: key, Authorization: 'Bearer ' + key }
+    });
+    const rows = r.ok ? await r.json() : [];
+    sel.innerHTML = '<option value="all">Tous les agents</option>'
+      + rows.map(a => `<option value="${a.id}">${(a.name || ('Agent '+a.id))}</option>`).join('');
+  } catch (e) {
+    console.warn('Agents list load failed:', e?.message || e);
   }
 }
 
@@ -137,6 +135,9 @@ function updateDateInputs() {
   }
 }
 
+// Rendez disponible immédiatement pour les handlers inline
+try { window.updateDateInputs = updateDateInputs; } catch {}
+
 // Générer un rapport
 async function generateReport() {
   const reportType = $('report-type').value;
@@ -146,34 +147,45 @@ async function generateReport() {
   try {
     let reportData;
     if (reportType === 'presence') {
+      // Utiliser la RPC Supabase attendance_report pour des données fiables
       const { start, end } = getRangeDates(dateRange);
-      const qs = new URLSearchParams();
-      if (start) qs.set('from', start);
-      if (end) qs.set('to', end);
-      if (agentFilter && agentFilter !== 'all') qs.set('agent_id', agentFilter);
-      const response = await api(`/admin/checkins?${qs.toString()}`);
-      const items = response && response.items ? response.items : [];
-      // Construire un dataset résumé compatible avec l’affichage actuel
-      const byAgent = new Map();
-      items.forEach(it => {
-        const key = `${it.agent_id}:${it.agent_name}`;
-        const obj = byAgent.get(key) || { name: it.agent_name, role: 'agent', status: 'present', arrivalTime: null, departureTime: null, duration: '-', location: `${it.departement || ''} ${it.commune || ''}`.trim(), within: [], distances: [] };
-        obj.within.push(it.within_tolerance);
-        if (typeof it.distance_from_reference_m === 'number') obj.distances.push(it.distance_from_reference_m);
-        byAgent.set(key, obj);
+      const fromISO = start ? new Date(start + 'T00:00:00Z').toISOString() : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const toISO   = end   ? new Date(end   + 'T23:59:59Z').toISOString() : new Date().toISOString();
+      const key  = window.SUPABASE_ANON_KEY || localStorage.getItem('SUPABASE_ANON_KEY') || '';
+      const base = (window.SUPABASE_URL || localStorage.getItem('SUPABASE_URL') || '').replace(/\/+$/,'');
+      const body = { _from: fromISO, _to: toISO, _agent_id: (agentFilter && agentFilter !== 'all') ? parseInt(agentFilter,10) : null };
+      const r = await fetch(`${base}/rest/v1/rpc/attendance_report`, {
+        method: 'POST',
+        headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
       });
-      const details = Array.from(byAgent.values()).map(a => ({
+      if (!r.ok) throw new Error(`RPC ${r.status}`);
+      const rows = await r.json();
+      // Convertir vers le modèle d’affichage existant
+      const agents = new Map();
+      for (const it of rows) {
+        const keyA = it.agent_id + ':' + (it.agent || 'Agent');
+        const rec = agents.get(keyA) || { name: it.agent || 'Agent', role: 'agent', status: 'present', arrivalTime: null, departureTime: null, duration: '-', location: it.localisation || '' };
+        // statut: si une ligne hors tolérance existe, marquer absent
+        if (it.statut && it.statut.toLowerCase().includes('hors')) rec.status = 'absent';
+        // arrival/departure (première et dernière horodatée)
+        const t = new Date(it.ts).getTime();
+        rec._min = Math.min(rec._min ?? t, t);
+        rec._max = Math.max(rec._max ?? t, t);
+        agents.set(keyA, rec);
+      }
+      const details = Array.from(agents.values()).map(a => ({
         name: a.name,
         role: a.role,
-        status: a.within.some(v => v === false) ? 'absent' : 'present',
-        arrivalTime: a.arrivalTime,
-        departureTime: a.departureTime,
-        duration: a.duration,
-        location: a.location
+        status: a.status,
+        arrivalTime: a._min ? new Date(a._min).toLocaleTimeString('fr-FR') : '-',
+        departureTime: a._max ? new Date(a._max).toLocaleTimeString('fr-FR') : '-',
+        duration: (a._min && a._max) ? Math.round((a._max - a._min)/(1000*60)) + ' min' : '-',
+        location: a.location || '-'
       }));
       reportData = {
         type: 'presence',
-        period: getPeriodText(dateRange),
+        period: start && end ? `${start} → ${end}` : getPeriodText(dateRange),
         totalAgents: details.length,
         presentAgents: details.filter(d => d.status === 'present').length,
         absentAgents: details.filter(d => d.status !== 'present').length,
@@ -181,7 +193,6 @@ async function generateReport() {
         details
       };
     } else {
-      // Simuler la génération de données pour les autres rapports
       reportData = await simulateReportData(reportType, dateRange, agentFilter);
     }
     
@@ -260,30 +271,111 @@ function displayReport(data) {
   `).join('');
 }
 
-// Exporter le rapport
-function exportReport() {
-  const reportType = $('report-type').value;
-  const dateRange = $('date-range').value;
-  
-  // Simuler l'export
-  alert(`Export du rapport ${getReportTitle(reportType)} pour la période ${getPeriodText(dateRange)} en cours...`);
-  
-  // Dans une vraie application, on générerait un fichier PDF ou Excel
-  const csvContent = [
-    ['Agent', 'Rôle', 'Statut', 'Heure d\'arrivée', 'Heure de départ', 'Durée', 'Localisation'],
-    ...Array.from($('report-table-body').rows).map(row => 
-      Array.from(row.cells).map(cell => cell.textContent.trim())
-    )
-  ].map(row => row.join(',')).join('\n');
-  
-  const blob = new Blob([csvContent], { type: 'text/csv' });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `rapport_${reportType}_${new Date().toISOString().split('T')[0]}.csv`;
-  a.click();
-  window.URL.revokeObjectURL(url);
+// Charger les validations depuis l'API rapports/validations
+async function loadValidations() {
+  try {
+    const dateRange = $('date-range').value;
+    const { start, end } = getRangeDates(dateRange);
+    const qs = new URLSearchParams();
+    if (start) qs.set('from', start);
+    if (end) qs.set('to', end);
+    const resp = await api('/reports/validations?' + qs.toString());
+    const items = resp?.items || [];
+    const body = $('validations-body');
+    body.innerHTML = items.map(it => `
+      <tr>
+        <td>${it.agent_name || ('Agent #' + it.agent_id)}</td>
+        <td>${it.project_name || ''}</td>
+        <td>${[it.departement,it.commune,it.arrondissement,it.village].filter(Boolean).join(' / ')}</td>
+        <td>${it.tolerance_radius_meters ?? ''}</td>
+        <td>${(it.reference_lat??'')}, ${(it.reference_lon??'')}</td>
+        <td>${(it.lat??'')}, ${(it.lon??'')}</td>
+        <td>${new Date(it.date).toLocaleString('fr-FR')}</td>
+        <td>${it.distance_from_reference_m ?? ''}</td>
+        <td><span class="status-badge ${it.within_tolerance ? 'status-present' : 'status-absent'}">${it.within_tolerance ? 'Validé' : 'Hors zone'}</span></td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    console.error('Erreur loadValidations:', e);
+    $('validations-body').innerHTML = '<tr><td colspan="9">Erreur de chargement</td></tr>';
+  }
 }
+
+// Rendez disponible immédiatement pour les handlers inline
+try { window.loadValidations = loadValidations; } catch {}
+
+// Exporter le rapport (CSV/TXT) avec colonnes demandées
+async function exportReport() {
+  try {
+    const cols = [
+      'Nom Animateur/agent','Prénom Animateur/Agent','Projet','Departement','Commune','Arrondissement','Village',
+      'Longitude_reference','Latitude_reference','Rayon toléré (5km/ 5000 mètre)',
+      'Latitude_actuelle','Longitude_actuelle','Date','Heure debut journée','Heure fin journée','Note','Photo','Statut_Presence','Distance_Reference_M'
+    ];
+
+    // Récupérer les données depuis l'API existante (admin export) si dispo
+    const dateRange = $('date-range').value;
+    const { start, end } = getRangeDates(dateRange);
+    const qs = new URLSearchParams();
+    if (start) qs.set('from', start);
+    if (end) qs.set('to', end);
+    // Utiliser directement la RPC pour récupérer les lignes export
+    const urlSb = (window.SUPABASE_URL || localStorage.getItem('SUPABASE_URL') || '').replace(/\/+$/,'');
+    const keySb = window.SUPABASE_ANON_KEY || localStorage.getItem('SUPABASE_ANON_KEY') || '';
+    const body = {
+      _from: start ? new Date(start + 'T00:00:00Z').toISOString() : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(),
+      _to:   end   ? new Date(end   + 'T23:59:59Z').toISOString() : new Date().toISOString(),
+      _agent_id: null
+    };
+    const rRpc = await fetch(`${urlSb}/rest/v1/rpc/attendance_report`, {
+      method: 'POST', headers: { apikey: keySb, Authorization: 'Bearer ' + keySb, 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const rows = rRpc.ok ? await rRpc.json() : [];
+
+    // Transformer vers les colonnes demandées
+    const out = [cols.join(';')];
+    for (const it of rows) {
+      const nomComplet = (it.agent || '').trim();
+      const nom = nomComplet.split(' ')[0] || '';
+      const prenom = nomComplet.split(' ').slice(1).join(' ') || '';
+      const projet = it.projet || '';
+      const departement = it.localisation || '';
+      const commune = '';
+      const arrondissement = '';
+      const village = '';
+      const lonRef = it.ref_lon ?? '';
+      const latRef = it.ref_lat ?? '';
+      const rayon = it.rayon_m ?? '';
+      const latAct = it.lat ?? '';
+      const lonAct = it.lon ?? '';
+      const dateStr = it.ts ? new Date(it.ts).toLocaleDateString('fr-FR') : '';
+      const startStr = '';
+      const endStr = '';
+      const note = '';
+      const photo = '';
+      const statut = (it.statut || '').includes('Valid') ? 'Présent' : (it.statut || '');
+      const dist = it.distance_m ?? '';
+      out.push([
+        nom, prenom, projet, departement, commune, arrondissement, village,
+        lonRef, latRef, rayon, latAct, lonAct, dateStr, startStr, endStr,
+        sanitize(note), photo, statut, dist
+      ].map(v => String(v ?? '').replace(/[\n\r;/]/g, ' ').trim()).join(';'));
+    }
+
+    const txt = out.join('\n');
+    const blob = new Blob([txt], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rapport_presence_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('Erreur export: ' + (e.message || e));
+  }
+}
+
+function sanitize(s) { return (s || '').toString().replace(/[\n\r]/g,' ').trim(); }
 
 // Gestion des rapports sauvegardés
 function viewSavedReport(reportId) {
@@ -484,9 +576,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Initialiser les filtres
     updateReportFilters();
+    await loadAgentsOptions();
     updateDateInputs();
     
     // Charger les rapports sauvegardés
     await loadSavedReports();
+
+    // Brancher les boutons et selects (backend-side, sans inline handlers)
+    try {
+      const selRange = document.getElementById('date-range');
+      if (selRange) selRange.addEventListener('change', () => { try { updateDateInputs(); } catch {} });
+      const btnGen = document.getElementById('generate-btn');
+      if (btnGen) btnGen.addEventListener('click', () => { try { generateReport(); } catch (e) { console.error(e); } });
+      const btnExp = document.getElementById('export-btn');
+      if (btnExp) btnExp.addEventListener('click', () => { try { exportReport(); } catch (e) { console.error(e); } });
+      const btnPrint = document.getElementById('print-btn');
+      if (btnPrint) btnPrint.addEventListener('click', () => { try { window.print(); } catch {} });
+      const btnReload = document.getElementById('reload-validations');
+      if (btnReload) btnReload.addEventListener('click', () => { try { loadValidations(); } catch (e) { console.error(e); } });
+    } catch {}
   }
 });
+
+// Exposer les actions au scope global pour les boutons onclick du HTML
+try {
+  window.generateReport = generateReport;
+  window.exportReport = exportReport;
+  window.printReport = () => window.print();
+  window.updateDateInputs = updateDateInputs;
+  window.updateReportFilters = updateReportFilters;
+  window.loadValidations = loadValidations;
+} catch {}

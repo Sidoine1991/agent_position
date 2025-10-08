@@ -1,453 +1,291 @@
-# Presence CCRB – Suivi de Présence Terrain
+# 📍 Presence CCRB - Manuel d'Utilisation
 
-Application de suivi de présence des agents sur le terrain avec carte interactive (Leaflet), back-end Node/Express + PostgreSQL, et déploiements Render/Vercel.
+## 🎯 Qu'est-ce que Presence CCRB ?
 
-## Rôles et accès
-- Admin: accès global, paramètres, exports, rapports.
-- Superviseur: accès aux données agents (lecture), exports.
-- Agent: marquage présence (démarrer/finir), check-ins, profil.
+**Presence CCRB** est un système de suivi de présence des agents de terrain pour le **Conseil de Concertation des Riziculteurs du Bénin (CCRB)**. Il permet de vérifier que les agents se trouvent bien dans leurs zones d'intervention grâce à la géolocalisation GPS.
 
-Auth JWT (24h). Middleware serveur: `requireAuth(roles?: ['admin'|'superviseur'|'agent'])`.
+## 🚀 À quoi sert ce système ?
 
-## Environnements
-- Front (Vercel): `https://agent-position.vercel.app`
-- API (Render): `https://presence-ccrb-v2.onrender.com`
-
-Variables d’environnement (Render / local):
-- `DATABASE_URL`: Postgres
-- `JWT_SECRET`: secret JWT (obligatoire en prod)
-- `PUBLIC_BASE_URL`: URL publique de l’API (ex: Render)
-- `SERPAPI_KEY`: optionnel (proxy `/api/geo/search`)
-- `EMAIL_USER`, `EMAIL_PASS`: (optionnel) envoi d’emails
-
-## Flux d’utilisation (agent)
-1. Ouvrir la carte. Chercher un lieu et cliquer ⇒ la carte centre, un marqueur “Départ” est posé, la position manuelle est mémorisée.
-2. Démarrer Mission ⇒ `/api/presence/start` avec lat/lon (GPS ou position corrigée).
-3. Check-in ponctuels ⇒ `/api/mission/checkin` (facultatif).
-4. Finir Mission ⇒ `/api/presence/end` (ou bouton de secours sans GPS ⇒ `/api/presence/force-end`).
-
-La carte publique affiche aussi les points publics (check-ins + départ/fin) sans authentification.
-
-## Contrats API (normalisés)
-Toutes les réponses suivent `{ success: boolean, data?: any, error?: string }`.
-
-### Auth & Profil
-- `GET /api/me` (JWT): `{ data: { user } }`
-- `GET /api/profile?email=`: `{ data: { user } }`
-
-### Missions / Présence (JWT)
-- `POST /api/presence/start` body `{lat,lon, ...}` → `{ data: { message, mission_id, distance_from_reference_m } }`
-- `POST /api/presence/end` body `{ mission_id?, lat?, lon?, note? }` → `{ data: { message, force_end? } }`
-- `POST /api/presence/force-end` body `{ mission_id?, note? }` → `{ data: { message, force_end: true } }`
-- `GET /api/me/missions` → `{ data: { missions: Mission[] } }`
-- `GET /api/missions/:id/checkins` → `{ data: { checkins: Checkin[] } }`
-
-### Admin/Superviseur (JWT)
-- `GET /api/admin/checkins?from&to&agent_id&limit&offset` → `{ data: { items, limit, offset } }` (items avec `type: 'checkin'|'mission_start'|'mission_end'`)
-- `GET /api/admin/checkins/latest?limit&offset` → `{ data: { items, limit, offset } }`
-- `GET /api/admin/agents` → (à normaliser si besoin) liste agents
-
-### Public
-- `GET /api/public/checkins/latest?limit` → `{ data: { checkins } }`
-
-### Paramètres
-- `GET /api/settings` → `{ data: { settings } }`
-
-## Données & Index
-Tables: `users`, `missions`, `checkins`, `reports`, `absences`, `app_settings`.
-
-Index recommandés: `missions(user_id,start_time)`, `checkins(mission_id,timestamp)`, `users(email)`. Contraintes: `role` CHECK, FKs.
-
-## Sécurité
-- `helmet` activé, CORS origin strict, `express-rate-limit` global (300 req/15min).
-- JWT vérifié via `requireAuth`. Valider inputs (coords, email, ids).
-
-## UI/UX
-- Carte: recherche (Nominatim/SerpApi), correction GPS manuelle, barre de statut compacte, marqueurs colorés par agent, types de points distincts.
-- Dashboard admin: couleurs uniques par agent, timeline, export CSV/TXT.
-
-## Déploiement
-- Render: API Node/Express (variables env + Postgres). Vercel: front statique.
-- Cache busting via query `?v=` sur assets (géré dans le code).
-
-## Tests rapides
-- `GET /api/health` (disponible)
-- Auth: POST `/api/login` → stocker `jwt` dans localStorage
-- `GET /api/me` doit renvoyer l’utilisateur
-
-## Roadmap rapide
-- Validation d’inputs complète (zod/express-validator)
-- Aggrégats périodiques (vue matérialisée/table) pour KPI hebdo/mensuel
-- Légende/filtres supplémentaires sur la carte (par type de point)
-
----
-Pour tout besoin (correctifs/évolutions), ouvrir une issue avec le contexte, la route concernée et les logs.
-# 📍 Presence CCRB - Système de Suivi des Agents Terrain
-
-## 🎯 À Propos
-
-Le système **Presence CCRB** est une solution complète de géolocalisation et de suivi des agents de terrain pour le **Conseil de Concertation des Riziculteurs du Bénin (CCRB)**. Il permet de vérifier la présence réelle des agents sur leurs zones d'intervention et de générer des rapports de présence fiables.
-
-## 🚀 Fonctionnalités Principales
-
-### 👤 Pour les Agents
-- **Application PWA** (Progressive Web App) accessible sur mobile
-- **Marquage de présence** avec GPS automatique
-- **Prise de photos** comme preuve d'activité
-- **Notes d'observation** sur le terrain
-- **Sélection de zone** d'intervention (Département → Commune → Arrondissement → Village)
-- **Interface intuitive** avec logo CCRB
-- **Calendrier de présence** avec historique
-- **Tableau de bord** avec métriques personnelles
-
-### 👨‍💼 Pour les Superviseurs/Admins
-- **Dashboard en temps réel** avec carte interactive
-- **Suivi GPS** des agents avec marqueurs
-- **Validation automatique** de présence basée sur la distance GPS
-- **Gestion complète des agents** (création, modification, suppression)
-- **Unités administratives** configurables
-- **Exports Excel/CSV** avec validation de présence
-- **Rapports mensuels** automatisés
-- **Configuration des points de référence** GPS
-- **Authentification sécurisée** avec contrôle d'accès par rôle
-
-## 🏗️ Architecture Technique
-
-### Backend (Vercel Serverless)
-- **API consolidée** : Un seul fichier `api/index.js`
-- **Stockage en mémoire** : Données temporaires pour déploiement serverless
-- **Authentification** : JWT avec secret sécurisé
-- **CORS configuré** : Accès cross-origin
-- **Géolocalisation** : Algorithme de validation de présence
-
-### Frontend
-- **PWA Agent** : HTML/CSS/JavaScript vanilla
-- **Dashboard** : Interface web responsive
-- **Service Worker** : Cache et fonctionnement hors ligne
-- **Design responsive** : Compatible mobile et desktop
-- **Vercel Analytics** : Suivi des performances
-
-## 📊 Algorithme de Validation de Présence
-
-### Principe
-1. **Point de référence** : Coordonnées GPS du village d'intervention de l'agent
-2. **Calcul de distance** : Formule de Haversine pour distance en mètres
-3. **Validation automatique** :
-   - **Présent** : ≤ 50km du point de référence
-   - **Absent** : > 50km du point de référence
-
-### Configuration
-- **Rayon de tolérance** : Configurable (50km par défaut)
-- **Points de référence** : Basés sur les villages d'intervention
-- **Validation en temps réel** : À chaque check-in
-
-## 🗂️ Structure du Projet
-
-```
-presence_ccrb/
-├── api/                      # API Serverless Vercel
-│   ├── index.js             # API consolidée
-│   └── package.json         # Dépendances API
-├── web/                     # Interface utilisateur
-│   ├── index.html           # PWA Agent
-│   ├── dashboard.html       # Dashboard Superviseur
-│   ├── agents.html          # Gestion des agents
-│   ├── profile.html         # Profil utilisateur
-│   ├── reports.html         # Rapports
-│   ├── admin.html           # Administration
-│   ├── app.js              # JavaScript Agent
-│   ├── dashboard.js        # JavaScript Dashboard
-│   ├── agents.js           # JavaScript Gestion agents
-│   ├── profile.js          # JavaScript Profil
-│   ├── reports.js          # JavaScript Rapports
-│   ├── admin.js            # JavaScript Admin
-│   ├── styles.css          # Styles CSS
-│   ├── manifest.webmanifest # PWA Manifest
-│   └── Media/              # Ressources
-│       ├── PP CCRB.png     # Logo CCRB
-│       ├── default-avatar.png
-│       └── default-avatar.svg
-├── Media/                   # Ressources globales
-│   └── PP CCRB.png         # Logo principal
-├── package.json            # Configuration principale
-├── vercel.json            # Configuration Vercel
-├── .vercelignore          # Fichiers ignorés par Vercel
-└── README.md              # Documentation
-```
-
-## 🚀 Déploiement
-
-### Vercel (Recommandé)
-Le projet est configuré pour un déploiement automatique sur Vercel :
-
-1. **Connectez le repository GitHub** à Vercel
-2. **Déploiement automatique** à chaque push
-3. **URL de production** : https://agent-position.vercel.app/
-
-### Configuration Vercel
-- **Framework** : Other
-- **Root Directory** : `/`
-- **Build Command** : (automatique)
-- **Output Directory** : (automatique)
-
-## 👥 Comptes par Défaut
-
-### Administrateur
-- **Email** : `admin@ccrb.local`
-- **Mot de passe** : `123456`
-- **Rôle** : Admin complet
-- **Unité** : Direction Générale
-
-### Superviseur
-- **Email** : `supervisor@ccrb.local`
-- **Mot de passe** : `123456`
-- **Rôle** : Superviseur
-- **Unité** : Direction des Opérations
-
-## 📱 Utilisation
+### Pour le CCRB
+- **Vérifier la présence réelle** des agents sur le terrain
+- **Générer des rapports fiables** avec preuves GPS
+- **Suivre l'activité** des agents en temps réel
+- **Exporter les données** pour les rapports officiels
 
 ### Pour les Agents
-1. **Connexion** : Utiliser les identifiants fournis
-2. **Sélection de zone** : Choisir Département → Commune → Arrondissement → Village
-3. **Marquage présence** : 
-   - "Marquer présence (début)" : Début d'activité
-   - "Quitter le terrain (fin)" : Fin d'activité
-4. **Ajout de notes** : Observations optionnelles
-5. **Prise de photos** : Preuve d'activité
-6. **Consultation calendrier** : Historique de présence
+- **Marquer facilement** leur présence sur le terrain
+- **Prendre des photos** comme preuve d'activité
+- **Ajouter des notes** sur leurs observations
+- **Consulter leur historique** de présence
 
-### Pour les Superviseurs
-1. **Connexion dashboard** : Utiliser compte admin/superviseur
-2. **Gestion des agents** : Page `/agents.html`
-   - Création, modification, suppression d'agents
-   - Attribution d'unités administratives
-   - Filtrage et recherche d'agents
-   - Export des données d'agents
-3. **Suivi** : Visualisation temps réel sur dashboard
-4. **Rapports** : Génération et export de rapports
+## 👥 Qui peut utiliser le système ?
 
-### Pour les Administrateurs
-1. **Administration** : Page `/admin.html`
-   - Gestion des unités administratives
-   - Configuration système
-   - Maintenance
-2. **Gestion complète** : Tous les droits superviseur + admin
+### 🔹 Agents de Terrain
+- Marquage de présence quotidien
+- Prise de photos et notes
+- Consultation de leur calendrier
 
-## 🧭 Flux Fonctionnel Complet (Flowchart)
+### 🔹 Superviseurs
+- Suivi des agents en temps réel
+- Gestion des agents (création, modification)
+- Génération de rapports
 
-```text
-[Agent]                                        [API]                                      [Admin/Superviseur]
-   |                                              |                                                 |
-   | 1) Inscription (agent) --------------------> | POST /api/register  --------------------------> |
-   |    - Saisit nom, email, mot de passe         | 201 { token, user }                             |
-   |    - (Option) OTP email pour validation      | (OTP/validation à brancher)                    |
-   v                                              v                                                 |
-  Connexion (agent) ----------------------------> | POST /api/login -> 200 { success, token, user } |
-   |  Stocke le JWT (localStorage)                |                                                 |
-   v                                              |                                                 |
-  Sélection zone (Dépt->Com->Arr->Vill)           |                                                 |
-   |                                              |                                                 |
-  2) Début de mission (Marquer présence) -------> | POST /api/presence/start -> 200 {mission_id}   |
-   |  - GPS auto + (photo facultative)            |  (Crée mission active + 1er check-in)          |
-   v                                              |                                                 v
-  3) Check-in(s) terrain -----------------------> | POST /api/mission/checkin -> 200                |
-   |  - GPS + note/ photo                         |  (Ajoute un point de présence)                 |
-   v                                              |                                                 |
-  4) Fin de mission ---------------------------> | POST /api/presence/end -> 200                   |
-   |  - GPS + note/ photo                         |  (Ajoute un point + clôture mission)           |
-   v                                              v                                                 v
-  Profil/Stats (agent) <------------------------ | GET /api/me/missions (historique)               |
-                                                 | GET /api/profile                                |
-                                                 | GET /api/admin/checkins/latest (carte) --------> 5) Dashboard
-                                                 | GET /api/admin/checkins (filtres)               |   - Markers Leaflet en temps réel
-                                                 | POST /api/admin/setup-reference-points --------> |   - Liste agents & filtres
-                                                 | POST /api/admin/generate-monthly-report -------> |   - Historique mensuel
-                                                 | GET /api/admin/export/checkins.csv ------------> | 6) Export CSV/TXT mensuel
-                                                 | GET /api/admin/export/checkins.txt ------------> |
-```
+### 🔹 Administrateurs
+- Accès complet au système
+- Configuration des paramètres
+- Gestion des unités administratives
 
-### Étapes clés détaillées
-- **Inscription**
-  - L’agent peut s’auto-inscrire (ou être créé par l’administrateur). Un flux OTP email peut être branché pour activer le compte avant la première connexion.
-- **Connexion**
-  - Réception d’un JWT et stockage local. Les pages utilisent `/api/profile` (ou `/api/profile?email=` en mode soft-auth) pour charger le profil en production.
-- **Marquage de présence**
-  - Début: `/api/presence/start` crée une mission active et enregistre un point (lat/lon, note, photo).
-  - Check-in: `/api/mission/checkin` ajoute des points intermédiaires.
-  - Fin: `/api/presence/end` clôture la mission et enregistre un point final.
-  - Hors-ligne: les envois sont mis en file (Background Sync) et envoyés au retour réseau.
-- **Supervision**
-  - Carte Leaflet avec markers issus de `/api/admin/checkins/latest` (derniers points) et `/api/admin/checkins` (filtres).
-  - Configuration des points de référence (rayon, coordonnées) via `/api/admin/setup-reference-points`.
-- **Rapports & Exports**
-  - Génération de rapport mensuel (stub) et export CSV/TXT via `/api/admin/export/*`.
+## 📱 Comment accéder au système ?
 
-## 🔁 Cas d’usage – de bout en bout
-- Un administrateur crée un agent (ou l’agent s’inscrit). L’agent reçoit (optionnellement) un OTP et active son compte.
-- L’agent se connecte, choisit sa zone d’intervention et débute une mission; le GPS enregistre sa présence.
-- L’agent peut ajouter des check-ins (photos/notes). En fin de journée, il clôture sa mission.
-- Le superviseur visualise en temps réel les points sur la carte (Leaflet) et filtre par date/agent/zone.
-- En fin de mois, l’administrateur exporte la liste de présence en CSV/TXT depuis le dashboard.
+### Sur Mobile (Recommandé pour les agents)
+1. Ouvrez votre navigateur (Chrome, Firefox, Safari)
+2. Allez à l'adresse : `https://agent-position.vercel.app`
+3. L'application s'installe automatiquement comme une app
 
-## 🧪 Endpoints Clés (résumé)
-- Auth: `POST /api/login`, `POST /api/register`, `GET /api/profile`
-- Missions & présence: `POST /api/presence/start`, `POST /api/mission/checkin`, `POST /api/presence/end`, `GET /api/me/missions`
-- Supervision: `GET /api/admin/checkins/latest`, `GET /api/admin/checkins`, `GET /api/admin/agents`
-- Référence & rapports: `POST /api/admin/setup-reference-points`, `POST /api/admin/generate-monthly-report`, `GET /api/admin/export/checkins.csv`, `GET /api/admin/export/checkins.txt`, `GET /api/admin/export/monthly-report.csv`
+### Sur Ordinateur (Pour superviseurs et admins)
+1. Ouvrez votre navigateur
+2. Allez à l'adresse : `https://agent-position.vercel.app`
+3. Utilisez l'interface web complète
 
-## 🏢 Unités Administratives
+## 🔐 Connexion au système
 
-Les unités administratives correspondent à la hiérarchie géographique d'intervention : **Département → Commune → Arrondissement → Village**. Chaque animateur dispose d'un point de référence (au niveau du village) et marque sa présence lorsqu'il se rend travailler dans cette zone.
+### Comptes par défaut
 
-## 🛠️ API Endpoints
+#### Administrateur Principal
+- **Email** : `syebadokpo@gmail.com`
+- **Mot de passe** : `123456`
+- **Accès** : Toutes les fonctionnalités
 
-### Authentification
-- `POST /api/login` - Connexion
-- `POST /api/register` - Inscription
-- `GET /api/profile` - Profil utilisateur
+#### Compte de Test
+- **Email** : `admin@test.com`
+- **Mot de passe** : `123456`
+- **Accès** : Administration complète
 
-### Agents
-- `GET /api/users` - Liste des agents (authentifié)
-- `POST /api/users` - Créer un agent
-- `PUT /api/users/:id` - Modifier un agent
-- `DELETE /api/users/:id` - Supprimer un agent
+### Première connexion
+1. Cliquez sur "Se connecter"
+2. Entrez votre email et mot de passe
+3. Cliquez sur "Connexion"
+4. Vous arrivez sur votre tableau de bord
 
-### Unités Administratives
-- `GET /api/admin-units` - Liste des unités administratives
+## 📋 Guide d'utilisation par rôle
 
-### Utilitaires
-- `GET /api/health` - Santé de l'API
-- `GET /api/test` - Test de l'API
+### 👤 Pour les AGENTS
 
-## 🔒 Sécurité
+#### 1. Se connecter
+- Utilisez vos identifiants fournis par votre superviseur
+- L'application se souvient de votre connexion
 
-- **Authentification JWT** : Tokens sécurisés avec secret de 128 caractères
-- **Validation des rôles** : Admin/Superviseur/Agent
-- **CORS configuré** : Accès contrôlé
-- **Stockage sécurisé** : Données en mémoire pour serverless
+#### 2. Choisir votre zone d'intervention
+- **Département** : Sélectionnez votre département
+- **Commune** : Choisissez votre commune
+- **Arrondissement** : Sélectionnez l'arrondissement
+- **Village** : Choisissez le village où vous travaillez
 
-## 📱 PWA (Progressive Web App)
+#### 3. Marquer votre présence
 
-### Fonctionnalités
-- **Installation** : Ajout à l'écran d'accueil
-- **Hors ligne** : Service Worker pour cache
-- **Notifications** : Possibilité d'ajout
-- **Responsive** : Adaptation mobile/desktop
-- **Manifest** : Configuration PWA complète
+##### Début de journée
+1. Cliquez sur **"Marquer présence (début)"**
+2. L'application utilise votre GPS automatiquement
+3. Ajoutez une photo si nécessaire
+4. Écrivez une note sur vos activités prévues
+5. Cliquez sur **"Confirmer"**
 
-### Installation
-1. Ouvrir l'application dans le navigateur
-2. Cliquer sur "Installer" (icône +)
-3. L'application sera disponible comme une app native
+##### Pendant la journée (optionnel)
+1. Cliquez sur **"Check-in"** pour marquer un point
+2. Ajoutez une photo de votre activité
+3. Notez vos observations
+4. Cliquez sur **"Enregistrer"**
 
-## 🚨 Dépannage
+##### Fin de journée
+1. Cliquez sur **"Quitter le terrain (fin)"**
+2. L'application enregistre votre position finale
+3. Ajoutez un résumé de votre journée
+4. Cliquez sur **"Confirmer"**
 
-### Erreurs Courantes
+#### 4. Consulter votre historique
+- Allez dans **"Profil"** pour voir vos statistiques
+- Consultez le **calendrier** pour voir vos jours de présence
+- Vérifiez vos **missions** dans l'historique
 
-#### "Accès non autorisé"
-```bash
-# Solution : Connectez-vous avec un compte admin/superviseur
-# Email: admin@ccrb.local, Mot de passe: 123456
-```
+### 👨‍💼 Pour les SUPERVISEURS
 
-#### "Session invalide"
-```bash
-# Solution : Reconnectez-vous
-localStorage.removeItem('jwt'); location.reload();
-```
+#### 1. Accéder au tableau de bord
+- Connectez-vous avec un compte superviseur
+- Vous voyez la carte avec tous les agents
 
-#### API non disponible
-```bash
-# Solution : Vérifiez le déploiement Vercel
-# Attendez 2-3 minutes après un push
-```
+#### 2. Gérer les agents
+- Allez dans **"Agents"**
+- **Créer un agent** : Cliquez sur "Nouvel Agent"
+- **Modifier un agent** : Cliquez sur l'icône crayon
+- **Supprimer un agent** : Cliquez sur l'icône poubelle
+- **Voir les détails** : Cliquez sur l'icône œil
 
-### Logs et Debug
-- **Console navigateur** : F12 → Console
-- **Vercel Logs** : Dashboard Vercel → Functions → Logs
-- **Network** : F12 → Network pour voir les appels API
+#### 3. Suivre les agents en temps réel
+- La **carte** montre les positions des agents
+- Les **marqueurs colorés** indiquent les différents agents
+- **Filtrez par date** pour voir l'historique
 
-## 🔄 Mise à Jour
+#### 4. Générer des rapports
+- Allez dans **"Rapports"**
+- Choisissez la **période** (aujourd'hui, cette semaine, ce mois)
+- Sélectionnez un **agent** ou tous les agents
+- Cliquez sur **"Générer le rapport"**
+- **Exportez** en Excel ou PDF
 
-### Code
-```bash
-git pull origin main
-git push  # Déclenche le redéploiement automatique
-```
+### 👑 Pour les ADMINISTRATEURS
 
-### Cache Navigateur
-```bash
-# Vider le cache
-Ctrl + Shift + R
-# Ou
-localStorage.clear(); location.reload();
-```
+#### 1. Administration complète
+- Accès à toutes les fonctionnalités superviseur
+- Gestion des **unités administratives**
+- Configuration des **paramètres système**
 
-## 📊 Fonctionnalités Avancées
+#### 2. Gestion des unités administratives
+- Allez dans **"Administration"**
+- Configurez les **départements, communes, arrondissements, villages**
+- Définissez les **zones d'intervention** des agents
 
-### Tableau de Bord
-- **Métriques en temps réel** : Jours travaillés, heures, taux de présence
-- **Position actuelle** : Géolocalisation en direct
-- **Calendrier interactif** : Historique de présence
-- **Notifications** : Rappels et alertes
+#### 3. Configuration système
+- Paramètres de **tolérance GPS** (distance autorisée)
+- Configuration des **notifications**
+- Gestion des **sauvegardes**
 
-### Rapports
-- **Génération automatique** : Rapports mensuels par agent
-- **Export Excel/CSV** : Données formatées
-- **Statistiques** : Taux de présence, écarts
-- **Graphiques** : Visualisation des données
+## 🗺️ Comprendre la carte
 
-### Administration
-- **Gestion des unités** : Configuration des unités administratives
-- **Paramètres système** : Configuration globale
-- **Maintenance** : Outils d'administration
-- **Sauvegarde** : Export des données
+### Marqueurs sur la carte
+- 🟢 **Vert** : Agent présent et validé
+- 🟠 **Orange** : Agent présent mais en dehors de la zone
+- 🔴 **Rouge** : Agent absent ou problème de connexion
+- 🔵 **Bleu** : Point de référence (village d'intervention)
 
-## 📞 Support
+### Légende des statuts
+- **Présent** : Agent dans la zone autorisée (≤ 50km du village)
+- **Hors zone** : Agent en dehors de la zone autorisée (> 50km)
+- **Absent** : Aucun enregistrement de présence
 
-### Contacts
-- **Développeur** : Sidoine Kolaolé YEBADOKPO — conseil.riziculteurs.benin2006@gmail.com — +229 0196911346 / +229 0164052710
-- **CCRB** : Conseil de Concertation des Riziculteurs du Bénin
-- **Documentation** : Ce README
+## 📊 Comprendre les rapports
 
-### Contribution
-1. Fork le projet
-2. Créer une branche feature
-3. Commit les changements
-4. Push vers la branche
-5. Ouvrir une Pull Request
+### Métriques principales
+- **Total agents** : Nombre d'agents dans la période
+- **Présents** : Agents qui ont marqué leur présence
+- **Absents** : Agents sans enregistrement
+- **Taux de présence** : Pourcentage de présence
 
-## 📄 Licence
+### Types de rapports
+- **Rapport quotidien** : Présence du jour
+- **Rapport hebdomadaire** : Présence de la semaine
+- **Rapport mensuel** : Présence du mois
+- **Rapport par agent** : Historique d'un agent spécifique
 
-Ce projet est développé pour le **Conseil de Concertation des Riziculteurs du Bénin (CCRB)**. Tous droits réservés.
+## 🔧 Résolution des problèmes courants
 
----
+### ❌ "Je ne peux pas me connecter"
+**Solutions :**
+1. Vérifiez votre email et mot de passe
+2. Assurez-vous d'avoir une connexion internet
+3. Contactez votre superviseur pour vérifier votre compte
+
+### ❌ "Le GPS ne fonctionne pas"
+**Solutions :**
+1. Autorisez l'accès à la localisation dans votre navigateur
+2. Vérifiez que le GPS est activé sur votre téléphone
+3. Sortez à l'extérieur pour une meilleure réception
+
+### ❌ "Je ne vois pas les agents sur la carte"
+**Solutions :**
+1. Vérifiez que vous êtes connecté avec un compte superviseur/admin
+2. Actualisez la page (F5)
+3. Vérifiez la période sélectionnée
+
+### ❌ "L'application est lente"
+**Solutions :**
+1. Vérifiez votre connexion internet
+2. Fermez les autres applications
+3. Actualisez la page
+
+## 📱 Installation sur mobile (PWA)
+
+### Android
+1. Ouvrez l'application dans Chrome
+2. Appuyez sur le menu (3 points)
+3. Sélectionnez "Ajouter à l'écran d'accueil"
+4. L'icône apparaît sur votre écran d'accueil
+
+### iPhone
+1. Ouvrez l'application dans Safari
+2. Appuyez sur le bouton de partage
+3. Sélectionnez "Sur l'écran d'accueil"
+4. L'icône apparaît sur votre écran d'accueil
+
+## 🔒 Sécurité et confidentialité
+
+### Protection des données
+- Toutes les données sont **chiffrées** lors du transport
+- Les mots de passe sont **sécurisés**
+- Seuls les **superviseurs autorisés** peuvent voir vos données
+
+### Respect de la vie privée
+- Votre position n'est enregistrée que pendant vos **heures de travail**
+- Vous pouvez **désactiver** le suivi à tout moment
+- Vos données ne sont **jamais partagées** avec des tiers
+
+## 📞 Support et assistance
+
+### En cas de problème
+1. **Consultez ce manuel** en premier
+2. **Contactez votre superviseur** direct
+3. **Appelez le support technique** : +229 0196911346
+
+### Contacts utiles
+- **Développeur Principal** : **Sidoine Kolaolé YEBADOKPO**
+- **Titre** : Data Analyst | Web Developer Fullstack | MEAL Officer
+- **Email** : conseil.riziculteurs.benin2006@gmail.com
+- **Téléphone** : +229 0196911346 / +229 0164052710
+- **LinkedIn** : [Sidoine YEBADOKPO](https://linkedin.com/in/sidoine-yebadokpo)
+- **Organisation** : Conseil de Concertation des Riziculteurs du Bénin (CCRB)
 
 ## 🎉 Félicitations !
 
-Vous disposez maintenant d'un système complet de suivi de présence des agents avec validation GPS automatique. Le système vous permet de :
+Vous maîtrisez maintenant le système Presence CCRB. Ce système vous permet de :
 
-✅ **Vérifier la présence réelle** des agents sur le terrain  
-✅ **Générer des rapports fiables** avec preuves GPS  
-✅ **Exporter les données** en Excel/CSV  
-✅ **Suivre en temps réel** l'activité des agents  
-✅ **Configurer facilement** les zones d'intervention  
-✅ **Gérer complètement les agents** avec interface dédiée  
-✅ **Contrôler l'accès** avec authentification sécurisée  
-✅ **Organiser par unités administratives**  
-✅ **Déployer facilement** sur Vercel  
+✅ **Travailler efficacement** sur le terrain  
+✅ **Prouver votre présence** avec des données GPS  
+✅ **Gagner du temps** avec des rapports automatiques  
+✅ **Rester connecté** avec votre équipe  
+✅ **Avoir une trace** de votre travail quotidien  
 
-## 🔧 Version Actuelle
+## 📚 Résumé rapide
 
-### Fonctionnalités Implémentées
-- ✅ **API consolidée** avec JWT sécurisé
-- ✅ **Unités administratives** configurables
-- ✅ **Gestion complète des agents** avec formulaire
-- ✅ **Interface responsive** et moderne
-- ✅ **PWA fonctionnelle** avec service worker
-- ✅ **Déploiement Vercel** automatique
-- ✅ **Authentification robuste** par rôles
-- ✅ **Calendrier de présence** interactif
-- ✅ **Tableau de bord** avec métriques
+### Pour les agents
+1. **Connectez-vous** avec vos identifiants
+2. **Choisissez votre zone** d'intervention
+3. **Marquez votre présence** au début et à la fin
+4. **Ajoutez des photos** et notes si nécessaire
+
+### Pour les superviseurs
+1. **Connectez-vous** avec un compte superviseur
+2. **Gérez vos agents** dans la section Agents
+3. **Suivez en temps réel** sur la carte
+4. **Générez des rapports** selon vos besoins
+
+### Pour les administrateurs
+1. **Configurez le système** dans Administration
+2. **Gérez les unités** administratives
+3. **Supervisez** l'ensemble des opérations
+
+---
+
+## 👨‍💻 Développeur
+
+**Sidoine Kolaolé YEBADOKPO**  
+*Data Analyst | Web Developer Fullstack | MEAL Officer*
+
+- 📧 **Email** : conseil.riziculteurs.benin2006@gmail.com
+- 📱 **Téléphone** : +229 0196911346 / +229 0164052710
+- 💼 **LinkedIn** : [Sidoine YEBADOKPO](https://linkedin.com/in/sidoine-yebadokpo)
+- 🏢 **Organisation** : Conseil de Concertation des Riziculteurs du Bénin (CCRB)
+
+---
 
 **Bonne utilisation du système Presence CCRB !** 🚀
+
+*Développé pour le Conseil de Concertation des Riziculteurs du Bénin (CCRB)*

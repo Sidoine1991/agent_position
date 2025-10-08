@@ -55,6 +55,15 @@ class GPSManager {
       
       this.lastPosition = position;
       this.retryCount = 0;
+      // Sauvegarder la dernière position pour usage offline
+      try {
+        localStorage.setItem('lastGPS', JSON.stringify({
+          lat: position.coords.latitude,
+          lon: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          timestamp: position.timestamp
+        }));
+      } catch {}
       
       this.showNotification(
         'Position Trouvée', 

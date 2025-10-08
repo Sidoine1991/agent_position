@@ -7,8 +7,7 @@
     <link href="/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="/modern-ui.css?v=1" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet local ou via CDN autorisé par CSP: retirer pour éviter les erreurs CSP si non utilisé ici -->
 </head>
 <body>
     <!-- Navbar -->
@@ -131,8 +130,8 @@
         </div>
 
         <!-- Tableau des agents -->
-        <div class="agents-table-container">
-            <table class="agents-table">
+        <div class="agents-table-container" style="overflow-x:auto;">
+            <table class="agents-table" style="min-width:1400px; width:max-content; table-layout:auto;">
                 <thead>
                     <tr>
                         <th>Photo</th>
@@ -141,14 +140,18 @@
                         <th>Rôle</th>
                         <th>Téléphone</th>
                         <th>Département</th>
+                        <th>Commune</th>
+                        <th>Arrondissement</th>
+                        <th>Village</th>
                         <th>Projet</th>
                         <th>Statut</th>
+                        <th>Dernière Activité</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="agents-table-body">
                     <tr>
-                        <td colspan="9" class="loading">Chargement des agents...</td>
+                        <td colspan="13" class="loading">Chargement des agents...</td>
                     </tr>
                 </tbody>
             </table>
@@ -395,9 +398,9 @@
     </div>
 
 
+    <script src="/geo-data.js"></script>
     <script src="/navigation.js"></script>
-    <script src="/app.js"></script>
-    <script src="/dashboard.js"></script>
+  <script src="/web-config.js"></script>
     <script src="/admin-agents.js"></script>
 </body>
 </html>

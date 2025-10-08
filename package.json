@@ -47,9 +47,24 @@
     "type": "git",
     "url": "git+https://github.com/Sidoine1991/agent_position.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "presence",
+    "gps",
+    "tracking",
+    "agents",
+    "field-work",
+    "geolocation",
+    "pwa",
+    "ccrb",
+    "benin",
+    "agriculture"
+  ],
+  "author": {
+    "name": "Sidoine Kolaolé YEBADOKPO",
+    "email": "conseil.riziculteurs.benin2006@gmail.com",
+    "url": "https://linkedin.com/in/sidoine-yebadokpo"
+  },
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/Sidoine1991/agent_position/issues"
   },

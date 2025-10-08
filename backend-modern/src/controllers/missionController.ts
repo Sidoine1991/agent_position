@@ -2,8 +2,8 @@ import { Request, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { ApiResponse, PaginatedResponse, Mission } from '../types';
 
-const supabaseUrl = process.env['SUPABASE_URL'] || '';
-const supabaseKey = process.env['SUPABASE_ANON_KEY'] || '';
+const supabaseUrl = process.env['SUPABASE_URL'] || 'https://test.supabase.co';
+const supabaseKey = process.env['SUPABASE_ANON_KEY'] || 'test_key';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export class MissionController {

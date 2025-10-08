@@ -90,7 +90,7 @@
           </div>
           <div class="filter-group">
             <label for="date-range">Période :</label>
-            <select id="date-range" onchange="updateDateInputs()">
+            <select id="date-range">
               <option value="today">Aujourd'hui</option>
               <option value="week">Cette semaine</option>
               <option value="month">Ce mois</option>
@@ -118,15 +118,15 @@
           </div>
         </div>
         <div class="filter-actions">
-          <button class="btn-primary" onclick="generateReport()">
+          <button class="btn-primary" id="generate-btn">
             <span class="btn-icon">📊</span>
             Générer le Rapport
           </button>
-          <button class="btn-secondary" onclick="exportReport()">
+          <button class="btn-secondary" id="export-btn">
             <span class="btn-icon">📤</span>
             Exporter
           </button>
-          <button class="btn-secondary" onclick="printReport()">
+          <button class="btn-secondary" id="print-btn">
             <span class="btn-icon">🖨️</span>
             Imprimer / PDF
           </button>
@@ -210,43 +210,35 @@
         </div>
       </div>
 
-      <!-- Rapports sauvegardés -->
+      <!-- Section validations de l'algorithme -->
       <div class="card">
-        <h3>💾 Rapports Sauvegardés</h3>
-        <div class="saved-reports">
-          <div class="saved-report-item">
-            <div class="report-info">
-              <h4>Rapport Mensuel - Janvier 2024</h4>
-              <p>Rapport de présence mensuel</p>
-              <small>Créé le 31/01/2024</small>
-            </div>
-            <div class="report-actions">
-              <button class="btn-icon" onclick="viewSavedReport(1)" title="Voir">👁️</button>
-              <button class="btn-icon" onclick="downloadSavedReport(1)" title="Télécharger">📥</button>
-              <button class="btn-icon btn-danger" onclick="deleteSavedReport(1)" title="Supprimer">🗑️</button>
-            </div>
-          </div>
-          <div class="saved-report-item">
-            <div class="report-info">
-              <h4>Rapport Hebdomadaire - Semaine 4</h4>
-              <p>Rapport d'activité hebdomadaire</p>
-              <small>Créé le 28/01/2024</small>
-            </div>
-            <div class="report-actions">
-              <button class="btn-icon" onclick="viewSavedReport(2)" title="Voir">👁️</button>
-              <button class="btn-icon" onclick="downloadSavedReport(2)" title="Télécharger">📥</button>
-              <button class="btn-icon btn-danger" onclick="deleteSavedReport(2)" title="Supprimer">🗑️</button>
-            </div>
-          </div>
+        <h3>✅ Résultats de validation des présences</h3>
+        <div class="table-responsive">
+          <table class="table table-striped table-hover" id="validations-table">
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th>Projet</th>
+                <th>Localisation</th>
+                <th>Rayon (m)</th>
+                <th>Ref (lat, lon)</th>
+                <th>Actuel (lat, lon)</th>
+                <th>Date</th>
+                <th>Distance (m)</th>
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody id="validations-body"></tbody>
+          </table>
+        </div>
+        <div class="filter-actions">
+          <button class="btn-secondary" id="reload-validations">Recharger</button>
         </div>
       </div>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="/capacitor-native.js"></script>
-    <script src="/navigation.js"></script>
-    <script src="/app.js"></script>
-    <script src="/reports.js"></script>
+    <script src="/reports-backend.js"></script>
     <script>
       // Vercel Speed Insights
       if (typeof window !== 'undefined') {

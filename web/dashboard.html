@@ -7,13 +7,85 @@
     <link href="/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css?v=4" />
     <link rel="stylesheet" href="/modern-ui.css?v=1" />
-    <!-- Leaflet -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Google Maps (basemap) + fallback Leaflet si indisponible -->
+    <!-- Google Maps temporairement désactivé pour éviter les erreurs -->
+    <!-- <script src="https://maps.googleapis.com/maps/api/js?key=e0336d08424cd61122fe50e8044420ec3c492f19e101e893f59791e4ec001e7a" async defer></script> -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
       #map { height: 480px; border-radius: 10px; overflow: hidden; border: 1px solid #1f2937; }
+      .gmap-overlay { position: absolute; inset: 0; }
       .filters { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+      
+      /* Actions circulaires */
+      .circle-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        justify-content: center;
+        margin: 20px 0;
+        padding: 20px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        backdrop-filter: blur(10px);
+      }
+      
+      .circle-action {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 50%;
+        text-decoration: none;
+        color: white;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .circle-action:hover {
+        transform: translateY(-5px) scale(1.1);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        color: white;
+        text-decoration: none;
+      }
+      
+      .circle-action-active {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+        transform: scale(1.1);
+        box-shadow: 0 6px 20px rgba(245, 87, 108, 0.4);
+      }
+      
+      .circle-action .icon {
+        font-size: 24px;
+        margin-bottom: 4px;
+      }
+      
+      .circle-action .label {
+        font-size: 10px;
+        font-weight: 600;
+        text-align: center;
+        line-height: 1.2;
+      }
+      
+      @media (max-width: 768px) {
+        .circle-action {
+          width: 70px;
+          height: 70px;
+        }
+        .circle-action .icon {
+          font-size: 20px;
+        }
+        .circle-action .label {
+          font-size: 9px;
+        }
+      }
     </style>
+    <link rel="stylesheet" href="/styles-theme.css">
   </head>
   <body>
     <!-- Navigation Bar -->
@@ -43,7 +115,7 @@
           <span>Mon Profil</span>
         </a>
         
-        <!-- Navigation pour Admin et Superviseur -->
+        <!-- Navigation pour tous les utilisateurs connectés -->
         <a href="/dashboard.html" class="navbar-link navbar-link-active">
           <span class="navbar-icon">📊</span>
           <span>Dashboard</span>
@@ -78,6 +150,18 @@
       <div class="page-header">
         <h2>Dashboard Superviseur</h2>
         <p>Suivi en temps réel des missions et check-ins</p>
+        
+        <!-- Actions circulaires stylées -->
+        <div class="circle-actions" id="circle-actions" style="margin-top:12px; display:none">
+          <a href="/" class="circle-action" id="presence-link"><div class="icon">📍</div><div class="label">Présence</div></a>
+          <a href="/planning.html" class="circle-action" id="planning-link"><div class="icon">🗓️</div><div class="label">Planification</div></a>
+          <a href="/dashboard.html" class="circle-action circle-action-active" id="dashboard-link"><div class="icon">📊</div><div class="label">Dashboard</div></a>
+          <a href="/profile.html" class="circle-action" id="profile-link"><div class="icon">👤</div><div class="label">Profil</div></a>
+          <a href="/admin-agents.html" class="circle-action" id="agents-link"><div class="icon">👥</div><div class="label">Agents</div></a>
+          <a href="/reports.html" class="circle-action" id="reports-link"><div class="icon">📈</div><div class="label">Rapports</div></a>
+          <a href="/admin.html" class="circle-action" id="admin-link"><div class="icon">⚙️</div><div class="label">Administration</div></a>
+          <a href="/admin-settings.html" class="circle-action" id="help-link"><div class="icon">❓</div><div class="label">Aide</div></a>
+        </div>
         <div class="page-controls">
           <input type="month" id="report-month" class="month-input" placeholder="Mois/Année">
         </div>
@@ -95,17 +179,71 @@
             <select id="village" disabled></select>
           </div>
         </div>
-        <div style="display: flex; gap: 12px; align-items: center; margin-top: 16px;">
-          <button id="refresh">🔄 Actualiser</button>
-          <a id="export" href="#" target="_blank" class="export-link">📊 Exporter CSV</a>
-          <a id="export-txt" href="#" target="_blank" class="export-link">📄 Exporter TXT</a>
-        </div>
+         <div style="display: flex; gap: 12px; align-items: center; margin-top: 16px;">
+           <button id="refresh">🔄 Actualiser</button>
+           <button id="test-checkins" style="margin-left: 10px; background: orange; color: white; border: none; padding: 8px 12px; border-radius: 4px;">🧪 Test Check-ins</button>
+         </div>
       </div>
       <div id="map"></div>
+      <div id="agent-legend" class="card" style="margin-top: 12px; padding: 12px; display: none;"></div>
+      <script>
+        (function(){
+          function initGoogle() {
+            try {
+              const el = document.getElementById('map');
+              if (!el || !window.google || !google.maps) return false;
+              const center = { lat: 9.3077, lng: 2.3158 };
+              const gmap = new google.maps.Map(el, { center, zoom: 7, mapTypeId: 'roadmap' });
+              window.__gmap = gmap;
+              return true;
+            } catch { return false; }
+          }
+          function initLeaflet() {
+            try {
+              const el = document.getElementById('map');
+              const map = L.map(el).setView([9.3077, 2.3158], 7);
+              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+              window.__lmap = map;
+              return true;
+            } catch { return false; }
+          }
+          // Essayer Google Maps au chargement; sinon Leaflet
+          async function loadMapMarkers() {
+            try {
+              if (typeof window.refresh === 'function') {
+                await window.refresh();
+              }
+            } catch (e) { console.warn('loadMapMarkers(refresh):', e); }
+          }
+          window.addEventListener('load', function(){
+            setTimeout(async()=>{ if (!initGoogle()) initLeaflet(); setTimeout(loadMapMarkers, 600); }, 400);
+          });
+        })();
+      </script>
       <div class="card">
         <h2>📋 Timeline des Check-ins</h2>
         <ol id="timeline" class="timeline"></ol>
       </div>
+
+       <div class="card">
+         <h2>📈 Récapitulatif mensuel par agent</h2>
+         <div class="table-responsive">
+           <table class="table table-striped table-hover" id="monthly-summary">
+             <thead>
+               <tr>
+                 <th>Agent</th>
+                 <th>Projet</th>
+                 <th>Jours planifiés</th>
+                 <th>Jours présents</th>
+                 <th>Jours absents</th>
+                <th>Justification</th>
+               </tr>
+             </thead>
+             <tbody id="monthly-summary-body">
+             </tbody>
+           </table>
+         </div>
+       </div>
     </main>
 
     <!-- Modal Agent -->
@@ -124,7 +262,7 @@
               </div>
               <div class="form-group">
                 <label for="af_email">Email *</label>
-                <input id="af_email" type="email" placeholder="jean.dupont@ccrb.bj" required />
+                <input id="af_email" type="email" placeholder="jean.dupont@ccrb.bj" required autocomplete="username" />
               </div>
               <div class="form-group">
                 <label for="af_first_name">Prénom</label>
@@ -302,12 +440,12 @@
             <div class="form-grid">
               <div class="form-group">
                 <label for="af_password">Mot de passe</label>
-                <input id="af_password" type="password" placeholder="Laissez vide pour générer automatiquement" />
+                <input id="af_password" type="password" placeholder="Laissez vide pour générer automatiquement" autocomplete="new-password" />
                 <small>Minimum 6 caractères. Généré automatiquement si vide.</small>
               </div>
               <div class="form-group">
                 <label for="af_password_confirm">Confirmer le mot de passe</label>
-                <input id="af_password_confirm" type="password" placeholder="Confirmer le mot de passe" />
+                <input id="af_password_confirm" type="password" placeholder="Confirmer le mot de passe" autocomplete="new-password" />
               </div>
             </div>
           </div>
@@ -25515,7 +25653,8 @@ document.addEventListener('DOMContentLoaded', function() {
     <script src="/geo-data.js"></script>
     <script src="/capacitor-native.js"></script>
     <script src="/navigation.js"></script>
-    <script src="/app.js"></script>
+    <!-- Cascade Selectors -->
+    <script src="/cascade-selectors.js"></script>
     <script src="/dashboard.js"></script>
     <script>
       // Vercel Speed Insights
