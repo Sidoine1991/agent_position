@@ -274,18 +274,6 @@ Vous maîtrisez maintenant le système Presence CCRB. Ce système vous permet de
 
 ---
 
-## 👨‍💻 Développeur
-
-**Sidoine Kolaolé YEBADOKPO**  
-*Data Analyst | Web Developer Fullstack | MEAL Officer*
-
-- 📧 **Email** : conseil.riziculteurs.benin2006@gmail.com
-- 📱 **Téléphone** : +229 0196911346 / +229 0164052710
-- 💼 **LinkedIn** : [Sidoine YEBADOKPO](https://linkedin.com/in/sidoine-yebadokpo)
-- 🏢 **Organisation** : Conseil de Concertation des Riziculteurs du Bénin (CCRB)
-
----
-
 **Bonne utilisation du système Presence CCRB !** 🚀
 
 *Développé pour le Conseil de Concertation des Riziculteurs du Bénin (CCRB)*
