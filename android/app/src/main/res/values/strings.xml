@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">Presence CCRB</string>
-    <string name="title_activity_main">Presence CCRB</string>
-    <string name="package_name">com.ccrb.presence</string>
-    <string name="custom_url_scheme">com.ccrb.presence</string>
-</resources>

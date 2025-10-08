@@ -1,0 +1,59 @@
+/* Thème léger inspiré d'un style académique moderne */
+:root{
+  --brand:#0d6efd; --brand-2:#6c63ff; --bg:#f7f9ff; --text:#1f2937; --muted:#6b7280; --card:#ffffff; --border:#e5e7eb;
+}
+html,body{background:var(--bg); color:var(--text);} 
+.container{max-width:1120px;margin:0 auto;padding:16px}
+
+/* Navbar */
+/* Navbar dégradé bleu → violet → rose, avec animation subtile */
+.navbar{background:linear-gradient(90deg,#0ea5e9,#6366f1,#ec4899) !important;background-size:300% 300%;animation:navbarGradient 14s ease infinite;box-shadow:0 8px 24px rgba(99,102,241,.25)}
+.navbar{position:relative;z-index:1000}
+.navbar .navbar-menu{position:relative;z-index:1001;pointer-events:auto}
+.navbar .navbar-brand{position:relative;z-index:1001}
+.hero-image-section,.hero-image-container,.hero-overlay{position:relative;z-index:0}
+.navbar .navbar-link{display:inline-flex;align-items:center;gap:8px;padding:12px 14px;color:#fff !important;text-decoration:none;position:relative;text-shadow:0 1px 2px rgba(0,0,0,.25)}
+.navbar .navbar-link:hover{color:#ffe4f9 !important}
+.navbar .navbar-link::after{content:"";position:absolute;left:12px;right:12px;bottom:6px;height:2px;background:rgba(255,255,255,.9);border-radius:2px;transform:scaleX(0);opacity:.0;transition:transform .25s,opacity .25s}
+.navbar .navbar-link:hover::after,.navbar .navbar-link-active::after{transform:scaleX(1);opacity:1}
+.navbar .navbar-user{display:flex;align-items:center;gap:8px;color:#fff}
+
+/* Effet "magique" lueur douce au survol */
+.navbar .navbar-link:hover{filter:drop-shadow(0 0 6px rgba(236,72,153,.45))}
+
+@keyframes navbarGradient{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px}
+.card-title{font-weight:700;margin-bottom:8px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;border:1px solid transparent;padding:10px 14px;font-weight:600;cursor:pointer}
+.btn-primary{background:var(--brand);color:#fff}
+.btn-primary:hover{filter:brightness(1.05)}
+.btn-outline{background:#fff;border-color:var(--brand);color:var(--brand)}
+.btn-outline:hover{background:rgba(13,110,253,.08)}
+
+/* Sections */
+.section-header{display:flex;align-items:end;justify-content:space-between;margin:12px 0}
+.section-sub{color:var(--muted);font-size:14px}
+
+/* Tables */
+table.table{background:#fff;border-radius:10px;overflow:hidden}
+table.table th{background:#f3f4f6;color:#374151}
+table.table td, table.table th{border-color:var(--border)}
+
+/* Utilities */
+.shadow{box-shadow:0 6px 24px rgba(0,0,0,.06)}
+.rounded{border-radius:12px}
+.muted{color:var(--muted)}
+.grid-auto{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+
+/* Actions circulaires (home/index) */
+.circle-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:18px;align-items:center}
+.circle-action{display:flex;flex-direction:column;align-items:center;gap:10px;text-decoration:none}
+.circle-action .icon{width:88px;height:88px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px;box-shadow:0 8px 24px rgba(0,0,0,.12);background:linear-gradient(135deg,#6366f1,#0ea5e9)}
+.circle-action .label{font-weight:600;color:var(--text)}
+.circle-action:hover .icon{filter:brightness(1.08)}
+
+
