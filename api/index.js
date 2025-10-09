@@ -77,8 +77,8 @@ function authenticateToken(req, res, next) {
   }
 }
 
-// Fonction principale de l'API
-export default async function handler(req, res) {
+// Fonction principale de l'API (CommonJS export pour @vercel/node)
+module.exports = async (req, res) => {
   // Gestion CORS
   if (corsHandler(req, res)) return;
 
