@@ -133,3 +133,4 @@ tailwind.config.js
 # Dossiers de build et compilation
 apk-build/
 apk-download-guide.md
+.vercel

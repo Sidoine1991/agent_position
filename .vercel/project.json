@@ -1,1 +1,16 @@
-{"projectId":"prj_S44vSrJSrx7aaEtdXaev8Kog8Q1x","orgId":"team_FPeWGTtiXGvl3N1SaYr9PCmc","projectName":"presence_ccrb"}
+{
+  "projectId": "prj_gxtjoScWbzMpKveknehb2LqIdp4l",
+  "orgId": "team_FPeWGTtiXGvl3N1SaYr9PCmc",
+  "projectName": "presence_ccrb",
+  "settings": {
+    "createdAt": 1760015155040,
+    "framework": null,
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "22.x"
+  }
+}

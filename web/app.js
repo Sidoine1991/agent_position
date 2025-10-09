@@ -1096,6 +1096,11 @@ async function init() {
       status.textContent = 'Position signalée - Mission démarrée';
       animateElement(status, 'bounce');
       showNotification('Position journalière signalée - Mission démarrée !', 'success');
+      // Persister l'état de mission en local
+      try {
+        localStorage.setItem('mission_in_progress', 'true');
+        localStorage.setItem('mission_start_at', String(Date.now()));
+      } catch {}
       
       await refreshCheckins();
       await loadPresenceData();
@@ -1134,6 +1139,10 @@ async function init() {
       // Considérer la mission comme active côté UI pour permettre la fin même offline
       try {
         localStorage.setItem('hasActiveMissionOffline', 'true');
+        localStorage.setItem('mission_in_progress', 'true');
+        if (!localStorage.getItem('mission_start_at')) {
+          localStorage.setItem('mission_start_at', String(Date.now()));
+        }
       } catch {}
       const endBtn = $('end-mission');
       if (endBtn) endBtn.disabled = false;
@@ -1239,6 +1248,10 @@ async function init() {
       if (checkinBtn) checkinBtn.disabled = false;
       currentMissionId = null;
       try { localStorage.removeItem('currentMissionId'); } catch {}
+      try {
+        localStorage.removeItem('mission_in_progress');
+        localStorage.removeItem('mission_start_at');
+      } catch {}
       
       // Recharger l'historique des missions avec heures de début/fin fiables
       try {
@@ -1268,7 +1281,11 @@ async function init() {
       } catch {}
       try { showNotification('Hors ligne: fin de mission mise en file. Elle sera envoyée dès retour réseau.', 'info'); } catch {}
       // Fin en offline: marquer la mission locale comme terminée
-      try { localStorage.removeItem('hasActiveMissionOffline'); } catch {}
+      try {
+        localStorage.removeItem('hasActiveMissionOffline');
+        localStorage.removeItem('mission_in_progress');
+        localStorage.removeItem('mission_start_at');
+      } catch {}
     } finally {
       removeLoadingState(button);
     }
@@ -3581,6 +3598,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.error('❌ Erreur lors de l\'initialisation:', error);
     }
   }, 1000);
+
+  // Restaurer l'état de mission (boutons) au chargement
+  try {
+    const startBtn = $('start-mission');
+    const endBtn = $('end-mission');
+    const inProgress = localStorage.getItem('mission_in_progress') === 'true';
+    if (inProgress) {
+      if (startBtn) startBtn.disabled = true;
+      if (endBtn) endBtn.disabled = false;
+    } else {
+      if (startBtn) startBtn.disabled = false;
+      if (endBtn) endBtn.disabled = true;
+    }
+  } catch {}
 });
 
 // Exposer les fonctions globalement
