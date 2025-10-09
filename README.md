@@ -69,7 +69,7 @@
 3. Cliquez sur "Connexion"
 4. Vous arrivez sur votre tableau de bord
 
-![Écran de création/connexion de compte](Media/screenshot_app/creation_compte.png)
+<!-- Illustration connexion volontairement supprimée pour rester à 3 screenshots clés -->
 
 ## 📋 Guide d'utilisation par rôle
 
@@ -111,13 +111,7 @@
 - Consultez le **calendrier** pour voir vos jours de présence
 - Vérifiez vos **missions** dans l'historique
 
-![Calendrier de présence](Media/screenshot_app/calendrier_presence.png)
-
-![Historique des missions](Media/screenshot_app/historique_mission.png)
-
-![Profil de l'agent](Media/screenshot_app/profil_agent.png)
-
-![Profil de l'agent (détails)](Media/screenshot_app/profil2agent.png)
+<!-- Illustrations agents (calendrier/historique/profil) retirées pour rester concis -->
 
 ### 👨‍💼 Pour les SUPERVISEURS
 
@@ -134,7 +128,7 @@
 - **Supprimer un agent** : Cliquez sur l'icône poubelle
 - **Voir les détails** : Cliquez sur l'icône œil
 
-![Planification des missions](Media/screenshot_app/Planification.png)
+<!-- Illustration planification retirée pour rester à 3 screenshots -->
 
 #### 3. Suivre les agents en temps réel
 - La **carte** montre les positions des agents
