@@ -286,7 +286,7 @@ function bindNavbarLinks() {
       'presence-link': '/',
       'planning-link': '/planning.html',
       'map-link': '/map.html',
-      'help-link': '/admin-settings.html',
+      'help-link': '/help.html',
       'profile-link': '/profile.html',
       'dashboard-link': '/dashboard.html',
       'agents-link': '/admin-agents.html',
@@ -2891,7 +2891,7 @@ async function updateNavbar() {
         if (!settingsLink) {
           settingsLink = document.createElement('a');
           settingsLink.id = 'admin-settings-link';
-          settingsLink.href = '/admin-settings.html';
+          settingsLink.href = '/help.html';
           settingsLink.className = 'navbar-link';
           settingsLink.style.display = 'flex';
           settingsLink.innerHTML = '<span class="navbar-icon">🛠️</span><span>Paramètres</span>';
