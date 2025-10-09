@@ -110,6 +110,18 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Env diagnostics (no secrets leaked)
+    if (path === '/api/env-check') {
+      const envPresent = {
+        SUPABASE_URL: !!process.env.SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        SUPABASE_ANON_KEY: !!process.env.SUPABASE_ANON_KEY,
+        JWT_SECRET: !!process.env.JWT_SECRET,
+        CORS_ORIGIN: process.env.CORS_ORIGIN || null
+      };
+      return res.json({ success: true, envPresent, supabaseConfigured: !!supabaseClient });
+    }
+
     // Supabase health check
     if (path === '/api/supabase-health') {
       try {
