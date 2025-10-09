@@ -21,13 +21,15 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     Promise.all([
       // Cache des ressources statiques avec gestion d'erreur
-      caches.open(STATIC_CACHE).then((cache) => {
+      caches.open(STATIC_CACHE).then(async (cache) => {
         console.log('📦 Service Worker: Mise en cache des ressources statiques');
-        return cache.addAll(STATIC_ASSETS).catch((error) => {
-          console.warn('⚠️ Service Worker: Erreur cache statique:', error);
-          // Continuer même si certaines ressources échouent
-          return Promise.resolve();
-        });
+        for (const asset of STATIC_ASSETS) {
+          try {
+            await cache.add(asset);
+          } catch (error) {
+            console.warn('⚠️ Service Worker: Impossible de mettre en cache', asset, error && (error.message || error));
+          }
+        }
       }),
       // Cache des ressources dynamiques
       caches.open(DYNAMIC_CACHE).then((cache) => {
