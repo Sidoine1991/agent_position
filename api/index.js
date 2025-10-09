@@ -98,12 +98,18 @@ module.exports = async (req, res) => {
 
     // Supabase health check
     if (path === '/api/supabase-health') {
-      if (!supabaseClient) {
-        return res.status(200).json({ status: 'OK', database: 'Supabase', connected: false, reason: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing' });
+      try {
+        if (!supabaseClient) {
+          return res.status(200).json({ status: 'OK', database: 'Supabase', connected: false, reason: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing' });
+        }
+        const { error } = await supabaseClient.from('app_settings').select('count', { head: true }).limit(1);
+        if (error) {
+          return res.status(200).json({ status: 'ERROR', database: 'Supabase', connected: false, reason: error.message || 'unknown' });
+        }
+        return res.json({ status: 'OK', database: 'Supabase', connected: true });
+      } catch (e) {
+        return res.status(200).json({ status: 'ERROR', database: 'Supabase', connected: false, reason: e?.message || 'unknown' });
       }
-      const { error } = await supabaseClient.from('app_settings').select('count', { head: true }).limit(1);
-      if (error) throw error;
-      return res.json({ status: 'OK', database: 'Supabase', connected: true });
     }
 
     // Login
