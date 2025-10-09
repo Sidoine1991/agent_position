@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/index-render.js", "use": "@vercel/node" },
+    { "src": "web/**/*", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/index-render.js" },
+    { "src": "/(.*)", "dest": "/web/$1" }
+  ]
+}
+
+
