@@ -4,6 +4,8 @@
 
 **Presence CCRB** est un système de suivi de présence des agents de terrain pour le **Conseil de Concertation des Riziculteurs du Bénin (CCRB)**. Il permet de vérifier que les agents se trouvent bien dans leurs zones d'intervention grâce à la géolocalisation GPS.
 
+![Page d'accueil de l'application](Media/screenshot_app/page_acceuil.png)
+
 ## 🚀 À quoi sert ce système ?
 
 ### Pour le CCRB
@@ -67,6 +69,8 @@
 3. Cliquez sur "Connexion"
 4. Vous arrivez sur votre tableau de bord
 
+![Écran de création/connexion de compte](Media/screenshot_app/creation_compte.png)
+
 ## 📋 Guide d'utilisation par rôle
 
 ### 👤 Pour les AGENTS
@@ -107,11 +111,21 @@
 - Consultez le **calendrier** pour voir vos jours de présence
 - Vérifiez vos **missions** dans l'historique
 
+![Calendrier de présence](Media/screenshot_app/calendrier_presence.png)
+
+![Historique des missions](Media/screenshot_app/historique_mission.png)
+
+![Profil de l'agent](Media/screenshot_app/profil_agent.png)
+
+![Profil de l'agent (détails)](Media/screenshot_app/profil2agent.png)
+
 ### 👨‍💼 Pour les SUPERVISEURS
 
 #### 1. Accéder au tableau de bord
 - Connectez-vous avec un compte superviseur
 - Vous voyez la carte avec tous les agents
+
+![Tableau de bord superviseur](Media/screenshot_app/tabmleau_bord.png)
 
 #### 2. Gérer les agents
 - Allez dans **"Agents"**
@@ -119,6 +133,8 @@
 - **Modifier un agent** : Cliquez sur l'icône crayon
 - **Supprimer un agent** : Cliquez sur l'icône poubelle
 - **Voir les détails** : Cliquez sur l'icône œil
+
+![Planification des missions](Media/screenshot_app/Planification.png)
 
 #### 3. Suivre les agents en temps réel
 - La **carte** montre les positions des agents
@@ -131,6 +147,8 @@
 - Sélectionnez un **agent** ou tous les agents
 - Cliquez sur **"Générer le rapport"**
 - **Exportez** en Excel ou PDF
+
+![Rapport de présence](Media/screenshot_app/rapport_presence.png)
 
 ### 👑 Pour les ADMINISTRATEURS
 
