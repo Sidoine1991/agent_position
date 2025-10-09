@@ -596,35 +596,14 @@
         <span>Presence CCR-B</span>
       </a>
       
-      <nav class="desktop-nav" role="navigation" aria-label="Navigation principale">
-        <ul class="nav-menu">
-          <li><a href="/home.html" class="active" role="link" tabindex="0">Accueil</a></li>
-          <li><a href="#features" role="link" tabindex="0">Fonctionnalités</a></li>
-          <li><a href="#about" role="link" tabindex="0">À propos</a></li>
-          <li><a href="#contact" role="link" tabindex="0">Contact</a></li>
-        </ul>
-      </nav>
+      <!-- Navigation par sections retirée (liens non fonctionnels) -->
       
-      <div class="nav-buttons">
-        <a href="/index.html" class="btn-nav btn-primary">Se connecter</a>
-        <a href="#" class="btn-nav btn-secondary" id="dashboard-access-btn">Tableau de bord</a>
-      </div>
       
-      <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Ouvrir le menu de navigation" aria-expanded="false" aria-controls="mobile-menu">
-        <i class="fas fa-bars"></i>
-      </button>
+      
+      <!-- Bouton menu mobile retiré -->
     </div>
     
-    <!-- Mobile Menu -->
-    <div class="mobile-menu" id="mobile-menu" role="navigation" aria-label="Navigation mobile">
-      <ul>
-        <li><a href="/home.html" class="active" role="link" tabindex="0">Accueil</a></li>
-        <li><a href="#features" role="link" tabindex="0">Fonctionnalités</a></li>
-        <li><a href="#about" role="link" tabindex="0">À propos</a></li>
-        <li><a href="#contact" role="link" tabindex="0">Contact</a></li>
-      </ul>
-      <!-- Pas de doublon de boutons ici -->
-    </div>
+    <!-- Menu mobile retiré (liens non fonctionnels) -->
   </header>
 
   <!-- Hero Section -->
@@ -632,7 +611,16 @@
     <div class="hero-content">
       <h1>Presence CCR-B</h1>
       <p>Plateforme de suivi en temps réel pour optimiser l'efficacité opérationnelle des conseillers terrain</p>
-      <!-- Boutons supprimés ici pour éviter les doublons avec la navbar -->
+      <div class="hero-buttons">
+        <a id="hero-dashboard-btn" class="btn-hero btn-outline" href="/dashboard.html" style="display:none">
+          <i class="fas fa-chart-line"></i>
+          Tableau de bord
+        </a>
+        <a id="hero-login-btn" class="btn-hero btn-white" href="/index.html">
+          <i class="fas fa-sign-in-alt"></i>
+          Se connecter
+        </a>
+      </div>
     </div>
   </section>
 
@@ -772,7 +760,7 @@
             <h3>Équipe Technique</h3>
             <div class="contact-info">
               <p>Pour toute demande technique, merci de contacter l'administrateur de la plateforme.</p>
-              <p><i class="fas fa-envelope"></i> <strong>Email support :</strong> support@ccr-b.org</p>
+              <p><i class="fas fa-envelope"></i> <strong>Email support :</strong> syebadokpo@gmail.com</p>
             </div>
           </div>
         </div>
@@ -864,45 +852,7 @@
   </footer>
 
   <script>
-    // Mobile menu toggle
-    const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
-    const mobileMenu = document.getElementById('mobile-menu');
-    
-    mobileMenuToggle.addEventListener('click', () => {
-      mobileMenu.classList.toggle('active');
-      const icon = mobileMenuToggle.querySelector('i');
-      if (mobileMenu.classList.contains('active')) {
-        icon.className = 'fas fa-times';
-        mobileMenuToggle.setAttribute('aria-label', 'Fermer le menu de navigation');
-        mobileMenuToggle.setAttribute('aria-expanded', 'true');
-      } else {
-        icon.className = 'fas fa-bars';
-        mobileMenuToggle.setAttribute('aria-label', 'Ouvrir le menu de navigation');
-        mobileMenuToggle.setAttribute('aria-expanded', 'false');
-      }
-    });
-    
-    // Close mobile menu when clicking on a link
-    document.querySelectorAll('.mobile-menu a').forEach(link => {
-      link.addEventListener('click', () => {
-        mobileMenu.classList.remove('active');
-        const icon = mobileMenuToggle.querySelector('i');
-        icon.className = 'fas fa-bars';
-        mobileMenuToggle.setAttribute('aria-label', 'Ouvrir le menu de navigation');
-        mobileMenuToggle.setAttribute('aria-expanded', 'false');
-      });
-    });
-    
-    // Close mobile menu when clicking outside
-    document.addEventListener('click', (e) => {
-      if (!mobileMenuToggle.contains(e.target) && !mobileMenu.contains(e.target)) {
-        mobileMenu.classList.remove('active');
-        const icon = mobileMenuToggle.querySelector('i');
-        icon.className = 'fas fa-bars';
-        mobileMenuToggle.setAttribute('aria-label', 'Ouvrir le menu de navigation');
-        mobileMenuToggle.setAttribute('aria-expanded', 'false');
-      }
-    });
+    // Navigation mobile supprimée
 
     // Dashboard access control
     async function handleDashboardAccess(e) {
@@ -929,8 +879,54 @@
       }
     }
     
-    document.getElementById('dashboard-access-btn').addEventListener('click', handleDashboardAccess);
-    document.getElementById('mobile-dashboard-access-btn').addEventListener('click', handleDashboardAccess);
+    // CTAs héro dynamiques: afficher selon l'état de session/role
+    async function refreshHeroCtas() {
+      const loginBtn = document.getElementById('hero-login-btn');
+      const heroDashBtn = document.getElementById('hero-dashboard-btn');
+      let token = '';
+      try { token = localStorage.getItem('jwt') || ''; } catch {}
+      // Le bouton Se connecter est toujours visible
+      if (loginBtn) loginBtn.style.display = 'inline-flex';
+      if (!token) {
+        if (heroDashBtn) heroDashBtn.style.display = 'none';
+        return;
+      }
+      try {
+        const res = await fetch('/api/profile', { headers: { 'Authorization': 'Bearer ' + token } });
+        if (!res.ok) throw new Error('unauthorized');
+        const data = await res.json();
+        const role = (data && data.user && data.user.role) || '';
+        const allowed = role === 'admin' || role === 'supervisor';
+        if (heroDashBtn) heroDashBtn.style.display = allowed ? 'inline-flex' : 'none';
+      } catch {
+        if (heroDashBtn) heroDashBtn.style.display = 'none';
+      }
+    }
+    refreshHeroCtas();
+    document.getElementById('hero-dashboard-btn')?.addEventListener('click', handleDashboardAccess);
+    const mobileDashBtn = document.getElementById('mobile-dashboard-access-btn');
+    if (mobileDashBtn) mobileDashBtn.addEventListener('click', handleDashboardAccess);
+
+    // Logo/header: revenir en arrière si possible, sinon aller à /home.html
+    (function attachHomeLogoHandler(){
+      try {
+        const logo = document.querySelector('.logo');
+        if (!logo) return;
+        logo.addEventListener('click', (e) => {
+          e.preventDefault();
+          const sameOriginReferrer = document.referrer && (() => {
+            try { return new URL(document.referrer).origin === window.location.origin; } catch { return false; }
+          })();
+          if (sameOriginReferrer && window.history.length > 1) {
+            window.history.back();
+            // Fallback au cas où back n'irait nulle part
+            setTimeout(() => { if (document.visibilityState !== 'hidden') window.location.href = '/home.html'; }, 300);
+          } else {
+            window.location.href = '/home.html';
+          }
+        });
+      } catch {}
+    })();
 
     // Smooth scrolling for anchor links
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
