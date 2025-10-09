@@ -250,7 +250,8 @@
 ### Contacts utiles
 - **Développeur de l'application**
 - **Titre** : Data Analyst | Web Developer Fullstack | MEAL Officer
-- **Email** : conseil.riziculteurs.benin2006@gmail.com
+- **Email** : syebadokpo@gmail.com
+- **Email (Organisation)** : conseil.riziculteurs.benin2006@gmail.com
 - **Téléphone** : +229 0196911346 / +229 0164052710
 - **LinkedIn** : [LinkedIn](https://linkedin.com/in/sidoine-yebadokpo)
 - **Organisation** : Conseil de Concertation des Riziculteurs du Bénin (CCRB)
