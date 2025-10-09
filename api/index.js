@@ -1,6 +1,19 @@
 // API consolidée pour Vercel - Version Supabase uniquement
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://agent-position.vercel.app';
+function getAllowedOrigin(req) {
+  try {
+    const originHeader = req.headers['origin'] || '';
+    const list = String(CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (list.length === 0) return originHeader || 'https://agent-position.vercel.app';
+    if (!originHeader) return list[0];
+    // Match by exact string or startsWith to allow subpaths
+    const match = list.find(o => originHeader === o || originHeader.startsWith(o));
+    return match || list[0];
+  } catch {
+    return 'https://agent-position.vercel.app';
+  }
+}
 
 // Initialisation Supabase (directe, sans dépendance backend locale)
 const { createClient } = require('@supabase/supabase-js');
@@ -47,7 +60,8 @@ function simpleHash(password) {
 
 // Middleware CORS
 function corsHandler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
+  const origin = getAllowedOrigin(req);
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
