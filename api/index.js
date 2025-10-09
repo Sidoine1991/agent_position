@@ -2,16 +2,21 @@
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://agent-position.vercel.app';
 
-// Initialisation Supabase
-let supabaseClient = null;
-try {
-  const { supabase, supabaseAdmin } = require('../backend/src/supabase');
-  supabaseClient = supabaseAdmin; // Utiliser service role pour le backend
-  console.log('🔗 Supabase activé (API Vercel)');
-} catch (e) {
-  console.error('❌ Supabase requis:', e?.message);
-  throw e;
+// Initialisation Supabase (directe, sans dépendance backend locale)
+const { createClient } = require('@supabase/supabase-js');
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('❌ Variables d\'environnement manquantes: SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY');
+  // Ne pas throw immédiatement pour permettre le healthcheck de signaler proprement
 }
+
+const supabaseClient = (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY)
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    })
+  : null;
 
 // Stockage en mémoire (fallback uniquement)
 let users = [];
