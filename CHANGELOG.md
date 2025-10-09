@@ -5,7 +5,7 @@ Toutes les modifications notables de ce projet seront documentées dans ce fichi
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/),
 et ce projet adhère au [Versioning Sémantique](https://semver.org/lang/fr/).
 
-## [2.0.0] - 2025-01-30
+## [2.0.0] - 2025-10-07
 
 ### ✨ Ajouté
 - Système complet de géolocalisation GPS
@@ -46,7 +46,7 @@ et ce projet adhère au [Versioning Sémantique](https://semver.org/lang/fr/).
 - Rate limiting implémenté
 - Chiffrement des données sensibles
 
-## [1.0.0] - 2024-12-01
+## [1.0.0] - 2025-09-01
 
 ### ✨ Ajouté
 - Version initiale du système
