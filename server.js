@@ -2641,7 +2641,21 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
       console.warn('Création mission échouée (non bloquant):', e?.message);
     }
 
-    // 2) Insérer le premier check-in lié à la mission (si mission créée) et enregistrer la validation
+    // 2) Si une photo est fournie, l'uploader vers Supabase Storage et récupérer l'URL publique
+    let startPhotoUrl = null;
+    try {
+      if (req.file && req.file.buffer && supabaseClient) {
+        try { await supabaseClient.storage.createBucket('photos', { public: true }); } catch {}
+        const ts = Date.now();
+        const key = `checkins/${userId}/${missionId || 'no_mission'}/start_${ts}.jpg`;
+        const contentType = (req.file.mimetype && typeof req.file.mimetype === 'string') ? req.file.mimetype : 'image/jpeg';
+        await supabaseClient.storage.from('photos').upload(key, req.file.buffer, { upsert: true, contentType });
+        const { data: pub } = await supabaseClient.storage.from('photos').getPublicUrl(key);
+        startPhotoUrl = pub && pub.publicUrl ? pub.publicUrl : null;
+      }
+    } catch {}
+
+    // 3) Insérer le premier check-in lié à la mission (si mission créée) et enregistrer la validation
     let insertedCheckinId = null;
     try {
       const { data: chk, error: chkErr } = await supabaseClient
@@ -2651,6 +2665,7 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
           lat: latitude,
           lon: longitude,
           note: note || 'Début de mission',
+          photo_path: startPhotoUrl || null,
           timestamp: start_time
         }])
         .select('id')
@@ -2715,7 +2730,7 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
       }
     }
 
-    return res.json({ success: true, data: { message: 'Mission démarrée', mission_id: missionId } });
+    return res.json({ success: true, data: { message: 'Mission démarrée', mission_id: missionId, photo_url: startPhotoUrl } });
   } catch (error) {
     console.error('Erreur /api/presence/start:', error);
     return res.status(500).json({ success: false, error: 'Erreur serveur' });
@@ -2777,6 +2792,20 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
       return res.status(404).json({ success: false, message: 'Aucune mission active' });
     }
 
+    // Si une photo est fournie, l'uploader vers Supabase Storage et garder l'URL
+    let endPhotoUrl = null;
+    try {
+      if (req.file && req.file.buffer && supabaseClient) {
+        try { await supabaseClient.storage.createBucket('photos', { public: true }); } catch {}
+        const ts = Date.now();
+        const key = `checkins/${userId}/${targetMissionId || 'no_mission'}/end_${ts}.jpg`;
+        const contentType = (req.file.mimetype && typeof req.file.mimetype === 'string') ? req.file.mimetype : 'image/jpeg';
+        await supabaseClient.storage.from('photos').upload(key, req.file.buffer, { upsert: true, contentType });
+        const { data: pub } = await supabaseClient.storage.from('photos').getPublicUrl(key);
+        endPhotoUrl = pub && pub.publicUrl ? pub.publicUrl : null;
+      }
+    } catch {}
+
     // Clôturer la mission
     try {
       let upd = supabaseClient
@@ -2803,6 +2832,7 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
           lat: latitude,
           lon: longitude,
           note: note || 'Fin de mission',
+          photo_path: endPhotoUrl || null,
           timestamp: end_time
         }]);
       } catch (e) {
@@ -2821,7 +2851,7 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
       missionAfter = m2 || null;
     } catch {}
 
-    return res.json({ success: true, data: { message: 'Mission terminée', mission_id: targetMissionId, mission: missionAfter, force_end: !Number.isFinite(latitude) || !Number.isFinite(longitude) } });
+    return res.json({ success: true, data: { message: 'Mission terminée', mission_id: targetMissionId, mission: missionAfter, photo_url: endPhotoUrl, force_end: !Number.isFinite(latitude) || !Number.isFinite(longitude) } });
   } catch (error) {
     console.error('Erreur /api/presence/end:', error);
     return res.status(500).json({ success: false, error: 'Erreur serveur' });
