@@ -199,8 +199,8 @@ self.addEventListener('push', (event) => {
   let notificationData = {
     title: 'Presence CCRB',
     body: 'Nouvelle notification',
-    icon: '/Media/PP CCRB.png',
-    badge: '/Media/PP CCRB.png',
+    icon: '/Media/PP%20CCRB.png',
+    badge: '/Media/PP%20CCRB.png',
     tag: 'presence-notification',
     data: { url: '/' }
   };
@@ -225,7 +225,7 @@ self.addEventListener('push', (event) => {
         {
           action: 'open',
           title: 'Ouvrir',
-          icon: '/Media/PP CCRB.png'
+          icon: '/Media/PP%20CCRB.png'
         }
       ]
     })
