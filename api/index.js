@@ -163,8 +163,8 @@ module.exports = async (req, res) => {
 
       const user = users[0];
       
-      // Vérifier le mot de passe
-      const bcrypt = require('bcrypt');
+      // Vérifier le mot de passe (bcryptjs compatible serverless)
+      const bcrypt = require('bcryptjs');
       const validPassword = await bcrypt.compare(password, user.password_hash);
       if (!validPassword) {
         return res.status(401).json({ error: 'Identifiants invalides' });
