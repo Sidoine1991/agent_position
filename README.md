@@ -248,11 +248,11 @@
 3. **Appelez le support technique** : +229 0196911346
 
 ### Contacts utiles
-- **Développeur Principal** : **Sidoine Kolaolé YEBADOKPO**
+- **Développeur de l'application**
 - **Titre** : Data Analyst | Web Developer Fullstack | MEAL Officer
 - **Email** : conseil.riziculteurs.benin2006@gmail.com
 - **Téléphone** : +229 0196911346 / +229 0164052710
-- **LinkedIn** : [Sidoine YEBADOKPO](https://linkedin.com/in/sidoine-yebadokpo)
+- **LinkedIn** : [LinkedIn](https://linkedin.com/in/sidoine-yebadokpo)
 - **Organisation** : Conseil de Concertation des Riziculteurs du Bénin (CCRB)
 
 ## 🎉 Félicitations !
