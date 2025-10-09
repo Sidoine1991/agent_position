@@ -91,19 +91,26 @@ export default async function handler(req, res) {
       return res.json({ 
         status: 'OK', 
         database: 'Supabase',
+        supabaseConfigured: !!supabaseClient,
         timestamp: new Date().toISOString()
       });
     }
 
     // Supabase health check
     if (path === '/api/supabase-health') {
-      const { data, error } = await supabaseClient.from('app_settings').select('count').limit(1);
+      if (!supabaseClient) {
+        return res.status(200).json({ status: 'OK', database: 'Supabase', connected: false, reason: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing' });
+      }
+      const { error } = await supabaseClient.from('app_settings').select('count', { head: true }).limit(1);
       if (error) throw error;
       return res.json({ status: 'OK', database: 'Supabase', connected: true });
     }
 
     // Login
     if (path === '/api/login' && method === 'POST') {
+      if (!supabaseClient) {
+        return res.status(500).json({ error: 'Supabase non configuré. Définissez SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY.' });
+      }
       const { email, password } = req.body;
       
       if (!email || !password) {
