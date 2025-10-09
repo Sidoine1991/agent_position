@@ -36,7 +36,7 @@
     "xlsx": "^0.18.5"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "18.x"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.1",
