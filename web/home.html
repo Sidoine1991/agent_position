@@ -262,7 +262,7 @@
       right: 0;
       bottom: 0;
       background: url('/Media/siege_CCRB.png') center/cover no-repeat;
-      opacity: 0.1;
+      opacity: 0.05;
       z-index: 1;
     }
     
@@ -286,7 +286,7 @@
       66% { transform: translateY(10px) rotate(-1deg); }
     }
     
-    /* Particules flottantes */
+    /* Animations modernes IA/GPS/Smartphone */
     .floating-particles {
       position: absolute;
       top: 0;
@@ -297,6 +297,100 @@
       z-index: 1;
     }
     
+    /* Animations GPS/Satellite */
+    .gps-signal {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      animation: gpsPulse 3s infinite ease-in-out;
+    }
+    
+    .gps-signal:nth-child(1) { top: 20%; left: 15%; animation-delay: 0s; }
+    .gps-signal:nth-child(2) { top: 60%; right: 20%; animation-delay: 1s; }
+    .gps-signal:nth-child(3) { bottom: 30%; left: 30%; animation-delay: 2s; }
+    
+    @keyframes gpsPulse {
+      0%, 100% { 
+        transform: scale(0.8); 
+        opacity: 0.3; 
+        border-color: rgba(255, 255, 255, 0.3);
+      }
+      50% { 
+        transform: scale(1.2); 
+        opacity: 0.8; 
+        border-color: rgba(102, 126, 234, 0.6);
+      }
+    }
+    
+    /* Animations Smartphone/App */
+    .app-icon {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      animation: appFloat 4s infinite ease-in-out;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .app-icon:nth-child(4) { top: 25%; right: 15%; animation-delay: 0.5s; }
+    .app-icon:nth-child(5) { top: 70%; left: 10%; animation-delay: 1.5s; }
+    .app-icon:nth-child(6) { bottom: 20%; right: 25%; animation-delay: 2.5s; }
+    
+    @keyframes appFloat {
+      0%, 100% { 
+        transform: translateY(0px) rotate(0deg); 
+        opacity: 0.6;
+      }
+      25% { 
+        transform: translateY(-15px) rotate(5deg); 
+        opacity: 1;
+      }
+      50% { 
+        transform: translateY(-10px) rotate(-3deg); 
+        opacity: 0.8;
+      }
+      75% { 
+        transform: translateY(-20px) rotate(2deg); 
+        opacity: 0.9;
+      }
+    }
+    
+    /* Animations IA/Data */
+    .data-stream {
+      position: absolute;
+      width: 2px;
+      height: 30px;
+      background: linear-gradient(to bottom, transparent, rgba(102, 126, 234, 0.8), transparent);
+      animation: dataFlow 2s infinite linear;
+    }
+    
+    .data-stream:nth-child(7) { top: 30%; left: 25%; animation-delay: 0s; }
+    .data-stream:nth-child(8) { top: 50%; right: 30%; animation-delay: 0.7s; }
+    .data-stream:nth-child(9) { bottom: 40%; left: 60%; animation-delay: 1.4s; }
+    
+    @keyframes dataFlow {
+      0% { 
+        transform: translateY(-30px); 
+        opacity: 0; 
+      }
+      50% { 
+        opacity: 1; 
+      }
+      100% { 
+        transform: translateY(100vh); 
+        opacity: 0; 
+      }
+    }
+    
+    /* Particules flottantes classiques */
     .particle {
       position: absolute;
       background: rgba(255, 255, 255, 0.1);
@@ -304,15 +398,15 @@
       animation: float 20s infinite linear;
     }
     
-    .particle:nth-child(1) { width: 4px; height: 4px; left: 10%; animation-delay: 0s; }
-    .particle:nth-child(2) { width: 6px; height: 6px; left: 20%; animation-delay: 2s; }
-    .particle:nth-child(3) { width: 3px; height: 3px; left: 30%; animation-delay: 4s; }
-    .particle:nth-child(4) { width: 5px; height: 5px; left: 40%; animation-delay: 6s; }
-    .particle:nth-child(5) { width: 4px; height: 4px; left: 50%; animation-delay: 8s; }
-    .particle:nth-child(6) { width: 7px; height: 7px; left: 60%; animation-delay: 10s; }
-    .particle:nth-child(7) { width: 3px; height: 3px; left: 70%; animation-delay: 12s; }
-    .particle:nth-child(8) { width: 5px; height: 5px; left: 80%; animation-delay: 14s; }
-    .particle:nth-child(9) { width: 4px; height: 4px; left: 90%; animation-delay: 16s; }
+    .particle:nth-child(10) { width: 4px; height: 4px; left: 10%; animation-delay: 0s; }
+    .particle:nth-child(11) { width: 6px; height: 6px; left: 20%; animation-delay: 2s; }
+    .particle:nth-child(12) { width: 3px; height: 3px; left: 30%; animation-delay: 4s; }
+    .particle:nth-child(13) { width: 5px; height: 5px; left: 40%; animation-delay: 6s; }
+    .particle:nth-child(14) { width: 4px; height: 4px; left: 50%; animation-delay: 8s; }
+    .particle:nth-child(15) { width: 7px; height: 7px; left: 60%; animation-delay: 10s; }
+    .particle:nth-child(16) { width: 3px; height: 3px; left: 70%; animation-delay: 12s; }
+    .particle:nth-child(17) { width: 5px; height: 5px; left: 80%; animation-delay: 14s; }
+    .particle:nth-child(18) { width: 4px; height: 4px; left: 90%; animation-delay: 16s; }
     
     @keyframes float {
       0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
@@ -792,6 +886,380 @@
       font-weight: bold;
     }
     
+    /* Présentation CCR-B */
+    .ccrb-presentation {
+      padding: 80px 0;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      color: #1f2937;
+    }
+
+
+    /* Mot de bienvenue du Président */
+    .president-welcome {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 40px;
+      margin-bottom: 60px;
+      padding: 40px;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .president-photo {
+      text-align: center;
+    }
+
+    .president-photo img {
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 4px solid #667eea;
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+      margin-bottom: 20px;
+    }
+
+    .president-photo h4 {
+      font-size: 1.3rem;
+      color: #1f2937;
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+
+    .president-photo p {
+      color: #6b7280;
+      font-size: 1rem;
+    }
+
+    .welcome-message h3 {
+      font-size: 1.8rem;
+      color: #1f2937;
+      margin-bottom: 20px;
+      font-weight: 700;
+    }
+
+    .welcome-message blockquote {
+      font-size: 1.1rem;
+      line-height: 1.7;
+      color: #4b5563;
+      font-style: italic;
+      padding: 20px;
+      background: rgba(102, 126, 234, 0.05);
+      border-left: 4px solid #667eea;
+      border-radius: 8px;
+      margin: 0;
+    }
+
+    /* Équipe dirigeante */
+    .leadership-team {
+      margin-bottom: 60px;
+    }
+
+    .leadership-team h3 {
+      font-size: 2rem;
+      color: #1f2937;
+      text-align: center;
+      margin-bottom: 40px;
+      font-weight: 700;
+    }
+
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 30px;
+    }
+
+    .team-member {
+      text-align: center;
+      padding: 30px 20px;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 15px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .team-member:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    }
+
+    .team-member img {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid #667eea;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+
+    .team-member h4 {
+      font-size: 1.2rem;
+      color: #1f2937;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .team-member p {
+      color: #6b7280;
+      font-size: 0.95rem;
+    }
+
+    /* Répartition des riziculteurs */
+    .rice-farmers-distribution {
+      margin-bottom: 60px;
+      padding: 40px;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .rice-farmers-distribution h3 {
+      font-size: 2rem;
+      color: #1f2937;
+      text-align: center;
+      margin-bottom: 40px;
+      font-weight: 700;
+    }
+
+    .distribution-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      align-items: center;
+    }
+
+    .distribution-chart img {
+      width: 100%;
+      height: auto;
+      border-radius: 15px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
+
+    .distribution-stats h4 {
+      font-size: 1.5rem;
+      color: #1f2937;
+      margin-bottom: 30px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .stats-breakdown {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 20px;
+    }
+
+    .stats-breakdown .stat-item {
+      text-align: center;
+      padding: 20px 15px;
+      background: rgba(102, 126, 234, 0.05);
+      border-radius: 12px;
+      border: 1px solid rgba(102, 126, 234, 0.1);
+      transition: all 0.3s ease;
+    }
+
+    .stats-breakdown .stat-item:hover {
+      background: rgba(102, 126, 234, 0.1);
+      transform: translateY(-2px);
+    }
+
+    .stat-number {
+      display: block;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #667eea;
+      margin-bottom: 5px;
+    }
+
+    .stat-label {
+      font-size: 0.9rem;
+      color: #6b7280;
+      font-weight: 500;
+    }
+
+    /* Mission et objectifs */
+    .mission-objectives {
+      padding: 40px;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .mission-objectives h3 {
+      font-size: 2rem;
+      color: #1f2937;
+      text-align: center;
+      margin-bottom: 40px;
+      font-weight: 700;
+    }
+
+    .mission-content {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .mission-text h4 {
+      font-size: 1.4rem;
+      color: #1f2937;
+      margin-bottom: 15px;
+      margin-top: 30px;
+      font-weight: 600;
+    }
+
+    .mission-text h4:first-child {
+      margin-top: 0;
+    }
+
+    .mission-text p {
+      font-size: 1.1rem;
+      line-height: 1.7;
+      color: #4b5563;
+      margin-bottom: 20px;
+    }
+
+    .mission-text ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .mission-text li {
+      font-size: 1.1rem;
+      line-height: 1.7;
+      color: #4b5563;
+      margin-bottom: 15px;
+      padding-left: 25px;
+      position: relative;
+    }
+
+    .mission-text li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: #10b981;
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+
+    /* Responsive pour la présentation CCR-B */
+    @media (max-width: 768px) {
+      .president-welcome {
+        grid-template-columns: 1fr;
+        text-align: center;
+        gap: 30px;
+      }
+
+      .distribution-content {
+        grid-template-columns: 1fr;
+        gap: 30px;
+      }
+
+      .stats-breakdown {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 15px;
+      }
+
+      .team-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 20px;
+      }
+
+    }
+
+    /* Section Partenaires */
+    .partners {
+      padding: 60px 0;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      color: #1f2937;
+    }
+
+    .partners-header {
+      text-align: center;
+      margin-bottom: 50px;
+    }
+
+    .partners-header h3 {
+      font-size: 2rem;
+      color: #1f2937;
+      margin-bottom: 15px;
+      font-weight: 700;
+    }
+
+    .partners-header p {
+      font-size: 1.1rem;
+      color: #6b7280;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .partners-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 30px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .partner-logo {
+      text-align: center;
+      padding: 25px 15px;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 15px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .partner-logo:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    }
+
+    .partner-logo img {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      margin-bottom: 15px;
+      filter: grayscale(0.3);
+      transition: all 0.3s ease;
+    }
+
+    .partner-logo:hover img {
+      filter: grayscale(0);
+      transform: scale(1.05);
+    }
+
+    .partner-logo p {
+      font-size: 0.9rem;
+      color: #6b7280;
+      font-weight: 500;
+      margin: 0;
+    }
+
+    /* Responsive pour les partenaires */
+    @media (max-width: 768px) {
+      .partners-grid {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 20px;
+      }
+
+      .partner-logo {
+        padding: 20px 10px;
+      }
+
+      .partner-logo img {
+        width: 60px;
+        height: 60px;
+      }
+    }
+
     /* Footer */
     .footer {
       background: #111827;
@@ -919,6 +1387,22 @@
   <!-- Hero Section -->
   <section class="hero">
     <div class="floating-particles">
+      <!-- Animations GPS/Satellite -->
+      <div class="gps-signal"></div>
+      <div class="gps-signal"></div>
+      <div class="gps-signal"></div>
+      
+      <!-- Animations Smartphone/App -->
+      <div class="app-icon">📱</div>
+      <div class="app-icon">🛰️</div>
+      <div class="app-icon">📊</div>
+      
+      <!-- Animations IA/Data -->
+      <div class="data-stream"></div>
+      <div class="data-stream"></div>
+      <div class="data-stream"></div>
+      
+      <!-- Particules flottantes classiques -->
       <div class="particle"></div>
       <div class="particle"></div>
       <div class="particle"></div>
@@ -945,6 +1429,135 @@
           <i class="fas fa-user-plus"></i>
           S'inscrire
         </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Présentation de la Maison CCR-B -->
+  <section class="ccrb-presentation">
+    <div class="container">
+      <!-- Mot de bienvenue du Président -->
+      <div class="president-welcome">
+        <div class="president-photo">
+          <img src="/Media/President_CCR-B_Bossou Arouna.jpg" alt="Président BOSSOU Arouna">
+          <h4>BOSSOU Arouna</h4>
+          <p>Président du CCR-B</p>
+        </div>
+        <div class="welcome-message">
+          <h3>Mot de bienvenu du Président</h3>
+          <blockquote>
+            "Chers internautes, vous êtes les bienvenus sur le site web du Conseil de Concertation des Riziculteurs du Bénin (CCR-B) dédiée au suivi quotidien des conseillers et superviseurs déployés sous divers projets et programme sur le terrain, la faîtière nationale des producteurs de riz. Ce site est conçu pour accroître l'efficacité de l'équipe technique et aussi des conseillers afin de répondre aux objectifs et attentes de nos PTF quand à l'atteinte des indicateurs à divers niveaux de nos conventions et projets. Vous y trouverez des informations sur la présence en temps réel des agents sur la base de leur planification hebdomadaire. Nous vous invitons à parcourir ce site avec curiosité et intérêt, et à nous faire part de vos commentaires et suggestions. Nous vous remercions de votre visite et nous espérons vous revoir bientôt."
+          </blockquote>
+        </div>
+      </div>
+
+      <!-- Équipe dirigeante -->
+      <div class="leadership-team">
+        <h3>Équipe dirigeante</h3>
+        <div class="team-grid">
+          <div class="team-member">
+            <img src="/Media/President_CCR-B_Bossou Arouna.jpg" alt="Président BOSSOU Arouna">
+            <h4>BOSSOU Arouna</h4>
+            <p>Président</p>
+          </div>
+          <div class="team-member">
+            <img src="/Media/Coordo_CCR-B.jpg" alt="Coordonnateur CCR-B">
+            <h4>Joseph KOUTCHIKA</h4>
+            <p>Coordonnateur - Équipe technique</p>
+          </div>
+          <div class="team-member">
+            <img src="/Media/Président d'honneur_CCR-B.jpg" alt="Président d'honneur">
+            <h4>Professeur GBENOU Pascal</h4>
+            <p>Président d'honneur - Maître de Conférences CAMES</p>
+          </div>
+          <div class="team-member">
+            <img src="/Media/Ca_ccrb.jpg" alt="Conseil d'administration">
+            <h4>Conseil d'administration</h4>
+            <p>17 membres</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Répartition des riziculteurs -->
+      <div class="rice-farmers-distribution">
+        <h3>Répartition des riziculteurs par antenne</h3>
+        <div class="distribution-content">
+          <div class="distribution-chart">
+            <img src="/Media/screenshot_app/riziculteur_memebre_reseau CCRB.png" alt="Répartition des riziculteurs par antenne">
+          </div>
+          <div class="distribution-stats">
+            <h4>Effectif total : 62,744 riziculteurs</h4>
+            <div class="stats-breakdown">
+              <div class="stat-item">
+                <span class="stat-number">27,032</span>
+                <span class="stat-label">Alibori</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-number">17,342</span>
+                <span class="stat-label">Borgou</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-number">6,835</span>
+                <span class="stat-label">Collines</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-number">3,869</span>
+                <span class="stat-label">Atacora</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-number">2,566</span>
+                <span class="stat-label">Zou</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-number">998</span>
+                <span class="stat-label">Ouémé</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-number">991</span>
+                <span class="stat-label">Couffo</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-number">989</span>
+                <span class="stat-label">Plateau</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-number">717</span>
+                <span class="stat-label">Atlantique</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-number">708</span>
+                <span class="stat-label">Mono</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-number">697</span>
+                <span class="stat-label">Donga</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mission et objectifs -->
+      <div class="mission-objectives">
+        <h3>Mission et objectifs</h3>
+        <div class="mission-content">
+          <div class="mission-text">
+            <h4>Vision</h4>
+            <p>Devenir d'ici 2027 une organisation dynamique, performante, crédible, bien gouvernée qui promeut une production durable de riz pour répondre au besoin du marché en paddy de bonne qualité pour l'épanouissement de ses membres.</p>
+            
+            <h4>Mission</h4>
+            <p>Œuvrer pour améliorer les conditions socio-économiques des rizicultrices et riziculteurs du Bénin et leur insertion dans le processus de développement durable par la représentation, la défense des intérêts et la professionnalisation.</p>
+            
+            <h4>Objectifs principaux</h4>
+            <ul>
+              <li>Promouvoir une meilleure organisation et la professionnalisation des producteurs/trices de riz au Bénin</li>
+              <li>Représenter et défendre les intérêts des producteurs/productrices auprès des structures et institutions publiques</li>
+              <li>Veiller au fonctionnement démocratique et à la bonne marche des faîtières et des organisations de producteurs</li>
+              <li>Appuyer les Coopératives de la filière riz membres dans l'approvisionnement en intrants et équipements rizicoles</li>
+              <li>Devenir un Centre d'innovation verte opérationnel et un incubateur pour les innovations rizicoles</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -1173,6 +1786,38 @@
   </section>
 
   
+
+  <!-- Partenaires Section -->
+  <section class="partners">
+    <div class="container">
+      <div class="partners-header">
+        <h3>Nos Partenaires</h3>
+        <p>Organisations qui soutiennent le développement de la riziculture au Bénin</p>
+      </div>
+      <div class="partners-grid">
+        <div class="partner-logo">
+          <img src="/Media/Logo_Partenaires/LOGO DDC.png" alt="DDC - Direction du Développement et de la Coopération">
+          <p>DDC</p>
+        </div>
+        <div class="partner-logo">
+          <img src="/Media/Logo_Partenaires/logo ENABEL.png" alt="ENABEL - Agence belge de développement">
+          <p>ENABEL</p>
+        </div>
+        <div class="partner-logo">
+          <img src="/Media/Logo_Partenaires/LOGO MAEP.jpg" alt="MAEP - Ministère de l'Agriculture">
+          <p>MAEP</p>
+        </div>
+        <div class="partner-logo">
+          <img src="/Media/Logo_Partenaires/PP IFRIZ.png" alt="IFRIZ - Interprofession de la Filière Riz">
+          <p>IFRIZ</p>
+        </div>
+        <div class="partner-logo">
+          <img src="/Media/Logo_Partenaires/rikolto.png" alt="Rikolto - Organisation internationale">
+          <p>Rikolto</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- Footer -->
   <footer class="footer">
