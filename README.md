@@ -41,12 +41,12 @@
 
 ### Sur Mobile (Recommandé pour les agents)
 1. Ouvrez votre navigateur (Chrome, Firefox, Safari)
-2. Allez à l'adresse : `https://agent-position.vercel.app`
+2. Allez à l'adresse : `https://presence-ccrb-v2.onrender.com`
 3. L'application s'installe automatiquement comme une app
 
 ### Sur Ordinateur (Pour superviseurs et admins)
 1. Ouvrez votre navigateur
-2. Allez à l'adresse : `https://agent-position.vercel.app`
+2. Allez à l'adresse : `https://presence-ccrb-v2.onrender.com`
 3. Utilisez l'interface web complète
 
 ## 🔧 Configuration Email (Nouveau)
@@ -70,8 +70,10 @@ EMAIL_PASS=votre-mot-de-passe-application-gmail
 
 ## 🔐 Connexion au système
 
-Pour des raisons de sécurité, les identifiants par défaut ne sont plus publiés dans ce dépôt. Veuillez créer les comptes nécessaires lors de l'installation (voir la documentation d'installation) ou demander des accès à votre superviseur/administrateur.
+### Comptes par défaut
 
+#### Compte de Test
+Demander accès par email à **syebadokpo@gmail.com**
 ### Première connexion
 1. Cliquez sur "Se connecter"
 2. Entrez votre email et mot de passe
