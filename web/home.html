@@ -19,17 +19,18 @@
     
     /* Header/Navigation */
     .header {
-      background: linear-gradient(90deg, #0ea5e9, #6366f1, #ec4899);
-      background-size: 300% 300%;
-      animation: navbarGradient 14s ease infinite;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.25);
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.95), rgba(99, 102, 241, 0.95), rgba(236, 72, 153, 0.95));
+      background-size: 400% 400%;
+      animation: navbarGradient 8s ease infinite;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
       position: fixed;
       top: 0;
       left: 0;
       right: 0;
       z-index: 1000;
-      padding: 15px 0;
+      padding: 20px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
     
     @keyframes navbarGradient {
@@ -95,37 +96,67 @@
     
     .nav-buttons {
       display: flex;
-      gap: 15px;
+      gap: 20px;
+      align-items: center;
     }
     
     .btn-nav {
-      padding: 10px 20px;
-      border-radius: 25px;
+      padding: 12px 24px;
+      border-radius: 50px;
       text-decoration: none;
-      font-weight: 500;
-      transition: all 0.3s;
+      font-weight: 600;
+      font-size: 14px;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       border: none;
       cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .btn-nav::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: left 0.5s;
+    }
+    
+    .btn-nav:hover::before {
+      left: 100%;
     }
     
     .btn-primary {
       background: linear-gradient(135deg, #10b981, #0ea5e9);
-      color: #0b0f14;
+      color: #ffffff;
       font-weight: 700;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
     }
     
     .btn-secondary {
-      background: #0b1220;
-      color: #0ea5e9;
-      border: 2px solid #0ea5e9;
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      backdrop-filter: blur(10px);
     }
     
     .btn-nav:hover,
     .btn-nav:focus {
-      transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(16,185,129,0.3);
+      transform: translateY(-3px) scale(1.05);
+      box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
       outline: none;
-      filter: brightness(1.05);
+      filter: brightness(1.1);
+    }
+    
+    .btn-nav:active {
+      transform: translateY(-1px) scale(1.02);
     }
     
     /* Mobile Menu */
@@ -199,12 +230,15 @@
     
     /* Hero Section */
     .hero {
-      padding: 120px 0 80px;
-      background: linear-gradient(135deg, rgba(14,165,233,0.9), rgba(99,102,241,0.9), rgba(236,72,153,0.9));
+      padding: 140px 0 100px;
+      background: linear-gradient(135deg, rgba(14,165,233,0.95), rgba(99,102,241,0.95), rgba(236,72,153,0.95));
       color: white;
       text-align: center;
       position: relative;
       overflow: hidden;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
     }
     
     .hero::before {
@@ -215,64 +249,186 @@
       right: 0;
       bottom: 0;
       background: url('/Media/siege_CCRB.png') center/cover no-repeat;
-      opacity: 0.2;
+      opacity: 0.15;
       z-index: 1;
+    }
+    
+    .hero::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                  radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+                  radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.3) 0%, transparent 50%);
+      animation: heroFloat 20s ease-in-out infinite;
+      z-index: 2;
+    }
+    
+    @keyframes heroFloat {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      33% { transform: translateY(-20px) rotate(1deg); }
+      66% { transform: translateY(10px) rotate(-1deg); }
+    }
+    
+    /* Particules flottantes */
+    .floating-particles {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      z-index: 1;
+    }
+    
+    .particle {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      animation: float 20s infinite linear;
+    }
+    
+    .particle:nth-child(1) { width: 4px; height: 4px; left: 10%; animation-delay: 0s; }
+    .particle:nth-child(2) { width: 6px; height: 6px; left: 20%; animation-delay: 2s; }
+    .particle:nth-child(3) { width: 3px; height: 3px; left: 30%; animation-delay: 4s; }
+    .particle:nth-child(4) { width: 5px; height: 5px; left: 40%; animation-delay: 6s; }
+    .particle:nth-child(5) { width: 4px; height: 4px; left: 50%; animation-delay: 8s; }
+    .particle:nth-child(6) { width: 7px; height: 7px; left: 60%; animation-delay: 10s; }
+    .particle:nth-child(7) { width: 3px; height: 3px; left: 70%; animation-delay: 12s; }
+    .particle:nth-child(8) { width: 5px; height: 5px; left: 80%; animation-delay: 14s; }
+    .particle:nth-child(9) { width: 4px; height: 4px; left: 90%; animation-delay: 16s; }
+    
+    @keyframes float {
+      0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translateY(-100px) rotate(360deg); opacity: 0; }
     }
     
     .hero-content {
       position: relative;
-      z-index: 2;
-      max-width: 800px;
+      z-index: 3;
+      max-width: 900px;
       margin: 0 auto;
       padding: 0 20px;
+      animation: heroContentFade 1.5s ease-out;
+    }
+    
+    @keyframes heroContentFade {
+      0% { opacity: 0; transform: translateY(50px); }
+      100% { opacity: 1; transform: translateY(0); }
     }
     
     .hero h1 {
-      font-size: 3.5rem;
-      margin-bottom: 20px;
-      font-weight: 700;
-      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+      font-size: 4rem;
+      margin-bottom: 25px;
+      font-weight: 800;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.4);
+      background: linear-gradient(135deg, #ffffff, #e0e7ff, #c7d2fe);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: heroTitleGlow 3s ease-in-out infinite alternate;
+    }
+    
+    @keyframes heroTitleGlow {
+      0% { filter: brightness(1); }
+      100% { filter: brightness(1.2); }
     }
     
     .hero p {
-      font-size: 1.3rem;
-      margin-bottom: 30px;
+      font-size: 1.4rem;
+      margin-bottom: 40px;
       opacity: 0.95;
+      line-height: 1.6;
+      text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+      animation: heroTextSlide 1.8s ease-out 0.3s both;
+    }
+    
+    @keyframes heroTextSlide {
+      0% { opacity: 0; transform: translateX(-30px); }
+      100% { opacity: 0.95; transform: translateX(0); }
     }
     
     .hero-buttons {
       display: flex;
-      gap: 20px;
+      gap: 25px;
       justify-content: center;
       flex-wrap: wrap;
+      animation: heroButtonsFade 2s ease-out 0.6s both;
+    }
+    
+    @keyframes heroButtonsFade {
+      0% { opacity: 0; transform: translateY(30px); }
+      100% { opacity: 1; transform: translateY(0); }
     }
     
     .btn-hero {
-      padding: 15px 30px;
-      border-radius: 30px;
+      padding: 18px 36px;
+      border-radius: 50px;
       text-decoration: none;
-      font-weight: 600;
+      font-weight: 700;
       font-size: 1.1rem;
-      transition: all 0.3s;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       display: inline-flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
+      position: relative;
+      overflow: hidden;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      backdrop-filter: blur(10px);
+    }
+    
+    .btn-hero::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+      transition: left 0.6s;
+    }
+    
+    .btn-hero:hover::before {
+      left: 100%;
     }
     
     .btn-white {
-      background: white;
-      color: #2563eb;
+      background: linear-gradient(135deg, #ffffff, #f8fafc);
+      color: #1e40af;
+      box-shadow: 0 8px 25px rgba(255, 255, 255, 0.3);
+      border: 2px solid rgba(255, 255, 255, 0.2);
     }
     
     .btn-outline {
-      background: transparent;
+      background: rgba(255, 255, 255, 0.1);
       color: white;
-      border: 2px solid white;
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 8px 25px rgba(255, 255, 255, 0.1);
     }
     
     .btn-hero:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      transform: translateY(-5px) scale(1.05);
+      box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+      filter: brightness(1.1);
+    }
+    
+    .btn-hero:active {
+      transform: translateY(-2px) scale(1.02);
+    }
+    
+    .btn-hero i {
+      font-size: 1.2rem;
+      transition: transform 0.3s ease;
+    }
+    
+    .btn-hero:hover i {
+      transform: scale(1.2) rotate(5deg);
     }
     
     /* Features Section */
@@ -309,34 +465,96 @@
     .features-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 30px;
+      gap: 35px;
     }
     
     .feature-card {
-      background: white;
-      padding: 40px 30px;
-      border-radius: 15px;
+      animation: featureCardFade 0.8s ease-out both;
+    }
+    
+    .feature-card:nth-child(1) { animation-delay: 0.1s; }
+    .feature-card:nth-child(2) { animation-delay: 0.2s; }
+    .feature-card:nth-child(3) { animation-delay: 0.3s; }
+    .feature-card:nth-child(4) { animation-delay: 0.4s; }
+    .feature-card:nth-child(5) { animation-delay: 0.5s; }
+    .feature-card:nth-child(6) { animation-delay: 0.6s; }
+    
+    @keyframes featureCardFade {
+      0% { opacity: 0; transform: translateY(50px) scale(0.9); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    
+    .feature-card {
+      background: linear-gradient(135deg, #ffffff, #f8fafc);
+      padding: 45px 35px;
+      border-radius: 20px;
       text-align: center;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-      transition: transform 0.3s;
-      border: 1px solid #e5e7eb;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.08);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid rgba(229, 231, 235, 0.5);
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(10px);
+    }
+    
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #0ea5e9, #6366f1, #ec4899);
+      transform: scaleX(0);
+      transition: transform 0.4s ease;
+    }
+    
+    .feature-card:hover::before {
+      transform: scaleX(1);
     }
     
     .feature-card:hover {
-      transform: translateY(-10px);
+      transform: translateY(-15px) scale(1.02);
+      box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+      border-color: rgba(14, 165, 233, 0.3);
     }
     
     .feature-icon {
-      width: 80px;
-      height: 80px;
-      background: linear-gradient(135deg, #2563eb, #0ea5e9);
+      width: 90px;
+      height: 90px;
+      background: linear-gradient(135deg, #2563eb, #0ea5e9, #6366f1);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin: 0 auto 20px;
-      font-size: 2rem;
+      margin: 0 auto 25px;
+      font-size: 2.2rem;
       color: white;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .feature-icon::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
+      border-radius: 50%;
+      transform: scale(0);
+      transition: transform 0.4s ease;
+    }
+    
+    .feature-card:hover .feature-icon {
+      transform: scale(1.1) rotate(5deg);
+      box-shadow: 0 10px 25px rgba(37, 99, 235, 0.3);
+    }
+    
+    .feature-card:hover .feature-icon::before {
+      transform: scale(1);
     }
     
     .feature-card h3 {
@@ -674,6 +892,17 @@
 
   <!-- Hero Section -->
   <section class="hero">
+    <div class="floating-particles">
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+    </div>
     <div class="hero-content">
       <h1>Presence CCR-B</h1>
       <p>Plateforme de suivi en temps réel pour optimiser l'efficacité opérationnelle des conseillers terrain</p>
@@ -685,6 +914,10 @@
         <a id="hero-login-btn" class="btn-hero btn-white" href="/index.html">
           <i class="fas fa-sign-in-alt"></i>
           Se connecter
+        </a>
+        <a id="hero-register-btn" class="btn-hero btn-outline" href="/register.html">
+          <i class="fas fa-user-plus"></i>
+          S'inscrire
         </a>
       </div>
     </div>
@@ -847,15 +1080,21 @@
     </div>
   </section>
 
-  <!-- CTA Section (bouton centré) -->
+  <!-- CTA Section (boutons centrés) -->
   <section class="cta">
     <div class="container" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:40vh">
       <h2 style="text-align:center">Prêt à optimiser votre suivi terrain ?</h2>
       <p style="text-align:center;max-width:720px">Rejoignez les équipes CCR-B qui utilisent déjà Presence pour améliorer leur efficacité opérationnelle.</p>
-      <a href="/index.html" class="btn-hero btn-white" style="margin-top:16px">
-        <i class="fas fa-rocket"></i>
-        Démarrer maintenant
-      </a>
+      <div style="display:flex;gap:20px;margin-top:16px;flex-wrap:wrap;justify-content:center">
+        <a href="/index.html" class="btn-hero btn-white">
+          <i class="fas fa-sign-in-alt"></i>
+          Se connecter
+        </a>
+        <a href="/register.html" class="btn-hero btn-outline">
+          <i class="fas fa-user-plus"></i>
+          S'inscrire
+        </a>
+      </div>
     </div>
   </section>
 
