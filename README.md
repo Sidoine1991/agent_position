@@ -50,19 +50,11 @@
 3. Utilisez l'interface web complète
 
 ## 🔐 Connexion au système
-
 ### Comptes par défaut
-
-#### Administrateur Principal
-- **Email** : `syebadokpo@gmail.com`
-- **Mot de passe** : `123456`
-- **Accès** : Toutes les fonctionnalités
 
 #### Compte de Test
 - **Email** : `admin@test.com`
 - **Mot de passe** : `123456`
-- **Accès** : Administration complète
-
 ### Première connexion
 1. Cliquez sur "Se connecter"
 2. Entrez votre email et mot de passe
