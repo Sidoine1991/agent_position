@@ -53,8 +53,7 @@
 ### Comptes par défaut
 
 #### Compte de Test
-- **Email** : `admin@test.com`
-- **Mot de passe** : `123456`
+Demander accès par email à **syebadokpo@gmail.com**
 ### Première connexion
 1. Cliquez sur "Se connecter"
 2. Entrez votre email et mot de passe
