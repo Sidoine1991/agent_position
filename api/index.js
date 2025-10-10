@@ -1,6 +1,9 @@
 // API consolidée pour Vercel - Version Supabase uniquement
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://agent-position.vercel.app';
+
+// Configuration email
+const nodemailer = require('nodemailer');
 function getAllowedOrigin(req) {
   try {
     const originHeader = req.headers['origin'] || '';
@@ -56,6 +59,53 @@ function initializeUsers() {
 // Hash simple pour les mots de passe
 function simpleHash(password) {
   return require('crypto').createHash('sha256').update(password).digest('hex');
+}
+
+// Fonction d'envoi d'email de vérification
+async function sendVerificationEmail(email, code, newAccountEmail = null) {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.warn('⚠️ Configuration email manquante - EMAIL_USER et EMAIL_PASS requis');
+    throw new Error('Configuration email manquante');
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: 'Vérification de compte Presence CCR-B',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #2563eb; margin-bottom: 10px;">Presence CCR-B</h1>
+          <h2 style="color: #374151; margin: 0;">Vérification de compte</h2>
+        </div>
+        
+        <div style="background: #f8fafc; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+          ${newAccountEmail ? `<p style="margin: 0 0 15px 0; color: #059669;"><strong>Nouveau compte:</strong> ${newAccountEmail}</p>` : ''}
+          <p style="margin: 0 0 15px 0; color: #374151;">Votre code de vérification est :</p>
+          <div style="text-align: center; margin: 20px 0;">
+            <span style="font-size: 32px; font-weight: bold; color: #2563eb; background: #eff6ff; padding: 15px 25px; border-radius: 8px; letter-spacing: 3px;">${code}</span>
+          </div>
+          <p style="margin: 15px 0 0 0; color: #6b7280; font-size: 14px;">Entrez ce code dans l'application pour activer votre compte.</p>
+        </div>
+        
+        <div style="text-align: center; color: #6b7280; font-size: 12px;">
+          <p>Ce code expire dans 24 heures.</p>
+          <p>Si vous n'avez pas demandé ce code, ignorez cet email.</p>
+        </div>
+      </div>
+    `
+  };
+
+  await transporter.sendMail(mailOptions);
+  console.log(`✅ Email de vérification envoyé à ${email}`);
 }
 
 // Middleware CORS
@@ -198,7 +248,11 @@ module.exports = async (req, res) => {
 
     // Register
     if (path === '/api/register' && method === 'POST') {
-      const { email, password, name, role = 'agent' } = req.body;
+      if (!supabaseClient) {
+        return res.status(500).json({ error: 'Supabase non configuré. Définissez SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY.' });
+      }
+
+      const { email, password, name, role = 'agent', phone, departement, commune, arrondissement, village, project_name, expected_days_per_month, expected_hours_per_month, contract_start_date, contract_end_date, years_of_service, reference_lat, reference_lon, tolerance_radius_meters } = req.body;
       
       if (!email || !password || !name) {
         return res.status(400).json({ error: 'Email, mot de passe et nom requis' });
@@ -216,35 +270,82 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'Cet email est déjà utilisé' });
       }
 
+      // Vérifier si c'est un admin et s'il y a déjà un admin principal
+      let isAdminFlow = false;
+      if (role === 'admin') {
+        const { data: adminUsers, error: adminCheckError } = await supabaseClient
+          .from('users')
+          .select('id')
+          .eq('role', 'admin')
+          .limit(1);
+
+        if (adminCheckError) throw adminCheckError;
+        isAdminFlow = adminUsers && adminUsers.length > 0;
+      }
+
       // Hasher le mot de passe
       const bcrypt = require('bcrypt');
       const passwordHash = await bcrypt.hash(password, 10);
       
-      // Générer un code de vérification
+      // Générer un code de vérification à 6 chiffres
       const crypto = require('crypto');
-      const verificationCode = crypto.randomBytes(32).toString('hex');
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString(); // Code à 6 chiffres
       const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+      // Préparer les données utilisateur
+      const userData = {
+        email,
+        password_hash: passwordHash,
+        name,
+        role,
+        is_verified: false,
+        verification_code: verificationCode,
+        verification_expires: verificationExpires.toISOString(),
+        phone: phone || null,
+        departement: departement || null,
+        commune: commune || null,
+        arrondissement: arrondissement || null,
+        village: village || null,
+        project_name: project_name || null,
+        expected_days_per_month: expected_days_per_month ? parseInt(expected_days_per_month) : null,
+        expected_hours_per_month: expected_hours_per_month ? parseInt(expected_hours_per_month) : null,
+        contract_start_date: contract_start_date || null,
+        contract_end_date: contract_end_date || null,
+        years_of_service: years_of_service ? parseFloat(years_of_service) : null,
+        reference_lat: reference_lat ? parseFloat(reference_lat) : null,
+        reference_lon: reference_lon ? parseFloat(reference_lon) : null,
+        tolerance_radius_meters: tolerance_radius_meters ? parseInt(tolerance_radius_meters) : null
+      };
 
       // Créer l'utilisateur dans Supabase
       const { data: newUser, error: insertError } = await supabaseClient
         .from('users')
-        .insert([{
-          email,
-          password_hash: passwordHash,
-          name,
-          role,
-          is_verified: false,
-          verification_code: verificationCode,
-          verification_expires: verificationExpires.toISOString()
-        }])
+        .insert([userData])
         .select()
         .single();
 
       if (insertError) throw insertError;
 
+      // Envoyer l'email de vérification
+      try {
+        if (isAdminFlow) {
+          // Pour les admins, envoyer l'email au super admin
+          const superAdminEmail = 'syebadokpo@gmail.com';
+          await sendVerificationEmail(superAdminEmail, verificationCode, email);
+        } else {
+          // Pour les utilisateurs normaux, envoyer l'email à l'utilisateur
+          await sendVerificationEmail(email, verificationCode);
+        }
+      } catch (emailError) {
+        console.error('Erreur envoi email:', emailError);
+        // Ne pas faire échouer l'inscription si l'email échoue
+        // L'utilisateur peut demander un renvoi de code
+      }
+
       return res.json({
         success: true,
         message: 'Compte créé avec succès. Vérifiez votre email.',
+        admin_flow: isAdminFlow,
         user: {
           id: newUser.id,
           email: newUser.email,
@@ -326,6 +427,118 @@ module.exports = async (req, res) => {
         }
       });
       return;
+    }
+
+    // Verify
+    if (path === '/api/verify' && method === 'POST') {
+      if (!supabaseClient) {
+        return res.status(500).json({ error: 'Supabase non configuré' });
+      }
+
+      const { email, code } = req.body;
+      
+      if (!email || !code) {
+        return res.status(400).json({ error: 'Email et code requis' });
+      }
+
+      // Rechercher l'utilisateur avec le code de vérification
+      const { data: users, error } = await supabaseClient
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .eq('verification_code', code)
+        .limit(1);
+
+      if (error) throw error;
+      if (!users || users.length === 0) {
+        return res.status(400).json({ error: 'Code invalide ou expiré' });
+      }
+
+      const user = users[0];
+      
+      // Vérifier si le code n'est pas expiré
+      const now = new Date();
+      const expiresAt = new Date(user.verification_expires);
+      if (now > expiresAt) {
+        return res.status(400).json({ error: 'Code expiré' });
+      }
+
+      // Activer le compte
+      const { error: updateError } = await supabaseClient
+        .from('users')
+        .update({ 
+          is_verified: true,
+          verification_code: null,
+          verification_expires: null
+        })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      return res.json({
+        success: true,
+        message: 'Compte vérifié avec succès'
+      });
+    }
+
+    // Resend code
+    if (path === '/api/resend-code' && method === 'POST') {
+      if (!supabaseClient) {
+        return res.status(500).json({ error: 'Supabase non configuré' });
+      }
+
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ error: 'Email requis' });
+      }
+
+      // Rechercher l'utilisateur
+      const { data: users, error } = await supabaseClient
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .limit(1);
+
+      if (error) throw error;
+      if (!users || users.length === 0) {
+        return res.status(404).json({ error: 'Utilisateur non trouvé' });
+      }
+
+      const user = users[0];
+      
+      if (user.is_verified) {
+        return res.status(400).json({ error: 'Compte déjà vérifié' });
+      }
+
+      // Générer un nouveau code
+      const crypto = require('crypto');
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      // Mettre à jour le code
+      const { error: updateError } = await supabaseClient
+        .from('users')
+        .update({ 
+          verification_code: verificationCode,
+          verification_expires: verificationExpires.toISOString()
+        })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      // Envoyer le nouveau code par email
+      try {
+        await sendVerificationEmail(email, verificationCode);
+      } catch (emailError) {
+        console.error('Erreur envoi email:', emailError);
+        return res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'email' });
+      }
+
+      return res.json({
+        success: true,
+        message: 'Nouveau code envoyé par email'
+      });
     }
 
     // Settings

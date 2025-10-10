@@ -49,6 +49,25 @@
 2. Allez à l'adresse : `https://agent-position.vercel.app`
 3. Utilisez l'interface web complète
 
+## 🔧 Configuration Email (Nouveau)
+
+**Problème résolu** : Les codes de vérification sont maintenant envoyés par email.
+
+### Configuration requise
+Pour que les emails de vérification fonctionnent, configurez ces variables d'environnement :
+
+```env
+EMAIL_USER=votre-email@gmail.com
+EMAIL_PASS=votre-mot-de-passe-application-gmail
+```
+
+### Configuration Gmail
+1. Activez la validation en 2 étapes sur votre compte Google
+2. Générez un "App Password" dans les paramètres de sécurité
+3. Utilisez ce mot de passe (16 caractères) dans `EMAIL_PASS`
+
+📖 **Guide détaillé** : Voir [EMAIL_SETUP.md](EMAIL_SETUP.md)
+
 ## 🔐 Connexion au système
 
 Pour des raisons de sécurité, les identifiants par défaut ne sont plus publiés dans ce dépôt. Veuillez créer les comptes nécessaires lors de l'installation (voir la documentation d'installation) ou demander des accès à votre superviseur/administrateur.
