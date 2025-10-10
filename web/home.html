@@ -1009,6 +1009,37 @@
       font-size: 0.95rem;
     }
 
+    .team-member .specialty {
+      color: #667eea;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin: 5px 0;
+    }
+
+    .team-member .organization {
+      color: #10b981;
+      font-weight: 500;
+      font-size: 0.9rem;
+      margin: 5px 0;
+    }
+
+    .team-member .website {
+      margin: 8px 0 0 0;
+    }
+
+    .team-member .website a {
+      color: #2563eb;
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: color 0.3s ease;
+    }
+
+    .team-member .website a:hover {
+      color: #1d4ed8;
+      text-decoration: underline;
+    }
+
     /* Répartition des riziculteurs */
     .rice-farmers-distribution {
       margin-bottom: 60px;
@@ -1044,9 +1075,17 @@
     .distribution-stats h4 {
       font-size: 1.5rem;
       color: #1f2937;
-      margin-bottom: 30px;
+      margin-bottom: 15px;
       font-weight: 700;
       text-align: center;
+    }
+
+    .source-info {
+      font-size: 0.9rem;
+      color: #6b7280;
+      text-align: center;
+      margin-bottom: 30px;
+      font-style: italic;
     }
 
     .stats-breakdown {
@@ -1170,6 +1209,117 @@
         gap: 20px;
       }
 
+    }
+
+    /* Section Emplacement du siège */
+    .office-location {
+      padding: 60px 0;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      color: #1f2937;
+    }
+
+    .location-header {
+      text-align: center;
+      margin-bottom: 50px;
+    }
+
+    .location-header h3 {
+      font-size: 2rem;
+      color: #1f2937;
+      margin-bottom: 15px;
+      font-weight: 700;
+    }
+
+    .location-header p {
+      font-size: 1.1rem;
+      color: #6b7280;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .location-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      align-items: center;
+    }
+
+    .location-map img {
+      width: 100%;
+      height: auto;
+      border-radius: 15px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+      transition: transform 0.3s ease;
+    }
+
+    .location-map img:hover {
+      transform: scale(1.02);
+    }
+
+    .location-info {
+      padding: 30px;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 15px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .location-info h4 {
+      font-size: 1.4rem;
+      color: #1f2937;
+      margin-bottom: 20px;
+      font-weight: 600;
+    }
+
+    .location-info p {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+      color: #4b5563;
+      font-size: 1rem;
+    }
+
+    .location-info i {
+      color: #667eea;
+      width: 16px;
+    }
+
+    .map-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      margin-top: 20px;
+    }
+
+    .map-link:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+      color: white;
+    }
+
+    .map-link i {
+      color: white;
+    }
+
+    /* Responsive pour l'emplacement */
+    @media (max-width: 768px) {
+      .location-content {
+        grid-template-columns: 1fr;
+        gap: 30px;
+      }
+
+      .location-info {
+        padding: 20px;
+      }
     }
 
     /* Section Partenaires */
@@ -1468,7 +1618,10 @@
           <div class="team-member">
             <img src="/Media/Président d'honneur_CCR-B.jpg" alt="Président d'honneur">
             <h4>Professeur GBENOU Pascal</h4>
-            <p>Président d'honneur - Maître de Conférences CAMES</p>
+            <p>Président d'honneur</p>
+            <p class="specialty">Agroécologie, Aménagement durable des Espaces verts</p>
+            <p class="organization">Promoteur de la Ferme École SAIN de Kakanitchoé</p>
+            <p class="website"><a href="https://www.sain-benin.org/" target="_blank" rel="noopener">www.sain-benin.org</a></p>
           </div>
           <div class="team-member">
             <img src="/Media/Ca_ccrb.jpg" alt="Conseil d'administration">
@@ -1487,6 +1640,7 @@
           </div>
           <div class="distribution-stats">
             <h4>Effectif total : 62,744 riziculteurs</h4>
+            <p class="source-info"><em>Source : CCR-B, 2020 - Recensement général organisé</em></p>
             <div class="stats-breakdown">
               <div class="stat-item">
                 <span class="stat-number">27,032</span>
@@ -1787,6 +1941,30 @@
 
   
 
+  <!-- Emplacement du siège -->
+  <section class="office-location">
+    <div class="container">
+      <div class="location-header">
+        <h3>Notre Siège</h3>
+        <p>Localisation du siège du Conseil de Concertation des Riziculteurs du Bénin</p>
+      </div>
+      <div class="location-content">
+        <div class="location-map">
+          <img src="/Media/screenshot_app/emplaacement_bureau ccrb.png" alt="Emplacement du siège CCR-B">
+        </div>
+        <div class="location-info">
+          <h4>Adresse du siège</h4>
+          <p><i class="fas fa-map-marker-alt"></i> 03BP 252 ABOMEY</p>
+          <p><i class="fas fa-phone"></i> (229) 97 66 36 63</p>
+          <p><i class="fas fa-envelope"></i> conseil.riziculteurs.benin2006@gmail.com</p>
+          <a href="https://maps.app.goo.gl/H9Gigd32RCHFjTVbA" target="_blank" rel="noopener" class="map-link">
+            <i class="fas fa-external-link-alt"></i> Voir sur Google Maps
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Partenaires Section -->
   <section class="partners">
     <div class="container">
@@ -1814,6 +1992,10 @@
         <div class="partner-logo">
           <img src="/Media/Logo_Partenaires/rikolto.png" alt="Rikolto - Organisation internationale">
           <p>Rikolto</p>
+        </div>
+        <div class="partner-logo">
+          <img src="/Media/Logo_Partenaires/SOS FAIM.jpg" alt="SOS FAIM - Organisation de solidarité">
+          <p>SOS FAIM</p>
         </div>
       </div>
     </div>
