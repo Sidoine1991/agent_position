@@ -51,17 +51,7 @@
 
 ## 🔐 Connexion au système
 
-### Comptes par défaut
-
-#### Administrateur Principal
-- **Email** : `syebadokpo@gmail.com`
-- **Mot de passe** : `123456`
-- **Accès** : Toutes les fonctionnalités
-
-#### Compte de Test
-- **Email** : `admin@test.com`
-- **Mot de passe** : `123456`
-- **Accès** : Administration complète
+Pour des raisons de sécurité, les identifiants par défaut ne sont plus publiés dans ce dépôt. Veuillez créer les comptes nécessaires lors de l'installation (voir la documentation d'installation) ou demander des accès à votre superviseur/administrateur.
 
 ### Première connexion
 1. Cliquez sur "Se connecter"

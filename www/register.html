@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inscription - Presence CCRB</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" type="image/png" href="/Media/logo-ccrb.png">
+    <style>
+        /* Styles spécifiques pour la page d'inscription */
+        .register-page {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .register-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            width: 100%;
+            max-width: 1120px;
+            display: grid;
+            grid-template-columns: 1fr 1.25fr;
+            min-height: 640px;
+        }
+        
+        .register-left {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .register-left::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: url('/Media/PP%20CCRB.png') no-repeat center;
+            background-size: contain;
+            opacity: 0.1;
+            transform: rotate(15deg);
+        }
+        
+        .register-logo {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 4px solid rgba(255,255,255,0.3);
+            margin-bottom: 30px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .register-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .register-subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            line-height: 1.6;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .register-right {
+            padding: 48px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .form-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .form-title {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+        
+        .form-subtitle {
+            color: #6b7280;
+            font-size: 0.95rem;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #374151;
+            font-size: 0.9rem;
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 14px 18px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 1.05rem;
+            transition: all 0.3s ease;
+            background: #f9fafb;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #2563eb;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .form-group input::placeholder {
+            color: #9ca3af;
+        }
+        
+        .btn-register {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+        
+        .btn-register:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+        }
+        
+        .btn-register:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .login-link {
+            text-align: center;
+            margin-top: 25px;
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+        
+        .login-link a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .login-link a:hover {
+            text-decoration: underline;
+        }
+        
+        .success-message {
+            background: #d1fae5;
+            border: 1px solid #a7f3d0;
+            color: #065f46;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .error-message {
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .register-container {
+                grid-template-columns: 1fr;
+                max-width: 480px;
+            }
+            
+            .register-left {
+                padding: 30px 20px;
+            }
+            
+            .register-right {
+                padding: 30px 20px;
+            }
+            
+            .register-title {
+                font-size: 2rem;
+            }
+            
+            .register-logo {
+                width: 80px;
+                height: 80px;
+            }
+        }
+        
+        /* Animation de chargement */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="register-page">
+        <div class="register-container">
+            <!-- Section gauche avec logo et présentation -->
+            <div class="register-left">
+                <img src="/Media/PP%20CCRB.png" alt="CCRB Logo" class="register-logo">
+                <h1 class="register-title">Presence CCRB</h1>
+                <p class="register-subtitle">
+                    Rejoignez notre système de gestion de présence et de suivi des missions. 
+                    Créez votre compte pour accéder à toutes les fonctionnalités de géolocalisation 
+                    et de gestion des agents.
+                </p>
+            </div>
+            
+            <!-- Section droite avec formulaire -->
+            <div class="register-right">
+                <div class="form-header">
+                    <h2 class="form-title">Créer un compte</h2>
+                    <p class="form-subtitle">Remplissez les informations ci-dessous</p>
+                </div>
+                
+                <!-- Messages de succès/erreur -->
+                <div id="success-message" class="success-message" style="display: none;"></div>
+                <div id="error-message" class="error-message" style="display: none;"></div>
+                
+                <!-- Formulaire d'inscription -->
+                <div id="register-form">
+                    <form id="registrationForm" method="post" enctype="application/x-www-form-urlencoded" novalidate>
+                        <div class="form-group">
+                            <label for="name">Nom complet *</label>
+                            <input type="text" id="name" name="name" required placeholder="Votre nom complet">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="email">Email *</label>
+                            <input type="email" id="email" name="email" required placeholder="votre@email.com" autocomplete="username">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="phone">Téléphone</label>
+                            <input type="tel" id="phone" name="phone" placeholder="+229 12 34 56 78">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="role">Rôle *</label>
+                            <select id="role" name="role" required>
+                                <option value="">Sélectionnez votre rôle</option>
+                                <option value="agent">Agent</option>
+                                <option value="superviseur">Superviseur</option>
+                                <option value="admin">Administrateur</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="password">Mot de passe *</label>
+                            <input type="password" id="password" name="password" required minlength="6" placeholder="Minimum 6 caractères" autocomplete="new-password">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="confirmPassword">Confirmer le mot de passe *</label>
+                            <input type="password" id="confirmPassword" name="confirmPassword" required minlength="6" placeholder="Répétez votre mot de passe" autocomplete="new-password">
+                        </div>
+
+                        <!-- Champs additionnels liés à la table users (optionnels) -->
+                        <div class="form-group">
+                            <label for="departement">Département</label>
+                            <select id="departement" name="departement">
+                                <option value="">Sélectionner un département...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="commune">Commune</label>
+                            <select id="commune" name="commune" disabled>
+                                <option value="">Sélectionner une commune...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="arrondissement">Arrondissement</label>
+                            <select id="arrondissement" name="arrondissement" disabled>
+                                <option value="">Sélectionner un arrondissement...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="village">Village</label>
+                            <select id="village" name="village" disabled>
+                                <option value="">Sélectionner un village...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="project_name">Projet</label>
+                            <input type="text" id="project_name" name="project_name" placeholder="Nom du projet">
+                        </div>
+                        <div class="form-group">
+                            <label for="reference_lat">Latitude de référence</label>
+                            <input type="number" step="0.000001" id="reference_lat" name="reference_lat" placeholder="Ex: 6.4969" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="reference_lon">Longitude de référence</label>
+                            <input type="number" step="0.000001" id="reference_lon" name="reference_lon" placeholder="Ex: 2.6036" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="tolerance_radius_meters">Rayon de tolérance (m)</label>
+                            <input type="number" min="10" max="10000" id="tolerance_radius_meters" name="tolerance_radius_meters" placeholder="Ex: 500" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="expected_days_per_month">Jours attendus/mois</label>
+                            <input type="number" id="expected_days_per_month" name="expected_days_per_month" min="0" placeholder="Ex: 20">
+                        </div>
+                        <div class="form-group">
+                            <label for="expected_hours_per_month">Heures attendues/mois</label>
+                            <input type="number" id="expected_hours_per_month" name="expected_hours_per_month" min="0" placeholder="Ex: 160">
+                        </div>
+                        <div class="form-group">
+                            <label for="contract_start_date">Début contrat sur le projet</label>
+                            <input type="date" id="contract_start_date" name="contract_start_date">
+                        </div>
+                        <div class="form-group">
+                            <label for="contract_end_date">Fin contrat sur le projet</label>
+                            <input type="date" id="contract_end_date" name="contract_end_date">
+                        </div>
+                        <div class="form-group">
+                            <label for="years_of_service">Nombre d'années d'ancienneté au CCR-B</label>
+                            <input type="number" id="years_of_service" name="years_of_service" min="0" max="50" step="0.1" placeholder="Ex: 2.5">
+                            <small class="form-text text-muted">Nombre d'années d'expérience au CCR-B (peut inclure des décimales)</small>
+                        </div>
+
+                        <button type="submit" class="btn-register" id="submitBtn">
+                            <span id="btnText">📝 Créer mon compte</span>
+                        </button>
+                    </form>
+                </div>
+                
+                <!-- Formulaire de validation -->
+                <div id="verification-form" style="display: none;">
+                    <div class="form-header">
+                        <h2 class="form-title">Validation du compte</h2>
+                        <p class="form-subtitle">Entrez le code reçu par email</p>
+                    </div>
+                    
+                    <form id="verificationForm" method="post" enctype="application/x-www-form-urlencoded" novalidate>
+                        <div class="form-group">
+                            <label for="code">Code de validation *</label>
+                            <input type="text" id="code" name="code" required placeholder="Code à 6 chiffres" maxlength="6">
+                        </div>
+                        
+                        <button type="submit" class="btn-register" id="verifyBtn">
+                            <span id="verifyBtnText">✅ Valider mon compte</span>
+                        </button>
+                        
+                        <div style="text-align: center; margin-top: 15px;">
+                            <button type="button" id="resendBtn" style="background: none; border: none; color: #2563eb; cursor: pointer; text-decoration: underline;">
+                                Renvoyer le code
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Message de succès final -->
+                <div id="success-container" style="display: none;">
+                    <div class="form-header">
+                        <h2 class="form-title">✅ Compte créé avec succès !</h2>
+                        <p class="form-subtitle">Votre compte a été validé et activé</p>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 30px;">
+                        <a href="/" class="btn-register" style="text-decoration: none; display: inline-block;">
+                            🚀 Se connecter maintenant
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="login-link">
+                    Déjà un compte ? <a href="/">Se connecter</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/geo-data.js"></script>
+    <script src="/cascade-selectors.js"></script>
+    <script src="/register.js"></script>
+</body>
+</html>

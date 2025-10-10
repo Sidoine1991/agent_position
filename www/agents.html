@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <title>Gestion des Agents - Presence CCRB</title>
+    <link href="/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css?v=2" />
+    <link rel="stylesheet" href="/modern-ui.css?v=1" />
+  </head>
+  <body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
+        <div class="navbar-title">
+          <h1>Presence CCRB</h1>
+          <span class="navbar-subtitle">Gestion des Agents</span>
+        </div>
+      </div>
+      
+      <div class="navbar-menu">
+        <a href="/" class="navbar-link">
+          <span class="navbar-icon">🏠</span>
+          <span>Accueil Agent</span>
+        </a>
+        
+        <a href="/" class="navbar-link" id="presence-link">
+          <span class="navbar-icon">📍</span>
+          <span>Marquage Présence</span>
+        </a>
+        
+        <!-- Navigation pour tous les utilisateurs connectés -->
+        <a href="/profile.html" class="navbar-link">
+          <span class="navbar-icon">👤</span>
+          <span>Mon Profil</span>
+        </a>
+        
+        <!-- Navigation pour Admin et Superviseur -->
+        <a href="/dashboard.html" class="navbar-link">
+          <span class="navbar-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/agents.html" class="navbar-link navbar-link-active">
+          <span class="navbar-icon">👥</span>
+          <span>Gestion Agents</span>
+        </a>
+        <a href="/reports.html" class="navbar-link">
+          <span class="navbar-icon">📈</span>
+          <span>Rapports</span>
+        </a>
+        
+        <!-- Navigation pour Admin uniquement -->
+        <a href="/admin.html" class="navbar-link">
+          <span class="navbar-icon">⚙️</span>
+          <span>Administration</span>
+        </a>
+        
+        <div class="navbar-user" id="navbar-user">
+          <span class="navbar-user-info" id="user-info">Chargement...</span>
+          <button onclick="logout()" class="navbar-logout">
+            <span class="navbar-icon">🚪</span>
+            <span>Déconnexion</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <h2>Gestion des Agents</h2>
+        <p>Administrez les agents et leurs permissions</p>
+      </div>
+
+      <!-- Actions d'administration -->
+      <div class="admin-actions">
+        <button class="btn-primary" onclick="openCreateAgentModal()">
+          <span class="btn-icon">➕</span>
+          Nouvel Agent
+        </button>
+        <button class="btn-secondary" onclick="exportAgents()">
+          <span class="btn-icon">📤</span>
+          Exporter
+        </button>
+        <button class="btn-secondary" onclick="refreshAgents()">
+          <span class="btn-icon">🔄</span>
+          Actualiser
+        </button>
+      </div>
+
+      <!-- Filtres et recherche -->
+      <div class="filters-section">
+        <div class="filters-grid">
+          <div class="filter-group">
+            <label for="search-agents">Rechercher :</label>
+            <input type="text" id="search-agents" placeholder="Nom, email..." onkeyup="filterAgents()">
+          </div>
+          <div class="filter-group">
+            <label for="filter-role">Rôle :</label>
+            <select id="filter-role" onchange="filterAgents()">
+              <option value="">Tous les rôles</option>
+              <option value="admin">Administrateur</option>
+              <option value="supervisor">Superviseur</option>
+              <option value="agent">Agent</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="filter-status">Statut :</label>
+            <select id="filter-status" onchange="filterAgents()">
+              <option value="">Tous les statuts</option>
+              <option value="active">Actif</option>
+              <option value="inactive">Inactif</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Liste des agents -->
+      <div class="card">
+        <h3>👥 Liste des Agents</h3>
+        <!-- Nouveau design: simple liste compacte -->
+        <style>
+          .agent-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 8px;border-bottom:1px solid #e5e7eb}
+          .agent-main{display:flex;align-items:center;gap:12px;min-width:0}
+          .agent-avatar{width:40px;height:40px;border-radius:9999px;object-fit:cover}
+          .agent-info{min-width:0}
+          .agent-name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .agent-sub{font-size:12px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .agent-actions{display:flex;gap:8px}
+          .btn-small{padding:6px 10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer}
+          .btn-small:hover{background:#f9fafb}
+          #agents-simple-list .loading{padding:12px;color:#6b7280}
+        </style>
+        <div id="agents-simple-list">
+          <div class="loading">Chargement des agents...</div>
+        </div>
+      </div>
+
+      <!-- Statistiques des agents -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">👥</div>
+          <div class="stat-content">
+            <div class="stat-value" id="total-agents">0</div>
+            <div class="stat-label">Total Agents</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">✅</div>
+          <div class="stat-content">
+            <div class="stat-value" id="active-agents">0</div>
+            <div class="stat-label">Agents Actifs</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">👑</div>
+          <div class="stat-content">
+            <div class="stat-value" id="admin-count">0</div>
+            <div class="stat-label">Administrateurs</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">👨‍💼</div>
+          <div class="stat-content">
+            <div class="stat-value" id="supervisor-count">0</div>
+            <div class="stat-label">Superviseurs</div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Modal de création/modification d'agent -->
+    <div id="agent-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modal-title">Créer un Agent</h2>
+          <button class="modal-close" onclick="closeAgentModal()">&times;</button>
+        </div>
+        <form id="agent-form">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="agent-name">Nom complet *</label>
+              <input type="text" id="agent-name" required>
+            </div>
+            <div class="form-group">
+              <label for="agent-email">Email *</label>
+              <input type="email" id="agent-email" required>
+            </div>
+            <div class="form-group">
+              <label for="agent-role">Rôle *</label>
+              <select id="agent-role" required>
+                <option value="agent">Agent</option>
+                <option value="supervisor">Superviseur</option>
+                <option value="admin">Administrateur</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="agent-password">Mot de passe *</label>
+              <input type="password" id="agent-password" required>
+            </div>
+            <div class="form-group">
+              <label for="agent-phone">Téléphone</label>
+              <input type="tel" id="agent-phone">
+            </div>
+            <div class="form-group">
+              <label for="agent-status">Statut</label>
+              <select id="agent-status">
+                <option value="active">Actif</option>
+                <option value="inactive">Inactif</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="agent-admin-unit">Unité Administrative *</label>
+              <select id="agent-admin-unit" required>
+                <option value="">Sélectionner une unité administrative</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" onclick="closeAgentModal()">Annuler</button>
+            <button type="submit" class="btn-primary">Enregistrer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="/capacitor-native.js"></script>
+    <script src="/navigation.js"></script>
+    <script src="/app.js"></script>
+    <script src="/web-config.js"></script>
+    <!-- Précharger la liste côté serveur pour éviter tout fetch côté client -->
+    <script src="/agents-list.js"></script>
+    <!-- Rendu immédiat côté client sans dépendre d'autres scripts -->
+    <script>
+      (function(){
+        try {
+          var list = document.getElementById('agents-simple-list');
+          if (!list) return;
+          var rows = Array.isArray(window.__AGENTS__) ? window.__AGENTS__ : [];
+          if (!rows || rows.length === 0) return; // laisse "Chargement..." si vide
+          list.innerHTML = rows.map(function(a){
+            return '\n        <div class="agent-row">\n          <div class="agent-main">\n            <img class="agent-avatar" src="'+(a.photo_path||'/Media/default-avatar.svg')+'" onerror="this.src=\'/Media/default-avatar.svg\'" alt="Avatar">\n            <div class="agent-info">\n              <div class="agent-name">'+(a.name||'-')+'</div>\n              <div class="agent-sub">'+(a.email||'-')+' · '+(a.role||'-')+' · '+(a.departement||'-')+'</div>\n            </div>\n          </div>\n          <div class="agent-actions">\n            <button class="btn-small">Voir</button>\n            <button class="btn-small">Modifier</button>\n            <button class="btn-small">Supprimer</button>\n          </div>\n        </div>';
+          }).join('');
+        } catch(e) {}
+      })();
+    </script>
+    <script src="/agents.js"></script>
+    <script>
+      // Vercel Speed Insights
+      if (typeof window !== 'undefined') {
+        /* Vercel Speed Insights désactivé pour éviter les erreurs CSP */
+      }
+    </script>
+    <script>
+      // Vercel Analytics
+      if (typeof window !== 'undefined') {
+        /* Vercel Analytics désactivé pour éviter les erreurs CSP */
+      }
+    </script>
+    <footer class="bg-light border-top mt-4 py-3">
+      <div class="container">
+        <div class="text-center small text-muted">
+          <div>© Presence CCRB — Développeur de l'application</div>
+          <div>📊 Data Analyst / Data Scientist • Fullstack Developer • Ingénieur Forestier</div>
+          <div>🌐 <a href="https://huggingface.co/spaces/Sidoineko/portfolio" target="_blank" rel="noopener">Portfolio</a> | <a href="https://www.linkedin.com/in/sidoineko" target="_blank" rel="noopener">LinkedIn</a></div>
+          <div>📞 +229 0196911346 / +229 0164052710 • ✉️ conseil.riziculteurs.benin2006@gmail.com</div>
+        </div>
+      </div>
+    </footer>
+    <script src="/bootstrap-5.3.8-dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>

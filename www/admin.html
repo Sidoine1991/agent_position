@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <title>Administration - Presence CCRB</title>
+    <link href="/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css?v=2" />
+    <link rel="stylesheet" href="/modern-ui.css?v=1" />
+    <link rel="stylesheet" href="/styles-theme.css?v=1" />
+  </head>
+  <body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
+        <div class="navbar-title">
+          <h1>Presence CCRB</h1>
+          <span class="navbar-subtitle">Administration</span>
+        </div>
+      </div>
+      
+      <div class="navbar-menu">
+        <a href="/" class="navbar-link">
+          <span class="navbar-icon">🏠</span>
+          <span>Accueil Agent</span>
+        </a>
+        
+        <a href="/" class="navbar-link" id="presence-link">
+          <span class="navbar-icon">📍</span>
+          <span>Marquage Présence</span>
+        </a>
+        
+        <!-- Navigation pour tous les utilisateurs connectés -->
+        <a href="/profile.html" class="navbar-link">
+          <span class="navbar-icon">👤</span>
+          <span>Mon Profil</span>
+        </a>
+        
+        <!-- Navigation pour Admin et Superviseur -->
+        <a href="/dashboard.html" class="navbar-link">
+          <span class="navbar-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/admin-agents.html" class="navbar-link">
+          <span class="navbar-icon">👥</span>
+          <span>Gestion Agents</span>
+        </a>
+        <a href="/reports.html" class="navbar-link">
+          <span class="navbar-icon">📈</span>
+          <span>Rapports</span>
+        </a>
+        
+        <!-- Navigation pour Admin uniquement -->
+        <a href="/admin.html" class="navbar-link navbar-link-active">
+          <span class="navbar-icon">⚙️</span>
+          <span>Administration</span>
+        </a>
+        
+        <div class="navbar-user" id="navbar-user">
+          <span class="navbar-user-info" id="user-info">Chargement...</span>
+          <button onclick="logout()" class="navbar-logout">
+            <span class="navbar-icon">🚪</span>
+            <span>Déconnexion</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <h2>Administration du Système</h2>
+        <p>Configuration et gestion avancée du système de présence</p>
+      </div>
+
+      <!-- Tableau de bord administrateur -->
+      <div class="admin-dashboard" id="admin-guard" style="display:none;">
+        <div class="admin-stats">
+          <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-content">
+              <div class="stat-value" id="total-users">0</div>
+              <div class="stat-label">Utilisateurs Total</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🏢</div>
+            <div class="stat-content">
+              <div class="stat-value" id="total-units">0</div>
+              <div class="stat-label">Unités Administratives</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🧭</div>
+            <div class="stat-content">
+              <div class="stat-value" id="active-missions">0</div>
+              <div class="stat-label">Missions actives</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">📝</div>
+            <div class="stat-content">
+              <div class="stat-value" id="checkins-today">0</div>
+              <div class="stat-label">Check-ins aujourd'hui</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sections d'administration -->
+      <div class="admin-sections">
+        <!-- Liens rapides pertinents -->
+        <div class="card">
+          <h3>📦 Paramètres essentiels</h3>
+          <p>Configuration utile au fonctionnement de l'application</p>
+          <div class="config-sections">
+            <div class="config-item"><a href="/admin-agents.html">👥 Gérer les agents</a></div>
+            <div class="config-item"><a href="/reports.html">📈 Rapports de présence</a></div>
+            <div class="config-item"><a href="/dashboard.html">📊 Dashboard opérationnel</a></div>
+          </div>
+        </div>
+
+        <!-- Configuration Système -->
+        <div class="card">
+          <h3>⚙️ Configuration Système</h3>
+          
+          <div class="config-sections">
+            <div class="config-section">
+              <h4>Paramètres Généraux</h4>
+              <div class="config-item">
+                <label for="org-name">Nom de l'Organisation :</label>
+                <input type="text" id="org-name" value="CCRB" placeholder="Nom de l'organisation">
+              </div>
+              <div class="config-item">
+                <label for="timezone">Fuseau Horaire :</label>
+                <select id="timezone">
+                  <option value="Africa/Porto-Novo" selected>Afrique/Porto-Novo (GMT+1)</option>
+                  <option value="UTC">UTC (GMT+0)</option>
+                  <option value="Europe/Paris">Europe/Paris (GMT+1)</option>
+                </select>
+              </div>
+              <div class="config-item">
+                <label for="work-hours">Heures de Travail :</label>
+                <div class="work-hours-config">
+                  <input type="time" id="work-start" value="08:00">
+                  <span>à</span>
+                  <input type="time" id="work-end" value="17:00">
+                </div>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <h4>Paramètres de Présence</h4>
+              <div class="config-item">
+                <label for="tolerance-minutes">Tolérance de Retard (minutes) :</label>
+                <input type="number" id="tolerance-minutes" value="15" min="0" max="60">
+              </div>
+              <div class="config-item">
+                <label for="auto-checkout">Déconnexion Automatique :</label>
+                <input type="checkbox" id="auto-checkout" checked>
+                <span>Activer la déconnexion automatique en fin de journée</span>
+              </div>
+              <div class="config-item">
+                <label for="geolocation-required">Géolocalisation Obligatoire :</label>
+                <input type="checkbox" id="geolocation-required" checked>
+                <span>Exiger la géolocalisation pour marquer la présence</span>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <h4>Notifications</h4>
+              <div class="config-item">
+                <label for="email-notifications">Notifications Email :</label>
+                <input type="checkbox" id="email-notifications" checked>
+                <span>Activer les notifications par email</span>
+              </div>
+              <div class="config-item">
+                <label for="push-notifications">Notifications Push :</label>
+                <input type="checkbox" id="push-notifications" checked>
+                <span>Activer les notifications push</span>
+              </div>
+              <div class="config-item">
+                <label for="reminder-time">Heure de Rappel :</label>
+                <input type="time" id="reminder-time" value="08:30">
+              </div>
+            </div>
+          </div>
+
+          <div class="config-actions">
+            <button class="btn-primary" onclick="saveConfig()">
+              <span class="btn-icon">💾</span>
+              Sauvegarder la Configuration
+            </button>
+            <button class="btn-secondary" onclick="resetConfig()">
+              <span class="btn-icon">🔄</span>
+              Réinitialiser
+            </button>
+          </div>
+        </div>
+
+        <!-- Maintenance Système -->
+        <div class="card">
+          <h3>🔧 Maintenance Système</h3>
+          
+          <div class="maintenance-actions">
+            <div class="maintenance-item">
+              <h4>Base de Données</h4>
+              <p>Sauvegarde et maintenance de la base de données</p>
+              <div class="maintenance-buttons">
+                <button class="btn-primary" onclick="backupDatabase()">
+                  <span class="btn-icon">💾</span>
+                  Sauvegarde
+                </button>
+                <button class="btn-secondary" onclick="optimizeDatabase()">
+                  <span class="btn-icon">⚡</span>
+                  Optimiser
+                </button>
+              </div>
+            </div>
+
+            <div class="maintenance-item">
+              <h4>Logs Système</h4>
+              <p>Gestion des logs et surveillance du système</p>
+              <div class="maintenance-buttons">
+                <button class="btn-secondary" onclick="viewLogs()">
+                  <span class="btn-icon">📋</span>
+                  Voir les Logs
+                </button>
+                <button class="btn-secondary" onclick="clearLogs()">
+                  <span class="btn-icon">🗑️</span>
+                  Nettoyer
+                </button>
+              </div>
+            </div>
+
+            <div class="maintenance-item">
+              <h4>Réinitialisation des Données</h4>
+              <p>⚠️ ATTENTION: Cette action supprime TOUTES les données (utilisateurs, missions, check-ins, etc.)</p>
+              <div class="maintenance-buttons">
+                <button class="btn-danger" onclick="resetAllData()" style="background-color: #dc3545; color: white;">
+                  <span class="btn-icon">🗑️</span>
+                  Réinitialiser TOUTES les données
+                </button>
+              </div>
+            </div>
+
+            <div class="maintenance-item">
+              <h4>Sécurité</h4>
+              <p>Audit de sécurité et gestion des sessions</p>
+              <div class="maintenance-buttons">
+                <button class="btn-secondary" onclick="auditSecurity()">
+                  <span class="btn-icon">🔒</span>
+                  Audit Sécurité
+                </button>
+                <button class="btn-secondary" onclick="manageSessions()">
+                  <span class="btn-icon">👥</span>
+                  Sessions Actives
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Modal pour les unités administratives -->
+    <div id="unit-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="unit-modal-title">Nouvelle Unité Administrative</h2>
+          <button class="modal-close" onclick="closeUnitModal()">&times;</button>
+        </div>
+        <form id="unit-form">
+          <div class="form-group">
+            <label for="unit-name">Nom de l'Unité *</label>
+            <input type="text" id="unit-name" required>
+          </div>
+          <div class="form-group">
+            <label for="unit-code">Code de l'Unité *</label>
+            <input type="text" id="unit-code" required>
+          </div>
+          <div class="form-group">
+            <label for="unit-description">Description</label>
+            <textarea id="unit-description" rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="unit-manager">Responsable</label>
+            <select id="unit-manager">
+              <option value="">Sélectionner un responsable</option>
+              <option value="1">Admin Principal</option>
+              <option value="2">Superviseur Principal</option>
+            </select>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" onclick="closeUnitModal()">Annuler</button>
+            <button type="submit" class="btn-primary">Enregistrer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="/capacitor-native.js"></script>
+    <script src="/navigation.js"></script>
+    <script src="/admin.js"></script>
+    <script>
+      // Superadmin only guard + stats
+      (async function(){
+        try {
+          const jwt = localStorage.getItem('jwt') || '';
+          const headers = { 'Content-Type': 'application/json' };
+          if (jwt) headers.Authorization = 'Bearer ' + jwt;
+          const me = await fetch('/api/me', { headers });
+          const meJson = me.ok ? await me.json() : null;
+          const email = meJson?.user?.email || meJson?.email || '';
+          if (email.toLowerCase() !== 'syebadokpo@gmail.com') {
+            alert('Accès refusé: réservé au superadmin');
+            location.href = '/';
+            return;
+          }
+          const guard = document.getElementById('admin-guard');
+          if (guard) guard.style.display = '';
+
+          const st = await fetch('/api/admin/stats', { headers });
+          const sj = st.ok ? await st.json() : { data: {} };
+          const d = sj.data || {};
+          const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = String(val ?? '0'); };
+          set('total-users', d.totalUsers);
+          set('active-missions', d.activeMissions);
+          set('checkins-today', d.checkinsToday);
+        } catch (e) { console.warn('Admin init error', e); }
+      })();
+    </script>
+    <script>
+      // Vercel Speed Insights
+      if (typeof window !== 'undefined') {
+        /* Vercel Speed Insights désactivé pour éviter les erreurs CSP */
+      }
+    </script>
+    <script>
+      // Vercel Analytics
+      if (typeof window !== 'undefined') {
+        /* Vercel Analytics désactivé pour éviter les erreurs CSP */
+      }
+    </script>
+    <footer class="bg-light border-top mt-4 py-3">
+      <div class="container">
+        <div class="text-center small text-muted">
+          <div>© Presence CCRB — Développeur de l'application</div>
+          <div>📊 Data Analyst / Data Scientist • Fullstack Developer • Ingénieur Forestier</div>
+          <div>🌐 <a href="https://huggingface.co/spaces/Sidoineko/portfolio" target="_blank" rel="noopener">Portfolio</a> | <a href="https://www.linkedin.com/in/sidoineko" target="_blank" rel="noopener">LinkedIn</a></div>
+          <div>📞 +229 0196911346 / +229 0164052710 • ✉️ conseil.riziculteurs.benin2006@gmail.com</div>
+        </div>
+      </div>
+    </footer>
+    <script src="/bootstrap-5.3.8-dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>

@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <title>Mon Profil - Presence CCRB</title>
+    <link href="/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css?v=4" />
+    <link rel="stylesheet" href="/modern-ui.css?v=1" />
+    <link rel="stylesheet" href="/styles-theme.css">
+  </head>
+  <body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
+        <div class="navbar-title">
+          <h1>Presence CCRB</h1>
+          <span class="navbar-subtitle">Mon Profil</span>
+        </div>
+      </div>
+      
+      <div class="navbar-menu">
+        <a href="/" class="navbar-link">
+          <span class="navbar-icon">🏠</span>
+          <span>Accueil Agent</span>
+        </a>
+        
+        <a href="/" class="navbar-link" id="presence-link">
+          <span class="navbar-icon">📍</span>
+          <span>Marquage Présence</span>
+        </a>
+        
+        <!-- Navigation pour tous les utilisateurs connectés -->
+        <a href="/profile.html" class="navbar-link navbar-link-active">
+          <span class="navbar-icon">👤</span>
+          <span>Mon Profil</span>
+        </a>
+        
+        <!-- Navigation pour Admin et Superviseur -->
+        <a href="/dashboard.html" class="navbar-link" id="dashboard-link" style="display: none;">
+          <span class="navbar-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        <a href="/agents.html" class="navbar-link" id="agents-link" style="display: none;">
+          <span class="navbar-icon">👥</span>
+          <span>Gestion Agents</span>
+        </a>
+        <a href="/reports.html" class="navbar-link" id="reports-link" style="display: none;">
+          <span class="navbar-icon">📈</span>
+          <span>Rapports</span>
+        </a>
+        
+        <!-- Navigation pour Admin uniquement -->
+        <a href="/admin.html" class="navbar-link" id="admin-link" style="display: none;">
+          <span class="navbar-icon">⚙️</span>
+          <span>Administration</span>
+        </a>
+        
+        <div class="navbar-user" id="navbar-user" style="display: none;">
+          <span class="navbar-user-info" id="user-info">Chargement...</span>
+          <button type="button" onclick="logout()" class="navbar-logout">
+            <span class="navbar-icon">🚪</span>
+            <span>Déconnexion</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <h2>Mon Profil</h2>
+        <p>Gérez vos informations personnelles et paramètres</p>
+      </div>
+
+      <div class="profile-container">
+        
+        <!-- Informations Personnelles -->
+        <div class="card">
+          <h3>👤 Informations Personnelles</h3>
+          <div class="profile-info">
+            <div class="profile-avatar">
+              <img id="profile-avatar" src="/Media/default-avatar.png" alt="Photo de profil" class="profile-avatar-img">
+              <button class="btn-secondary" id="change-avatar-btn">Changer la photo</button>
+            </div>
+            <div class="profile-details">
+              <div class="detail-item">
+                <label>Nom complet :</label>
+                <span id="profile-name">Chargement...</span>
+                <div class="edit-inline" style="margin-top:6px; display:flex; gap:8px; align-items:center;">
+                  <input type="text" id="edit-full-name" placeholder="Nom complet" style="max-width:320px; display:none;">
+                  <button type="button" id="btn-edit-identity" class="btn-secondary">Modifier</button>
+                  <button type="button" id="btn-save-identity" class="btn-primary" style="display:none;">Enregistrer</button>
+                  <button type="button" id="btn-cancel-identity" class="btn-light" style="display:none;">Annuler</button>
+                </div>
+              </div>
+              <div class="detail-item">
+                <label>Email :</label>
+                <span id="profile-email">Chargement...</span>
+              </div>
+              <div class="detail-item">
+                <label>Rôle :</label>
+                <span id="profile-role" class="role-badge">Chargement...</span>
+              </div>
+              <div class="detail-item">
+                <label>Membre depuis :</label>
+                <span id="profile-created">Chargement...</span>
+              </div>
+              <div class="detail-item">
+                <label>Téléphone :</label>
+                <span id="profile-phone">—</span>
+                <div class="edit-inline" style="margin-top:6px; display:flex; gap:8px; align-items:center;">
+                  <input type="tel" id="edit-phone-inline" placeholder="Téléphone" style="max-width:220px; display:none;">
+                  <button type="button" id="btn-edit-phone" class="btn-secondary">Modifier</button>
+                  <button type="button" id="btn-save-phone" class="btn-primary" style="display:none;">Enregistrer</button>
+                  <button type="button" id="btn-cancel-phone" class="btn-light" style="display:none;">Annuler</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Statistiques Personnelles -->
+        <div class="card">
+          <h3>📊 Mes Statistiques</h3>
+          <div class="mb-3">
+            <label class="form-label d-flex align-items-center justify-content-between">
+              <span>Complétion du profil</span>
+              <span id="profile-completion-label">0%</span>
+            </label>
+            <div class="progress" style="height: 10px;">
+              <div id="profile-completion-bar" class="progress-bar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-icon">📅</div>
+              <div class="stat-content">
+                <div class="stat-value" id="total-days">0</div>
+                <div class="stat-label">Jours travaillés</div>
+              </div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-icon">⏰</div>
+              <div class="stat-content">
+                <div class="stat-value" id="total-hours">0h</div>
+                <div class="stat-label">Heures travaillées</div>
+              </div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-icon">✅</div>
+              <div class="stat-content">
+                <div class="stat-value" id="attendance-rate">0%</div>
+                <div class="stat-label">Taux de présence</div>
+              </div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-icon">🎯</div>
+              <div class="stat-content">
+                <div class="stat-value" id="current-mission">Aucune</div>
+                <div class="stat-label">Mission actuelle</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Paramètres GPS -->
+        <div class="card">
+          <h3>🌍 Paramètres GPS</h3>
+          <div class="settings-section">
+            <h4>Coordonnées de référence</h4>
+            <div class="form-group">
+              <label for="edit-lat">Latitude de référence :</label>
+              <input type="number" id="edit-lat" step="0.000001" placeholder="Ex: 6.4969" required>
+              <small class="form-text text-muted">Coordonnée GPS de référence pour la validation de présence</small>
+            </div>
+            <div class="form-group">
+              <label for="edit-lon">Longitude de référence :</label>
+              <input type="number" id="edit-lon" step="0.000001" placeholder="Ex: 2.6036" required>
+              <small class="form-text text-muted">Coordonnée GPS de référence pour la validation de présence</small>
+            </div>
+            <div class="form-group">
+              <label for="edit-tolerance">Rayon de tolérance (mètres) :</label>
+              <input type="number" id="edit-tolerance" min="10" max="10000" placeholder="Ex: 5000" required>
+              <small class="form-text text-muted">Distance maximale autorisée du point de référence (défaut: 5000m)</small>
+            </div>
+            <div class="d-flex gap-2" style="margin-top:8px;">
+              <button type="button" id="btn-save-gps" class="btn-primary">Enregistrer les paramètres GPS</button>
+              <button type="button" id="btn-cancel-gps" class="btn-light">Annuler</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contrat et Expérience -->
+        <div class="card">
+          <h3>📑 Contrat & Expérience</h3>
+          <div class="settings-section">
+            <div class="form-group">
+              <label for="edit-contract-start">Début de contrat</label>
+              <input type="date" id="edit-contract-start">
+            </div>
+            <div class="form-group">
+              <label for="edit-contract-end">Fin de contrat</label>
+              <input type="date" id="edit-contract-end">
+            </div>
+            <div class="form-group">
+              <label for="edit-years-service">Années d'expérience</label>
+              <input type="number" step="0.1" min="0" id="edit-years-service" placeholder="Ex: 2.5">
+            </div>
+          </div>
+        </div>
+
+        <!-- Paramètres -->
+        <div class="card">
+          <h3>⚙️ Paramètres</h3>
+          <div class="settings-section">
+            <h4>Changer le mot de passe</h4>
+            <form id="password-form">
+              <input type="password" id="current-password" placeholder="Mot de passe actuel" required>
+              <input type="password" id="new-password" placeholder="Nouveau mot de passe" required>
+              <input type="password" id="confirm-password" placeholder="Confirmer le nouveau mot de passe" required>
+              <button type="submit" class="btn-primary">Changer le mot de passe</button>
+            </form>
+          </div>
+          
+          <div class="settings-section">
+            <h4>Notifications</h4>
+            <div class="setting-item">
+              <label>
+                <input type="checkbox" id="email-notifications" checked>
+                Recevoir des notifications par email
+              </label>
+            </div>
+            <div class="setting-item">
+              <label>
+                <input type="checkbox" id="push-notifications" checked>
+                Recevoir des notifications push
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Enregistrer -->
+        <div class="d-flex justify-content-end mt-3">
+          <button type="button" id="save-profile-btn" class="btn-success">Enregistrer</button>
+        </div>
+      </div>
+    </main>
+
+    <script src="/capacitor-native.js"></script>
+    <script src="/navigation.js"></script>
+    <script src="/app.js?v=2" type="module"></script>
+    <script src="/profile.js"></script>
+    <script>
+      // Vercel Speed Insights
+      if (typeof window !== 'undefined') {
+        /* Vercel Speed Insights désactivé pour éviter les erreurs CSP */
+      }
+    </script>
+    <script>
+      // Vercel Analytics
+      if (typeof window !== 'undefined') {
+        /* Vercel Analytics désactivé pour éviter les erreurs CSP */
+      }
+    </script>
+    <footer class="bg-light border-top mt-4 py-3">
+      <div class="container">
+        <div class="text-center small text-muted">
+          <div>© Presence CCRB — Développeur de l'application</div>
+          <div>📊 Data Analyst / Data Scientist • Fullstack Developer • Ingénieur Forestier</div>
+          <div>🌐 <a href="https://huggingface.co/spaces/Sidoineko/portfolio" target="_blank" rel="noopener">Portfolio</a> | <a href="https://www.linkedin.com/in/sidoineko" target="_blank" rel="noopener">LinkedIn</a></div>
+          <div>📞 +229 0196911346 / +229 0164052710 • ✉️ conseil.riziculteurs.benin2006@gmail.com</div>
+        </div>
+      </div>
+    </footer>
+    <script src="/bootstrap-5.3.8-dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>

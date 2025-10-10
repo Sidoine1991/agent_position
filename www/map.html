@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des Présences - Carte Interactive</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Bootstrap CSS -->
+    <link href="/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome (CSS) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/styles.css">
+    
+    <style>
+        #map {
+            height: 70vh;
+            width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .map-container {
+            position: relative;
+            margin: 20px 0;
+        }
+        
+        .map-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .presence-buttons {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn-presence {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 25px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+        
+        /* Styles améliorés pour la navbar */
+        .navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%) !important;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border-radius: 0 0 20px 20px;
+            margin-bottom: 20px;
+        }
+        
+        .navbar-brand {
+            color: white !important;
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+        
+        .navbar-nav .nav-link {
+            color: white !important;
+            font-weight: 500;
+            padding: 12px 20px;
+            border-radius: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin: 0 5px;
+        }
+        
+        .navbar-nav .nav-link::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .navbar-nav .nav-link:hover::before {
+            left: 100%;
+        }
+        
+        .navbar-nav .nav-link:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            color: white !important;
+            text-decoration: none;
+        }
+        
+        .navbar-nav .nav-link.active {
+            background: rgba(255, 255, 255, 0.25);
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            color: white !important;
+            cursor: default;
+            pointer-events: none;
+        }
+        
+        .navbar-nav .nav-link.active:hover {
+            background: rgba(255, 255, 255, 0.25);
+            color: white !important;
+            cursor: default;
+            transform: none;
+        }
+        
+        .btn-outline-light {
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-outline-light:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* Panneau de correction GPS */
+        .gps-correction-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            z-index: 1000;
+            min-width: 300px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            cursor: move;
+        }
+        
+        .gps-correction-panel h6 {
+            color: #333;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .gps-input-group {
+            margin-bottom: 10px;
+        }
+        
+        .gps-input-group label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+            display: block;
+        }
+        
+        .gps-input-group input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .gps-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .gps-buttons button {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-correct {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-correct:hover {
+            background: #059669;
+        }
+        
+        .btn-center {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-center:hover {
+            background: #2563eb;
+        }
+        
+        .btn-toggle {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .btn-toggle:hover {
+            background: #4b5563;
+        }
+        
+        .gps-status {
+            font-size: 11px;
+            color: #666;
+            margin-top: 10px;
+            padding: 8px;
+            background: #f3f4f6;
+            border-radius: 4px;
+        }
+
+        /* Barre de recherche lieu (type Google Maps) */
+        .search-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1001;
+            width: min(92%, 560px);
+            cursor: move;
+        }
+        .search-box {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            border: 1px solid rgba(0,0,0,0.08);
+            padding: 8px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .search-box input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 14px;
+        }
+        .search-results {
+            margin-top: 8px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            border: 1px solid rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        .search-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .search-item:last-child { border-bottom: none; }
+        .search-item:hover { background: #f8fafc; }
+        
+        .btn-presence:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+        
+        .btn-start {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            border: none;
+            color: white;
+        }
+        
+        .btn-end {
+            background: linear-gradient(135deg, #dc3545, #fd7e14);
+            border: none;
+            color: white;
+        }
+        
+        .btn-checkin {
+            background: linear-gradient(135deg, #007bff, #6610f2);
+            border: none;
+            color: white;
+        }
+        
+        .location-info {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-active { background-color: #28a745; }
+        .status-inactive { background-color: #6c757d; }
+        .status-completed { background-color: #007bff; }
+        
+        .mission-info {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        /* Corriger l'alignement du texte dans les cartes latérales */
+        .col-md-3 .card .card-header h5,
+        .col-md-3 .card .card-header h6,
+        .col-md-3 .card .card-body,
+        .col-md-3 .card .card-body *,
+        .location-info *,
+        .mission-info * {
+            text-align: left !important;
+        }
+        .col-md-3 .card .card-body { 
+            display: block; 
+            align-items: stretch; 
+            justify-content: flex-start; 
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-map-marker-alt me-2"></i>
+                Gestion des Présences
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/">
+                    <i class="fas fa-home me-1"></i> Tableau de bord
+                </a>
+                <a class="nav-link active" href="javascript:void(0);" onclick="event.preventDefault(); return false;">
+                    <i class="fas fa-map-marker-alt me-1"></i> Carte Présences
+                </a>
+                <a class="nav-link" href="/profile.html">
+                    <i class="fas fa-user me-1"></i> Profil
+                </a>
+                <button class="btn btn-outline-light btn-sm" onclick="logout()">
+                    <i class="fas fa-sign-out-alt me-1"></i> Déconnexion
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Panneau de correction GPS -->
+    <div class="gps-correction-panel" id="gps-correction-panel">
+        <h6><i class="fas fa-crosshairs me-2"></i>Correction GPS</h6>
+        
+        <div class="gps-input-group">
+            <label>Latitude (ex: 9.3077)</label>
+            <input type="number" id="manual-lat" step="0.000001" placeholder="Latitude">
+        </div>
+        
+        <div class="gps-input-group">
+            <label>Longitude (ex: 2.3158)</label>
+            <input type="number" id="manual-lng" step="0.000001" placeholder="Longitude">
+        </div>
+        
+        <div class="gps-buttons">
+            <button class="btn-correct" onclick="correctGPSPosition()">
+                <i class="fas fa-check me-1"></i>Corriger
+            </button>
+            <button class="btn-center" onclick="centerOnCorrectedPosition()">
+                <i class="fas fa-crosshairs me-1"></i>Centrer
+            </button>
+        </div>
+        
+        <div class="gps-buttons">
+            <button class="btn-toggle" onclick="toggleGPSCorrection()">
+                <i class="fas fa-eye me-1"></i>Masquer
+            </button>
+        </div>
+        
+        <div class="gps-status" id="gps-status">
+            <strong>Position actuelle:</strong><br>
+            <span id="current-position">Non détectée</span><br>
+            <strong>Précision:</strong> <span id="gps-accuracy">N/A</span>
+        </div>
+    </div>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Sidebar remplacée par une barre de statut en bas -->
+            <div class="col-md-3 d-none d-md-block"></div>
+            
+            <!-- Carte principale -->
+            <div class="col-md-9">
+                <div class="map-container">
+                    <!-- Barre de recherche (Nominatim) -->
+                    <div class="search-container">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="place-search" placeholder="Rechercher un lieu, commune, ville..." oninput="searchPlace(event)" />
+                            <button class="btn btn-sm btn-primary" onclick="clearSearch()">Effacer</button>
+                        </div>
+                        <div id="search-results" class="search-results" style="display:none;"></div>
+                    </div>
+                    <!-- Contrôles de la carte -->
+                    <div class="map-controls">
+                        <button class="btn btn-sm btn-outline-primary" onclick="centerOnUser()" title="Centrer sur ma position">
+                            <i class="fas fa-crosshairs"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleSatellite()" title="Vue satellite">
+                            <i class="fas fa-satellite"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Carte Leaflet -->
+                    <div id="map"></div>
+                    
+                    <!-- Boutons de présence -->
+                    <div class="presence-buttons">
+                        <button id="start-btn" class="btn btn-presence btn-start" onclick="startMission()">
+                            <i class="fas fa-play me-2"></i>Démarrer Mission
+                        </button>
+                        <button id="checkin-btn" class="btn btn-presence btn-checkin" onclick="checkIn()" style="display: none;">
+                            <i class="fas fa-map-marker-alt me-2"></i>Marquer Position
+                        </button>
+                        <button id="end-btn" class="btn btn-presence btn-end" onclick="endMission(currentMission?.id, this, document.getElementById('status'))" style="display: none;">
+                            <i class="fas fa-stop me-2"></i>Terminer Mission
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Loading -->
+                <div class="loading" id="loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                    <p class="mt-2">Chargement de la position...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Barre de statut compacte en bas (centrée) -->
+    <div id="status-bar" style="
+        position: fixed;
+        left: 50%;
+        bottom: 16px;
+        transform: translateX(-50%);
+        z-index: 1100;
+        max-width: 960px;
+        width: calc(100% - 32px);
+    ">
+        <div class="shadow bg-white rounded-3 border px-3 py-2" style="backdrop-filter: blur(6px);">
+            <div id="status-bar-content" class="d-flex flex-wrap align-items-center justify-content-center gap-3 small">
+                <!-- Contenu rempli par JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/bootstrap-5.3.8-dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/map.js"></script>
+</body>
+</html>

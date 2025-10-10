@@ -1021,7 +1021,7 @@ async function init() {
       // Validation plus permissive pour Vercel
       if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude)) {
         // Détecter si on est sur Vercel
-        const isVercel = window.location.hostname.includes('vercel.app');
+        const isVercel = false; // désactivé pour build APK basé Render
         
         if (isVercel) {
           // Sur Vercel, utiliser des coordonnées fixes du Bénin
@@ -3384,7 +3384,7 @@ function getCommuneNameById(departementId, communeId) {
 // Initialiser la saisie manuelle au chargement
 document.addEventListener('DOMContentLoaded', async () => {
   // Ne pas effacer la console sur Vercel pour éviter les boucles
-  if (!window.location.hostname.includes('vercel.app')) {
+  if (true) {
     console.clear();
     console.log('🚀 Application chargée - Console effacée');
   } else {
