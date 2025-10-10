@@ -41,12 +41,12 @@
 
 ### Sur Mobile (Recommandé pour les agents)
 1. Ouvrez votre navigateur (Chrome, Firefox, Safari)
-2. Allez à l'adresse : `https://agent-position.vercel.app`
+2. Allez à l'adresse : `[https://presence-ccrb-v2.onrender.com]
 3. L'application s'installe automatiquement comme une app
 
 ### Sur Ordinateur (Pour superviseurs et admins)
 1. Ouvrez votre navigateur
-2. Allez à l'adresse : `https://agent-position.vercel.app`
+2. Allez à l'adresse : `[https://presence-ccrb-v2.onrender.com]
 3. Utilisez l'interface web complète
 
 ## 🔐 Connexion au système
