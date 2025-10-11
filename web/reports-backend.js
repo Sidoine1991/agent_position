@@ -253,6 +253,37 @@ async function loadAgentsForFilter() {
   }
 }
 
+// === Chargement des projets pour le filtre ===
+async function loadProjectsForFilter() {
+  try {
+    const result = await api('/users');
+    const users = result.items || result.data || result || [];
+    
+    // Extraire les projets uniques des agents
+    const projects = new Set();
+    users.forEach(user => {
+      if (user.project_name && user.project_name.trim()) {
+        projects.add(user.project_name.trim());
+      }
+    });
+    
+    const select = document.getElementById('project-filter');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="all">Tous les projets</option>';
+    Array.from(projects).sort().forEach(project => {
+      const option = document.createElement('option');
+      option.value = project;
+      option.textContent = project;
+      select.appendChild(option);
+    });
+    
+    console.log('Projets chargés:', Array.from(projects));
+  } catch (error) {
+    console.error('Erreur lors du chargement des projets:', error);
+  }
+}
+
 // === Initialisation ===
 document.addEventListener('DOMContentLoaded', async function() {
   console.log('🚀 Initialisation de reports.js (version backend)');
@@ -260,8 +291,9 @@ document.addEventListener('DOMContentLoaded', async function() {
   // Vérifier l'authentification
   await checkAuth();
   
-  // Charger les agents pour le filtre
+  // Charger les agents et projets pour les filtres
   await loadAgentsForFilter();
+  await loadProjectsForFilter();
   
   // Attacher les événements
   const dateRangeSelect = document.getElementById('date-range');
