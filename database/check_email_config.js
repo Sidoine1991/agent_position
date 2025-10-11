@@ -1,4 +1,5 @@
 // Script pour vérifier la configuration email
+require('dotenv').config();
 const nodemailer = require('nodemailer');
 
 async function checkEmailConfig() {
@@ -27,11 +28,14 @@ async function checkEmailConfig() {
   console.log('\n🧪 Test de connexion Gmail...');
   
   try {
-    const transporter = nodemailer.createTransporter({
+    const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: emailUser,
         pass: emailPass
+      },
+      tls: {
+        rejectUnauthorized: false
       }
     });
     
