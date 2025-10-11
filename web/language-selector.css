@@ -1,0 +1,85 @@
+/* Styles communs pour le sélecteur de langue */
+
+/* Section sélecteur de langue */
+.language-selector-section {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  padding: 15px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 999;
+}
+
+.language-selector-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.language-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.language-selector {
+  background: white;
+  border: 2px solid #e5e7eb;
+  color: #1f2937;
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231f2937' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  padding-right: 40px;
+  min-width: 140px;
+}
+
+.language-selector:hover {
+  border-color: #667eea;
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
+  transform: translateY(-1px);
+}
+
+.language-selector:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.language-selector option {
+  background: white;
+  color: #1f2937;
+  padding: 8px;
+}
+
+/* Version responsive */
+@media (max-width: 768px) {
+  .language-selector-container {
+    flex-direction: column;
+    gap: 10px;
+    padding: 0 15px;
+  }
+  
+  .language-label {
+    font-size: 13px;
+  }
+  
+  .language-selector {
+    min-width: 120px;
+    font-size: 13px;
+  }
+}

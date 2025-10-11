@@ -684,7 +684,14 @@ app.get('/api/debug/can-planify', authenticateToken, async (req, res) => {
     // 1) tenter upsert
     const { error: upsertErr } = await supabaseClient
       .from('planifications')
-      .upsert({ agent_id: userId, date, planned_start_time: null, planned_end_time: null, notes: probeNote }, { onConflict: 'agent_id,date' });
+      .upsert({ 
+        user_id: userId,
+        agent_id: userId, 
+        date, 
+        planned_start_time: null, 
+        planned_end_time: null, 
+        description_activite: probeNote 
+      }, { onConflict: 'user_id,date' });
 
     // 2) tenter delete du probe
     let deleteErr = null;
@@ -694,7 +701,7 @@ app.get('/api/debug/can-planify', authenticateToken, async (req, res) => {
         .delete()
         .eq('agent_id', userId)
         .eq('date', date)
-        .eq('notes', probeNote);
+        .eq('description_activite', probeNote);
       if (error) deleteErr = error;
     } catch (e) {
       deleteErr = e;
@@ -717,11 +724,11 @@ app.post('/api/planifications', async (req, res) => {
     const token = authHeader.slice('Bearer '.length);
     let userId; try { const d = jwt.verify(token, JWT_SECRET); userId = d.id || d.userId; } catch { return res.status(401).json({ success: false, error: 'Token invalide' }); }
 
-    const { date, planned_start_time, planned_end_time, notes } = req.body || {};
+    const { date, planned_start_time, planned_end_time, description_activite, project_name } = req.body || {};
     if (!date) return res.status(400).json({ success: false, error: 'date requise (YYYY-MM-DD)' });
 
-    // Enrichir les notes avec le nom complet de l'agent si disponible
-    let enrichedNotes = notes || null;
+    // Enrichir la description avec le nom complet de l'agent si disponible
+    let enrichedDescription = description_activite || null;
     try {
       const { data: u } = await supabaseClient
         .from('users')
@@ -730,24 +737,36 @@ app.post('/api/planifications', async (req, res) => {
         .single();
       if (u) {
         const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ').trim() || u.name || '';
-        if (fullName) {
-          enrichedNotes = enrichedNotes ? `${enrichedNotes} — ${fullName}` : fullName;
+        if (fullName && !enrichedDescription) {
+          enrichedDescription = `Planification de ${fullName}`;
         }
       }
     } catch {}
 
     const payload = {
+      user_id: userId,
       agent_id: userId,
       date,
       planned_start_time: planned_start_time || null,
       planned_end_time: planned_end_time || null,
-      notes: enrichedNotes,
+      description_activite: enrichedDescription,
+      project_name: project_name || null,
+      resultat_journee: null,
+      observations: null,
       updated_at: new Date().toISOString()
     };
 
+    // Supprimer d'abord toute planification existante pour cette date et cet agent
+    await supabaseClient
+      .from('planifications')
+      .delete()
+      .eq('agent_id', userId)
+      .eq('date', date);
+    
+    // Puis insérer la nouvelle planification
     const { error } = await supabaseClient
       .from('planifications')
-      .upsert(payload, { onConflict: 'agent_id,date' });
+      .insert(payload);
     if (error) throw error;
     return res.json({ success: true });
   } catch (e) {
@@ -1903,6 +1922,50 @@ app.get('/api/admin/checkins/latest', authenticateToken, authenticateSupervisorO
     return res.json({ success: true, data: { items: data || [] } });
   } catch (err) {
     console.error('❌ Erreur lecture checkins latest:', err);
+    return res.status(500).json({ success: false, message: 'Erreur serveur', details: err.message });
+  }
+});
+
+// Récupérer les check-ins avec filtres (superviseur/admin)
+app.get('/api/admin/checkins', authenticateToken, authenticateSupervisorOrAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(String(req.query.limit || '100')), 1000);
+    const offset = Math.max(parseInt(String(req.query.offset || '0')), 0);
+    const from = req.query.from ? new Date(String(req.query.from)) : null;
+    const to = req.query.to ? new Date(String(req.query.to)) : null;
+    
+    console.log('🔍 Récupération des check-ins admin avec filtres:', { limit, offset, from, to });
+    
+    // Construire la requête avec filtres
+    let query = supabaseClient
+      .from('checkins')
+      .select(`
+        id, mission_id, lat, lon, timestamp, note, photo_path,
+        missions!inner(id, agent_id, status, date_start, date_end,
+          users!inner(id, email, name)
+        )
+      `)
+      .order('timestamp', { ascending: false })
+      .range(offset, offset + limit - 1);
+    
+    if (from) {
+      query = query.gte('timestamp', from.toISOString());
+    }
+    if (to) {
+      query = query.lte('timestamp', to.toISOString());
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error('❌ Erreur Supabase checkins:', error);
+      throw error;
+    }
+    
+    console.log('✅ Check-ins admin récupérés avec filtres:', data?.length || 0);
+    return res.json({ success: true, data: { items: data || [] } });
+  } catch (err) {
+    console.error('❌ Erreur lecture checkins:', err);
     return res.status(500).json({ success: false, message: 'Erreur serveur', details: err.message });
   }
 });

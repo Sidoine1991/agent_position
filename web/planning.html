@@ -3,9 +3,94 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Planification - Presence CCR-B</title>
+  <title data-translate="planning.title">Planification - Presence CCR-B</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
   <link rel="stylesheet" href="/styles.css">
+  <style>
+    /* Section sélecteur de langue */
+    .language-selector-section {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      padding: 15px 0;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+      position: sticky;
+      top: 0;
+      z-index: 999;
+    }
+
+    .language-selector-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    .language-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1f2937;
+      margin: 0;
+    }
+
+    .language-selector {
+      background: white;
+      border: 2px solid #e5e7eb;
+      color: #1f2937;
+      padding: 10px 15px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231f2937' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 16px;
+      padding-right: 40px;
+      min-width: 140px;
+    }
+
+    .language-selector:hover {
+      border-color: #667eea;
+      box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
+      transform: translateY(-1px);
+    }
+
+     .language-selector:focus {
+       outline: none;
+       border-color: #667eea;
+       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+     }
+
+     /* Animation colorée pour le titre */
+     .animated-title {
+       background: linear-gradient(45deg, #667eea, #764ba2, #f093fb, #f5576c, #4facfe, #00f2fe);
+       background-size: 400% 400%;
+       -webkit-background-clip: text;
+       -webkit-text-fill-color: transparent;
+       background-clip: text;
+       animation: gradientShift 3s ease-in-out infinite;
+       font-weight: 700;
+     }
+
+     @keyframes gradientShift {
+       0% {
+         background-position: 0% 50%;
+       }
+       50% {
+         background-position: 100% 50%;
+       }
+       100% {
+         background-position: 0% 50%;
+       }
+     }
+  </style>
 </head>
 <body>
   <nav class="navbar">
@@ -13,110 +98,150 @@
       <a href="/" class="navbar-brand-link" style="display:flex;align-items:center;text-decoration:none;color:inherit">
         <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
         <div class="navbar-title">
-          <h1>Presence CCRB</h1>
-          <span class="navbar-subtitle">Planification</span>
+          <h1 class="animated-title">Presence CCRB</h1>
+          <span class="navbar-subtitle" data-translate="nav.planning">Planification</span>
         </div>
       </a>
     </div>
     <div class="navbar-menu">
       <a href="/index.html" class="navbar-link" id="presence-link">
         <span class="navbar-icon">📍</span>
-        <span>Présence</span>
+        <span data-translate="nav.presence">Présence</span>
       </a>
       <a href="/planning.html" class="navbar-link navbar-link-active">
         <span class="navbar-icon">🗓️</span>
-        <span>Planification</span>
+        <span data-translate="nav.planning">Planification</span>
       </a>
       <a href="/profile.html" class="navbar-link">
         <span class="navbar-icon">👤</span>
-        <span>Mon Profil</span>
+        <span data-translate="nav.profile">Mon Profil</span>
       </a>
       <a href="/dashboard.html" class="navbar-link" id="dashboard-link">
         <span class="navbar-icon">📊</span>
-        <span>Tableau de bord</span>
+        <span data-translate="nav.dashboard">Tableau de bord</span>
       </a>
       <a href="/reports.html" class="navbar-link" id="reports-link">
         <span class="navbar-icon">📈</span>
-        <span>Rapports</span>
+        <span data-translate="nav.reports">Rapports</span>
       </a>
       <div class="navbar-user" id="navbar-user">
         <span class="navbar-user-info" id="user-info">Chargement...</span>
         <button type="button" class="navbar-logout" onclick="logout()">
           <span class="navbar-icon">🚪</span>
-          <span>Déconnexion</span>
+          <span data-translate="nav.logout">Déconnexion</span>
         </button>
       </div>
     </div>
   </nav>
 
   <div class="container py-4">
-    <h1 class="h4 mb-3">Planification hebdomadaire et mensuelle</h1>
+    <h1 class="h4 mb-3" data-translate="planning.title">Planification hebdomadaire et mensuelle</h1>
 
     <div class="row g-3 align-items-end mb-4">
       <div class="col-auto">
-        <label for="week-start" class="form-label mb-1">Semaine du</label>
+        <label for="week-start" class="form-label mb-1" data-translate="planning.week.from">Semaine du</label>
         <input type="date" id="week-start" class="form-control" />
       </div>
       <div class="col-auto">
-        <button id="load-week" class="btn btn-secondary">Charger la semaine</button>
+        <button id="load-week" class="btn btn-secondary" data-translate="planning.load.week">Charger la semaine</button>
       </div>
       <div class="col-auto">
-        <label for="agent-select" class="form-label mb-1">Agent</label>
+        <label for="agent-select" class="form-label mb-1" data-translate="planning.agent">Agent</label>
         <select id="agent-select" class="form-select">
-          <option value="">Tous les agents</option>
+          <option value="" data-translate="planning.agent.all">Tous les agents</option>
         </select>
       </div>
       <div class="col-auto">
-        <label for="project-select" class="form-label mb-1">Projet</label>
+        <label for="project-select" class="form-label mb-1" data-translate="planning.project">Projet</label>
         <select id="project-select" class="form-select">
-          <option value="">Tous les projets</option>
+          <option value="" data-translate="planning.project.all">Tous les projets</option>
         </select>
       </div>
       <div class="col-auto">
-        <label for="month" class="form-label mb-1">Mois</label>
+        <label for="month" class="form-label mb-1" data-translate="planning.month">Mois</label>
         <input type="month" id="month" class="form-control" />
       </div>
       <div class="col-auto">
-        <button id="load-month" class="btn btn-secondary">Charger le mois</button>
+        <button id="load-month" class="btn btn-secondary" data-translate="planning.load.month">Charger le mois</button>
       </div>
     </div>
 
     <div class="card mb-4" style="padding:16px">
       <div class="card-header d-flex justify-content-between align-items-center">
         <div>
-          Semaine
+          <span data-translate="planning.week">Semaine</span>
           <small id="week-summary" class="text-muted ms-2"></small>
         </div>
         <div class="d-flex gap-2">
-          <button id="prev-week" class="btn btn-sm btn-outline-secondary">← Préc.</button>
-          <button id="next-week" class="btn btn-sm btn-outline-secondary">Suiv. →</button>
+          <button id="prev-week" class="btn btn-sm btn-outline-secondary" data-translate="planning.prev.week">← Préc.</button>
+          <button id="next-week" class="btn btn-sm btn-outline-secondary" data-translate="planning.next.week">Suiv. →</button>
         </div>
       </div>
       <div class="card-body">
-        <div class="mb-2 small text-muted">Glisser la barre pour visualiser. Cliquez sur une ligne pour définir les heures.</div>
+        <div class="mb-2 small text-muted" data-translate="planning.drag.info">Glisser la barre pour visualiser. Cliquez sur une ligne pour définir les heures.</div>
         <div id="week-gantt" class="gantt border rounded" style="overflow:auto; min-height:260px"></div>
       </div>
     </div>
 
     <div class="card mb-4" style="padding:16px">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <div>Mois</div>
+        <div data-translate="planning.month.view">Mois</div>
         <small id="month-summary" class="text-muted"></small>
       </div>
       <div class="card-body">
-        <div class="mb-2 small text-muted">Vue mensuelle en Gantt. Éditez les heures par jour puis validez.</div>
+        <div class="mb-2 small text-muted" data-translate="planning.month.info">Vue mensuelle en Gantt. Éditez les heures par jour puis validez.</div>
         <div id="month-gantt" class="gantt border rounded" style="max-height:60vh; overflow:auto"></div>
       </div>
     </div>
 
-    <div class="alert alert-info">
+    <div class="card mb-4" style="padding:16px">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+          <i class="bi bi-calendar-week"></i>
+          <span data-translate="planning.weekly.summary">Récap des activités planifiées par semaine</span>
+        </div>
+        <button id="refresh-weekly-summary" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-arrow-clockwise"></i> <span data-translate="planning.refresh">Actualiser</span>
+        </button>
+      </div>
+      <div class="card-body">
+        <div class="mb-2 small text-muted" data-translate="planning.summary.info">Résumé des activités planifiées regroupées par semaine avec possibilité d'édition.</div>
+        <div id="weekly-summary" class="border rounded p-3" style="min-height:200px">
+          <div class="text-center text-muted">
+            <i class="bi bi-calendar-week fs-1"></i>
+            <p data-translate="planning.loading">Chargement du récap hebdomadaire...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-info" data-translate="planning.alert">
       Les jours planifiés sans présence avant 18:00 seront marqués en rouge.
     </div>
   </div>
 
+  <!-- Footer -->
+  <footer style="background: #1f2937; color: white; padding: 20px 0; margin-top: 40px;">
+    <div class="container">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <img src="/Media/logo-ccrb.png" alt="CCRB Logo" style="height: 30px; margin-right: 15px; border-radius: 4px;">
+          <span>© 2025 Presence CCRB</span>
+        </div>
+        <div>
+          <select id="language-selector" class="language-selector" title="Choisir la langue" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:white;padding:6px 10px;border-radius:6px;font-size:12px">
+            <option value="fr">🇫🇷 FR</option>
+            <option value="en">🇬🇧 EN</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </footer>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
   <script src="/app.js?v=5"></script>
   <script src="/planning.js"></script>
+  <script src="/translations.js"></script>
 </body>
 </html>
 

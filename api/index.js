@@ -593,23 +593,54 @@ module.exports = async (req, res) => {
     if (path === '/api/planifications' && method === 'GET') {
       authenticateToken(req, res, async () => {
         try {
-          const { from, to, project_id } = req.query;
+          const { from, to, project_id, agent_id } = req.query;
+          
+          // Récupérer les planifications sans embedding pour éviter le conflit de relations
           let query = supabaseClient
             .from('planifications')
-            .select(`
-              *,
-              projects(name),
-              users(name, email)
-            `)
-            .eq('user_id', req.user.id);
+            .select('*');
+
+          // Si agent_id est spécifié, filtrer par cet agent
+          if (agent_id) {
+            query = query.eq('user_id', agent_id);
+          } else if (req.user.role === 'admin' || req.user.role === 'superviseur') {
+            // Les admins et superviseurs voient toutes les planifications
+            // Pas de filtre par user_id
+          } else {
+            // Les agents voient seulement leurs propres planifications
+            query = query.eq('user_id', req.user.id);
+          }
 
           if (from) query = query.gte('date', from);
           if (to) query = query.lte('date', to);
-          if (project_id) query = query.eq('project_id', project_id);
+          if (project_id) query = query.eq('project_name', project_id);
 
           const { data: planifications, error } = await query.order('date', { ascending: false });
 
           if (error) throw error;
+
+          // Enrichir avec les données utilisateurs séparément
+          if (planifications && planifications.length > 0) {
+            const userIds = [...new Set(planifications.map(p => p.user_id).filter(Boolean))];
+            const { data: users } = await supabaseClient
+              .from('users')
+              .select('id, name, email, role, project_name')
+              .in('id', userIds);
+
+            // Créer un map pour l'enrichissement
+            const usersMap = new Map(users.map(u => [u.id, u]));
+
+            // Enrichir les planifications
+            const enrichedPlanifications = planifications.map(plan => ({
+              ...plan,
+              user: usersMap.get(plan.user_id) || null
+            }));
+
+            return res.json({
+              success: true,
+              items: enrichedPlanifications
+            });
+          }
 
           return res.json({
             success: true,
@@ -640,11 +671,12 @@ module.exports = async (req, res) => {
 
           const planificationData = {
             user_id: req.user.id,
+            agent_id: req.user.id, // Ajouter la colonne agent_id requise
             date,
             planned_start_time: planned_start_time || null,
             planned_end_time: planned_end_time || null,
             description_activite: description_activite || null,
-            project_id: project_id || null,
+            project_name: project_id || null, // project_id contient en fait le nom du projet
             resultat_journee: null,
             observations: null
           };
@@ -817,6 +849,110 @@ module.exports = async (req, res) => {
           });
         } catch (error) {
           console.error('Erreur statistiques projet:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Route pour le récap hebdomadaire des planifications
+    if (path === '/api/planifications/weekly-summary' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          const { from, to, project_name, agent_id } = req.query;
+          
+          // Générer le récap hebdomadaire depuis les planifications
+          let query = supabaseClient
+            .from('planifications')
+            .select('*');
+
+          // Filtrer par utilisateur si agent_id est spécifié
+          if (agent_id) {
+            query = query.eq('user_id', agent_id);
+          } else if (req.user.role === 'admin' || req.user.role === 'superviseur') {
+            // Les admins et superviseurs voient toutes les planifications
+            // Pas de filtre par user_id
+          } else {
+            // Les agents voient seulement leurs propres planifications
+            query = query.eq('user_id', req.user.id);
+          }
+
+          if (from) query = query.gte('date', from);
+          if (to) query = query.lte('date', to);
+          if (project_name) {
+            query = query.eq('project_name', project_name);
+          }
+
+          const { data: planifications, error } = await query.order('date', { ascending: false });
+
+          if (error) throw error;
+
+          // Enrichir avec les données utilisateurs séparément
+          if (planifications && planifications.length > 0) {
+            const userIds = [...new Set(planifications.map(p => p.user_id).filter(Boolean))];
+            const { data: users } = await supabaseClient
+              .from('users')
+              .select('id, name, email, role, project_name')
+              .in('id', userIds);
+
+            const usersMap = new Map(users.map(u => [u.id, u]));
+            const enrichedPlanifications = planifications.map(plan => ({
+              ...plan,
+              user: usersMap.get(plan.user_id) || null
+            }));
+
+            // Grouper par semaine et agent
+            const weeklySummary = {};
+            enrichedPlanifications.forEach(plan => {
+              const weekKey = `${plan.user_id}_${from}`;
+              if (!weeklySummary[weekKey]) {
+                weeklySummary[weekKey] = {
+                  user_id: plan.user_id,
+                  user_name: plan.user ? plan.user.name : `Utilisateur ${plan.user_id}`,
+                  week_start_date: from,
+                  week_end_date: to,
+                  project_name: plan.project_name || 'Aucun',
+                  total_planned_hours: 0,
+                  planned_days: new Set(),
+                  activities: []
+                };
+              }
+              
+              // Calculer les heures planifiées
+              if (plan.planned_start_time && plan.planned_end_time) {
+                const start = new Date(`2000-01-01T${plan.planned_start_time}`);
+                const end = new Date(`2000-01-01T${plan.planned_end_time}`);
+                const hours = (end - start) / (1000 * 60 * 60);
+                weeklySummary[weekKey].total_planned_hours += hours;
+              }
+              
+              weeklySummary[weekKey].planned_days.add(plan.date);
+              weeklySummary[weekKey].activities.push({
+                date: plan.date,
+                activity: plan.description_activite || 'Aucune activité',
+                start_time: plan.planned_start_time,
+                end_time: plan.planned_end_time
+              });
+            });
+
+            // Convertir en array
+            const summaryArray = Object.values(weeklySummary).map(summary => ({
+              ...summary,
+              planned_days: Array.from(summary.planned_days).length
+            }));
+
+            return res.json({
+              success: true,
+              items: summaryArray
+            });
+          }
+
+          return res.json({
+            success: true,
+            items: []
+          });
+        } catch (error) {
+          console.error('Erreur récap hebdomadaire:', error);
           return res.status(500).json({ error: 'Erreur serveur' });
         }
       });

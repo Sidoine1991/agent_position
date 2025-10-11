@@ -6,6 +6,7 @@
   <title>Accueil • Presence CCR‑B</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/styles-theme.css">
+  <link rel="stylesheet" href="/language-selector.css">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -171,6 +172,42 @@
     .btn-nav:active {
       transform: translateY(-1px) scale(1.02);
     }
+
+    /* Animation colorée pour le titre */
+    .animated-title {
+      background: linear-gradient(45deg, #667eea, #764ba2, #f093fb, #f5576c, #4facfe, #00f2fe);
+      background-size: 400% 400%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: gradientShift 3s ease-in-out infinite;
+      font-weight: 700;
+    }
+
+    @keyframes gradientShift {
+      0% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
+      100% {
+        background-position: 0% 50%;
+      }
+    }
+
+    /* Animation pour le titre principal */
+    .hero h1.animated-title {
+      font-size: 3.5rem;
+      margin-bottom: 1rem;
+    }
+
+    /* Animation pour le titre de la navbar */
+    .logo span.animated-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
 
     /* Toggle mode sombre/clair */
     .theme-toggle {
@@ -1873,7 +1910,7 @@
     <div class="nav-container">
       <a href="/home.html" class="logo">
         <img src="/Media/logo-ccrb.png" alt="CCR-B Logo">
-        <span>Presence CCR-B</span>
+        <span class="animated-title">Presence CCR-B</span>
       </a>
       
       <!-- Navigation par sections retirée (liens non fonctionnels) -->
@@ -1919,20 +1956,20 @@
       <div class="particle"></div>
     </div>
     <div class="hero-content">
-      <h1>Presence CCR-B</h1>
-      <p>Plateforme de suivi de la présence des conseillers agricoles du CCR-B sur le terrain</p>
+      <h1 class="animated-title" data-translate="home.title">Presence CCR-B</h1>
+      <p data-translate="home.subtitle">Plateforme de suivi de la présence des conseillers agricoles du CCR-B sur le terrain</p>
       <div class="hero-buttons">
         <a id="hero-dashboard-btn" class="btn-hero btn-outline" href="/dashboard.html" style="display:none">
           <i class="fas fa-chart-line"></i>
-          Tableau de bord
+          <span data-translate="home.dashboard">Tableau de bord</span>
         </a>
         <a id="hero-login-btn" class="btn-hero btn-white" href="/index.html">
           <i class="fas fa-sign-in-alt"></i>
-          Se connecter
+          <span data-translate="home.login">Se connecter</span>
         </a>
         <a id="hero-register-btn" class="btn-hero btn-outline" href="/register.html">
           <i class="fas fa-user-plus"></i>
-          S'inscrire
+          <span data-translate="home.register">S'inscrire</span>
         </a>
       </div>
     </div>
@@ -2137,8 +2174,8 @@
   <section class="features" id="features">
     <div class="container">
       <div class="section-title">
-        <h2>Fonctionnalités principales</h2>
-        <p>Des outils puissants pour un suivi efficace de vos équipes terrain</p>
+        <h2 data-translate="home.features.title">Fonctionnalités principales</h2>
+        <p data-translate="home.features.subtitle">Des outils puissants pour un suivi efficace de vos équipes terrain</p>
       </div>
       
       <div class="features-grid">
@@ -2146,48 +2183,48 @@
           <div class="feature-icon">
             <i class="fas fa-satellite-dish"></i>
           </div>
-          <h3>📍 Suivi GPS temps réel</h3>
-          <p>Localisez vos conseillers en temps réel avec une précision GPS avancée et un suivi des trajectoires. La géolocalisation permet de vérifier la présence effective sur le terrain et d'optimiser les déplacements.</p>
+          <h3 data-translate="feature.gps.title">📍 Suivi GPS temps réel</h3>
+          <p data-translate="feature.gps.desc">Localisez vos conseillers en temps réel avec une précision GPS avancée et un suivi des trajectoires. La géolocalisation permet de vérifier la présence effective sur le terrain et d'optimiser les déplacements.</p>
         </div>
         
         <div class="feature-card">
           <div class="feature-icon">
             <i class="fas fa-chart-bar"></i>
           </div>
-          <h3>📊 Tableaux de bord</h3>
-          <p>Visualisez les données clés avec des graphiques interactifs et des rapports détaillés. Accédez aux statistiques de présence, aux performances des équipes et aux indicateurs de productivité.</p>
+          <h3 data-translate="feature.dashboard.title">📊 Tableaux de bord</h3>
+          <p data-translate="feature.dashboard.desc">Visualisez les données clés avec des graphiques interactifs et des rapports détaillés. Accédez aux statistiques de présence, aux performances des équipes et aux indicateurs de productivité.</p>
         </div>
         
         <div class="feature-card">
           <div class="feature-icon">
             <i class="fas fa-camera-retro"></i>
           </div>
-          <h3>📸 Notes & Photos</h3>
-          <p>Capturez des preuves terrain avec photos géolocalisées et notes horodatées. Documentez les activités, les observations et les résultats directement depuis l'application mobile.</p>
+          <h3 data-translate="feature.photos.title">📸 Notes & Photos</h3>
+          <p data-translate="feature.photos.desc">Capturez des preuves terrain avec photos géolocalisées et notes horodatées. Documentez les activités, les observations et les résultats directement depuis l'application mobile.</p>
         </div>
         
         <div class="feature-card">
           <div class="feature-icon">
             <i class="fas fa-mobile-screen"></i>
           </div>
-          <h3>📱 Application mobile</h3>
-          <p>Application PWA optimisée pour le terrain, fonctionne même hors ligne. Synchronisation automatique dès le retour de connexion pour une continuité d'activité parfaite.</p>
+          <h3 data-translate="feature.mobile.title">📱 Application mobile</h3>
+          <p data-translate="feature.mobile.desc">Application PWA optimisée pour le terrain, fonctionne même hors ligne. Synchronisation automatique dès le retour de connexion pour une continuité d'activité parfaite.</p>
         </div>
         
         <div class="feature-card">
           <div class="feature-icon">
             <i class="fas fa-lock"></i>
           </div>
-          <h3>🔒 Sécurité avancée</h3>
-          <p>Données chiffrées et authentification sécurisée pour protéger vos informations. Conformité aux standards de sécurité avec accès contrôlé par rôles (agent, superviseur, administrateur).</p>
+          <h3 data-translate="feature.security.title">🔒 Sécurité avancée</h3>
+          <p data-translate="feature.security.desc">Données chiffrées et authentification sécurisée pour protéger vos informations. Conformité aux standards de sécurité avec accès contrôlé par rôles (agent, superviseur, administrateur).</p>
         </div>
         
         <div class="feature-card">
           <div class="feature-icon">
             <i class="fas fa-file-export"></i>
           </div>
-          <h3>📄 Exports CSV</h3>
-          <p>Générez facilement des rapports d'exportation pour vos analyses et présentations. Exports personnalisables par période, équipe ou zone géographique pour un reporting adapté.</p>
+          <h3 data-translate="feature.export.title">📄 Exports CSV</h3>
+          <p data-translate="feature.export.desc">Générez facilement des rapports d'exportation pour vos analyses et présentations. Exports personnalisables par période, équipe ou zone géographique pour un reporting adapté.</p>
         </div>
       </div>
     </div>
@@ -2198,10 +2235,10 @@
     <div class="container">
       <div class="about-content">
         <div class="about-text">
-          <h2>À propos de Presence CCR-B</h2>
-          <p>Presence CCR-B est une plateforme interne conçue par l'équipe technique du Conseil de Concertation des Riziculteurs du Bénin (CCR-B).</p>
-          <p>Notre mission est de faciliter le suivi sécurisé des conseillers et agents terrain, permettant une collecte de données géolocalisées, l'automatisation des rapports et un pilotage efficace des activités.</p>
-          <p>Avec Presence CCR-B, optimisez votre efficacité opérationnelle, améliorez la redevabilité et facilitez la prise de décision basée sur des données réelles.</p>
+          <h2 data-translate="home.about.title">À propos de Presence CCR-B</h2>
+          <p data-translate="home.about.text1">Presence CCR-B est une plateforme interne conçue par l'équipe technique du Conseil de Concertation des Riziculteurs du Bénin (CCR-B).</p>
+          <p data-translate="home.about.text2">Notre mission est de faciliter le suivi sécurisé des conseillers et agents terrain, permettant une collecte de données géolocalisées, l'automatisation des rapports et un pilotage efficace des activités.</p>
+          <p data-translate="home.about.text3">Avec Presence CCR-B, optimisez votre efficacité opérationnelle, améliorez la redevabilité et facilitez la prise de décision basée sur des données réelles.</p>
         </div>
         <div class="about-image">
           <img src="/Media/acceuil%202.png" alt="À propos CCR-B">
@@ -2238,8 +2275,8 @@
   <section class="contact" id="contact">
     <div class="container">
       <div class="section-title">
-        <h2>Contact</h2>
-        <p>Besoin d'aide ou d'informations ? Contactez notre équipe</p>
+        <h2 data-translate="home.contact.title">Contact</h2>
+        <p data-translate="home.contact.subtitle">Besoin d'aide ou d'informations ? Contactez notre équipe</p>
       </div>
       
       <div class="contact-content">
@@ -2293,16 +2330,16 @@
   <!-- CTA Section (boutons centrés) -->
   <section class="cta">
     <div class="container" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:40vh">
-      <h2 style="text-align:center">Prêt à optimiser votre suivi terrain ?</h2>
-      <p style="text-align:center;max-width:720px">Rejoignez les équipes CCR-B qui utilisent déjà Presence pour améliorer leur efficacité opérationnelle.</p>
+      <h2 style="text-align:center" data-translate="home.cta.title">Prêt à optimiser votre suivi terrain ?</h2>
+      <p style="text-align:center;max-width:720px" data-translate="home.cta.subtitle">Rejoignez les équipes CCR-B qui utilisent déjà Presence pour améliorer leur efficacité opérationnelle.</p>
       <div style="display:flex;gap:20px;margin-top:16px;flex-wrap:wrap;justify-content:center">
         <a href="/index.html" class="btn-hero btn-white">
           <i class="fas fa-sign-in-alt"></i>
-          Se connecter
+          <span data-translate="home.login">Se connecter</span>
         </a>
         <a href="/register.html" class="btn-hero btn-outline">
           <i class="fas fa-user-plus"></i>
-          S'inscrire
+          <span data-translate="home.register">S'inscrire</span>
         </a>
       </div>
     </div>
@@ -2464,6 +2501,12 @@
     <div class="container" style="position:relative;display:flex;align-items:center;justify-content:center;min-height:56px">
       <img src="/Media/logo-ccrb.png" alt="CCR-B Logo" style="position:absolute;left:0;height:36px;border-radius:6px" />
       <p style="margin:0">&copy; 2025 Presence CCR-B • Conseil de Concertation des Riziculteurs du Bénin</p>
+      <div style="position:absolute;right:0">
+        <select id="language-selector" class="language-selector" title="Choisir la langue" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);color:white;padding:6px 10px;border-radius:6px;font-size:12px">
+          <option value="fr">🇫🇷 FR</option>
+          <option value="en">🇬🇧 EN</option>
+        </select>
+      </div>
     </div>
   </footer>
 
@@ -2657,6 +2700,9 @@
     // Initialiser l'animation après le chargement de la page
     document.addEventListener('DOMContentLoaded', initPartnersScroll);
   </script>
+  
+  <!-- Script de traduction -->
+  <script src="/translations.js"></script>
 </body>
 </html>
 

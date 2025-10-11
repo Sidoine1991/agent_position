@@ -1342,7 +1342,13 @@ async function loadAgents() {
   sel.innerHTML = '';
   try {
     const result = await api('/admin/agents');
-    const agents = result.data || result || [];
+    const agents = result.agents || result.data || result || [];
+    
+    // Vérifier que agents est un array
+    if (!Array.isArray(agents)) {
+      console.error('Erreur: agents n\'est pas un array:', agents);
+      return;
+    }
     
     sel.append(new Option('Tous les agents', ''));
     agents.forEach(agent => {
@@ -1367,7 +1373,13 @@ async function loadProjects() {
   try {
     // Charger les projets depuis la table users (comme dans reports-backend.js)
     const result = await api('/admin/agents');
-    const users = result.data || result || [];
+    const users = result.agents || result.data || result || [];
+    
+    // Vérifier que users est un array
+    if (!Array.isArray(users)) {
+      console.error('Erreur: users n\'est pas un array:', users);
+      return;
+    }
     
     // Extraire les projets uniques des agents
     const projects = new Set();
@@ -2048,12 +2060,22 @@ async function refresh() {
 
 // Réagir aux mises à jour de présence depuis d'autres pages (start/checkin/end/complete)
 try {
+  let isNavigatingAway = false;
+  
+  // Détecter quand l'utilisateur navigue vers une autre page
+  window.addEventListener('beforeunload', () => {
+    isNavigatingAway = true;
+  });
+  
   window.addEventListener('storage', async (e) => {
     try {
-      if (e && e.key === 'presence_update') {
-        console.log('🔄 Mise à jour de présence détectée, rafraîchissement du dashboard...');
-        await refresh();
-        await loadCheckinsOnMap();
+      if (e && e.key === 'presence_update' && !isNavigatingAway) {
+        // Vérifier si on est toujours sur la page dashboard
+        if (window.location.pathname.includes('dashboard')) {
+          console.log('🔄 Mise à jour de présence détectée, rafraîchissement du dashboard...');
+          await refresh();
+          await loadCheckinsOnMap();
+        }
       }
     } catch {}
   });
@@ -2425,6 +2447,18 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => {
     setupManualGeoInputsDashboard();
   }, 1000);
+  
+  // Ajouter un gestionnaire pour le logo
+  const logo = document.querySelector('.navbar-logo');
+  if (logo) {
+    logo.style.cursor = 'pointer';
+    logo.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('🏠 Clic sur logo - redirection vers home');
+      window.location.href = '/home.html';
+    });
+  }
 });
 
 // Exposer les fonctions globalement

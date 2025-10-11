@@ -38,7 +38,14 @@
       const res = await fetch(`${apiBase}/admin/agents`, { headers });
       if (res.ok) {
         const result = await res.json();
-        const users = result.data || result || [];
+        // Corriger l'extraction des données - utiliser result.agents au lieu de result.data
+        const users = result.agents || result.data || result || [];
+        
+        // Vérifier que users est un array
+        if (!Array.isArray(users)) {
+          console.error('Erreur: users n\'est pas un array:', users);
+          return;
+        }
         
         // Filtrer seulement les agents (role = 'agent')
         agents = users.filter(user => user.role === 'agent');
@@ -73,17 +80,24 @@
       const res = await fetch(`${apiBase}/admin/agents`, { headers });
       if (res.ok) {
         const result = await res.json();
-        const users = result.data || result || [];
+        // Corriger l'extraction des données - utiliser result.agents au lieu de result.data
+        const users = result.agents || result.data || result || [];
+        
+        // Vérifier que users est un array
+        if (!Array.isArray(users)) {
+          console.error('Erreur: users n\'est pas un array:', users);
+          return;
+        }
         
         // Extraire les projets uniques des agents
-        const projects = new Set();
+        const projectsSet = new Set();
         users.forEach(user => {
           if (user.project_name && user.project_name.trim()) {
-            projects.add(user.project_name.trim());
+            projectsSet.add(user.project_name.trim());
           }
         });
         
-        projects = Array.from(projects).sort();
+        projects = Array.from(projectsSet).sort();
         updateProjectSelect();
         
         console.log('Projets chargés dans planning:', projects);
@@ -173,6 +187,183 @@
     return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
   }
 
+  // Fonction pour récupérer les activités d'une semaine
+  function getWeekActivities(weekStart, weekEnd, plans) {
+    const weekPlans = plans.filter(plan => {
+      const planDate = new Date(plan.date);
+      const start = new Date(weekStart);
+      const end = new Date(weekEnd);
+      return planDate >= start && planDate <= end && plan.description_activite;
+    });
+    
+    if (weekPlans.length === 0) return null;
+    
+    return weekPlans.map(plan => {
+      const date = new Date(plan.date).toLocaleDateString('fr-FR', { 
+        weekday: 'short', 
+        day: 'numeric' 
+      });
+      return `<div class="small mb-1">
+        <strong>${date}:</strong> ${plan.description_activite}
+      </div>`;
+    }).join('');
+  }
+
+  // Fonction pour éditer la planification d'une semaine
+  async function editWeekPlanning(weekStart, weekEnd) {
+    try {
+      const headers = await authHeaders();
+      const projectParam = selectedProjectId ? `&project_name=${selectedProjectId}` : '';
+      const agentParam = selectedAgentId ? `&agent_id=${selectedAgentId}` : '';
+      
+      const res = await fetch(`${apiBase}/planifications?from=${weekStart}&to=${weekEnd}${projectParam}${agentParam}`, { headers });
+      if (res.ok) {
+        const result = await res.json();
+        const weekPlans = result.items || [];
+        
+        // Ouvrir une modal pour éditer la semaine
+        showWeekEditModal(weekStart, weekEnd, weekPlans);
+      }
+    } catch (error) {
+      console.error('Erreur chargement semaine:', error);
+      alert('Erreur lors du chargement de la semaine');
+    }
+  }
+
+  // Fonction pour afficher la modal d'édition de semaine
+  function showWeekEditModal(weekStart, weekEnd, weekPlans) {
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = 'weekEditModal';
+    modal.innerHTML = `
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Édition de la semaine du ${new Date(weekStart).toLocaleDateString()} au ${new Date(weekEnd).toLocaleDateString()}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div id="week-edit-content">
+              ${generateWeekEditContent(weekStart, weekEnd, weekPlans)}
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+            <button type="button" class="btn btn-primary" onclick="saveWeekPlanning('${weekStart}', '${weekEnd}')">Sauvegarder</button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+    
+    // Nettoyer la modal quand elle est fermée
+    modal.addEventListener('hidden.bs.modal', () => {
+      document.body.removeChild(modal);
+    });
+  }
+
+  // Fonction pour générer le contenu d'édition de semaine
+  function generateWeekEditContent(weekStart, weekEnd, weekPlans) {
+    const start = new Date(weekStart);
+    const end = new Date(weekEnd);
+    const days = [];
+    
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      days.push(new Date(d));
+    }
+    
+    return days.map(day => {
+      const iso = toISODate(day);
+      const plan = weekPlans.find(p => p.date === iso);
+      const dayName = day.toLocaleDateString('fr-FR', { weekday: 'long' });
+      
+      return `
+        <div class="row mb-3 border-bottom pb-3">
+          <div class="col-12">
+            <h6 class="fw-bold">${dayName} ${day.toLocaleDateString()}</h6>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Heure de début</label>
+            <input type="time" class="form-control" id="edit-start-${iso}" value="${plan?.planned_start_time || ''}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Heure de fin</label>
+            <input type="time" class="form-control" id="edit-end-${iso}" value="${plan?.planned_end_time || ''}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Projet</label>
+            <select class="form-select" id="edit-project-${iso}">
+              <option value="">Sélectionner un projet</option>
+              ${projects.map(p => `<option value="${p}" ${plan?.project_name === p ? 'selected' : ''}>${p}</option>`).join('')}
+            </select>
+          </div>
+          <div class="col-12 mt-2">
+            <label class="form-label">Description de l'activité</label>
+            <textarea class="form-control" id="edit-desc-${iso}" rows="2" placeholder="Décrivez l'activité prévue...">${plan?.description_activite || ''}</textarea>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Fonction pour sauvegarder la planification de la semaine
+  async function saveWeekPlanning(weekStart, weekEnd) {
+    try {
+      const start = new Date(weekStart);
+      const end = new Date(weekEnd);
+      const days = [];
+      
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        days.push(new Date(d));
+      }
+      
+      const headers = await authHeaders();
+      const promises = days.map(async (day) => {
+        const iso = toISODate(day);
+        const startTime = document.getElementById(`edit-start-${iso}`)?.value || null;
+        const endTime = document.getElementById(`edit-end-${iso}`)?.value || null;
+        const project = document.getElementById(`edit-project-${iso}`)?.value || null;
+        const description = document.getElementById(`edit-desc-${iso}`)?.value || null;
+        
+        const res = await fetch(`${apiBase}/planifications`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            date: iso,
+            planned_start_time: startTime,
+            planned_end_time: endTime,
+            description_activite: description,
+            project_name: project // Le nom du projet sélectionné
+          })
+        });
+        
+        return res.ok;
+      });
+      
+      const results = await Promise.all(promises);
+      const successCount = results.filter(r => r).length;
+      
+      if (successCount === days.length) {
+        alert('Planification de la semaine sauvegardée avec succès !');
+        // Fermer la modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('weekEditModal'));
+        if (modal) modal.hide();
+        
+        // Recharger les données
+        await loadWeek(document.getElementById('week-start').value);
+        await loadMonth(document.getElementById('month').value);
+      } else {
+        alert('Erreur lors de la sauvegarde de certaines planifications');
+      }
+    } catch (error) {
+      console.error('Erreur sauvegarde semaine:', error);
+      alert('Erreur lors de la sauvegarde');
+    }
+  }
+
   async function loadWeek(dateStr) {
     const start = startOfWeek(dateStr ? new Date(dateStr) : new Date());
     $('week-start').value = toISODate(start);
@@ -237,7 +428,7 @@
       weeklyMinutes += duration;
       const hasPresence = checkinDates.has(iso);
       const isValidated = validatedDates.has(iso);
-      const isPast = iso < todayIso; // désactiver édition pour les dates passées
+      const isPast = iso < todayIso; // garder l'info mais permettre l'édition
 
       const row = document.createElement('div');
       row.className = 'gantt-row d-flex align-items-center border-bottom py-2';
@@ -252,12 +443,12 @@
           <div class="position-absolute bg-light w-100 h-100" style="opacity:.6"></div>
           ${planned && duration > 0 ? `<div class="position-absolute bg-primary" style="left:${startMin}px;width:${duration}px;height:26px;border-radius:6px;opacity:.85"></div>` : ''}
           <div class="position-absolute d-flex gap-2" style="left:4px;top:4px">
-            <input type="time" class="form-control form-control-sm" id="gs-${iso}" value="${plan?.planned_start_time || ''}" style="width:110px" ${isPast ? 'disabled' : ''}>
-            <input type="time" class="form-control form-control-sm" id="ge-${iso}" value="${plan?.planned_end_time || ''}" style="width:110px" ${isPast ? 'disabled' : ''}>
-            ${isPast ? '' : `<button class="btn btn-sm btn-success" data-date="${iso}">OK</button>`}
+            <input type="time" class="form-control form-control-sm" id="gs-${iso}" value="${plan?.planned_start_time || ''}" style="width:110px">
+            <input type="time" class="form-control form-control-sm" id="ge-${iso}" value="${plan?.planned_end_time || ''}" style="width:110px">
+            <button class="btn btn-sm btn-success" data-date="${iso}">OK</button>
           </div>
           <div class="position-absolute d-flex gap-2" style="left:4px;top:40px">
-            <input type="text" class="form-control form-control-sm" id="desc-${iso}" placeholder="Description de l'activité (2 lignes max)" value="${plan?.description_activite || ''}" style="width:300px" ${isPast ? 'disabled' : ''}>
+            <input type="text" class="form-control form-control-sm" id="desc-${iso}" placeholder="Description de l'activité (2 lignes max)" value="${plan?.description_activite || ''}" style="width:300px">
           </div>
         </div>`;
       
@@ -303,7 +494,7 @@
             planned_start_time, 
             planned_end_time, 
             description_activite,
-            project_id 
+            project_name: selectedProjectId // Utiliser le nom du projet sélectionné
           })
         });
         if (res.status === 401) {
@@ -406,7 +597,7 @@
       cursor = addDays(we, 1);
     }
 
-    // Construire le tableau synthèse
+    // Construire le tableau synthèse avec les activités planifiées
     const table = document.createElement('table');
     table.className = 'table table-striped';
     table.innerHTML = `
@@ -415,6 +606,8 @@
         <th>Période</th>
         <th>Jours planifiés</th>
         <th>Heures planifiées</th>
+        <th>Activités planifiées</th>
+        <th>Actions</th>
       </tr></thead>
       <tbody>
         ${weeks.map((w,i)=>`<tr>
@@ -422,6 +615,16 @@
           <td>du ${new Date(w.from).toLocaleDateString()} au ${new Date(w.to).toLocaleDateString()}</td>
           <td>${w.daysPlanned}</td>
           <td>${w.hours}h${String(w.minutes).padStart(2,'0')}</td>
+          <td>
+            <div class="activities-summary" style="max-width: 300px; max-height: 100px; overflow-y: auto;">
+              ${getWeekActivities(w.from, w.to, plans) || '<em class="text-muted">Aucune activité planifiée</em>'}
+            </div>
+          </td>
+          <td>
+            <button class="btn btn-sm btn-outline-primary" onclick="editWeekPlanning('${w.from}', '${w.to}')">
+              <i class="bi bi-pencil"></i> Éditer
+            </button>
+          </td>
         </tr>`).join('')}
       </tbody>`;
     if (gantt) { gantt.innerHTML = ''; gantt.appendChild(table); }
@@ -429,11 +632,124 @@
     const totalMinutes = (weeks||[]).reduce((acc, w)=> acc + (w.hours*60 + w.minutes), 0);
     const totalDaysPlanned = (weeks||[]).reduce((acc, w)=> acc + w.daysPlanned, 0);
     $('month-summary').textContent = `Total planifié: ${Math.round(totalMinutes/60)}h${String(totalMinutes%60).padStart(2,'0')} • Jours planifiés: ${totalDaysPlanned}`;
+    
+    // Charger le récap hebdomadaire
+    await loadWeeklySummary();
+  }
+
+  // Fonction pour charger le récap hebdomadaire
+  async function loadWeeklySummary() {
+    try {
+      const headers = await authHeaders();
+      const projectParam = selectedProjectId ? `&project_name=${selectedProjectId}` : '';
+      const agentParam = selectedAgentId ? `&agent_id=${selectedAgentId}` : '';
+      
+      // Obtenir les dates de la semaine actuelle
+      const today = new Date();
+      const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
+      const endOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + 6));
+      
+      const from = startOfWeek.toISOString().split('T')[0];
+      const to = endOfWeek.toISOString().split('T')[0];
+      
+      const res = await fetch(`${apiBase}/planifications/weekly-summary?from=${from}&to=${to}${projectParam}${agentParam}`, { headers });
+      if (res.ok) {
+        const result = await res.json();
+        const weeklySummaries = result.items || [];
+        displayWeeklySummary(weeklySummaries);
+      } else {
+        displayWeeklySummary([]);
+      }
+    } catch (error) {
+      console.error('Erreur chargement récap hebdomadaire:', error);
+      displayWeeklySummary([]);
+    }
+  }
+
+  // Fonction pour afficher le récap hebdomadaire
+  function displayWeeklySummary(summaries) {
+    const container = document.getElementById('weekly-summary');
+    if (!container) return;
+    
+    if (summaries.length === 0) {
+      container.innerHTML = `
+        <div class="text-center text-muted">
+          <i class="bi bi-calendar-week fs-1"></i>
+          <p>Aucune activité planifiée pour cette période</p>
+        </div>
+      `;
+      return;
+    }
+    
+    const table = document.createElement('table');
+    table.className = 'table table-hover';
+    table.innerHTML = `
+      <thead class="table-light">
+        <tr>
+          <th>Semaine</th>
+          <th>Agent</th>
+          <th>Projet</th>
+          <th>Heures planifiées</th>
+          <th>Jours planifiés</th>
+          <th>Activités</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${summaries.map(summary => `
+          <tr>
+            <td>
+              <strong>Semaine du ${new Date(summary.week_start_date).toLocaleDateString()}</strong><br>
+              <small class="text-muted">au ${new Date(summary.week_end_date).toLocaleDateString()}</small>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <div class="avatar-sm bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width:32px;height:32px;font-size:12px">
+                  ${(summary.users?.name || 'A').charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div class="fw-semibold">${summary.users?.name || 'Agent'}</div>
+                  <small class="text-muted">${summary.users?.email || ''}</small>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="badge bg-info">${summary.project_name || 'Projet Général'}</span>
+            </td>
+            <td>
+              <span class="fw-semibold">${summary.total_planned_hours || 0}h</span>
+            </td>
+            <td>
+              <span class="badge bg-secondary">${summary.total_planned_days || 0} jours</span>
+            </td>
+            <td>
+              <div class="activities-preview" style="max-width: 200px; max-height: 80px; overflow-y: auto;">
+                ${summary.activities_summary ? 
+                  summary.activities_summary.split(' | ').map(activity => 
+                    `<div class="small mb-1 text-truncate" title="${activity}">${activity}</div>`
+                  ).join('') : 
+                  '<em class="text-muted small">Aucune activité</em>'
+                }
+              </div>
+            </td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary" onclick="editWeekPlanning('${summary.week_start_date}', '${summary.week_end_date}')">
+                <i class="bi bi-pencil"></i>
+              </button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    `;
+    
+    container.innerHTML = '';
+    container.appendChild(table);
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     $('load-week').addEventListener('click', () => loadWeek($('week-start').value));
     $('load-month').addEventListener('click', () => loadMonth($('month').value));
+    $('refresh-weekly-summary').addEventListener('click', () => loadWeeklySummary());
     $('prev-week').addEventListener('click', () => {
       const d = new Date($('week-start').value || new Date());
       d.setDate(d.getDate() - 7);
@@ -463,5 +779,11 @@
     }
   });
 })();
+
+// Exposer les fonctions nécessaires globalement pour l'interface
+window.editWeekPlanning = editWeekPlanning;
+window.saveWeekPlanning = saveWeekPlanning;
+window.loadWeek = loadWeek;
+window.loadMonth = loadMonth;
 
 
