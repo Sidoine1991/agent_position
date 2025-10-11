@@ -26,7 +26,47 @@
     try { const b = document.getElementById('planning-auth-banner'); if (b) b.remove(); } catch {}
   }
 
-  function $(id) { return document.getElementById(id); }
+  let projects = [];
+  let selectedProjectId = '';
+
+  // Charger les projets
+  async function loadProjects() {
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`${apiBase}/projects`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        projects = data.items || [];
+        updateProjectSelect();
+      }
+    } catch (error) {
+      console.error('Erreur chargement projets:', error);
+    }
+  }
+
+  function updateProjectSelect() {
+    const select = document.getElementById('project-select');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">Tous les projets</option>';
+    projects.forEach(project => {
+      const option = document.createElement('option');
+      option.value = project.id;
+      option.textContent = project.name;
+      select.appendChild(option);
+    });
+  }
+
+  // Écouter les changements de projet
+  document.addEventListener('DOMContentLoaded', () => {
+    const projectSelect = document.getElementById('project-select');
+    if (projectSelect) {
+      projectSelect.addEventListener('change', (e) => {
+        selectedProjectId = e.target.value;
+        loadWeek(document.getElementById('week-start').value);
+      });
+    }
+  });
 
   function findToken() {
     const candidates = ['jwt','access_token','token','sb-access-token','sb:token'];
@@ -81,8 +121,9 @@
     const to = toISODate(days[6]);
     const headers = await authHeaders();
 
+    const projectParam = selectedProjectId ? `&project_id=${selectedProjectId}` : '';
     const [plansRes, checkinsRes, validationsRes] = await Promise.all([
-      fetch(`${apiBase}/planifications?from=${from}&to=${to}`, { headers }),
+      fetch(`${apiBase}/planifications?from=${from}&to=${to}${projectParam}`, { headers }),
       fetch(`${apiBase}/checkins/mine?from=${from}&to=${to}`, { headers }),
       fetch(`${apiBase}/validations/mine?from=${from}&to=${to}`, { headers })
     ]);
@@ -144,6 +185,7 @@
           <span class="fw-semibold">${dayNames[idx]} ${d.toLocaleDateString()}</span>
           ${planned ? '<span class="badge bg-primary">Planifié</span>' : '<span class="badge bg-secondary">Libre</span>'}
           ${hasPresence ? `<span class="badge ${isValidated ? 'bg-success' : 'bg-warning'}">${isValidated ? 'Présence validée' : 'Présence à valider'}</span>` : ''}
+          ${plan?.projects?.name ? `<span class="badge bg-info">${plan.projects.name}</span>` : ''}
         </div>
         <div class="flex-grow-1 position-relative" style="height:34px">
           <div class="position-absolute bg-light w-100 h-100" style="opacity:.6"></div>
@@ -153,7 +195,24 @@
             <input type="time" class="form-control form-control-sm" id="ge-${iso}" value="${plan?.planned_end_time || ''}" style="width:110px" ${isPast ? 'disabled' : ''}>
             ${isPast ? '' : `<button class="btn btn-sm btn-success" data-date="${iso}">OK</button>`}
           </div>
+          <div class="position-absolute d-flex gap-2" style="left:4px;top:40px">
+            <input type="text" class="form-control form-control-sm" id="desc-${iso}" placeholder="Description de l'activité (2 lignes max)" value="${plan?.description_activite || ''}" style="width:300px" ${isPast ? 'disabled' : ''}>
+          </div>
         </div>`;
+      
+      // Ajouter la description d'activité si elle existe
+      if (plan?.description_activite) {
+        const descRow = document.createElement('div');
+        descRow.className = 'gantt-row border-bottom py-2';
+        descRow.innerHTML = `
+          <div class="col-12">
+            <small class="text-muted">Description:</small>
+            <div class="small">${plan.description_activite}</div>
+          </div>
+        `;
+        gantt.appendChild(descRow);
+      }
+      
       gantt.appendChild(row);
       // écoute des inputs pour mise à jour du récap mensuel en direct
       try {
@@ -171,11 +230,20 @@
         const date = btn.getAttribute('data-date');
         const planned_start_time = document.getElementById(`gs-${date}`).value || null;
         const planned_end_time = document.getElementById(`ge-${date}`).value || null;
+        const description_activite = document.getElementById(`desc-${date}`)?.value || null;
+        const project_id = selectedProjectId || null;
+        
         const headers2 = await authHeaders();
         const res = await fetch(`${apiBase}/planifications`, {
           method: 'POST',
           headers: headers2,
-          body: JSON.stringify({ date, planned_start_time, planned_end_time })
+          body: JSON.stringify({ 
+            date, 
+            planned_start_time, 
+            planned_end_time, 
+            description_activite,
+            project_id 
+          })
         });
         if (res.status === 401) {
           showPlanningAuthBanner('🔒 Session requise pour enregistrer la planification. Connectez-vous puis réessayez.');
@@ -314,7 +382,7 @@
       loadWeek(toISODate(d));
     });
     // Wait for auth token if needed to avoid 401 on first load
-    const boot = () => { loadWeek(); loadMonth(); };
+    const boot = () => { loadProjects(); loadWeek(); loadMonth(); };
     const tokenNow = findToken();
     if (tokenNow) {
       boot();

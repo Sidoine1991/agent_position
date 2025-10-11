@@ -916,6 +916,7 @@ async function init() {
   }, 1500);
 
   await loadAgents();
+  await loadProjects();
   
   // Initialiser les sélecteurs géographiques avec les bonnes fonctions
   setTimeout(() => {
@@ -1333,6 +1334,21 @@ async function loadAgents() {
   } catch (e) {
     console.warn('admin/agents indisponible, masquer la liste');
     sel.append(new Option('Liste indisponible', ''));
+  }
+}
+
+async function loadProjects() {
+  const sel = $('project'); 
+  if (!sel) return;
+  
+  sel.innerHTML = '';
+  try {
+    const rows = await api('/projects');
+    sel.append(new Option('Tous les projets', ''));
+    for (const r of rows) sel.append(new Option(r.name, r.id));
+  } catch(e) { 
+    console.error('Erreur chargement projets:', e); 
+    sel.append(new Option('Erreur chargement projets', ''));
   }
 }
 

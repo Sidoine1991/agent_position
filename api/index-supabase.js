@@ -154,7 +154,26 @@ export default async function handler(req, res) {
 
     // Register
     if (path === '/api/register' && method === 'POST') {
-      const { email, password, name, role = 'agent' } = req.body;
+      const { 
+        email, 
+        password, 
+        name, 
+        role = 'agent',
+        phone,
+        departement,
+        commune,
+        arrondissement,
+        village,
+        project_name,
+        reference_lat,
+        reference_lon,
+        tolerance_radius_meters,
+        expected_days_per_month,
+        expected_hours_per_month,
+        contract_start_date,
+        contract_end_date,
+        years_of_service
+      } = req.body;
       
       if (!email || !password || !name) {
         return res.status(400).json({ error: 'Email, mot de passe et nom requis' });
@@ -181,18 +200,41 @@ export default async function handler(req, res) {
       const verificationCode = crypto.randomBytes(32).toString('hex');
       const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
+      // Préparer les données utilisateur
+      const userData = {
+        email,
+        password_hash: passwordHash,
+        name,
+        role,
+        phone,
+        is_verified: false,
+        verification_code: verificationCode,
+        verification_expires: verificationExpires.toISOString()
+      };
+
+      // Ajouter les champs géographiques
+      if (departement) userData.departement = departement;
+      if (commune) userData.commune = commune;
+      if (arrondissement) userData.arrondissement = arrondissement;
+      if (village) userData.village = village;
+      if (project_name) userData.project_name = project_name;
+
+      // Ajouter les champs spécifiques aux employés (pas pour les admins)
+      if (role !== 'admin') {
+        if (reference_lat !== undefined && reference_lat !== null) userData.reference_lat = reference_lat;
+        if (reference_lon !== undefined && reference_lon !== null) userData.reference_lon = reference_lon;
+        if (tolerance_radius_meters !== undefined && tolerance_radius_meters !== null) userData.tolerance_radius_meters = tolerance_radius_meters;
+        if (expected_days_per_month !== undefined && expected_days_per_month !== null) userData.expected_days_per_month = expected_days_per_month;
+        if (expected_hours_per_month !== undefined && expected_hours_per_month !== null) userData.expected_hours_per_month = expected_hours_per_month;
+        if (contract_start_date) userData.contract_start_date = contract_start_date;
+        if (contract_end_date) userData.contract_end_date = contract_end_date;
+        if (years_of_service !== undefined && years_of_service !== null) userData.years_of_service = years_of_service;
+      }
+
       // Créer l'utilisateur dans Supabase
       const { data: newUser, error: insertError } = await supabaseClient
         .from('users')
-        .insert([{
-          email,
-          password_hash: passwordHash,
-          name,
-          role,
-          is_verified: false,
-          verification_code: verificationCode,
-          verification_expires: verificationExpires.toISOString()
-        }])
+        .insert([userData])
         .select()
         .single();
 
@@ -246,8 +288,9 @@ export default async function handler(req, res) {
               project_name: user.project_name,
               expected_days_per_month: user.expected_days_per_month,
               expected_hours_per_month: user.expected_hours_per_month,
-              planning_start_date: user.planning_start_date,
-              planning_end_date: user.planning_end_date,
+              contract_start_date: user.contract_start_date,
+              contract_end_date: user.contract_end_date,
+              years_of_service: user.years_of_service,
               created_at: user.created_at
             }
           });

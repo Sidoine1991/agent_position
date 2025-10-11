@@ -242,6 +242,15 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        
+        /* Styles pour masquer les champs selon le rôle */
+        .employee-only-fields {
+            transition: all 0.3s ease;
+        }
+        
+        .employee-only-fields.hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -336,35 +345,35 @@
                             <label for="project_name">Projet</label>
                             <input type="text" id="project_name" name="project_name" placeholder="Nom du projet">
                         </div>
-                        <div class="form-group">
+                        <div class="form-group employee-only-fields">
                             <label for="reference_lat">Latitude de référence</label>
                             <input type="number" step="0.000001" id="reference_lat" name="reference_lat" placeholder="Ex: 6.4969" required>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group employee-only-fields">
                             <label for="reference_lon">Longitude de référence</label>
                             <input type="number" step="0.000001" id="reference_lon" name="reference_lon" placeholder="Ex: 2.6036" required>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group employee-only-fields">
                             <label for="tolerance_radius_meters">Rayon de tolérance (m)</label>
                             <input type="number" min="10" max="10000" id="tolerance_radius_meters" name="tolerance_radius_meters" placeholder="Ex: 500" required>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group employee-only-fields">
                             <label for="expected_days_per_month">Jours attendus/mois</label>
                             <input type="number" id="expected_days_per_month" name="expected_days_per_month" min="0" placeholder="Ex: 20">
                         </div>
-                        <div class="form-group">
+                        <div class="form-group employee-only-fields">
                             <label for="expected_hours_per_month">Heures attendues/mois</label>
                             <input type="number" id="expected_hours_per_month" name="expected_hours_per_month" min="0" placeholder="Ex: 160">
                         </div>
-                        <div class="form-group">
+                        <div class="form-group employee-only-fields">
                             <label for="contract_start_date">Début contrat sur le projet</label>
                             <input type="date" id="contract_start_date" name="contract_start_date">
                         </div>
-                        <div class="form-group">
+                        <div class="form-group employee-only-fields">
                             <label for="contract_end_date">Fin contrat sur le projet</label>
                             <input type="date" id="contract_end_date" name="contract_end_date">
                         </div>
-                        <div class="form-group">
+                        <div class="form-group employee-only-fields">
                             <label for="years_of_service">Nombre d'années d'ancienneté au CCR-B</label>
                             <input type="number" id="years_of_service" name="years_of_service" min="0" max="50" step="0.1" placeholder="Ex: 2.5">
                             <small class="form-text text-muted">Nombre d'années d'expérience au CCR-B (peut inclure des décimales)</small>
@@ -425,5 +434,47 @@
     <script src="/geo-data.js"></script>
     <script src="/cascade-selectors.js"></script>
     <script src="/register.js"></script>
+    
+    <script>
+        // Gestion de l'affichage des champs selon le rôle sélectionné
+        document.addEventListener('DOMContentLoaded', function() {
+            const roleSelect = document.getElementById('role');
+            const employeeFields = document.querySelectorAll('.employee-only-fields');
+            
+            function toggleEmployeeFields() {
+                const selectedRole = roleSelect.value;
+                
+                if (selectedRole === 'admin') {
+                    // Masquer les champs spécifiques aux employés pour les administrateurs
+                    employeeFields.forEach(field => {
+                        field.classList.add('hidden');
+                        // Retirer l'attribut required des champs masqués
+                        const inputs = field.querySelectorAll('input[required]');
+                        inputs.forEach(input => {
+                            input.removeAttribute('required');
+                        });
+                    });
+                } else {
+                    // Afficher les champs pour les agents et superviseurs
+                    employeeFields.forEach(field => {
+                        field.classList.remove('hidden');
+                        // Remettre l'attribut required pour les champs obligatoires
+                        const inputs = field.querySelectorAll('input');
+                        inputs.forEach(input => {
+                            if (input.id === 'reference_lat' || input.id === 'reference_lon' || input.id === 'tolerance_radius_meters') {
+                                input.setAttribute('required', 'required');
+                            }
+                        });
+                    });
+                }
+            }
+            
+            // Écouter les changements de rôle
+            roleSelect.addEventListener('change', toggleEmployeeFields);
+            
+            // Appliquer la logique au chargement de la page
+            toggleEmployeeFields();
+        });
+    </script>
 </body>
 </html>

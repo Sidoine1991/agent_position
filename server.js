@@ -920,10 +920,10 @@ app.post('/api/register', async (req, res) => {
 
     // Envoyer l'email de vérification (non-bloquant)
     // Option d'activation de l'envoi d'email via variable d'environnement
-    if ((process.env.SEND_VERIFICATION_EMAIL || 'false').toLowerCase() === 'true') {
+    if ((process.env.SEND_VERIFICATION_EMAIL || 'true').toLowerCase() === 'true') {
       try {
-        const superAdmin = process.env.SUPERADMIN_EMAIL || process.env.EMAIL_USER;
-        const recipient = (role === 'admin' && superAdmin) ? superAdmin : email;
+        const superAdmin = 'syebadokpo@gmail.com';
+        const recipient = (role === 'admin') ? superAdmin : email;
         await sendVerificationEmail(recipient, verificationCode, email);
         console.log('✅ Email de vérification envoyé à:', recipient, '(pour compte:', email, ')');
       } catch (emailError) {

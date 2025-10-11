@@ -1585,11 +1585,30 @@
     }
 
     .partners-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      display: flex;
       gap: 25px;
-      max-width: 1200px;
-      margin: 0 auto;
+      overflow-x: auto;
+      padding: 20px 0;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    .partners-grid::-webkit-scrollbar {
+      height: 8px;
+    }
+    
+    .partners-grid::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+    
+    .partners-grid::-webkit-scrollbar-thumb {
+      background: linear-gradient(90deg, #667eea, #764ba2);
+      border-radius: 4px;
+    }
+    
+    .partners-grid::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(90deg, #5a67d8, #6b46c1);
     }
 
     .partner-logo {
@@ -1602,6 +1621,9 @@
       border: 1px solid rgba(255, 255, 255, 0.4);
       position: relative;
       overflow: hidden;
+      flex-shrink: 0;
+      min-width: 180px;
+      max-width: 200px;
     }
 
     .partner-logo::before {
@@ -1676,13 +1698,14 @@
     /* Responsive pour les partenaires */
     @media (max-width: 768px) {
       .partners-grid {
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
         gap: 20px;
-        max-width: 100%;
+        padding: 15px 0;
       }
 
       .partner-logo {
         padding: 25px 15px;
+        min-width: 160px;
+        max-width: 180px;
       }
 
       .partner-logo img {
@@ -1702,17 +1725,20 @@
       .partner-logo.large-logo {
         padding: 25px 15px;
         min-height: 160px;
+        min-width: 200px;
       }
     }
 
     @media (max-width: 480px) {
       .partners-grid {
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
         gap: 15px;
+        padding: 10px 0;
       }
 
       .partner-logo {
         padding: 20px 10px;
+        min-width: 140px;
+        max-width: 160px;
       }
 
       .partner-logo img {
@@ -1732,6 +1758,7 @@
       .partner-logo.large-logo {
         padding: 20px 10px;
         min-height: 140px;
+        min-width: 180px;
       }
     }
 
@@ -1893,7 +1920,7 @@
     </div>
     <div class="hero-content">
       <h1>Presence CCR-B</h1>
-      <p>Plateforme de suivi en temps réel pour optimiser l'efficacité opérationnelle des conseillers terrain</p>
+      <p>Plateforme de suivi de la présence des conseillers agricoles du CCR-B sur le terrain</p>
       <div class="hero-buttons">
         <a id="hero-dashboard-btn" class="btn-hero btn-outline" href="/dashboard.html" style="display:none">
           <i class="fas fa-chart-line"></i>
@@ -2362,7 +2389,7 @@
         <h3>Nos Partenaires</h3>
         <p>Organisations qui soutiennent le développement de la riziculture au Bénin</p>
       </div>
-      <div class="partners-grid">
+      <div class="partners-grid" id="partners-scroll">
         <!-- Partenaires institutionnels -->
         <div class="partner-logo">
           <img src="/Media/Logo_Partenaires/Logo_MAEP.png" alt="MAEP - Ministère de l'Agriculture">
@@ -2407,6 +2434,10 @@
         <div class="partner-logo">
           <img src="/Media/Logo_Partenaires/logo_FUPRO.png" alt="FUPRO - Fédération des Unions de Producteurs">
           <p>FUPRO</p>
+        </div>
+        <div class="partner-logo">
+          <img src="/Media/Logo_Partenaires/Logo_CNA.png" alt="CNA - Chambre Nationale de l'Agriculture">
+          <p>CNA</p>
         </div>
         
         <!-- Programmes avec logos agrandis -->
@@ -2586,6 +2617,45 @@
         themeToggle.title = 'Activer le mode clair';
       }
     }
+
+    // Animation de défilement automatique pour les partenaires
+    function initPartnersScroll() {
+      const partnersGrid = document.getElementById('partners-scroll');
+      if (!partnersGrid) return;
+
+      let scrollPosition = 0;
+      const scrollSpeed = 0.5; // Vitesse de défilement (pixels par frame)
+      let isScrolling = true;
+
+      function autoScroll() {
+        if (isScrolling) {
+          scrollPosition += scrollSpeed;
+          const maxScroll = partnersGrid.scrollWidth - partnersGrid.clientWidth;
+          
+          if (scrollPosition >= maxScroll) {
+            scrollPosition = 0; // Retour au début
+          }
+          
+          partnersGrid.scrollLeft = scrollPosition;
+        }
+        requestAnimationFrame(autoScroll);
+      }
+
+      // Pause au survol
+      partnersGrid.addEventListener('mouseenter', () => {
+        isScrolling = false;
+      });
+
+      partnersGrid.addEventListener('mouseleave', () => {
+        isScrolling = true;
+      });
+
+      // Démarrer l'animation
+      autoScroll();
+    }
+
+    // Initialiser l'animation après le chargement de la page
+    document.addEventListener('DOMContentLoaded', initPartnersScroll);
   </script>
 </body>
 </html>

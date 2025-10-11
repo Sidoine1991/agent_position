@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Suivi d'Activité Agent - Presence CCR-B</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .status-button {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      border: 3px solid #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .status-button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+    
+    .status-realise {
+      background: linear-gradient(135deg, #28a745, #20c997);
+      color: white;
+    }
+    
+    .status-partiellement-realise {
+      background: linear-gradient(135deg, #007bff, #6f42c1);
+      color: white;
+    }
+    
+    .status-non-realise {
+      background: linear-gradient(135deg, #dc3545, #e83e8c);
+      color: white;
+    }
+    
+    .status-en-cours {
+      background: linear-gradient(135deg, #ffc107, #fd7e14);
+      color: white;
+    }
+    
+    .status-button.selected {
+      border-color: #000;
+      border-width: 4px;
+    }
+    
+    .activity-card {
+      border-left: 4px solid #007bff;
+      transition: all 0.3s ease;
+    }
+    
+    .activity-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .project-badge {
+      font-size: 0.8em;
+      padding: 0.25em 0.5em;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <a href="/" class="navbar-brand-link" style="display:flex;align-items:center;text-decoration:none;color:inherit">
+        <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
+        <div class="navbar-title">
+          <h1>Presence CCRB</h1>
+          <span class="navbar-subtitle">Suivi d'Activité</span>
+        </div>
+      </a>
+    </div>
+    <div class="navbar-menu">
+      <a href="/index.html" class="navbar-link">
+        <span class="navbar-icon">📍</span>
+        <span>Présence</span>
+      </a>
+      <a href="/planning.html" class="navbar-link">
+        <span class="navbar-icon">🗓️</span>
+        <span>Planification</span>
+      </a>
+      <a href="/agent-activity-tracking.html" class="navbar-link navbar-link-active">
+        <span class="navbar-icon">📋</span>
+        <span>Suivi Activité</span>
+      </a>
+      <a href="/profile.html" class="navbar-link">
+        <span class="navbar-icon">👤</span>
+        <span>Mon Profil</span>
+      </a>
+      <a href="/dashboard.html" class="navbar-link" id="dashboard-link">
+        <span class="navbar-icon">📊</span>
+        <span>Tableau de bord</span>
+      </a>
+      <a href="/reports.html" class="navbar-link" id="reports-link">
+        <span class="navbar-icon">📈</span>
+        <span>Rapports</span>
+      </a>
+      <a href="/project-summary.html" class="navbar-link">
+        <span class="navbar-icon">📋</span>
+        <span>Synthèse Projets</span>
+      </a>
+      <div class="navbar-user" id="navbar-user">
+        <span class="navbar-user-info" id="user-info">Chargement...</span>
+        <button type="button" class="navbar-logout" onclick="logout()">
+          <span class="navbar-icon">🚪</span>
+          <span>Déconnexion</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4">
+    <div class="row mb-4">
+      <div class="col-md-8">
+        <h1 class="h4 mb-3">Suivi d'Activité Agent</h1>
+        <p class="text-muted">Marquez le statut d'exécution de vos activités planifiées</p>
+      </div>
+      <div class="col-md-4">
+        <div class="d-flex gap-2">
+          <label for="date-select" class="form-label mb-0 align-self-center">Date:</label>
+          <input type="date" id="date-select" class="form-control" />
+          <button id="load-activities" class="btn btn-primary">Charger</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filtres -->
+    <div class="row mb-4">
+      <div class="col-md-6">
+        <label for="project-filter" class="form-label">Filtrer par projet:</label>
+        <select id="project-filter" class="form-select">
+          <option value="">Tous les projets</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label for="status-filter" class="form-label">Filtrer par statut:</label>
+        <select id="status-filter" class="form-select">
+          <option value="">Tous les statuts</option>
+          <option value="realise">Réalisé</option>
+          <option value="partiellement_realise">Partiellement réalisé</option>
+          <option value="non_realise">Non réalisé</option>
+          <option value="en_cours">En cours</option>
+          <option value="sans_resultat">Sans résultat</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Statistiques rapides -->
+    <div class="row mb-4">
+      <div class="col-md-12">
+        <div class="card">
+          <div class="card-body">
+            <h6 class="card-title">Statistiques du jour</h6>
+            <div class="row text-center">
+              <div class="col-md-2">
+                <div class="text-success fw-bold" id="count-realise">0</div>
+                <small class="text-muted">Réalisé</small>
+              </div>
+              <div class="col-md-2">
+                <div class="text-primary fw-bold" id="count-partiellement">0</div>
+                <small class="text-muted">Partiellement</small>
+              </div>
+              <div class="col-md-2">
+                <div class="text-danger fw-bold" id="count-non-realise">0</div>
+                <small class="text-muted">Non réalisé</small>
+              </div>
+              <div class="col-md-2">
+                <div class="text-warning fw-bold" id="count-en-cours">0</div>
+                <small class="text-muted">En cours</small>
+              </div>
+              <div class="col-md-2">
+                <div class="text-secondary fw-bold" id="count-sans-resultat">0</div>
+                <small class="text-muted">Sans résultat</small>
+              </div>
+              <div class="col-md-2">
+                <div class="text-info fw-bold" id="count-total">0</div>
+                <small class="text-muted">Total</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Liste des activités -->
+    <div id="activities-container">
+      <div class="text-center text-muted py-5">
+        <div class="spinner-border" role="status">
+          <span class="visually-hidden">Chargement...</span>
+        </div>
+        <div class="mt-2">Chargement des activités...</div>
+      </div>
+    </div>
+
+    <!-- Modal pour les observations -->
+    <div class="modal fade" id="observationsModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Observations</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="observations-text" class="form-label">Motifs et observations:</label>
+              <textarea id="observations-text" class="form-control" rows="4" placeholder="Expliquez les raisons de la non-réalisation ou les détails supplémentaires..."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+            <button type="button" class="btn btn-primary" id="save-observations">Enregistrer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <script src="/app.js?v=5"></script>
+  <script src="/agent-activity-tracking.js"></script>
+</body>
+</html>

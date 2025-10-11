@@ -126,15 +126,28 @@ registerForm.addEventListener('submit', async (e) => {
     contract_end_date: formData.get('contract_end_date'),
     years_of_service: formData.get('years_of_service'),
     reference_lat: formData.get('reference_lat'),
-    reference_lon: formData.get('reference_lon')
+    reference_lon: formData.get('reference_lon'),
+    tolerance_radius_meters: formData.get('tolerance_radius_meters')
   };
+
+  // Ne pas inclure les champs spécifiques aux employés si le rôle est admin
+  if (data.role === 'admin') {
+    delete extraFields.reference_lat;
+    delete extraFields.reference_lon;
+    delete extraFields.tolerance_radius_meters;
+    delete extraFields.expected_days_per_month;
+    delete extraFields.expected_hours_per_month;
+    delete extraFields.contract_start_date;
+    delete extraFields.contract_end_date;
+    delete extraFields.years_of_service;
+  }
 
   Object.entries(extraFields).forEach(([k, v]) => {
     if (v !== null && v !== undefined && String(v).trim() !== '') {
       if (k === 'reference_lat' || k === 'reference_lon') {
         const num = parseFloat(String(v).replace(',', '.'));
         if (!Number.isNaN(num)) data[k] = num;
-      } else if (k === 'expected_days_per_month' || k === 'expected_hours_per_month') {
+      } else if (k === 'expected_days_per_month' || k === 'expected_hours_per_month' || k === 'tolerance_radius_meters') {
         const num = parseInt(String(v), 10);
         if (!Number.isNaN(num)) data[k] = num;
       } else if (k === 'years_of_service') {

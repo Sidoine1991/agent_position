@@ -565,6 +565,264 @@ module.exports = async (req, res) => {
       }
     }
 
+    // Routes pour les projets
+    if (path === '/api/projects' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          const { data: projects, error } = await supabaseClient
+            .from('projects')
+            .select('*')
+            .eq('status', 'active')
+            .order('name');
+
+          if (error) throw error;
+
+          return res.json({
+            success: true,
+            items: projects || []
+          });
+        } catch (error) {
+          console.error('Erreur projets:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Routes pour les planifications avec nouvelles fonctionnalités
+    if (path === '/api/planifications' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          const { from, to, project_id } = req.query;
+          let query = supabaseClient
+            .from('planifications')
+            .select(`
+              *,
+              projects(name),
+              users(name, email)
+            `)
+            .eq('user_id', req.user.id);
+
+          if (from) query = query.gte('date', from);
+          if (to) query = query.lte('date', to);
+          if (project_id) query = query.eq('project_id', project_id);
+
+          const { data: planifications, error } = await query.order('date', { ascending: false });
+
+          if (error) throw error;
+
+          return res.json({
+            success: true,
+            items: planifications || []
+          });
+        } catch (error) {
+          console.error('Erreur planifications:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    if (path === '/api/planifications' && method === 'POST') {
+      authenticateToken(req, res, async () => {
+        try {
+          const { 
+            date, 
+            planned_start_time, 
+            planned_end_time, 
+            description_activite, 
+            project_id 
+          } = req.body;
+
+          if (!date) {
+            return res.status(400).json({ error: 'Date requise' });
+          }
+
+          const planificationData = {
+            user_id: req.user.id,
+            date,
+            planned_start_time: planned_start_time || null,
+            planned_end_time: planned_end_time || null,
+            description_activite: description_activite || null,
+            project_id: project_id || null,
+            resultat_journee: null,
+            observations: null
+          };
+
+          const { data: planification, error } = await supabaseClient
+            .from('planifications')
+            .upsert([planificationData], { 
+              onConflict: 'user_id,date',
+              ignoreDuplicates: false 
+            })
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          return res.json({
+            success: true,
+            planification
+          });
+        } catch (error) {
+          console.error('Erreur création planification:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Route pour mettre à jour le résultat de journée
+    if (path === '/api/planifications/result' && method === 'PUT') {
+      authenticateToken(req, res, async () => {
+        try {
+          const { 
+            date, 
+            resultat_journee, 
+            observations 
+          } = req.body;
+
+          if (!date || !resultat_journee) {
+            return res.status(400).json({ error: 'Date et résultat requis' });
+          }
+
+          const validResults = ['realise', 'partiellement_realise', 'non_realise', 'en_cours'];
+          if (!validResults.includes(resultat_journee)) {
+            return res.status(400).json({ error: 'Résultat invalide' });
+          }
+
+          const { data: planification, error } = await supabaseClient
+            .from('planifications')
+            .update({
+              resultat_journee,
+              observations: observations || null
+            })
+            .eq('user_id', req.user.id)
+            .eq('date', date)
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          return res.json({
+            success: true,
+            planification
+          });
+        } catch (error) {
+          console.error('Erreur mise à jour résultat:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Routes pour les utilisateurs par projet
+    if (path === '/api/projects/users' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          const { project_id } = req.query;
+          
+          if (!project_id) {
+            return res.status(400).json({ error: 'ID du projet requis' });
+          }
+
+          const { data: users, error } = await supabaseClient
+            .from('user_projects')
+            .select(`
+              *,
+              users(id, name, email, role),
+              projects(name)
+            `)
+            .eq('project_id', project_id);
+
+          if (error) throw error;
+
+          return res.json({
+            success: true,
+            items: users || []
+          });
+        } catch (error) {
+          console.error('Erreur utilisateurs projet:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Route pour obtenir les projets d'un utilisateur
+    if (path === '/api/user/projects' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          const { data: userProjects, error } = await supabaseClient
+            .from('user_projects')
+            .select(`
+              *,
+              projects(id, name, description, status)
+            `)
+            .eq('user_id', req.user.id);
+
+          if (error) throw error;
+
+          return res.json({
+            success: true,
+            items: userProjects || []
+          });
+        } catch (error) {
+          console.error('Erreur projets utilisateur:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Route pour les statistiques par projet
+    if (path === '/api/projects/stats' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          const { project_id, from, to } = req.query;
+          
+          if (!project_id) {
+            return res.status(400).json({ error: 'ID du projet requis' });
+          }
+
+          let query = supabaseClient
+            .from('planifications')
+            .select(`
+              *,
+              users(name, email)
+            `)
+            .eq('project_id', project_id);
+
+          if (from) query = query.gte('date', from);
+          if (to) query = query.lte('date', to);
+
+          const { data: planifications, error } = await query;
+
+          if (error) throw error;
+
+          // Calculer les statistiques
+          const stats = {
+            total_planifiees: planifications.length,
+            realisees: planifications.filter(p => p.resultat_journee === 'realise').length,
+            partiellement_realisees: planifications.filter(p => p.resultat_journee === 'partiellement_realise').length,
+            non_realisees: planifications.filter(p => p.resultat_journee === 'non_realise').length,
+            en_cours: planifications.filter(p => p.resultat_journee === 'en_cours').length,
+            sans_resultat: planifications.filter(p => !p.resultat_journee).length
+          };
+
+          return res.json({
+            success: true,
+            stats,
+            planifications: planifications || []
+          });
+        } catch (error) {
+          console.error('Erreur statistiques projet:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
     // Route non trouvée
     return res.status(404).json({ error: 'Route non trouvée' });
 

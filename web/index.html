@@ -10,15 +10,22 @@
     <title>Presence CCR-B - Agent</title>
     <!-- Redirection automatique vers la page home -->
     <script>
-      // Redirection vers la page home si on accède directement à index.html
-      if (window.location.pathname === '/' || window.location.pathname === '/index.html') {
-        // Vérifier si l'utilisateur est déjà connecté
+      // Vérifier si l'utilisateur est déjà connecté et rediriger si nécessaire
+      document.addEventListener('DOMContentLoaded', function() {
         const token = localStorage.getItem('jwt');
-        if (!token) {
-          // Si pas connecté, rediriger vers home
-          window.location.href = '/home.html';
+        if (token) {
+          // Si connecté, rediriger vers le dashboard approprié
+          const userRole = localStorage.getItem('userRole');
+          if (userRole === 'admin') {
+            window.location.href = '/admin-dashboard.html';
+          } else if (userRole === 'superviseur') {
+            window.location.href = '/supervisor-dashboard.html';
+          } else {
+            window.location.href = '/dashboard.html';
+          }
         }
-      }
+        // Si pas connecté, rester sur la page de connexion (ne pas rediriger)
+      });
     </script>
     <script src="/web-config.js"></script>
     <meta name="supabase-url" content="">
