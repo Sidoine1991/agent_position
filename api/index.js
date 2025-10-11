@@ -220,6 +220,15 @@ module.exports = async (req, res) => {
         return res.status(401).json({ error: 'Identifiants invalides' });
       }
 
+      // VÉRIFICATION OBLIGATOIRE : L'utilisateur doit être vérifié
+      if (!user.is_verified) {
+        return res.status(403).json({ 
+          error: 'Compte non vérifié',
+          message: 'Veuillez vérifier votre compte avec le code reçu par email avant de vous connecter. Si vous n\'avez pas reçu le code, contactez le super admin : syebadokpo@gmail.com ou +229 01 96 91 13 46',
+          requires_verification: true
+        });
+      }
+
       // Générer le token JWT
       const jwt = require('jsonwebtoken');
       const token = jwt.sign(
