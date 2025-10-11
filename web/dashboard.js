@@ -411,6 +411,13 @@ async function updateMonthlySummary() {
     // 1) Essayer d'utiliser les résultats VALIDÉS par le backend (algorithme distance/rayon)
     try {
       const q = new URLSearchParams({ from, to });
+      
+      // Ajouter les filtres
+      const agentId = $('agent')?.value;
+      const projectName = $('project')?.value;
+      if (agentId) q.set('agent_id', agentId);
+      if (projectName) q.set('project_name', projectName);
+      
       // Endpoints possibles selon environnement: /presence/stats ou /admin/attendance
       let resp = await api('/presence/stats?' + q.toString());
       let validated = resp?.data || resp?.items || resp?.rows;
@@ -918,6 +925,9 @@ async function init() {
   await loadAgents();
   await loadProjects();
   
+  // Ajouter les gestionnaires d'événements pour les filtres
+  setupFilterEventListeners();
+  
   // Initialiser les sélecteurs géographiques avec les bonnes fonctions
   setTimeout(() => {
     console.log('🌍 Initialisation des sélecteurs géographiques dans dashboard...');
@@ -1326,11 +1336,23 @@ async function loadCheckinsOnMap() {
 }
 
 async function loadAgents() {
-  const sel = $('agent'); sel.innerHTML = '';
+  const sel = $('agent'); 
+  if (!sel) return;
+  
+  sel.innerHTML = '';
   try {
-    const rows = await api('/admin/agents');
+    const result = await api('/admin/agents');
+    const agents = result.data || result || [];
+    
     sel.append(new Option('Tous les agents', ''));
-    for (const r of rows) sel.append(new Option(`${r.name} (${r.email})`, r.id));
+    agents.forEach(agent => {
+      if (agent.role === 'agent') {
+        const name = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
+        sel.append(new Option(`${name} (${agent.email})`, agent.id));
+      }
+    });
+    
+    console.log('Agents chargés dans dashboard:', agents.length);
   } catch (e) {
     console.warn('admin/agents indisponible, masquer la liste');
     sel.append(new Option('Liste indisponible', ''));
@@ -1343,12 +1365,79 @@ async function loadProjects() {
   
   sel.innerHTML = '';
   try {
-    const rows = await api('/projects');
+    // Charger les projets depuis la table users (comme dans reports-backend.js)
+    const result = await api('/admin/agents');
+    const users = result.data || result || [];
+    
+    // Extraire les projets uniques des agents
+    const projects = new Set();
+    users.forEach(user => {
+      if (user.project_name && user.project_name.trim()) {
+        projects.add(user.project_name.trim());
+      }
+    });
+    
     sel.append(new Option('Tous les projets', ''));
-    for (const r of rows) sel.append(new Option(r.name, r.id));
+    Array.from(projects).sort().forEach(project => {
+      sel.append(new Option(project, project));
+    });
+    
+    console.log('Projets chargés dans dashboard:', Array.from(projects));
   } catch(e) { 
     console.error('Erreur chargement projets:', e); 
     sel.append(new Option('Erreur chargement projets', ''));
+  }
+}
+
+// Configuration des gestionnaires d'événements pour les filtres
+function setupFilterEventListeners() {
+  const agentSelect = $('agent');
+  const projectSelect = $('project');
+  const dateSelect = $('date');
+  
+  if (agentSelect) {
+    agentSelect.addEventListener('change', () => {
+      console.log('Filtre agent changé:', agentSelect.value);
+      applyFilters();
+    });
+  }
+  
+  if (projectSelect) {
+    projectSelect.addEventListener('change', () => {
+      console.log('Filtre projet changé:', projectSelect.value);
+      applyFilters();
+    });
+  }
+  
+  if (dateSelect) {
+    dateSelect.addEventListener('change', () => {
+      console.log('Filtre date changé:', dateSelect.value);
+      applyFilters();
+    });
+  }
+  
+  console.log('✅ Gestionnaires d\'événements des filtres configurés');
+}
+
+// Appliquer les filtres sélectionnés
+async function applyFilters() {
+  try {
+    const agentId = $('agent')?.value || '';
+    const projectName = $('project')?.value || '';
+    const selectedDate = $('date')?.value || '';
+    
+    console.log('Application des filtres:', { agentId, projectName, selectedDate });
+    
+    // Recharger les données avec les filtres
+    await refresh();
+    
+    // Mettre à jour le récapitulatif mensuel si une date est sélectionnée
+    if (selectedDate) {
+      await updateMonthlySummary();
+    }
+    
+  } catch (error) {
+    console.error('Erreur lors de l\'application des filtres:', error);
   }
 }
 
@@ -1793,12 +1882,14 @@ async function refresh() {
   if (tlContainer) tlContainer.innerHTML = '';
   const date = $('date').value || undefined;
   const agentId = $('agent').value ? Number($('agent').value) : undefined;
+  const projectName = $('project').value || undefined;
   const villageId = $('village').value ? Number($('village').value) : undefined;
   const params = new URLSearchParams();
   if (date) params.set('date', date);
   if (agentId) params.set('agent_id', String(agentId));
+  if (projectName) params.set('project_name', projectName);
   if (villageId) params.set('village_id', String(villageId));
-  const useLatest = !date && !agentId && !villageId;
+  const useLatest = !date && !agentId && !projectName && !villageId;
   let rows;
   try {
     // Utiliser l'endpoint admin pour récupérer les vrais check-ins de la table checkins
@@ -1813,6 +1904,17 @@ async function refresh() {
       .filter(checkin => {
         const hasCoords = Number.isFinite(Number(checkin.lat)) && Number.isFinite(Number(checkin.lon));
         console.log(`🔍 Check-in ${checkin.id}: coordonnées valides =`, hasCoords, `(${checkin.lat}, ${checkin.lon})`);
+        
+        // Filtrage par agent si spécifié
+        if (agentId && checkin.missions?.agent_id !== agentId) {
+          return false;
+        }
+        
+        // Filtrage par projet si spécifié
+        if (projectName && checkin.missions?.users?.project_name !== projectName) {
+          return false;
+        }
+        
         return hasCoords;
       })
       .map(checkin => {

@@ -28,16 +28,65 @@
 
   let projects = [];
   let selectedProjectId = '';
+  let agents = [];
+  let selectedAgentId = '';
+
+  // Charger les agents
+  async function loadAgents() {
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`${apiBase}/admin/agents`, { headers });
+      if (res.ok) {
+        const result = await res.json();
+        const users = result.data || result || [];
+        
+        // Filtrer seulement les agents (role = 'agent')
+        agents = users.filter(user => user.role === 'agent');
+        updateAgentSelect();
+        
+        console.log('Agents chargés dans planning:', agents.length);
+      }
+    } catch (error) {
+      console.error('Erreur chargement agents:', error);
+    }
+  }
+
+  function updateAgentSelect() {
+    const select = document.getElementById('agent-select');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">Tous les agents</option>';
+    agents.forEach(agent => {
+      const option = document.createElement('option');
+      option.value = agent.id;
+      const name = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
+      option.textContent = `${name} (${agent.email})`;
+      select.appendChild(option);
+    });
+  }
 
   // Charger les projets
   async function loadProjects() {
     try {
       const headers = await authHeaders();
-      const res = await fetch(`${apiBase}/projects`, { headers });
+      // Utiliser l'API /admin/agents pour récupérer les projets depuis la table users
+      const res = await fetch(`${apiBase}/admin/agents`, { headers });
       if (res.ok) {
-        const data = await res.json();
-        projects = data.items || [];
+        const result = await res.json();
+        const users = result.data || result || [];
+        
+        // Extraire les projets uniques des agents
+        const projects = new Set();
+        users.forEach(user => {
+          if (user.project_name && user.project_name.trim()) {
+            projects.add(user.project_name.trim());
+          }
+        });
+        
+        projects = Array.from(projects).sort();
         updateProjectSelect();
+        
+        console.log('Projets chargés dans planning:', projects);
       }
     } catch (error) {
       console.error('Erreur chargement projets:', error);
@@ -51,18 +100,29 @@
     select.innerHTML = '<option value="">Tous les projets</option>';
     projects.forEach(project => {
       const option = document.createElement('option');
-      option.value = project.id;
-      option.textContent = project.name;
+      option.value = project; // Utiliser le nom du projet comme valeur
+      option.textContent = project;
       select.appendChild(option);
     });
   }
 
-  // Écouter les changements de projet
+  // Écouter les changements de projet et agent
   document.addEventListener('DOMContentLoaded', () => {
     const projectSelect = document.getElementById('project-select');
+    const agentSelect = document.getElementById('agent-select');
+    
     if (projectSelect) {
       projectSelect.addEventListener('change', (e) => {
         selectedProjectId = e.target.value;
+        console.log('Filtre projet changé:', selectedProjectId);
+        loadWeek(document.getElementById('week-start').value);
+      });
+    }
+    
+    if (agentSelect) {
+      agentSelect.addEventListener('change', (e) => {
+        selectedAgentId = e.target.value;
+        console.log('Filtre agent changé:', selectedAgentId);
         loadWeek(document.getElementById('week-start').value);
       });
     }
@@ -121,9 +181,10 @@
     const to = toISODate(days[6]);
     const headers = await authHeaders();
 
-    const projectParam = selectedProjectId ? `&project_id=${selectedProjectId}` : '';
+    const projectParam = selectedProjectId ? `&project_name=${selectedProjectId}` : '';
+    const agentParam = selectedAgentId ? `&agent_id=${selectedAgentId}` : '';
     const [plansRes, checkinsRes, validationsRes] = await Promise.all([
-      fetch(`${apiBase}/planifications?from=${from}&to=${to}${projectParam}`, { headers }),
+      fetch(`${apiBase}/planifications?from=${from}&to=${to}${projectParam}${agentParam}`, { headers }),
       fetch(`${apiBase}/checkins/mine?from=${from}&to=${to}`, { headers }),
       fetch(`${apiBase}/validations/mine?from=${from}&to=${to}`, { headers })
     ]);
@@ -278,8 +339,10 @@
     const gantt = $('month-gantt');
     if (gantt) { gantt.innerHTML = '<div class="text-muted">Chargement du récap mensuel…</div>'; }
 
+    const projectParam = selectedProjectId ? `&project_name=${selectedProjectId}` : '';
+    const agentParam = selectedAgentId ? `&agent_id=${selectedAgentId}` : '';
     const [plansRes, checkinsRes] = await Promise.all([
-      fetch(`${apiBase}/planifications?from=${from}&to=${to}`, { headers }),
+      fetch(`${apiBase}/planifications?from=${from}&to=${to}${projectParam}${agentParam}`, { headers }),
       fetch(`${apiBase}/checkins/mine?from=${from}&to=${to}`, { headers })
     ]);
     if (plansRes.status === 401 || checkinsRes.status === 401) {
@@ -382,7 +445,7 @@
       loadWeek(toISODate(d));
     });
     // Wait for auth token if needed to avoid 401 on first load
-    const boot = () => { loadProjects(); loadWeek(); loadMonth(); };
+    const boot = () => { loadAgents(); loadProjects(); loadWeek(); loadMonth(); };
     const tokenNow = findToken();
     if (tokenNow) {
       boot();
