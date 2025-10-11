@@ -3300,10 +3300,16 @@ async function sendVerificationEmail(email, code, newAccountEmail) {
   await transporter.sendMail(mailOptions);
 }
 
+// Route par défaut - redirection vers home.html
+app.get('/', (req, res) => {
+  res.redirect('/home.html');
+});
+
 // Démarrage du serveur
 app.listen(PORT, () => {
   console.log(`🚀 Serveur démarré sur le port ${PORT}`);
   console.log(`📊 Base de données: Supabase uniquement`);
+  console.log(`🏠 Page d'accueil: /home.html`);
 });
 
 module.exports = app;
