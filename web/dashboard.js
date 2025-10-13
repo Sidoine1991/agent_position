@@ -402,7 +402,7 @@ function getMonthRangeFromDateInput() {
 async function updateMonthlySummary() {
   const tbody = document.getElementById('monthly-summary-body');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="6">Chargement...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="7">Chargement...</td></tr>';
 
   try {
     const { from, to } = getMonthRangeFromDateInput();
@@ -552,16 +552,19 @@ async function updateMonthlySummary() {
         } catch(e) { console.warn('Justification enrichie (distance) indisponible:', e?.message || e); }
 
         rowsOut.sort((a, b) => a.agent.localeCompare(b.agent));
-        tbody.innerHTML = rowsOut.map(r => `
+        tbody.innerHTML = rowsOut.map(r => {
+          const decision = (r.present && r.present > 0) ? 'Présent' : ((r.absent && r.absent > 0) ? 'Absent' : '—');
+          return `
           <tr>
             <td>${r.agent}</td>
             <td>${r.project}</td>
             <td>${r.planned}</td>
             <td>${r.present}</td>
             <td>${r.absent}</td>
+            <td>${decision}</td>
             <td title="${r.justification}">${r.justification}</td>
           </tr>
-        `).join('');
+        `; }).join('');
         console.log('✅ MonthlySummary (validé backend):', rowsOut.length);
         return; // On n'utilise pas le fallback si validé dispo
       }
@@ -819,7 +822,7 @@ async function updateMonthlySummary() {
     rowsOut.sort((a, b) => a.agent.localeCompare(b.agent));
 
     if (!rowsOut.length) {
-      tbody.innerHTML = '<tr><td colspan="6">Aucune donnée pour la période sélectionnée.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7">Aucune donnée pour la période sélectionnée.</td></tr>';
       return;
     }
 
