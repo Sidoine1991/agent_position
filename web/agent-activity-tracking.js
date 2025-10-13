@@ -2,8 +2,11 @@
   const apiBase = '/api';
   let activities = [];
   let projects = [];
+  let agents = [];
   let currentDate = new Date().toISOString().split('T')[0];
   let currentActivityId = null;
+  let isAdmin = false;
+  let currentUserId = null;
 
   // Initialisation
   document.addEventListener('DOMContentLoaded', () => {
@@ -22,9 +25,8 @@
     // Définir la date d'aujourd'hui par défaut
     document.getElementById('date-select').value = currentDate;
     
-    // Charger le projet de l'agent et les activités
-    loadAgentProject();
-    loadActivities();
+    // Charger les données utilisateur et agents
+    loadUserInfo();
   }
 
   function setupEventListeners() {
@@ -36,6 +38,11 @@
 
     // Load activities button
     document.getElementById('load-activities').addEventListener('click', () => {
+      loadActivities();
+    });
+
+    // Agent selector
+    document.getElementById('agent-select').addEventListener('change', () => {
       loadActivities();
     });
 
@@ -76,8 +83,8 @@
     });
   }
 
-  // Charger le projet de l'agent depuis son profil
-  async function loadAgentProject() {
+  // Charger les informations utilisateur et déterminer le rôle
+  async function loadUserInfo() {
     try {
       const headers = await authHeaders();
       const res = await fetch(`${apiBase}/profile`, { headers });
@@ -85,23 +92,96 @@
         const data = await res.json();
         const user = data.user;
         
-        // Récupérer le projet de l'agent depuis son profil
-        const agentProject = user.project_name || user.project || 'Projet non spécifié';
+        currentUserId = user.id;
+        isAdmin = user.role === 'admin' || user.role === 'super_admin';
         
-        // Créer une liste avec le projet de l'agent
-        projects = [
-          { id: 1, name: agentProject, status: 'active' },
-          { id: 2, name: 'Projet Riz', status: 'active' },
-          { id: 3, name: 'Projet Maïs', status: 'active' },
-          { id: 4, name: 'Projet Formation', status: 'active' },
-          { id: 5, name: 'Projet Suivi', status: 'active' }
-        ];
+        console.log('Utilisateur:', user.email, 'Rôle:', user.role, 'Admin:', isAdmin);
         
-        updateProjectFilter();
-        console.log('Projet de l\'agent:', agentProject);
+        // Charger les agents si c'est un admin
+        if (isAdmin) {
+          await loadAgents();
+          showAgentFilter();
+        } else {
+          hideAgentFilter();
+        }
+        
+        // Charger le projet de l'agent
+        await loadAgentProject(user);
+        
+        // Charger les activités
+        loadActivities();
       } else {
         throw new Error('Erreur lors du chargement du profil');
       }
+    } catch (error) {
+      console.error('Erreur chargement info utilisateur:', error);
+      showAuthError();
+    }
+  }
+
+  // Charger la liste des agents (pour les admins)
+  async function loadAgents() {
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`${apiBase}/users`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.users) {
+          agents = data.users.filter(user => user.role === 'agent');
+          populateAgentSelect();
+        }
+      }
+    } catch (error) {
+      console.error('Erreur chargement agents:', error);
+    }
+  }
+
+  // Peupler le sélecteur d'agents
+  function populateAgentSelect() {
+    const agentSelect = document.getElementById('agent-select');
+    agentSelect.innerHTML = '<option value="">Tous les agents</option>';
+    
+    agents.forEach(agent => {
+      const option = document.createElement('option');
+      option.value = agent.id;
+      option.textContent = `${agent.first_name || ''} ${agent.last_name || ''} (${agent.email})`.trim();
+      agentSelect.appendChild(option);
+    });
+  }
+
+  // Afficher le filtre par agent
+  function showAgentFilter() {
+    const container = document.getElementById('agent-filter-container');
+    if (container) {
+      container.style.display = 'block';
+    }
+  }
+
+  // Masquer le filtre par agent
+  function hideAgentFilter() {
+    const container = document.getElementById('agent-filter-container');
+    if (container) {
+      container.style.display = 'none';
+    }
+  }
+
+  // Charger le projet de l'agent depuis son profil
+  async function loadAgentProject(user) {
+    try {
+      // Récupérer le projet de l'agent depuis son profil
+      const agentProject = user.project_name || user.project || 'Projet non spécifié';
+      
+      // Créer une liste avec le projet de l'agent
+      projects = [
+        { id: 1, name: agentProject, status: 'active' },
+        { id: 2, name: 'Projet Riz', status: 'active' },
+        { id: 3, name: 'Projet Maïs', status: 'active' },
+        { id: 4, name: 'Projet Formation', status: 'active' },
+        { id: 5, name: 'Projet Suivi', status: 'active' }
+      ];
+      
+      updateProjectFilter();
+      console.log('Projet de l\'agent:', agentProject);
     } catch (error) {
       console.error('Erreur chargement projet agent:', error);
       // Utiliser des projets par défaut en cas d'erreur
@@ -145,7 +225,19 @@
       `;
 
       const headers = await authHeaders();
-      const res = await fetch(`${apiBase}/planifications?from=${currentDate}&to=${currentDate}`, { headers });
+      
+      // Construire l'URL avec le filtre par agent si applicable
+      let url = `${apiBase}/planifications?from=${currentDate}&to=${currentDate}`;
+      const selectedAgentId = document.getElementById('agent-select').value;
+      
+      if (isAdmin && selectedAgentId) {
+        url += `&agent_id=${selectedAgentId}`;
+      } else if (!isAdmin) {
+        // Pour les agents non-admin, filtrer par leur propre ID
+        url += `&agent_id=${currentUserId}`;
+      }
+      
+      const res = await fetch(url, { headers });
       
       if (res.status === 401) {
         showAuthError();

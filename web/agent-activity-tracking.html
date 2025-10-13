@@ -496,12 +496,22 @@
         <h1 class="h4 mb-3">Suivi d'Activité Agent</h1>
         <p class="text-muted">Marquez le statut d'exécution de vos activités planifiées</p>
       </div>
-      <div class="col-md-4">
+      <div class="col-md-3">
         <div class="d-flex gap-2">
           <label for="date-select" class="form-label mb-0 align-self-center">Date:</label>
           <input type="date" id="date-select" class="form-control" />
-          <button id="load-activities" class="btn btn-primary">Charger</button>
         </div>
+      </div>
+      <div class="col-md-3" id="agent-filter-container" style="display: none;">
+        <div class="d-flex gap-2">
+          <label for="agent-select" class="form-label mb-0 align-self-center">Agent:</label>
+          <select id="agent-select" class="form-select">
+            <option value="">Chargement...</option>
+          </select>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <button id="load-activities" class="btn btn-primary">Charger</button>
       </div>
     </div>
 

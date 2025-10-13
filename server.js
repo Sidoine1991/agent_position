@@ -785,10 +785,39 @@ app.get('/api/planifications', async (req, res) => {
     const token = authHeader.slice('Bearer '.length);
     let userId; try { const d = jwt.verify(token, JWT_SECRET); userId = d.id || d.userId; } catch { return res.status(401).json({ success: false, error: 'Token invalide' }); }
 
-    const { from, to } = req.query;
-    let q = supabaseClient.from('planifications').select('*').eq('agent_id', userId).order('date');
+    // Récupérer les informations de l'utilisateur pour vérifier son rôle
+    const { data: userData, error: userError } = await supabaseClient
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .single();
+    
+    if (userError) {
+      console.error('Erreur récupération utilisateur:', userError);
+      return res.status(500).json({ success: false, error: 'Erreur serveur' });
+    }
+
+    const isAdmin = userData.role === 'admin' || userData.role === 'super_admin';
+    const { from, to, agent_id } = req.query;
+    
+    let q = supabaseClient.from('planifications').select('*');
+    
+    // Filtrage par agent selon les permissions
+    if (isAdmin && agent_id) {
+      // Admin peut voir un agent spécifique
+      q = q.eq('agent_id', agent_id);
+    } else if (isAdmin && !agent_id) {
+      // Admin sans filtre voit tous les agents
+      // Pas de filtre agent_id
+    } else {
+      // Agent non-admin voit seulement ses propres données
+      q = q.eq('agent_id', userId);
+    }
+    
+    q = q.order('date');
     if (from) q = q.gte('date', String(from));
     if (to) q = q.lte('date', String(to));
+    
     const { data, error } = await q;
     if (error) throw error;
     return res.json({ success: true, items: data || [] });
