@@ -28,7 +28,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const q = new URLSearchParams({ from, to }).toString();
       const res = await fetch('/api/admin/project-summary?' + q, {
         headers: {
-          'Authorization': localStorage.getItem('jwt') ? ('Bearer ' + localStorage.getItem('jwt')) : ''
+          'Authorization': (localStorage.getItem('jwt') ? ('Bearer ' + localStorage.getItem('jwt')) : ''),
+          'Accept': 'application/json'
         }
       });
       if (!res.ok) { setRow('Accès refusé ou indisponible'); return; }

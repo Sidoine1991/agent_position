@@ -481,7 +481,9 @@ function authenticateAdmin(req, res, next) {
 
 // Middleware d'authentification superviseur ou admin
 function authenticateSupervisorOrAdmin(req, res, next) {
-  if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'supervisor')) {
+  const role = (req.user && req.user.role) ? String(req.user.role).toLowerCase() : '';
+  const isAllowed = role === 'admin' || role === 'supervisor' || role === 'superviseur';
+  if (!isAllowed) {
     return res.status(403).json({ error: 'Accès superviseur ou administrateur requis' });
   }
   next();
