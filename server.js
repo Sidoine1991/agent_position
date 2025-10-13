@@ -1518,6 +1518,143 @@ app.get('/api/admin/attendance', authenticateToken, authenticateSupervisorOrAdmi
   }
 });
 
+// Synthèse par projet: agrège depuis Supabase (users, missions, planifications, checkins)
+app.get('/api/admin/project-summary', authenticateToken, authenticateSupervisorOrAdmin, async (req, res) => {
+  try {
+    const from = String(req.query.from || '').trim();
+    const to = String(req.query.to || '').trim();
+    if (!from || !to) {
+      return res.status(400).json({ error: "Paramètres 'from' et 'to' requis (YYYY-MM-DD)" });
+    }
+
+    const fromISO = new Date(from + 'T00:00:00.000Z').toISOString();
+    const toISO = new Date(new Date(to + 'T00:00:00.000Z').getTime() + 24*60*60*1000).toISOString();
+
+    // Charger les utilisateurs (agents) avec leur projet
+    const { data: users, error: usersErr } = await supabaseClient
+      .from('users')
+      .select('id, role, name, project_name')
+      .in('role', ['agent']);
+    if (usersErr) throw usersErr;
+
+    const agents = (users || []).filter(u => (u.role || '').toLowerCase() === 'agent');
+    const agentIds = agents.map(a => a.id);
+
+    // Missions sur la période
+    const { data: missions, error: missionsErr } = await supabaseClient
+      .from('missions')
+      .select('id, agent_id, status, date_start, date_end')
+      .gte('date_start', fromISO)
+      .lt('date_start', toISO)
+      .in('agent_id', agentIds);
+    if (missionsErr) throw missionsErr;
+
+    // Checkins liés à la période (via mission)
+    const { data: checkins, error: checkinsErr } = await supabaseClient
+      .from('checkins')
+      .select('id, mission_id, timestamp')
+      .gte('timestamp', fromISO)
+      .lt('timestamp', toISO);
+    if (checkinsErr) throw checkinsErr;
+
+    // Planifications (jours planifiés) sur la période (tolérant au schéma)
+    let plans;
+    {
+      const { data: plansTry, error: plansTryErr } = await supabaseClient
+        .from('planifications')
+        .select('id, agent_id, date')
+        .gte('date', from)
+        .lte('date', to);
+      if (!plansTryErr) {
+        plans = plansTry;
+      } else {
+        const { data: plansAll, error: plansAllErr } = await supabaseClient
+          .from('planifications')
+          .select('*');
+        if (plansAllErr) throw plansAllErr;
+        plans = Array.isArray(plansAll) ? plansAll.filter(p => {
+          const raw = p.date || p.date_planned || p.planned_date || p.date_start || p.jour || p.day;
+          if (!raw) return false;
+          const day = (String(raw)).slice(0,10);
+          return day >= from && day <= to;
+        }) : [];
+      }
+    }
+
+    const missionsByAgent = new Map();
+    (missions || []).forEach(m => {
+      if (!missionsByAgent.has(m.agent_id)) missionsByAgent.set(m.agent_id, []);
+      missionsByAgent.get(m.agent_id).push(m);
+    });
+
+    const plansByAgent = new Map();
+    (plans || []).forEach(p => {
+      if (!plansByAgent.has(p.agent_id)) plansByAgent.set(p.agent_id, new Set());
+      const raw = p.date || p.date_planned || p.planned_date || p.date_start || p.jour || p.day;
+      if (!raw) return;
+      const day = (String(raw)).slice(0,10);
+      plansByAgent.get(p.agent_id).add(day);
+    });
+
+    const checkinsByMission = new Map();
+    (checkins || []).forEach(c => {
+      if (!checkinsByMission.has(c.mission_id)) checkinsByMission.set(c.mission_id, []);
+      checkinsByMission.get(c.mission_id).push(c);
+    });
+
+    // Agréger par projet
+    const byProject = new Map();
+    const ensure = (project) => {
+      if (!byProject.has(project)) {
+        byProject.set(project, {
+          project_name: project || '—',
+          agent_count: 0,
+          planned_days: 0,
+          present_days: 0,
+          missions_count: 0,
+          checkins_count: 0
+        });
+      }
+      return byProject.get(project);
+    };
+
+    agents.forEach(a => {
+      const project = (a.project_name || '').trim() || '—';
+      const bucket = ensure(project);
+      bucket.agent_count += 1;
+
+      // Jours planifiés
+      const plannedSet = plansByAgent.get(a.id) || new Set();
+      bucket.planned_days += plannedSet.size;
+
+      // Missions et présence (jours avec checkins ou missions)
+      const amissions = missionsByAgent.get(a.id) || [];
+      bucket.missions_count += amissions.length;
+
+      const presentDays = new Set();
+      amissions.forEach(m => {
+        const cks = checkinsByMission.get(m.id) || [];
+        cks.forEach(ck => {
+          const day = new Date(ck.timestamp).toISOString().slice(0,10);
+          presentDays.add(day);
+        });
+      });
+      bucket.present_days += presentDays.size;
+
+      // Compte de check-ins
+      const totalCheckins = amissions.reduce((acc, m) => acc + ((checkinsByMission.get(m.id) || []).length), 0);
+      bucket.checkins_count += totalCheckins;
+    });
+
+    const items = Array.from(byProject.values()).sort((a,b) => a.project_name.localeCompare(b.project_name));
+    res.json({ success: true, from, to, items });
+
+  } catch (error) {
+    console.error('❌ Erreur project-summary:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // Présence du jour (via table checkins)
 app.get('/api/presence/check-today', async (req, res) => {
   try {
