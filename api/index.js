@@ -63,6 +63,8 @@ function simpleHash(password) {
 
 // Fonction d'envoi d'email de vérification
 async function sendVerificationEmail(email, code, newAccountEmail = null) {
+  console.log('📧 Tentative d\'envoi d\'email de vérification à:', email);
+  
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     console.warn('⚠️ Configuration email manquante - EMAIL_USER et EMAIL_PASS requis');
     throw new Error('Configuration email manquante');
@@ -78,6 +80,17 @@ async function sendVerificationEmail(email, code, newAccountEmail = null) {
       rejectUnauthorized: false
     }
   });
+  
+  console.log('🔧 Transporteur email créé, test de connexion...');
+
+  // Tester la connexion d'abord
+  try {
+    await transporter.verify();
+    console.log('✅ Connexion au serveur email réussie');
+  } catch (verifyError) {
+    console.error('❌ Erreur de connexion au serveur email:', verifyError);
+    throw verifyError;
+  }
 
   const mailOptions = {
     from: process.env.EMAIL_USER,
@@ -107,8 +120,18 @@ async function sendVerificationEmail(email, code, newAccountEmail = null) {
     `
   };
 
-  await transporter.sendMail(mailOptions);
-  console.log(`✅ Email de vérification envoyé à ${email}`);
+  try {
+    console.log('📤 Envoi de l\'email...');
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Email envoyé avec succès! Message ID:', info.messageId);
+    console.log(`✅ Email de vérification envoyé à ${email}`);
+    return info;
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'envoi de l\'email:', error);
+    console.error('Code d\'erreur:', error.code);
+    console.error('Message:', error.message);
+    throw error;
+  }
 }
 
 // Middleware CORS
@@ -349,7 +372,10 @@ module.exports = async (req, res) => {
           await sendVerificationEmail(email, verificationCode);
         }
       } catch (emailError) {
-        console.error('Erreur envoi email:', emailError);
+        console.error('❌ Erreur envoi email:', emailError);
+        console.error('Code d\'erreur:', emailError.code);
+        console.error('Message:', emailError.message);
+        console.error('Stack:', emailError.stack);
         // Ne pas faire échouer l'inscription si l'email échoue
         // L'utilisateur peut demander un renvoi de code
       }
@@ -543,7 +569,10 @@ module.exports = async (req, res) => {
       try {
         await sendVerificationEmail(email, verificationCode);
       } catch (emailError) {
-        console.error('Erreur envoi email:', emailError);
+        console.error('❌ Erreur envoi email:', emailError);
+        console.error('Code d\'erreur:', emailError.code);
+        console.error('Message:', emailError.message);
+        console.error('Stack:', emailError.stack);
         return res.status(500).json({ error: 'Erreur lors de l\'envoi de l\'email' });
       }
 
