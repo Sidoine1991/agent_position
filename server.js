@@ -1621,7 +1621,8 @@ app.get('/api/admin/project-summary', authenticateToken, authenticateSupervisorO
     };
 
     agents.forEach(a => {
-      const project = (a.project_name || '').trim() || '—';
+      const project = (a.project_name || '').trim();
+      if (!project) return; // ignorer les agents sans nom de projet
       const bucket = ensure(project);
       bucket.agent_count += 1;
 
