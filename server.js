@@ -3275,14 +3275,15 @@ app.post('/api/missions/:id/complete', authenticateToken, async (req, res) => {
 async function sendRecoveryEmail(email, name, recoveryCode) {
   try {
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
       },
-      tls: {
-        rejectUnauthorized: false
-      }
+      connectionTimeout: 15000,
+      socketTimeout: 20000
     });
 
     const mailOptions = {
@@ -3344,8 +3345,12 @@ async function sendRecoveryEmail(email, name, recoveryCode) {
 app.get('/api/debug/email/verify', async (req, res) => {
   try {
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      connectionTimeout: 15000,
+      socketTimeout: 20000
     });
     await transporter.verify();
     return res.json({ success: true, message: 'SMTP OK', user: process.env.EMAIL_USER });
@@ -3362,8 +3367,12 @@ app.post('/api/debug/email/send', authenticateToken, authenticateAdmin, async (r
     const subject = (req.body && req.body.subject) || 'Test Email Presence CCR-B';
     const text = (req.body && req.body.text) || 'Ceci est un email de test.';
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      connectionTimeout: 15000,
+      socketTimeout: 20000
     });
     await transporter.sendMail({ from: process.env.EMAIL_USER, to, subject, text });
     return res.json({ success: true, sent_to: to });
@@ -3639,14 +3648,15 @@ async function sendVerificationEmail(email, code, newAccountEmail) {
   }
 
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS
     },
-    tls: {
-      rejectUnauthorized: false
-    }
+    connectionTimeout: 15000,
+    socketTimeout: 20000
   });
 
   const mailOptions = {
