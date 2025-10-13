@@ -3271,21 +3271,59 @@ app.post('/api/missions/:id/complete', authenticateToken, async (req, res) => {
 
 // ===== FONCTIONS EMAIL =====
 
+// Transport Gmail robuste avec SNI et fallback SSL465 -> STARTTLS587
+async function createGmailTransport() {
+  const nodemailerBase = {
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    connectionTimeout: 15000,
+    socketTimeout: 20000,
+    tls: { servername: (process.env.SMTP_HOST || 'smtp.gmail.com') }
+  };
+
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+
+  // 1) SSL implicite 465
+  try {
+    const t465 = nodemailer.createTransport({
+      host,
+      port: Number(process.env.SMTP_PORT || 465),
+      secure: String(process.env.SMTP_SECURE ?? 'true').toLowerCase() === 'true',
+      ...nodemailerBase
+    });
+    await t465.verify();
+    return t465;
+  } catch (_) {
+    // 2) Fallback STARTTLS 587 + requireTLS
+    const t587 = nodemailer.createTransport({
+      host,
+      port: 587,
+      secure: false,
+      requireTLS: true,
+      ...nodemailerBase
+    });
+    await t587.verify();
+    return t587;
+  }
+}
+
+async function sendMailRobust(mailOptions) {
+  const transient = new Set(['ETIMEDOUT', 'ESOCKET', 'ECONNECTION']);
+  let transporter = await createGmailTransport();
+  try {
+    return await transporter.sendMail(mailOptions);
+  } catch (e) {
+    if (transient.has(e?.code)) {
+      transporter = await createGmailTransport();
+      return await transporter.sendMail(mailOptions);
+    }
+    throw e;
+  }
+}
+
 // Fonction pour envoyer un email de récupération de mot de passe
 async function sendRecoveryEmail(email, name, recoveryCode) {
   try {
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      },
-      connectionTimeout: 15000,
-      socketTimeout: 20000
-    });
-
+    const transporter = await createGmailTransport();
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
@@ -3366,15 +3404,7 @@ app.post('/api/debug/email/send', authenticateToken, authenticateAdmin, async (r
     const to = (req.body && req.body.to) || process.env.SUPERADMIN_EMAIL || process.env.EMAIL_USER;
     const subject = (req.body && req.body.subject) || 'Test Email Presence CCR-B';
     const text = (req.body && req.body.text) || 'Ceci est un email de test.';
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-      connectionTimeout: 15000,
-      socketTimeout: 20000
-    });
-    await transporter.sendMail({ from: process.env.EMAIL_USER, to, subject, text });
+    await sendMailRobust({ from: process.env.EMAIL_USER, to, subject, text });
     return res.json({ success: true, sent_to: to });
   } catch (e) {
     console.error('SMTP test send error:', e);
@@ -3647,17 +3677,7 @@ async function sendVerificationEmail(email, code, newAccountEmail) {
     throw new Error('Configuration email manquante');
   }
 
-  const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
-    },
-    connectionTimeout: 15000,
-    socketTimeout: 20000
-  });
+  const transporter = await createGmailTransport();
 
   const mailOptions = {
     from: process.env.EMAIL_USER,
@@ -3671,7 +3691,7 @@ async function sendVerificationEmail(email, code, newAccountEmail) {
     `
   };
 
-  await transporter.sendMail(mailOptions);
+  await sendMailRobust(mailOptions);
 }
 
 // Route par défaut - redirection vers home.html
