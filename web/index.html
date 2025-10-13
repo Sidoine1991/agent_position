@@ -13,18 +13,32 @@
       // Vérifier si l'utilisateur est déjà connecté et rediriger si nécessaire
       document.addEventListener('DOMContentLoaded', function() {
         const token = localStorage.getItem('jwt');
-        if (token) {
-          // Si connecté, rediriger vers le dashboard approprié
-          const userRole = localStorage.getItem('userRole');
-          if (userRole === 'admin') {
-            window.location.href = '/admin-dashboard.html';
-          } else if (userRole === 'superviseur') {
-            window.location.href = '/supervisor-dashboard.html';
-          } else {
-            window.location.href = '/dashboard.html';
+        const urlParams = new URLSearchParams(window.location.search);
+        const forceStay = urlParams.get('stay') === 'true';
+        
+        // Si l'utilisateur est connecté ET qu'il n'a pas explicitement demandé de rester
+        if (token && !forceStay) {
+          // Vérifier si c'est un retour depuis le dashboard (via referrer)
+          const referrer = document.referrer;
+          const isFromDashboard = referrer && (
+            referrer.includes('dashboard') || 
+            referrer.includes('admin') || 
+            referrer.includes('supervisor')
+          );
+          
+          // Si ce n'est pas un retour depuis le dashboard, rediriger
+          if (!isFromDashboard) {
+            const userRole = localStorage.getItem('userRole');
+            if (userRole === 'admin') {
+              window.location.href = '/admin-dashboard.html';
+            } else if (userRole === 'superviseur') {
+              window.location.href = '/supervisor-dashboard.html';
+            } else {
+              window.location.href = '/dashboard.html';
+            }
           }
         }
-        // Si pas connecté, rester sur la page de connexion (ne pas rediriger)
+        // Si pas connecté ou si forceStay=true, rester sur la page de connexion
       });
     </script>
     <script src="/web-config.js"></script>
@@ -34,6 +48,7 @@
     <link rel="stylesheet" href="/styles.css?v=4" />
     <link rel="stylesheet" href="/styles-tailwind.css?v=1" />
     <link rel="stylesheet" href="/modern-ui.css?v=1" />
+    <link rel="stylesheet" href="/contrast-fixes.css" />
     <style>
       /* Styles pour l'image hero */
       .hero-image-section {
@@ -352,6 +367,7 @@
         <div class="circle-actions" id="circle-actions" style="margin-top:12px; display:none">
           <a href="/" class="circle-action" id="presence-link"><div class="icon">📍</div><div class="label">Présence</div></a>
           <a href="/planning.html" class="circle-action" id="planning-link"><div class="icon">🗓️</div><div class="label">Planification</div></a>
+          <a href="/agent-activity-tracking.html" class="circle-action" id="activity-link"><div class="icon">📋</div><div class="label">Suivi Activité</div></a>
           <a href="/dashboard.html" class="circle-action" id="dashboard-link"><div class="icon">📊</div><div class="label">Dashboard</div></a>
           <a href="/profile.html" class="circle-action" id="profile-link"><div class="icon">👤</div><div class="label">Profil</div></a>
           <a href="/admin-agents.html" class="circle-action" id="agents-link"><div class="icon">👥</div><div class="label">Agents</div></a>

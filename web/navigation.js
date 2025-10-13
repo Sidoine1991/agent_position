@@ -243,7 +243,7 @@ class NavigationManager {
         const normRole = String(role || '').toLowerCase();
         const roleKey = (normRole === 'superviseur') ? 'supervisor' : normRole;
         const baseLinks = [
-            { page: 'presence', href: '/index.html', text: 'Présence', icon: '📍' },
+            { page: 'presence', href: '/index.html?stay=true', text: 'Présence', icon: '📍' },
             { page: 'planning', href: '/planning.html', text: 'Planification', icon: '🗓️' },
             { page: 'dashboard', href: '/dashboard.html', text: 'Dashboard', icon: '📊' },
             { page: 'profile', href: '/profile.html', text: 'Profil', icon: '👤' }

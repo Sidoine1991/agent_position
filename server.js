@@ -798,6 +798,82 @@ app.get('/api/planifications', async (req, res) => {
   }
 });
 
+// Mettre à jour le résultat d'une planification
+app.put('/api/planifications/result', authenticateToken, async (req, res) => {
+  try {
+    const { date, resultat_journee, observations } = req.body;
+    
+    if (!date) {
+      return res.status(400).json({ success: false, error: 'Date requise' });
+    }
+
+    const { data, error } = await supabaseClient
+      .from('planifications')
+      .update({
+        resultat_journee: resultat_journee || null,
+        observations: observations || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('agent_id', req.user.id)
+      .eq('date', date)
+      .select();
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      data: data || []
+    });
+  } catch (error) {
+    console.error('Erreur mise à jour résultat:', error);
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// Supprimer une planification
+app.delete('/api/planifications/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { error } = await supabaseClient
+      .from('planifications')
+      .delete()
+      .eq('id', id)
+      .eq('agent_id', req.user.id);
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      message: 'Planification supprimée avec succès'
+    });
+  } catch (error) {
+    console.error('Erreur suppression planification:', error);
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// Routes pour les projets
+app.get('/api/projects', authenticateToken, async (req, res) => {
+  try {
+    const { data: projects, error } = await supabaseClient
+      .from('projects')
+      .select('*')
+      .eq('status', 'active')
+      .order('name');
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      items: projects || []
+    });
+  } catch (error) {
+    console.error('Erreur projets:', error);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // Supabase health check
 app.get('/api/supabase-health', async (req, res) => {
   try {
@@ -2309,6 +2385,187 @@ app.get('/api/debug/checkins', authenticateToken, authenticateSupervisorOrAdmin,
   } catch (e) {
     console.error('debug/checkins error:', e);
     return res.status(500).json({ success: false, error: e?.message || 'server_error' });
+  }
+});
+
+// Endpoint de test pour vérifier les relations entre tables
+app.get('/api/test/relations', authenticateToken, async (req, res) => {
+  try {
+    console.log('🔗 Test des relations entre tables...');
+    
+    const results = {
+      connection: false,
+      tables: {},
+      relations: {}
+    };
+    
+    // Test de connexion de base
+    try {
+      const { data: settings, error: settingsError } = await supabaseClient
+        .from('app_settings')
+        .select('*')
+        .limit(1);
+      
+      if (settingsError) throw settingsError;
+      results.connection = true;
+      console.log('✅ Connexion Supabase établie');
+    } catch (err) {
+      console.error('❌ Erreur connexion:', err.message);
+      return res.status(500).json({ success: false, error: 'Connexion Supabase échouée', details: err.message });
+    }
+    
+    // Vérifier les tables principales
+    const tables = ['users', 'presences', 'planifications', 'projects', 'missions', 'checkins', 'absences', 'reports'];
+    
+    for (const table of tables) {
+      try {
+        const { data, error } = await supabaseClient
+          .from(table)
+          .select('*')
+          .limit(1);
+        
+        if (error) {
+          results.tables[table] = { status: 'error', message: error.message };
+          console.log(`⚠️ Table ${table}: ${error.message}`);
+        } else {
+          results.tables[table] = { status: 'ok', count: data?.length || 0 };
+          console.log(`✅ Table ${table}: OK`);
+        }
+      } catch (err) {
+        results.tables[table] = { status: 'error', message: err.message };
+        console.log(`❌ Table ${table}: ${err.message}`);
+      }
+    }
+    
+    // Test des relations entre tables
+    console.log('\n🔗 Test des relations entre tables...');
+    
+    // Test relation users -> presences
+    try {
+      const { data: userPresences, error: userPresencesError } = await supabaseClient
+        .from('presences')
+        .select(`
+          id,
+          start_time,
+          users!inner(id, name, email)
+        `)
+        .limit(1);
+      
+      if (userPresencesError) {
+        results.relations['users->presences'] = { status: 'error', message: userPresencesError.message };
+        console.log(`⚠️ Relation users->presences: ${userPresencesError.message}`);
+      } else {
+        results.relations['users->presences'] = { status: 'ok', count: userPresences?.length || 0 };
+        console.log('✅ Relation users->presences: OK');
+      }
+    } catch (err) {
+      results.relations['users->presences'] = { status: 'error', message: err.message };
+      console.log(`❌ Relation users->presences: ${err.message}`);
+    }
+    
+    // Test relation users -> planifications
+    try {
+      const { data: userPlanifications, error: userPlanificationsError } = await supabaseClient
+        .from('planifications')
+        .select(`
+          id,
+          date,
+          users!inner(id, name, email)
+        `)
+        .limit(1);
+      
+      if (userPlanificationsError) {
+        results.relations['users->planifications'] = { status: 'error', message: userPlanificationsError.message };
+        console.log(`⚠️ Relation users->planifications: ${userPlanificationsError.message}`);
+      } else {
+        results.relations['users->planifications'] = { status: 'ok', count: userPlanifications?.length || 0 };
+        console.log('✅ Relation users->planifications: OK');
+      }
+    } catch (err) {
+      results.relations['users->planifications'] = { status: 'error', message: err.message };
+      console.log(`❌ Relation users->planifications: ${err.message}`);
+    }
+    
+    // Test relation planifications -> projects
+    try {
+      const { data: planificationProjects, error: planificationProjectsError } = await supabaseClient
+        .from('planifications')
+        .select(`
+          id,
+          date,
+          projects!inner(id, name)
+        `)
+        .not('project_id', 'is', null)
+        .limit(1);
+      
+      if (planificationProjectsError) {
+        results.relations['planifications->projects'] = { status: 'error', message: planificationProjectsError.message };
+        console.log(`⚠️ Relation planifications->projects: ${planificationProjectsError.message}`);
+      } else {
+        results.relations['planifications->projects'] = { status: 'ok', count: planificationProjects?.length || 0 };
+        console.log('✅ Relation planifications->projects: OK');
+      }
+    } catch (err) {
+      results.relations['planifications->projects'] = { status: 'error', message: err.message };
+      console.log(`❌ Relation planifications->projects: ${err.message}`);
+    }
+    
+    // Test relation users -> missions
+    try {
+      const { data: userMissions, error: userMissionsError } = await supabaseClient
+        .from('missions')
+        .select(`
+          id,
+          title,
+          users!inner(id, name, email)
+        `)
+        .limit(1);
+      
+      if (userMissionsError) {
+        results.relations['users->missions'] = { status: 'error', message: userMissionsError.message };
+        console.log(`⚠️ Relation users->missions: ${userMissionsError.message}`);
+      } else {
+        results.relations['users->missions'] = { status: 'ok', count: userMissions?.length || 0 };
+        console.log('✅ Relation users->missions: OK');
+      }
+    } catch (err) {
+      results.relations['users->missions'] = { status: 'error', message: err.message };
+      console.log(`❌ Relation users->missions: ${err.message}`);
+    }
+    
+    // Test relation users -> checkins
+    try {
+      const { data: userCheckins, error: userCheckinsError } = await supabaseClient
+        .from('checkins')
+        .select(`
+          id,
+          lat,
+          lon,
+          users!inner(id, name, email)
+        `)
+        .limit(1);
+      
+      if (userCheckinsError) {
+        results.relations['users->checkins'] = { status: 'error', message: userCheckinsError.message };
+        console.log(`⚠️ Relation users->checkins: ${userCheckinsError.message}`);
+      } else {
+        results.relations['users->checkins'] = { status: 'ok', count: userCheckins?.length || 0 };
+        console.log('✅ Relation users->checkins: OK');
+      }
+    } catch (err) {
+      results.relations['users->checkins'] = { status: 'error', message: err.message };
+      console.log(`❌ Relation users->checkins: ${err.message}`);
+    }
+    
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Test des relations terminé',
+      results 
+    });
+    
+  } catch (error) {
+    console.error('❌ Erreur générale test relations:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 

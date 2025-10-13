@@ -12,11 +12,18 @@
   });
 
   function initializePage() {
+    // Vérifier l'authentification d'abord
+    const token = findToken();
+    if (!token) {
+      showAuthError();
+      return;
+    }
+    
     // Définir la date d'aujourd'hui par défaut
     document.getElementById('date-select').value = currentDate;
     
-    // Charger les projets et les activités
-    loadProjects();
+    // Charger le projet de l'agent et les activités
+    loadAgentProject();
     loadActivities();
   }
 
@@ -42,24 +49,69 @@
       filterActivities();
     });
 
-    // Save observations
-    document.getElementById('save-observations').addEventListener('click', () => {
-      saveObservations();
+    // Add activity row button
+    document.getElementById('add-activity-row').addEventListener('click', () => {
+      addNewActivityRow();
+    });
+
+    // Save all activities button
+    document.getElementById('save-all-activities').addEventListener('click', () => {
+      saveAllActivities();
+    });
+
+    // Download activity image button
+    document.getElementById('download-activity-image').addEventListener('click', () => {
+      downloadActivityImage();
+    });
+
+    // Track changes in table inputs
+    document.addEventListener('change', (e) => {
+      if (e.target.closest('#activities-table')) {
+        const row = e.target.closest('tr[data-activity-id]');
+        if (row && !row.classList.contains('activity-row-new')) {
+          row.classList.remove('activity-row-saved');
+          row.classList.add('activity-row-modified');
+        }
+      }
     });
   }
 
-  // Charger les projets
-  async function loadProjects() {
+  // Charger le projet de l'agent depuis son profil
+  async function loadAgentProject() {
     try {
       const headers = await authHeaders();
-      const res = await fetch(`${apiBase}/projects`, { headers });
+      const res = await fetch(`${apiBase}/profile`, { headers });
       if (res.ok) {
         const data = await res.json();
-        projects = data.items || [];
+        const user = data.user;
+        
+        // Récupérer le projet de l'agent depuis son profil
+        const agentProject = user.project_name || user.project || 'Projet non spécifié';
+        
+        // Créer une liste avec le projet de l'agent
+        projects = [
+          { id: 1, name: agentProject, status: 'active' },
+          { id: 2, name: 'Projet Riz', status: 'active' },
+          { id: 3, name: 'Projet Maïs', status: 'active' },
+          { id: 4, name: 'Projet Formation', status: 'active' },
+          { id: 5, name: 'Projet Suivi', status: 'active' }
+        ];
+        
         updateProjectFilter();
+        console.log('Projet de l\'agent:', agentProject);
+      } else {
+        throw new Error('Erreur lors du chargement du profil');
       }
     } catch (error) {
-      console.error('Erreur chargement projets:', error);
+      console.error('Erreur chargement projet agent:', error);
+      // Utiliser des projets par défaut en cas d'erreur
+      projects = [
+        { id: 1, name: 'Projet Riz', status: 'active' },
+        { id: 2, name: 'Projet Maïs', status: 'active' },
+        { id: 3, name: 'Projet Formation', status: 'active' },
+        { id: 4, name: 'Projet Suivi', status: 'active' }
+      ];
+      updateProjectFilter();
     }
   }
 
@@ -77,14 +129,19 @@
   // Charger les activités pour une date donnée
   async function loadActivities() {
     try {
-      const container = document.getElementById('activities-container');
-      container.innerHTML = `
-        <div class="text-center text-muted py-5">
-          <div class="spinner-border" role="status">
-            <span class="visually-hidden">Chargement...</span>
-          </div>
-          <div class="mt-2">Chargement des activités...</div>
-        </div>
+      const tbody = document.getElementById('activities-tbody');
+      if (!tbody) {
+        console.error('Element activities-tbody not found');
+        return;
+      }
+      
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" class="text-center text-muted py-4">
+            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+            Chargement des activités...
+          </td>
+        </tr>
       `;
 
       const headers = await authHeaders();
@@ -105,202 +162,263 @@
       }
     } catch (error) {
       console.error('Erreur chargement activités:', error);
-      document.getElementById('activities-container').innerHTML = `
-        <div class="alert alert-danger">
+      const tbody = document.getElementById('activities-tbody');
+      if (tbody) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" class="text-center py-4">
+              <div class="alert alert-danger mb-0">
           <h6>Erreur de chargement</h6>
-          <p>Impossible de charger les activités. Vérifiez votre connexion.</p>
+                <p class="mb-0">Impossible de charger les activités. Vérifiez votre connexion.</p>
         </div>
+            </td>
+          </tr>
       `;
+      }
     }
   }
 
-  // Afficher les activités
+  // Afficher les activités dans le tableau
   function displayActivities() {
-    const container = document.getElementById('activities-container');
+    const tbody = document.getElementById('activities-tbody');
     
     if (activities.length === 0) {
-      container.innerHTML = `
-        <div class="alert alert-info">
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" class="text-center text-muted py-4">
+            <div class="alert alert-info mb-0">
           <h6>Aucune activité planifiée</h6>
-          <p>Aucune activité n'est planifiée pour cette date. Consultez la page de planification pour ajouter des activités.</p>
+              <p class="mb-0">Aucune activité n'est planifiée pour cette date. Cliquez sur "Ajouter une activité" pour en créer une.</p>
         </div>
+          </td>
+        </tr>
       `;
       return;
     }
 
     const filteredActivities = filterActivities();
     
-    container.innerHTML = filteredActivities.map(activity => createActivityCard(activity)).join('');
+    tbody.innerHTML = filteredActivities.map(activity => createActivityRow(activity)).join('');
   }
 
-  // Créer une carte d'activité
-  function createActivityCard(activity) {
-    const projectName = activity.projects?.name || 'Projet non spécifié';
-    const startTime = activity.planned_start_time || 'Non défini';
-    const endTime = activity.planned_end_time || 'Non défini';
-    const description = activity.description_activite || 'Aucune description';
-    const resultat = activity.resultat_journee;
+  // Créer une ligne d'activité dans le tableau
+  function createActivityRow(activity) {
+    const projectName = activity.projects?.name || activity.project_name || '';
+    const startTime = activity.planned_start_time || '';
+    const endTime = activity.planned_end_time || '';
+    const description = activity.description_activite || '';
+    const resultat = activity.resultat_journee || '';
     const observations = activity.observations || '';
 
-    const statusClass = getStatusClass(resultat);
-    const statusText = getStatusText(resultat);
-
     return `
-      <div class="card activity-card mb-3" data-activity-id="${activity.id}">
-        <div class="card-body">
-          <div class="row align-items-center">
-            <div class="col-md-8">
-              <div class="d-flex align-items-center gap-2 mb-2">
-                <h6 class="card-title mb-0">${activity.date}</h6>
-                <span class="badge project-badge bg-info">${projectName}</span>
-                <span class="badge project-badge ${statusClass}">${statusText}</span>
+      <tr data-activity-id="${activity.id}" class="activity-row">
+        <td>
+          <input type="date" class="form-control" value="${activity.date}" data-field="date">
+        </td>
+        <td>
+          <input type="time" class="form-control" value="${startTime}" data-field="planned_start_time">
+        </td>
+        <td>
+          <input type="time" class="form-control" value="${endTime}" data-field="planned_end_time">
+        </td>
+        <td>
+          <select class="form-control" data-field="project_name">
+            <option value="">Sélectionner un projet</option>
+            ${projects && projects.length > 0 ? projects.map(project => {
+              const isSelected = activity.project_name === project.name || 
+                                (activity.project_id == project.id) ||
+                                (activity.isNew && project.id === 1); // Sélectionner le projet de l'agent par défaut pour les nouvelles activités
+              return `<option value="${project.name}" ${isSelected ? 'selected' : ''}>${project.name}</option>`;
+            }).join('') : ''}
+            ${activity.project_name && !projects.some(p => p.name === activity.project_name) ? 
+              `<option value="${activity.project_name}" selected>${activity.project_name}</option>` : ''}
+          </select>
+        </td>
+        <td>
+          <textarea class="form-control observations-textarea" data-field="description_activite" placeholder="Description de l'activité">${description}</textarea>
+        </td>
+        <td>
+          <select class="form-control status-select" data-field="resultat_journee">
+            <option value="">Non évalué</option>
+            <option value="realise" ${resultat === 'realise' ? 'selected' : ''}>Réalisé</option>
+            <option value="partiellement_realise" ${resultat === 'partiellement_realise' ? 'selected' : ''}>Partiellement réalisé</option>
+            <option value="non_realise" ${resultat === 'non_realise' ? 'selected' : ''}>Non réalisé</option>
+            <option value="en_cours" ${resultat === 'en_cours' ? 'selected' : ''}>En cours</option>
+          </select>
+        </td>
+        <td>
+          <textarea class="form-control observations-textarea" data-field="observations" placeholder="Observations et motifs...">${observations}</textarea>
+        </td>
+        <td>
+          <div class="btn-group-vertical btn-group-sm">
+            <button type="button" class="btn btn-success btn-sm" onclick="saveActivityRow(${activity.id})" title="Enregistrer">
+              <i class="fas fa-save"></i>
+            </button>
+            <button type="button" class="btn btn-danger btn-sm" onclick="deleteActivityRow(${activity.id})" title="Supprimer">
+              <i class="fas fa-trash"></i>
+            </button>
               </div>
-              <div class="mb-2">
-                <small class="text-muted">Heures:</small>
-                <strong>${startTime} - ${endTime}</strong>
-              </div>
-              <div class="mb-2">
-                <small class="text-muted">Description:</small>
-                <div class="small">${description}</div>
-              </div>
-              ${observations ? `
-                <div class="mb-2">
-                  <small class="text-muted">Observations:</small>
-                  <div class="small text-muted">${observations}</div>
-                </div>
-              ` : ''}
-            </div>
-            <div class="col-md-4 text-center">
-              <div class="mb-3">
-                <small class="text-muted d-block mb-2">Statut d'exécution:</small>
-                <div class="d-flex justify-content-center gap-2 flex-wrap">
-                  ${createStatusButtons(activity.id, resultat)}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+        </td>
+      </tr>
     `;
   }
 
-  // Créer les boutons de statut
-  function createStatusButtons(activityId, currentStatus) {
-    const statuses = [
-      { key: 'realise', label: 'Réalisé', icon: '✓' },
-      { key: 'partiellement_realise', label: 'Partiellement', icon: '◐' },
-      { key: 'non_realise', label: 'Non réalisé', icon: '✗' },
-      { key: 'en_cours', label: 'En cours', icon: '⏳' }
-    ];
-
-    return statuses.map(status => {
-      const isSelected = currentStatus === status.key;
-      return `
-        <div class="status-button status-${status.key.replace('_', '-')} ${isSelected ? 'selected' : ''}" 
-             data-activity-id="${activityId}" 
-             data-status="${status.key}"
-             title="${status.label}">
-          <div>
-            <div style="font-size: 16px;">${status.icon}</div>
-            <div style="font-size: 10px;">${status.label}</div>
-          </div>
-        </div>
-      `;
-    }).join('');
+  // Ajouter une nouvelle ligne d'activité
+  function addNewActivityRow() {
+    const newActivity = {
+      id: 'new_' + Date.now(),
+      date: currentDate,
+      planned_start_time: '',
+      planned_end_time: '',
+      project_name: projects[0]?.name || '', // Pré-remplir avec le projet de l'agent
+      description_activite: '',
+      resultat_journee: '',
+      observations: '',
+      isNew: true
+    };
+    
+    activities.push(newActivity);
+    displayActivities();
+    
+    // Marquer la ligne comme nouvelle
+    const newRow = document.querySelector(`tr[data-activity-id="${newActivity.id}"]`);
+    if (newRow) {
+      newRow.classList.add('activity-row-new');
+    }
   }
 
-  // Gérer les clics sur les boutons de statut
-  document.addEventListener('click', async (e) => {
-    if (e.target.closest('.status-button')) {
-      const button = e.target.closest('.status-button');
-      const activityId = button.getAttribute('data-activity-id');
-      const status = button.getAttribute('data-status');
-      
-      await updateActivityStatus(activityId, status);
-    }
-  });
+  // Sauvegarder une ligne d'activité
+  async function saveActivityRow(activityId) {
+    try {
+      const row = document.querySelector(`tr[data-activity-id="${activityId}"]`);
+      if (!row) return;
 
-  // Mettre à jour le statut d'une activité
-  async function updateActivityStatus(activityId, status) {
+      const activityData = {};
+      const inputs = row.querySelectorAll('input, select, textarea');
+      
+      inputs.forEach(input => {
+        const field = input.getAttribute('data-field');
+        if (field) {
+          activityData[field] = input.value;
+        }
+      });
+
+      const activity = activities.find(a => a.id == activityId);
+      if (!activity) return;
+
+      // Mettre à jour l'activité locale
+      Object.assign(activity, activityData);
+
+      const headers = await authHeaders();
+      
+      if (activity.isNew) {
+        // Créer une nouvelle activité
+        const res = await fetch(`${apiBase}/planifications`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            ...activityData,
+            project_name: activityData.project_name || projects[0]?.name || 'Projet non spécifié'
+          })
+        });
+
+        if (res.ok) {
+          const result = await res.json();
+          activity.id = result.data?.id || activityId;
+          activity.isNew = false;
+          row.setAttribute('data-activity-id', activity.id);
+          row.classList.remove('activity-row-new');
+          row.classList.add('activity-row-saved');
+          showSuccessMessage('Activité créée avec succès');
+        } else {
+          throw new Error('Erreur lors de la création');
+        }
+      } else {
+        // Mettre à jour une activité existante
+      const res = await fetch(`${apiBase}/planifications/result`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+            date: activityData.date,
+            resultat_journee: activityData.resultat_journee,
+            observations: activityData.observations
+        })
+      });
+
+      if (res.ok) {
+          row.classList.remove('activity-row-modified');
+          row.classList.add('activity-row-saved');
+          showSuccessMessage('Activité mise à jour avec succès');
+      } else {
+        throw new Error('Erreur lors de la mise à jour');
+      }
+      }
+      
+      updateStatistics();
+    } catch (error) {
+      console.error('Erreur sauvegarde activité:', error);
+      showErrorMessage('Erreur lors de la sauvegarde');
+    }
+  }
+
+  // Supprimer une ligne d'activité
+  async function deleteActivityRow(activityId) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette activité ?')) {
+      return;
+    }
+
     try {
       const activity = activities.find(a => a.id == activityId);
       if (!activity) return;
 
+      if (!activity.isNew) {
+        // Supprimer de la base de données
       const headers = await authHeaders();
-      
-      // Si le statut est "non_realise", ouvrir le modal pour les observations
-      if (status === 'non_realise') {
-        currentActivityId = activityId;
-        document.getElementById('observations-text').value = activity.observations || '';
-        const modal = new bootstrap.Modal(document.getElementById('observationsModal'));
-        modal.show();
-        return;
+        const res = await fetch(`${apiBase}/planifications/${activityId}`, {
+          method: 'DELETE',
+          headers
+        });
+
+        if (!res.ok) {
+          throw new Error('Erreur lors de la suppression');
+        }
       }
 
-      // Mettre à jour directement pour les autres statuts
-      const res = await fetch(`${apiBase}/planifications/result`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({
-          date: activity.date,
-          resultat_journee: status,
-          observations: activity.observations
-        })
-      });
-
-      if (res.ok) {
-        // Mettre à jour l'activité locale
-        activity.resultat_journee = status;
+      // Supprimer de la liste locale
+      activities = activities.filter(a => a.id != activityId);
         displayActivities();
         updateStatistics();
-        showSuccessMessage('Statut mis à jour avec succès');
-      } else {
-        throw new Error('Erreur lors de la mise à jour');
-      }
+      showSuccessMessage('Activité supprimée avec succès');
     } catch (error) {
-      console.error('Erreur mise à jour statut:', error);
-      showErrorMessage('Erreur lors de la mise à jour du statut');
+      console.error('Erreur suppression activité:', error);
+      showErrorMessage('Erreur lors de la suppression');
     }
   }
 
-  // Sauvegarder les observations
-  async function saveObservations() {
-    try {
-      const observations = document.getElementById('observations-text').value;
-      const activity = activities.find(a => a.id == currentActivityId);
-      if (!activity) return;
+  // Sauvegarder toutes les activités
+  async function saveAllActivities() {
+    const rows = document.querySelectorAll('tr[data-activity-id]');
+    let savedCount = 0;
+    let errorCount = 0;
 
-      const headers = await authHeaders();
-      const res = await fetch(`${apiBase}/planifications/result`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({
-          date: activity.date,
-          resultat_journee: 'non_realise',
-          observations: observations
-        })
-      });
-
-      if (res.ok) {
-        // Mettre à jour l'activité locale
-        activity.resultat_journee = 'non_realise';
-        activity.observations = observations;
-        
-        // Fermer le modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('observationsModal'));
-        modal.hide();
-        
-        displayActivities();
-        updateStatistics();
-        showSuccessMessage('Observations enregistrées avec succès');
-      } else {
-        throw new Error('Erreur lors de la sauvegarde');
-      }
+    for (const row of rows) {
+      const activityId = row.getAttribute('data-activity-id');
+      try {
+        await saveActivityRow(activityId);
+        savedCount++;
     } catch (error) {
-      console.error('Erreur sauvegarde observations:', error);
-      showErrorMessage('Erreur lors de la sauvegarde des observations');
+        errorCount++;
+      }
+    }
+
+    if (errorCount === 0) {
+      showSuccessMessage(`${savedCount} activités sauvegardées avec succès`);
+    } else {
+      showErrorMessage(`${savedCount} sauvegardées, ${errorCount} erreurs`);
     }
   }
+
+
 
   // Filtrer les activités
   function filterActivities() {
@@ -335,12 +453,59 @@
       total: activities.length
     };
 
+    // Mettre à jour les nombres
     document.getElementById('count-realise').textContent = stats.realise;
     document.getElementById('count-partiellement').textContent = stats.partiellement_realise;
     document.getElementById('count-non-realise').textContent = stats.non_realise;
     document.getElementById('count-en-cours').textContent = stats.en_cours;
     document.getElementById('count-sans-resultat').textContent = stats.sans_resultat;
     document.getElementById('count-total').textContent = stats.total;
+
+    // Calculer les pourcentages
+    const total = stats.total || 1; // Éviter la division par zéro
+    const percentages = {
+      realise: Math.round((stats.realise / total) * 100),
+      partiellement: Math.round((stats.partiellement_realise / total) * 100),
+      non_realise: Math.round((stats.non_realise / total) * 100),
+      en_cours: Math.round((stats.en_cours / total) * 100),
+      sans_resultat: Math.round((stats.sans_resultat / total) * 100)
+    };
+
+    // Mettre à jour les pourcentages
+    document.getElementById('percent-realise').textContent = percentages.realise + '%';
+    document.getElementById('percent-partiellement').textContent = percentages.partiellement + '%';
+    document.getElementById('percent-non-realise').textContent = percentages.non_realise + '%';
+    document.getElementById('percent-en-cours').textContent = percentages.en_cours + '%';
+    document.getElementById('percent-sans-resultat').textContent = percentages.sans_resultat + '%';
+
+    // Calculer la progression globale (réalisé + partiellement réalisé)
+    const completed = stats.realise + stats.partiellement_realise;
+    const globalProgress = Math.round((completed / total) * 100);
+    
+    // Mettre à jour la barre de progression
+    const progressBar = document.getElementById('global-progress-bar');
+    const progressText = document.getElementById('global-progress-text');
+    
+    if (progressBar) {
+      progressBar.style.width = globalProgress + '%';
+      progressBar.setAttribute('aria-valuenow', globalProgress);
+    }
+    
+    if (progressText) {
+      progressText.textContent = globalProgress + '% complété';
+    }
+
+    // Mettre à jour la date actuelle
+    const dateBadge = document.getElementById('current-date-badge');
+    if (dateBadge) {
+      const today = new Date().toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      dateBadge.textContent = today;
+    }
   }
 
   // Utilitaires
@@ -401,13 +566,20 @@
   }
 
   function showAuthError() {
-    document.getElementById('activities-container').innerHTML = `
-      <div class="alert alert-warning">
+    const tbody = document.getElementById('activities-tbody');
+    if (tbody) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" class="text-center py-4">
+            <div class="alert alert-warning mb-0">
         <h6>Session requise</h6>
-        <p>Veuillez vous connecter pour accéder au suivi d'activité.</p>
-        <a href="/index.html" class="btn btn-primary">Se connecter</a>
+              <p class="mb-2">Veuillez vous connecter pour accéder au suivi d'activité.</p>
+              <a href="/index.html" class="btn btn-primary btn-sm">Se connecter</a>
       </div>
+          </td>
+        </tr>
     `;
+    }
   }
 
   // Fonctions d'authentification (reprises de planning.js)
@@ -435,5 +607,61 @@
     if (token) headers['Authorization'] = 'Bearer ' + token;
     return headers;
   }
+
+  // Télécharger la page de suivi d'activité en image
+  async function downloadActivityImage() {
+    try {
+      // Afficher un message de chargement
+      const button = document.getElementById('download-activity-image');
+      const originalText = button.innerHTML;
+      button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Génération...';
+      button.disabled = true;
+
+      // Capturer la zone principale (sans la navbar)
+      const mainContent = document.querySelector('.container');
+      
+      const canvas = await html2canvas(mainContent, {
+        backgroundColor: '#ffffff',
+        scale: 2, // Haute résolution
+        useCORS: true,
+        allowTaint: true,
+        scrollX: 0,
+        scrollY: 0,
+        width: mainContent.scrollWidth,
+        height: mainContent.scrollHeight
+      });
+
+      // Créer le lien de téléchargement
+      const link = document.createElement('a');
+      const today = new Date().toISOString().split('T')[0];
+      const filename = `suivi-activite-${today}.png`;
+      
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      
+      // Déclencher le téléchargement
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Restaurer le bouton
+      button.innerHTML = originalText;
+      button.disabled = false;
+
+      showSuccessMessage('Image téléchargée avec succès');
+    } catch (error) {
+      console.error('Erreur téléchargement image:', error);
+      showErrorMessage('Erreur lors du téléchargement de l\'image');
+      
+      // Restaurer le bouton en cas d'erreur
+      const button = document.getElementById('download-activity-image');
+      button.innerHTML = '<i class="fas fa-download"></i> Télécharger en image';
+      button.disabled = false;
+    }
+  }
+
+  // Fonctions globales pour les boutons du tableau
+  window.saveActivityRow = saveActivityRow;
+  window.deleteActivityRow = deleteActivityRow;
 
 })();

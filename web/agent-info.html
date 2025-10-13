@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accès Agents - Presence CCR-B</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .page-card {
+      transition: all 0.3s ease;
+      border: 2px solid transparent;
+    }
+    .page-card:hover {
+      transform: translateY(-5px);
+      border-color: #007bff;
+      box-shadow: 0 8px 25px rgba(0, 123, 255, 0.15);
+    }
+    .feature-icon {
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 24px;
+      margin: 0 auto 20px;
+    }
+    .download-feature {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: white;
+      border-radius: 15px;
+      padding: 30px;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-lg-10">
+        <!-- En-tête -->
+        <div class="text-center mb-5">
+          <h1 class="display-4 fw-bold text-primary mb-3">
+            <i class="bi bi-person-badge"></i> Accès Agents
+          </h1>
+          <p class="lead text-muted">
+            Les agents ont accès à 4 pages principales sur la plateforme Presence CCR-B
+          </p>
+        </div>
+
+        <!-- Fonctionnalité de téléchargement -->
+        <div class="download-feature">
+          <div class="row align-items-center">
+            <div class="col-md-8">
+              <h3 class="mb-3">
+                <i class="bi bi-download"></i> Nouvelle Fonctionnalité : Téléchargement d'Images
+              </h3>
+              <p class="mb-0">
+                Les agents peuvent maintenant télécharger leurs pages de planification et de suivi d'activité en format image PNG haute résolution pour archivage et partage.
+              </p>
+            </div>
+            <div class="col-md-4 text-center">
+              <i class="bi bi-image" style="font-size: 4rem; opacity: 0.8;"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pages accessibles -->
+        <div class="row g-4 mb-5">
+          <!-- Page 1: Accueil -->
+          <div class="col-md-6 col-lg-3">
+            <div class="card page-card h-100">
+              <div class="card-body text-center">
+                <div class="feature-icon">
+                  <i class="bi bi-house"></i>
+                </div>
+                <h5 class="card-title">Accueil</h5>
+                <p class="card-text text-muted">
+                  Tableau de bord principal avec vue d'ensemble des missions et activités
+                </p>
+                <a href="/home.html" class="btn btn-outline-primary">
+                  <i class="bi bi-arrow-right"></i> Accéder
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Page 2: Index -->
+          <div class="col-md-6 col-lg-3">
+            <div class="card page-card h-100">
+              <div class="card-body text-center">
+                <div class="feature-icon">
+                  <i class="bi bi-list-ul"></i>
+                </div>
+                <h5 class="card-title">Index</h5>
+                <p class="card-text text-muted">
+                  Liste détaillée des missions et activités avec filtres et recherche
+                </p>
+                <a href="/index.html" class="btn btn-outline-primary">
+                  <i class="bi bi-arrow-right"></i> Accéder
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Page 3: Planification -->
+          <div class="col-md-6 col-lg-3">
+            <div class="card page-card h-100">
+              <div class="card-body text-center">
+                <div class="feature-icon">
+                  <i class="bi bi-calendar-week"></i>
+                </div>
+                <h5 class="card-title">Planification</h5>
+                <p class="card-text text-muted">
+                  Planification des activités hebdomadaires et mensuelles
+                </p>
+                <div class="mt-3">
+                  <a href="/planning.html" class="btn btn-outline-primary me-2">
+                    <i class="bi bi-arrow-right"></i> Accéder
+                  </a>
+                  <small class="text-success d-block mt-2">
+                    <i class="bi bi-download"></i> Export image disponible
+                  </small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Page 4: Suivi d'Activité -->
+          <div class="col-md-6 col-lg-3">
+            <div class="card page-card h-100">
+              <div class="card-body text-center">
+                <div class="feature-icon">
+                  <i class="bi bi-graph-up"></i>
+                </div>
+                <h5 class="card-title">Suivi d'Activité</h5>
+                <p class="card-text text-muted">
+                  Évaluation et suivi des activités planifiées avec statistiques
+                </p>
+                <div class="mt-3">
+                  <a href="/agent-activity-tracking.html" class="btn btn-outline-primary me-2">
+                    <i class="bi bi-arrow-right"></i> Accéder
+                  </a>
+                  <small class="text-success d-block mt-2">
+                    <i class="bi bi-download"></i> Export image disponible
+                  </small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fonctionnalités détaillées -->
+        <div class="row">
+          <div class="col-lg-6">
+            <div class="card">
+              <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                  <i class="bi bi-gear"></i> Fonctionnalités de Planification
+                </h5>
+              </div>
+              <div class="card-body">
+                <ul class="list-unstyled">
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle text-success"></i>
+                    <strong>Planification hebdomadaire :</strong> Création et gestion des activités par semaine
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle text-success"></i>
+                    <strong>Planification mensuelle :</strong> Vue d'ensemble des activités du mois
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle text-success"></i>
+                    <strong>Récapitulatif :</strong> Résumé des activités planifiées
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle text-success"></i>
+                    <strong>Export image :</strong> Téléchargement en format PNG
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="card">
+              <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                  <i class="bi bi-graph-up"></i> Fonctionnalités de Suivi
+                </h5>
+              </div>
+              <div class="card-body">
+                <ul class="list-unstyled">
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle text-success"></i>
+                    <strong>Évaluation :</strong> Évaluation des activités réalisées
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle text-success"></i>
+                    <strong>Statistiques :</strong> Tableau de bord avec métriques
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle text-success"></i>
+                    <strong>Observations :</strong> Ajout de commentaires et observations
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle text-success"></i>
+                    <strong>Export image :</strong> Téléchargement en format PNG
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Instructions d'utilisation -->
+        <div class="card mt-4">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0">
+              <i class="bi bi-info-circle"></i> Instructions d'Utilisation
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <h6><i class="bi bi-download"></i> Téléchargement d'Images</h6>
+                <ol>
+                  <li>Accédez à la page de planification ou de suivi d'activité</li>
+                  <li>Cliquez sur le bouton "Télécharger en image"</li>
+                  <li>L'image sera générée et téléchargée automatiquement</li>
+                  <li>Le fichier sera nommé avec la date actuelle</li>
+                </ol>
+              </div>
+              <div class="col-md-6">
+                <h6><i class="bi bi-shield-check"></i> Sécurité</h6>
+                <ul>
+                  <li>Connexion requise pour accéder aux pages</li>
+                  <li>Données sécurisées et chiffrées</li>
+                  <li>Export d'images en haute résolution</li>
+                  <li>Archivage local des données</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bouton de retour -->
+        <div class="text-center mt-4">
+          <a href="/home.html" class="btn btn-primary btn-lg">
+            <i class="bi bi-house"></i> Retour à l'Accueil
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+</body>
+</html>

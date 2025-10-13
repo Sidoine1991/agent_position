@@ -7,7 +7,111 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/contrast-fixes.css">
   <style>
+    /* Actions circulaires */
+    .circle-actions {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: wrap !important;
+      gap: 16px;
+      justify-content: center;
+      align-items: center;
+      margin: 20px 0;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      backdrop-filter: blur(10px);
+      width: 100%;
+    }
+    
+    .circle-action {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 50%;
+      color: white;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .circle-action:hover {
+      transform: translateY(-5px) scale(1.1);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+      color: white;
+      text-decoration: none;
+    }
+    
+    .circle-action-active {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+      transform: scale(1.1);
+      box-shadow: 0 6px 20px rgba(245, 87, 108, 0.4);
+    }
+    
+    .circle-action .icon {
+      font-size: 24px;
+      margin-bottom: 4px;
+    }
+    
+    .circle-action .label {
+      font-size: 10px;
+      font-weight: 600;
+      text-align: center;
+      line-height: 1.2;
+    }
+    
+    /* Forcer la disposition horizontale du conteneur parent */
+    .navbar-menu {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+    }
+    
+    @media (max-width: 768px) {
+      .circle-action {
+        width: 70px;
+        height: 70px;
+      }
+      .circle-action .icon {
+        font-size: 20px;
+      }
+      .circle-action .label {
+        font-size: 9px;
+      }
+      
+      .circle-actions {
+        gap: 12px;
+        padding: 15px;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .circle-actions {
+        gap: 8px;
+        padding: 10px;
+      }
+      
+      .circle-action {
+        width: 60px;
+        height: 60px;
+      }
+      
+      .circle-action .icon {
+        font-size: 18px;
+      }
+      
+      .circle-action .label {
+        font-size: 8px;
+      }
+    }
+
     /* Section sélecteur de langue */
     .language-selector-section {
       background: rgba(255, 255, 255, 0.95);
@@ -104,26 +208,18 @@
       </a>
     </div>
     <div class="navbar-menu">
-      <a href="/index.html" class="navbar-link" id="presence-link">
-        <span class="navbar-icon">📍</span>
-        <span data-translate="nav.presence">Présence</span>
-      </a>
-      <a href="/planning.html" class="navbar-link navbar-link-active">
-        <span class="navbar-icon">🗓️</span>
-        <span data-translate="nav.planning">Planification</span>
-      </a>
-      <a href="/profile.html" class="navbar-link">
-        <span class="navbar-icon">👤</span>
-        <span data-translate="nav.profile">Mon Profil</span>
-      </a>
-      <a href="/dashboard.html" class="navbar-link" id="dashboard-link">
-        <span class="navbar-icon">📊</span>
-        <span data-translate="nav.dashboard">Tableau de bord</span>
-      </a>
-      <a href="/reports.html" class="navbar-link" id="reports-link">
-        <span class="navbar-icon">📈</span>
-        <span data-translate="nav.reports">Rapports</span>
-      </a>
+      <!-- Actions circulaires stylées -->
+      <div class="circle-actions" id="circle-actions" style="margin-top:12px; display:flex">
+        <a href="/index.html?stay=true" class="circle-action" id="presence-link"><div class="icon">📍</div><div class="label">Présence</div></a>
+        <a href="/planning.html" class="circle-action circle-action-active" id="planning-link"><div class="icon">🗓️</div><div class="label">Planification</div></a>
+        <a href="/agent-activity-tracking.html" class="circle-action" id="activity-link"><div class="icon">📋</div><div class="label">Suivi Activité</div></a>
+        <a href="/dashboard.html" class="circle-action" id="dashboard-link"><div class="icon">📊</div><div class="label">Dashboard</div></a>
+        <a href="/profile.html" class="circle-action" id="profile-link"><div class="icon">👤</div><div class="label">Profil</div></a>
+        <a href="/admin-agents.html" class="circle-action" id="agents-link"><div class="icon">👥</div><div class="label">Agents</div></a>
+        <a href="/reports.html" class="circle-action" id="reports-link"><div class="icon">📈</div><div class="label">Rapports</div></a>
+        <a href="/admin.html" class="circle-action" id="admin-link"><div class="icon">⚙️</div><div class="label">Administration</div></a>
+        <a href="/help.html" class="circle-action" id="help-link"><div class="icon">❓</div><div class="label">Aide</div></a>
+      </div>
       <div class="navbar-user" id="navbar-user">
         <span class="navbar-user-info" id="user-info">Chargement...</span>
         <button type="button" class="navbar-logout" onclick="logout()">
@@ -200,9 +296,14 @@
           <i class="bi bi-calendar-week"></i>
           <span data-translate="planning.weekly.summary">Récap des activités planifiées par semaine</span>
         </div>
-        <button id="refresh-weekly-summary" class="btn btn-sm btn-outline-primary">
-          <i class="bi bi-arrow-clockwise"></i> <span data-translate="planning.refresh">Actualiser</span>
-        </button>
+        <div class="d-flex gap-2">
+          <button id="refresh-weekly-summary" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-arrow-clockwise"></i> <span data-translate="planning.refresh">Actualiser</span>
+          </button>
+          <button id="download-planning-image" class="btn btn-sm btn-outline-info">
+            <i class="bi bi-download"></i> Télécharger en image
+          </button>
+        </div>
       </div>
       <div class="card-body">
         <div class="mb-2 small text-muted" data-translate="planning.summary.info">Résumé des activités planifiées regroupées par semaine avec possibilité d'édition.</div>
@@ -239,6 +340,7 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="/app.js?v=5"></script>
   <script src="/planning.js"></script>
   <script src="/translations.js"></script>

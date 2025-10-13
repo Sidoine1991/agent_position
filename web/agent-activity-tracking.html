@@ -6,7 +6,111 @@
   <title>Suivi d'Activité Agent - Presence CCR-B</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/contrast-fixes.css">
   <style>
+    /* Actions circulaires */
+    .circle-actions {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: wrap !important;
+      gap: 16px;
+      justify-content: center;
+      align-items: center;
+      margin: 20px 0;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      backdrop-filter: blur(10px);
+      width: 100%;
+    }
+    
+    .circle-action {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 50%;
+      color: white;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .circle-action:hover {
+      transform: translateY(-5px) scale(1.1);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+      color: white;
+      text-decoration: none;
+    }
+    
+    .circle-action-active {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+      transform: scale(1.1);
+      box-shadow: 0 6px 20px rgba(245, 87, 108, 0.4);
+    }
+    
+    .circle-action .icon {
+      font-size: 24px;
+      margin-bottom: 4px;
+    }
+    
+    .circle-action .label {
+      font-size: 10px;
+      font-weight: 600;
+      text-align: center;
+      line-height: 1.2;
+    }
+    
+    /* Forcer la disposition horizontale du conteneur parent */
+    .navbar-menu {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+    }
+    
+    @media (max-width: 768px) {
+      .circle-action {
+        width: 70px;
+        height: 70px;
+      }
+      .circle-action .icon {
+        font-size: 20px;
+      }
+      .circle-action .label {
+        font-size: 9px;
+      }
+      
+      .circle-actions {
+        gap: 12px;
+        padding: 15px;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .circle-actions {
+        gap: 8px;
+        padding: 10px;
+      }
+      
+      .circle-action {
+        width: 60px;
+        height: 60px;
+      }
+      
+      .circle-action .icon {
+        font-size: 18px;
+      }
+      
+      .circle-action .label {
+        font-size: 8px;
+      }
+    }
+
     .status-button {
       width: 80px;
       height: 80px;
@@ -66,6 +170,289 @@
       font-size: 0.8em;
       padding: 0.25em 0.5em;
     }
+
+    /* Styles pour le tableau éditable */
+    .table-editable {
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .table-editable th {
+      background-color: #f8f9fa;
+      border-bottom: 2px solid #dee2e6;
+      font-weight: 600;
+      font-size: 0.875rem;
+      padding: 0.75rem 0.5rem;
+    }
+
+    .table-editable td {
+      padding: 0.5rem;
+      vertical-align: middle;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .table-editable input, .table-editable select, .table-editable textarea {
+      border: 1px solid #ced4da;
+      border-radius: 0.25rem;
+      padding: 0.375rem 0.5rem;
+      font-size: 0.875rem;
+      width: 100%;
+    }
+
+    .table-editable input:focus, .table-editable select:focus, .table-editable textarea:focus {
+      border-color: #86b7fe;
+      outline: 0;
+      box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+
+    .table-editable .status-select {
+      min-width: 120px;
+    }
+
+    .table-editable .observations-textarea {
+      min-height: 60px;
+      resize: vertical;
+    }
+
+    .table-editable .btn-sm {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+    }
+
+    .table-editable .btn-danger {
+      background-color: #dc3545;
+      border-color: #dc3545;
+    }
+
+    .table-editable .btn-danger:hover {
+      background-color: #c82333;
+      border-color: #bd2130;
+    }
+
+    .activity-row-new {
+      background-color: #fff3cd;
+    }
+
+    .activity-row-modified {
+      background-color: #d1ecf1;
+    }
+
+    .activity-row-saved {
+      background-color: #d4edda;
+    }
+
+    /* Styles pour les statistiques horizontales */
+    .bg-gradient-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .stats-horizontal {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: space-between;
+      align-items: stretch;
+    }
+
+    .stat-item {
+      flex: 1;
+      min-width: 120px;
+      background: #fff;
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+      transition: all 0.3s ease;
+      border: 1px solid #e9ecef;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .stat-item::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--stat-color);
+    }
+
+    .stat-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .stat-item.stat-success {
+      --stat-color: #28a745;
+    }
+
+    .stat-item.stat-primary {
+      --stat-color: #007bff;
+    }
+
+    .stat-item.stat-danger {
+      --stat-color: #dc3545;
+    }
+
+    .stat-item.stat-warning {
+      --stat-color: #ffc107;
+    }
+
+    .stat-item.stat-secondary {
+      --stat-color: #6c757d;
+    }
+
+    .stat-item.stat-info {
+      --stat-color: #17a2b8;
+    }
+
+    .stat-icon {
+      font-size: 1.25rem;
+      margin-bottom: 0.5rem;
+      opacity: 0.8;
+    }
+
+    .stat-success .stat-icon {
+      color: #28a745;
+    }
+
+    .stat-primary .stat-icon {
+      color: #007bff;
+    }
+
+    .stat-danger .stat-icon {
+      color: #dc3545;
+    }
+
+    .stat-warning .stat-icon {
+      color: #ffc107;
+    }
+
+    .stat-secondary .stat-icon {
+      color: #6c757d;
+    }
+
+    .stat-info .stat-icon {
+      color: #17a2b8;
+    }
+
+    .stat-number {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+      color: #2c3e50;
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #6c757d;
+      margin-bottom: 0.25rem;
+      line-height: 1.2;
+    }
+
+    .stat-percentage {
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: #adb5bd;
+      line-height: 1;
+    }
+
+    .progress {
+      border-radius: 10px;
+      background-color: #e9ecef;
+    }
+
+    .progress-bar {
+      border-radius: 10px;
+      transition: width 0.6s ease;
+    }
+
+    .bg-gradient-success {
+      background: linear-gradient(90deg, #28a745, #20c997);
+    }
+
+    /* Responsive pour les statistiques */
+    @media (max-width: 1200px) {
+      .stats-horizontal {
+        gap: 0.75rem;
+      }
+      
+      .stat-item {
+        min-width: 100px;
+        padding: 0.75rem;
+      }
+      
+      .stat-number {
+        font-size: 1.25rem;
+      }
+      
+      .stat-icon {
+        font-size: 1rem;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .stats-horizontal {
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+      
+      .stat-item {
+        min-width: 80px;
+        padding: 0.5rem;
+        flex: 1 1 calc(33.333% - 0.5rem);
+      }
+      
+      .stat-number {
+        font-size: 1rem;
+      }
+      
+      .stat-icon {
+        font-size: 0.875rem;
+      }
+      
+      .stat-label {
+        font-size: 0.65rem;
+      }
+      
+      .stat-percentage {
+        font-size: 0.6rem;
+      }
+    }
+    
+    @media (max-width: 576px) {
+      .stats-horizontal {
+        gap: 0.25rem;
+      }
+      
+      .stat-item {
+        min-width: 70px;
+        padding: 0.4rem;
+        flex: 1 1 calc(50% - 0.25rem);
+      }
+      
+      .stat-number {
+        font-size: 0.875rem;
+      }
+      
+      .stat-icon {
+        font-size: 0.75rem;
+      }
+      
+      .stat-label {
+        font-size: 0.6rem;
+      }
+      
+      .stat-percentage {
+        font-size: 0.55rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -80,34 +467,19 @@
       </a>
     </div>
     <div class="navbar-menu">
-      <a href="/index.html" class="navbar-link">
-        <span class="navbar-icon">📍</span>
-        <span>Présence</span>
-      </a>
-      <a href="/planning.html" class="navbar-link">
-        <span class="navbar-icon">🗓️</span>
-        <span>Planification</span>
-      </a>
-      <a href="/agent-activity-tracking.html" class="navbar-link navbar-link-active">
-        <span class="navbar-icon">📋</span>
-        <span>Suivi Activité</span>
-      </a>
-      <a href="/profile.html" class="navbar-link">
-        <span class="navbar-icon">👤</span>
-        <span>Mon Profil</span>
-      </a>
-      <a href="/dashboard.html" class="navbar-link" id="dashboard-link">
-        <span class="navbar-icon">📊</span>
-        <span>Tableau de bord</span>
-      </a>
-      <a href="/reports.html" class="navbar-link" id="reports-link">
-        <span class="navbar-icon">📈</span>
-        <span>Rapports</span>
-      </a>
-      <a href="/project-summary.html" class="navbar-link">
-        <span class="navbar-icon">📋</span>
-        <span>Synthèse Projets</span>
-      </a>
+      <!-- Actions circulaires stylées -->
+      <div class="circle-actions" id="circle-actions" style="margin-top:12px; display:flex">
+        <a href="/index.html?stay=true" class="circle-action" id="presence-link"><div class="icon">📍</div><div class="label">Présence</div></a>
+        <a href="/planning.html" class="circle-action" id="planning-link"><div class="icon">🗓️</div><div class="label">Planification</div></a>
+        <a href="/agent-activity-tracking.html" class="circle-action circle-action-active" id="activity-link"><div class="icon">📋</div><div class="label">Suivi Activité</div></a>
+        <a href="/dashboard.html" class="circle-action" id="dashboard-link"><div class="icon">📊</div><div class="label">Dashboard</div></a>
+        <a href="/profile.html" class="circle-action" id="profile-link"><div class="icon">👤</div><div class="label">Profil</div></a>
+        <a href="/admin-agents.html" class="circle-action" id="agents-link"><div class="icon">👥</div><div class="label">Agents</div></a>
+        <a href="/reports.html" class="circle-action" id="reports-link"><div class="icon">📈</div><div class="label">Rapports</div></a>
+        <a href="/project-summary.html" class="circle-action" id="project-link"><div class="icon">📋</div><div class="label">Synthèse Projets</div></a>
+        <a href="/admin.html" class="circle-action" id="admin-link"><div class="icon">⚙️</div><div class="label">Administration</div></a>
+        <a href="/help.html" class="circle-action" id="help-link"><div class="icon">❓</div><div class="label">Aide</div></a>
+      </div>
       <div class="navbar-user" id="navbar-user">
         <span class="navbar-user-info" id="user-info">Chargement...</span>
         <button type="button" class="navbar-logout" onclick="logout()">
@@ -154,36 +526,97 @@
       </div>
     </div>
 
-    <!-- Statistiques rapides -->
+    <!-- Statistiques du jour - Design moderne -->
     <div class="row mb-4">
-      <div class="col-md-12">
-        <div class="card">
-          <div class="card-body">
-            <h6 class="card-title">Statistiques du jour</h6>
-            <div class="row text-center">
-              <div class="col-md-2">
-                <div class="text-success fw-bold" id="count-realise">0</div>
-                <small class="text-muted">Réalisé</small>
+      <div class="col-12">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-gradient-primary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">
+                <i class="fas fa-chart-pie me-2"></i>
+                Statistiques du jour
+              </h5>
+              <span class="badge bg-light text-dark" id="current-date-badge">Aujourd'hui</span>
+            </div>
+          </div>
+          <div class="card-body p-4">
+            <!-- Statistiques horizontales compactes -->
+            <div class="stats-horizontal">
+              <div class="stat-item stat-success">
+                <div class="stat-icon">
+                  <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-number" id="count-realise">0</div>
+                  <div class="stat-label">Réalisé</div>
+                  <div class="stat-percentage" id="percent-realise">0%</div>
+                </div>
               </div>
-              <div class="col-md-2">
-                <div class="text-primary fw-bold" id="count-partiellement">0</div>
-                <small class="text-muted">Partiellement</small>
+              
+              <div class="stat-item stat-primary">
+                <div class="stat-icon">
+                  <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-number" id="count-partiellement">0</div>
+                  <div class="stat-label">Partiellement</div>
+                  <div class="stat-percentage" id="percent-partiellement">0%</div>
+                </div>
               </div>
-              <div class="col-md-2">
-                <div class="text-danger fw-bold" id="count-non-realise">0</div>
-                <small class="text-muted">Non réalisé</small>
+              
+              <div class="stat-item stat-danger">
+                <div class="stat-icon">
+                  <i class="fas fa-times-circle"></i>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-number" id="count-non-realise">0</div>
+                  <div class="stat-label">Non réalisé</div>
+                  <div class="stat-percentage" id="percent-non-realise">0%</div>
+                </div>
               </div>
-              <div class="col-md-2">
-                <div class="text-warning fw-bold" id="count-en-cours">0</div>
-                <small class="text-muted">En cours</small>
+              
+              <div class="stat-item stat-warning">
+                <div class="stat-icon">
+                  <i class="fas fa-spinner"></i>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-number" id="count-en-cours">0</div>
+                  <div class="stat-label">En cours</div>
+                  <div class="stat-percentage" id="percent-en-cours">0%</div>
+                </div>
               </div>
-              <div class="col-md-2">
-                <div class="text-secondary fw-bold" id="count-sans-resultat">0</div>
-                <small class="text-muted">Sans résultat</small>
+              
+              <div class="stat-item stat-secondary">
+                <div class="stat-icon">
+                  <i class="fas fa-question-circle"></i>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-number" id="count-sans-resultat">0</div>
+                  <div class="stat-label">Sans résultat</div>
+                  <div class="stat-percentage" id="percent-sans-resultat">0%</div>
+                </div>
               </div>
-              <div class="col-md-2">
-                <div class="text-info fw-bold" id="count-total">0</div>
-                <small class="text-muted">Total</small>
+              
+              <div class="stat-item stat-info">
+                <div class="stat-icon">
+                  <i class="fas fa-list-alt"></i>
+                </div>
+                <div class="stat-content">
+                  <div class="stat-number" id="count-total">0</div>
+                  <div class="stat-label">Total</div>
+                  <div class="stat-percentage">100%</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Barre de progression globale -->
+            <div class="mt-4">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="fw-semibold">Progression globale</span>
+                <span class="text-muted" id="global-progress-text">0% complété</span>
+              </div>
+              <div class="progress" style="height: 8px;">
+                <div class="progress-bar bg-gradient-success" role="progressbar" id="global-progress-bar" style="width: 0%"></div>
               </div>
             </div>
           </div>
@@ -191,40 +624,54 @@
       </div>
     </div>
 
-    <!-- Liste des activités -->
-    <div id="activities-container">
-      <div class="text-center text-muted py-5">
-        <div class="spinner-border" role="status">
-          <span class="visually-hidden">Chargement...</span>
+    <!-- Tableau éditable des activités -->
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Évaluation des Activités</h6>
+        <div>
+          <button type="button" class="btn btn-success btn-sm" id="add-activity-row">
+            <i class="fas fa-plus"></i> Ajouter une activité
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" id="save-all-activities">
+            <i class="fas fa-save"></i> Enregistrer tout
+          </button>
+          <button type="button" class="btn btn-info btn-sm" id="download-activity-image">
+            <i class="fas fa-download"></i> Télécharger en image
+          </button>
         </div>
-        <div class="mt-2">Chargement des activités...</div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0 table-editable" id="activities-table">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 8%">Date</th>
+                <th style="width: 12%">Heure Début</th>
+                <th style="width: 12%">Heure Fin</th>
+                <th style="width: 20%">Projet</th>
+                <th style="width: 25%">Description</th>
+                <th style="width: 10%">Statut</th>
+                <th style="width: 13%">Observations</th>
+                <th style="width: 5%">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="activities-tbody">
+              <tr>
+                <td colspan="8" class="text-center text-muted py-4">
+                  <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                  Chargement des activités...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <!-- Modal pour les observations -->
-    <div class="modal fade" id="observationsModal" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Observations</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <div class="mb-3">
-              <label for="observations-text" class="form-label">Motifs et observations:</label>
-              <textarea id="observations-text" class="form-control" rows="4" placeholder="Expliquez les raisons de la non-réalisation ou les détails supplémentaires..."></textarea>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-            <button type="button" class="btn btn-primary" id="save-observations">Enregistrer</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="/app.js?v=5"></script>
   <script src="/agent-activity-tracking.js"></script>
 </body>

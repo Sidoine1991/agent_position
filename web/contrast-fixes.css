@@ -1,0 +1,342 @@
+/* Correction des contrastes pour une meilleure lisibilité */
+
+/* 1. Navbar - Amélioration des contrastes */
+.navbar {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%) !important;
+  color: white !important;
+}
+
+.navbar-title h1 {
+  color: white !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.navbar-subtitle {
+  color: rgba(255, 255, 255, 0.9) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.navbar-link {
+  color: white !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.navbar-link:hover {
+  color: white !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.navbar-link-active {
+  color: white !important;
+  background: rgba(255, 255, 255, 0.3) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.navbar-icon {
+  color: white !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.navbar-user-info {
+  color: white !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.navbar-logout {
+  color: white !important;
+  background: rgba(239, 68, 68, 0.3) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.navbar-logout:hover {
+  color: white !important;
+  background: rgba(239, 68, 68, 0.5) !important;
+}
+
+/* 2. Boutons circulaires - Amélioration des contrastes */
+.circle-action {
+  color: white !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.circle-action .icon {
+  color: white !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.circle-action .label {
+  color: white !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  font-weight: 600;
+}
+
+.circle-action:hover {
+  color: white !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.circle-action:hover .icon {
+  color: white !important;
+}
+
+.circle-action:hover .label {
+  color: white !important;
+}
+
+/* 3. Cartes et conteneurs avec fond sombre */
+.card {
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: #1a1a2e !important;
+}
+
+.card-header {
+  background: rgba(26, 26, 46, 0.1) !important;
+  color: #1a1a2e !important;
+  border-bottom: 1px solid rgba(26, 26, 46, 0.1);
+}
+
+.card-body {
+  color: #1a1a2e !important;
+}
+
+/* 4. Formulaires */
+.form-control {
+  background: white !important;
+  color: #1a1a2e !important;
+  border: 1px solid #ddd;
+}
+
+.form-control:focus {
+  background: white !important;
+  color: #1a1a2e !important;
+  border-color: #667eea;
+  box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+.form-label {
+  color: #1a1a2e !important;
+  font-weight: 600;
+}
+
+/* 5. Boutons */
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  color: white !important;
+  border: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%) !important;
+  color: white !important;
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: #6c757d !important;
+  color: white !important;
+  border: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.btn-secondary:hover {
+  background: #5a6268 !important;
+  color: white !important;
+}
+
+.btn-success {
+  background: #28a745 !important;
+  color: white !important;
+  border: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.btn-success:hover {
+  background: #218838 !important;
+  color: white !important;
+}
+
+.btn-danger {
+  background: #dc3545 !important;
+  color: white !important;
+  border: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.btn-danger:hover {
+  background: #c82333 !important;
+  color: white !important;
+}
+
+/* 6. Tableaux */
+.table {
+  background: white !important;
+  color: #1a1a2e !important;
+}
+
+.table th {
+  background: rgba(26, 26, 46, 0.1) !important;
+  color: #1a1a2e !important;
+  font-weight: 600;
+  border-bottom: 2px solid rgba(26, 26, 46, 0.1);
+}
+
+.table td {
+  color: #1a1a2e !important;
+  border-bottom: 1px solid rgba(26, 26, 46, 0.1);
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+  background: rgba(26, 26, 46, 0.05) !important;
+}
+
+/* 7. Alertes */
+.alert {
+  color: #1a1a2e !important;
+  border: 1px solid rgba(26, 26, 46, 0.2);
+}
+
+.alert-success {
+  background: rgba(40, 167, 69, 0.1) !important;
+  color: #155724 !important;
+  border-color: rgba(40, 167, 69, 0.3);
+}
+
+.alert-danger {
+  background: rgba(220, 53, 69, 0.1) !important;
+  color: #721c24 !important;
+  border-color: rgba(220, 53, 69, 0.3);
+}
+
+.alert-warning {
+  background: rgba(255, 193, 7, 0.1) !important;
+  color: #856404 !important;
+  border-color: rgba(255, 193, 7, 0.3);
+}
+
+.alert-info {
+  background: rgba(23, 162, 184, 0.1) !important;
+  color: #0c5460 !important;
+  border-color: rgba(23, 162, 184, 0.3);
+}
+
+/* 8. Modales */
+.modal-content {
+  background: white !important;
+  color: #1a1a2e !important;
+}
+
+.modal-header {
+  background: rgba(26, 26, 46, 0.05) !important;
+  color: #1a1a2e !important;
+  border-bottom: 1px solid rgba(26, 26, 46, 0.1);
+}
+
+.modal-body {
+  color: #1a1a2e !important;
+}
+
+.modal-footer {
+  background: rgba(26, 26, 46, 0.05) !important;
+  color: #1a1a2e !important;
+  border-top: 1px solid rgba(26, 26, 46, 0.1);
+}
+
+/* 9. Dropdowns */
+.dropdown-menu {
+  background: white !important;
+  color: #1a1a2e !important;
+  border: 1px solid rgba(26, 26, 46, 0.1);
+}
+
+.dropdown-item {
+  color: #1a1a2e !important;
+}
+
+.dropdown-item:hover {
+  background: rgba(26, 26, 46, 0.1) !important;
+  color: #1a1a2e !important;
+}
+
+/* 10. Navigation mobile */
+@media (max-width: 768px) {
+  .navbar-menu {
+    background: rgba(26, 26, 46, 0.95) !important;
+    backdrop-filter: blur(20px);
+  }
+  
+  .navbar-link {
+    color: white !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+  
+  .navbar-link:hover {
+    background: rgba(255, 255, 255, 0.2) !important;
+    color: white !important;
+  }
+  
+  .navbar-link-active {
+    background: rgba(255, 255, 255, 0.3) !important;
+    color: white !important;
+  }
+}
+
+/* 11. Textes généraux sur fond sombre */
+.text-dark {
+  color: #1a1a2e !important;
+}
+
+.text-light {
+  color: rgba(255, 255, 255, 0.9) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.text-white {
+  color: white !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* 12. Liens */
+a {
+  color: #667eea !important;
+}
+
+a:hover {
+  color: #5a6fd8 !important;
+}
+
+/* 13. Amélioration des contrastes pour les éléments avec fond sombre */
+.bg-dark {
+  background: #1a1a2e !important;
+  color: white !important;
+}
+
+.bg-primary {
+  background: #667eea !important;
+  color: white !important;
+}
+
+.bg-secondary {
+  background: #6c757d !important;
+  color: white !important;
+}
+
+.bg-success {
+  background: #28a745 !important;
+  color: white !important;
+}
+
+.bg-danger {
+  background: #dc3545 !important;
+  color: white !important;
+}
+
+.bg-warning {
+  background: #ffc107 !important;
+  color: #1a1a2e !important;
+}
+
+.bg-info {
+  background: #17a2b8 !important;
+  color: white !important;
+}

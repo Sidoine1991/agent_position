@@ -750,6 +750,7 @@
     $('load-week').addEventListener('click', () => loadWeek($('week-start').value));
     $('load-month').addEventListener('click', () => loadMonth($('month').value));
     $('refresh-weekly-summary').addEventListener('click', () => loadWeeklySummary());
+    $('download-planning-image').addEventListener('click', () => downloadPlanningImage());
     $('prev-week').addEventListener('click', () => {
       const d = new Date($('week-start').value || new Date());
       d.setDate(d.getDate() - 7);
@@ -778,6 +779,90 @@
       });
     }
   });
+
+  // Télécharger la page de planification en image
+  async function downloadPlanningImage() {
+    try {
+      // Afficher un message de chargement
+      const button = document.getElementById('download-planning-image');
+      const originalText = button.innerHTML;
+      button.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Génération...';
+      button.disabled = true;
+
+      // Capturer la zone principale (sans la navbar)
+      const mainContent = document.querySelector('.container');
+      
+      const canvas = await html2canvas(mainContent, {
+        backgroundColor: '#ffffff',
+        scale: 2, // Haute résolution
+        useCORS: true,
+        allowTaint: true,
+        scrollX: 0,
+        scrollY: 0,
+        width: mainContent.scrollWidth,
+        height: mainContent.scrollHeight
+      });
+
+      // Créer le lien de téléchargement
+      const link = document.createElement('a');
+      const today = new Date().toISOString().split('T')[0];
+      const filename = `planification-${today}.png`;
+      
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      
+      // Déclencher le téléchargement
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Restaurer le bouton
+      button.innerHTML = originalText;
+      button.disabled = false;
+
+      // Afficher un message de succès
+      const alertDiv = document.createElement('div');
+      alertDiv.className = 'alert alert-success alert-dismissible fade show position-fixed';
+      alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+      alertDiv.innerHTML = `
+        <i class="bi bi-check-circle"></i> Image téléchargée avec succès
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      `;
+      document.body.appendChild(alertDiv);
+      
+      // Supprimer l'alerte après 3 secondes
+      setTimeout(() => {
+        if (alertDiv.parentNode) {
+          alertDiv.remove();
+        }
+      }, 3000);
+
+    } catch (error) {
+      console.error('Erreur téléchargement image:', error);
+      
+      // Restaurer le bouton en cas d'erreur
+      const button = document.getElementById('download-planning-image');
+      button.innerHTML = '<i class="bi bi-download"></i> Télécharger en image';
+      button.disabled = false;
+
+      // Afficher un message d'erreur
+      const alertDiv = document.createElement('div');
+      alertDiv.className = 'alert alert-danger alert-dismissible fade show position-fixed';
+      alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+      alertDiv.innerHTML = `
+        <i class="bi bi-exclamation-triangle"></i> Erreur lors du téléchargement de l'image
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      `;
+      document.body.appendChild(alertDiv);
+      
+      // Supprimer l'alerte après 5 secondes
+      setTimeout(() => {
+        if (alertDiv.parentNode) {
+          alertDiv.remove();
+        }
+      }, 5000);
+    }
+  }
 })();
 
 // Exposer les fonctions nécessaires globalement pour l'interface
