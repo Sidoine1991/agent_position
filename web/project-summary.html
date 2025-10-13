@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Synthèse Projets - Presence CCR-B</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/contrast-fixes.css">
+  <link rel="stylesheet" href="/styles-theme.css">
+  <link rel="icon" href="/Media/logo-ccrb.png">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <a href="/index.html?stay=true" class="navbar-brand-link" style="display:flex;align-items:center;text-decoration:none;color:inherit">
+        <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
+        <div class="navbar-title">
+          <h1>Presence CCRB</h1>
+          <span class="navbar-subtitle">Synthèse Projets</span>
+        </div>
+      </a>
+    </div>
+    <div class="navbar-menu">
+      <a href="/index.html?stay=true" class="navbar-link"><span class="navbar-icon">📍</span>Présence</a>
+      <a href="/planning.html" class="navbar-link"><span class="navbar-icon">🗓️</span>Planification</a>
+      <a href="/agent-activity-tracking.html" class="navbar-link"><span class="navbar-icon">📋</span>Suivi Activité</a>
+      <a href="/profile.html" class="navbar-link"><span class="navbar-icon">👤</span>Profil</a>
+      <a href="/dashboard.html" class="navbar-link"><span class="navbar-icon">📊</span>Dashboard</a>
+    </div>
+  </nav>
+
+  <div class="container" style="padding:16px">
+    <h2 style="margin:12px 0">Synthèse des Projets</h2>
+    <p class="text-muted">Basée sur le champ projet renseigné par les agents lors de l'inscription.</p>
+
+    <div class="card" style="padding:12px">
+      <div class="table-responsive">
+        <table class="table table-striped" id="projects-table">
+          <thead>
+            <tr>
+              <th>Projet</th>
+              <th>Nombre d'agents</th>
+            </tr>
+          </thead>
+          <tbody id="projects-tbody">
+            <tr><td colspan="2" class="text-muted">Chargement...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js?v=5"></script>
+  <script src="/project-summary.js"></script>
+</body>
+</html>
+
