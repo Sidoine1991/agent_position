@@ -67,6 +67,40 @@
     .user-info-badge i {
       font-size: 0.8rem;
     }
+
+    /* Optimisations pour format A3 */
+    @media print, (min-width: 3500px) {
+      .container {
+        max-width: none;
+        width: 100%;
+      }
+      
+      .card {
+        margin-bottom: 20px;
+        width: 100%;
+      }
+      
+      table {
+        font-size: 14px;
+        width: 100%;
+      }
+      
+      table th,
+      table td {
+        padding: 12px 8px;
+        white-space: nowrap;
+      }
+      
+      .gantt-container {
+        width: 100%;
+        overflow: visible;
+      }
+      
+      .weekly-summary {
+        width: 100%;
+        overflow: visible;
+      }
+    }
     
     .circle-action-active {
       background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;

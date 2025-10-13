@@ -733,18 +733,95 @@
       button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Génération...';
       button.disabled = true;
 
+      // Attendre un peu pour que tous les éléments soient rendus
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Capturer la zone principale (sans la navbar)
       const mainContent = document.querySelector('.container');
       
+      // Forcer le rendu des éléments avant la capture
+      const statsSection = mainContent.querySelector('.stats-horizontal');
+      const tableSection = mainContent.querySelector('.table-editable');
+      
+      if (statsSection) {
+        statsSection.style.transform = 'translateZ(0)';
+        statsSection.style.willChange = 'transform';
+      }
+      
+      if (tableSection) {
+        tableSection.style.transform = 'translateZ(0)';
+        tableSection.style.willChange = 'transform';
+      }
+      
+      // Calculer les dimensions A3 (en pixels à 300 DPI)
+      const A3_WIDTH = 3508; // Largeur A3 en pixels
+      const A3_HEIGHT = 4961; // Hauteur A3 en pixels
+      
+      // Capturer tout le contenu avec dimensions A3
       const canvas = await html2canvas(mainContent, {
         backgroundColor: '#ffffff',
-        scale: 2, // Haute résolution
+        scale: 2, // Scale réduit pour éviter les problèmes de mémoire
         useCORS: true,
         allowTaint: true,
         scrollX: 0,
         scrollY: 0,
-        width: mainContent.scrollWidth,
-        height: mainContent.scrollHeight
+        width: A3_WIDTH,
+        height: A3_HEIGHT,
+        logging: false,
+        removeContainer: true,
+        foreignObjectRendering: true,
+        imageTimeout: 30000, // Timeout augmenté pour les grandes images
+        onclone: function(clonedDoc) {
+          // Améliorer la qualité des éléments clonés
+          const clonedMain = clonedDoc.querySelector('.container');
+          if (clonedMain) {
+            // Forcer les dimensions A3
+            clonedMain.style.width = A3_WIDTH + 'px';
+            clonedMain.style.minHeight = A3_HEIGHT + 'px';
+            clonedMain.style.overflow = 'visible';
+            
+            // Forcer le rendu des éléments flottants
+            const statsSection = clonedMain.querySelector('.stats-horizontal');
+            if (statsSection) {
+              statsSection.style.position = 'relative';
+              statsSection.style.zIndex = '10';
+              statsSection.style.width = '100%';
+            }
+            
+            // Améliorer la qualité du tableau
+            const table = clonedMain.querySelector('.table-editable');
+            if (table) {
+              table.style.position = 'relative';
+              table.style.zIndex = '10';
+              table.style.backgroundColor = '#ffffff';
+              table.style.width = '100%';
+            }
+            
+            // Forcer le rendu des cartes
+            const cards = clonedMain.querySelectorAll('.card');
+            cards.forEach(card => {
+              card.style.position = 'relative';
+              card.style.zIndex = '5';
+              card.style.backgroundColor = '#ffffff';
+              card.style.width = '100%';
+              card.style.marginBottom = '20px';
+            });
+            
+            // Ajuster les colonnes pour le format A3
+            const rows = clonedMain.querySelectorAll('.row');
+            rows.forEach(row => {
+              row.style.width = '100%';
+              row.style.marginBottom = '15px';
+            });
+            
+            // Ajuster le tableau pour qu'il s'étende sur toute la largeur
+            const tableContainer = clonedMain.querySelector('.table-responsive');
+            if (tableContainer) {
+              tableContainer.style.width = '100%';
+              tableContainer.style.overflow = 'visible';
+            }
+          }
+        }
       });
 
       // Créer le lien de téléchargement

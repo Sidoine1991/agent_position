@@ -489,6 +489,63 @@
       position: relative;
       z-index: 1;
     }
+
+    /* Amélioration qualité pour capture d'écran */
+    .stats-horizontal {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    .table-editable {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    .stat-item {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    /* Forcer le rendu des éléments lors de la capture */
+    .container {
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+    }
+
+    /* Optimisations pour format A3 */
+    @media print, (min-width: 3500px) {
+      .container {
+        max-width: none;
+        width: 100%;
+      }
+      
+      .stats-horizontal {
+        flex-wrap: nowrap;
+        justify-content: space-around;
+      }
+      
+      .stat-item {
+        flex: 1;
+        min-width: 200px;
+      }
+      
+      .table-editable {
+        font-size: 14px;
+      }
+      
+      .table-editable th,
+      .table-editable td {
+        padding: 12px 8px;
+        white-space: nowrap;
+      }
+      
+      .card {
+        margin-bottom: 20px;
+      }
+    }
   </style>
 </head>
 <body>

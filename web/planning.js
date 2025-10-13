@@ -831,15 +831,81 @@
       // Capturer la zone principale (sans la navbar)
       const mainContent = document.querySelector('.container');
       
+      // Calculer les dimensions A3 (en pixels à 300 DPI)
+      const A3_WIDTH = 3508; // Largeur A3 en pixels
+      const A3_HEIGHT = 4961; // Hauteur A3 en pixels
+      
+      // Capturer tout le contenu avec dimensions A3
       const canvas = await html2canvas(mainContent, {
         backgroundColor: '#ffffff',
-        scale: 2, // Haute résolution
+        scale: 2, // Scale réduit pour éviter les problèmes de mémoire
         useCORS: true,
         allowTaint: true,
         scrollX: 0,
         scrollY: 0,
-        width: mainContent.scrollWidth,
-        height: mainContent.scrollHeight
+        width: A3_WIDTH,
+        height: A3_HEIGHT,
+        logging: false,
+        removeContainer: true,
+        foreignObjectRendering: true,
+        imageTimeout: 30000, // Timeout augmenté pour les grandes images
+        onclone: function(clonedDoc) {
+          // Améliorer la qualité des éléments clonés
+          const clonedMain = clonedDoc.querySelector('.container');
+          if (clonedMain) {
+            // Forcer les dimensions A3
+            clonedMain.style.width = A3_WIDTH + 'px';
+            clonedMain.style.minHeight = A3_HEIGHT + 'px';
+            clonedMain.style.overflow = 'visible';
+            
+            // Forcer le rendu des éléments flottants
+            const cards = clonedMain.querySelectorAll('.card');
+            cards.forEach(card => {
+              card.style.position = 'relative';
+              card.style.zIndex = '10';
+              card.style.backgroundColor = '#ffffff';
+              card.style.width = '100%';
+              card.style.marginBottom = '20px';
+            });
+            
+            // Améliorer la qualité des tableaux
+            const tables = clonedMain.querySelectorAll('table');
+            tables.forEach(table => {
+              table.style.position = 'relative';
+              table.style.zIndex = '10';
+              table.style.backgroundColor = '#ffffff';
+              table.style.width = '100%';
+            });
+            
+            // Forcer le rendu des éléments de formulaire
+            const formElements = clonedMain.querySelectorAll('input, select, button');
+            formElements.forEach(element => {
+              element.style.position = 'relative';
+              element.style.zIndex = '5';
+            });
+            
+            // Ajuster les colonnes pour le format A3
+            const rows = clonedMain.querySelectorAll('.row');
+            rows.forEach(row => {
+              row.style.width = '100%';
+              row.style.marginBottom = '15px';
+            });
+            
+            // Ajuster les conteneurs de tableaux
+            const tableContainers = clonedMain.querySelectorAll('.table-responsive');
+            tableContainers.forEach(container => {
+              container.style.width = '100%';
+              container.style.overflow = 'visible';
+            });
+            
+            // Ajuster les sections de planification
+            const planningSections = clonedMain.querySelectorAll('.gantt-container, .weekly-summary');
+            planningSections.forEach(section => {
+              section.style.width = '100%';
+              section.style.overflow = 'visible';
+            });
+          }
+        }
       });
 
       // Créer le lien de téléchargement
