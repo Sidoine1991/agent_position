@@ -250,8 +250,19 @@
 
       const headers = await authHeaders();
       
-      // Construire l'URL avec le filtre par agent si applicable
-      let url = `${apiBase}/planifications?from=${currentDate}&to=${currentDate}`;
+      // Construire la période: semaine contenant currentDate (lundi -> dimanche)
+      const base = new Date(currentDate + 'T00:00:00');
+      const day = base.getDay(); // 0=dimanche, 1=lundi
+      const diffToMonday = ((day + 6) % 7); // nombre de jours depuis lundi
+      const monday = new Date(base);
+      monday.setDate(base.getDate() - diffToMonday);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      const fromStr = monday.toISOString().slice(0,10);
+      const toStr = sunday.toISOString().slice(0,10);
+
+      // Construire l'URL pour la période hebdomadaire, avec filtre agent si applicable
+      let url = `${apiBase}/planifications?from=${fromStr}&to=${toStr}`;
       const selectedAgentId = document.getElementById('agent-select').value;
       
       if (isAdmin && selectedAgentId) {
@@ -313,6 +324,9 @@
     }
 
     const filteredActivities = filterActivities();
+
+    // Regrouper par date pour afficher toutes les journées planifiées de la semaine
+    filteredActivities.sort((a,b) => String(a.date).localeCompare(String(b.date)));
     
     tbody.innerHTML = filteredActivities.map(activity => createActivityRow(activity)).join('');
   }
