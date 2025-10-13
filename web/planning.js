@@ -232,6 +232,12 @@
 
   // Fonction pour afficher la modal d'édition de semaine
   function showWeekEditModal(weekStart, weekEnd, weekPlans) {
+    // Supprimer l'ancienne modal si elle existe
+    const existingModal = document.getElementById('weekEditModal');
+    if (existingModal) {
+      existingModal.remove();
+    }
+
     const modal = document.createElement('div');
     modal.className = 'modal fade';
     modal.id = 'weekEditModal';
@@ -250,19 +256,52 @@
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
             <button type="button" class="btn btn-primary" onclick="saveWeekPlanning('${weekStart}', '${weekEnd}')">Sauvegarder</button>
+            <button type="button" class="btn btn-danger" onclick="deleteWeekPlanning('${weekStart}', '${weekEnd}')">Effacer la semaine</button>
           </div>
         </div>
       </div>
     `;
     
     document.body.appendChild(modal);
-    const bsModal = new bootstrap.Modal(modal);
-    bsModal.show();
     
-    // Nettoyer la modal quand elle est fermée
-    modal.addEventListener('hidden.bs.modal', () => {
-      document.body.removeChild(modal);
-    });
+    // Vérifier si Bootstrap est disponible
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+      const bsModal = new bootstrap.Modal(modal);
+      bsModal.show();
+      
+      // Nettoyer la modal quand elle est fermée
+      modal.addEventListener('hidden.bs.modal', () => {
+        if (modal.parentNode) {
+          document.body.removeChild(modal);
+        }
+      });
+    } else {
+      // Fallback si Bootstrap n'est pas disponible
+      console.warn('Bootstrap Modal non disponible, utilisation du fallback');
+      modal.style.display = 'block';
+      modal.style.position = 'fixed';
+      modal.style.top = '0';
+      modal.style.left = '0';
+      modal.style.width = '100%';
+      modal.style.height = '100%';
+      modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+      modal.style.zIndex = '9999';
+      
+      // Ajouter un bouton de fermeture manuel
+      const closeBtn = modal.querySelector('.btn-close');
+      if (closeBtn) {
+        closeBtn.onclick = () => {
+          modal.remove();
+        };
+      }
+      
+      // Fermer en cliquant à l'extérieur
+      modal.onclick = (e) => {
+        if (e.target === modal) {
+          modal.remove();
+        }
+      };
+    }
   }
 
   // Fonction pour générer le contenu d'édition de semaine
@@ -970,9 +1009,49 @@
   }
 })();
 
+// Fonction pour effacer une planification de semaine
+async function deleteWeekPlanning(weekStart, weekEnd) {
+  if (!confirm(`Êtes-vous sûr de vouloir effacer toutes les planifications de la semaine du ${new Date(weekStart).toLocaleDateString()} au ${new Date(weekEnd).toLocaleDateString()} ?`)) {
+    return;
+  }
+
+  try {
+    const headers = await authHeaders();
+    const projectParam = selectedProjectId ? `&project_name=${selectedProjectId}` : '';
+    const agentParam = selectedAgentId ? `&agent_id=${selectedAgentId}` : '';
+    
+    const res = await fetch(`${apiBase}/planifications?from=${weekStart}&to=${weekEnd}${projectParam}${agentParam}`, { 
+      method: 'DELETE',
+      headers 
+    });
+    
+    if (res.ok) {
+      alert('Planification de la semaine effacée avec succès');
+      // Fermer la modal
+      const modal = document.getElementById('weekEditModal');
+      if (modal) {
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        if (bsModal) {
+          bsModal.hide();
+        } else {
+          modal.remove();
+        }
+      }
+      // Recharger le récap hebdomadaire
+      loadWeeklySummary();
+    } else {
+      throw new Error('Erreur lors de la suppression');
+    }
+  } catch (error) {
+    console.error('Erreur suppression planification:', error);
+    alert('Erreur lors de la suppression de la planification');
+  }
+}
+
 // Exposer les fonctions nécessaires globalement pour l'interface
 window.editWeekPlanning = editWeekPlanning;
 window.saveWeekPlanning = saveWeekPlanning;
+window.deleteWeekPlanning = deleteWeekPlanning;
 window.loadWeek = loadWeek;
 window.loadMonth = loadMonth;
 
