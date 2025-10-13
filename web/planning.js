@@ -394,6 +394,7 @@
         // Recharger les données
         await loadWeek(document.getElementById('week-start').value);
         await loadMonth(document.getElementById('month').value);
+        await loadWeeklySummary();
       } else {
         alert('Erreur lors de la sauvegarde de certaines planifications');
       }
@@ -550,6 +551,7 @@
         if (res.ok) {
           await loadWeek($('week-start').value);
           try { await loadMonth($('month').value); } catch {}
+          await loadWeeklySummary();
         } else {
           alert('Erreur enregistrement');
         }
@@ -683,13 +685,34 @@
       const projectParam = selectedProjectId ? `&project_name=${selectedProjectId}` : '';
       const agentParam = selectedAgentId ? `&agent_id=${selectedAgentId}` : '';
       
-      // Obtenir les dates de la semaine actuelle
-      const today = new Date();
-      const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
-      const endOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + 6));
+      // Utiliser la plage de dates du mois sélectionné ou de la semaine actuelle
+      let from, to;
+      const monthInput = document.getElementById('month');
+      const weekInput = document.getElementById('week-start');
       
-      const from = startOfWeek.toISOString().split('T')[0];
-      const to = endOfWeek.toISOString().split('T')[0];
+      if (monthInput && monthInput.value) {
+        // Si un mois est sélectionné, utiliser toute la plage du mois
+        const monthDate = new Date(monthInput.value + '-01');
+        const year = monthDate.getFullYear();
+        const month = monthDate.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        from = toISODate(firstDay);
+        to = toISODate(lastDay);
+      } else if (weekInput && weekInput.value) {
+        // Si une semaine est sélectionnée, utiliser cette semaine
+        const weekStart = new Date(weekInput.value);
+        const weekEnd = addDays(weekStart, 6);
+        from = toISODate(weekStart);
+        to = toISODate(weekEnd);
+      } else {
+        // Par défaut, utiliser la semaine actuelle
+        const today = new Date();
+        const weekStart = startOfWeek(today);
+        const weekEnd = addDays(weekStart, 6);
+        from = toISODate(weekStart);
+        to = toISODate(weekEnd);
+      }
       
       const res = await fetch(`${apiBase}/planifications/weekly-summary?from=${from}&to=${to}${projectParam}${agentParam}`, { headers });
       if (res.ok) {

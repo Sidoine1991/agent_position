@@ -913,20 +913,38 @@ module.exports = async (req, res) => {
               user: usersMap.get(plan.user_id) || null
             }));
 
+            // Fonction pour calculer le début de semaine
+            function startOfWeek(date) {
+              const d = new Date(date);
+              const day = d.getDay();
+              const diff = (day === 0 ? -6 : 1) - day;
+              d.setDate(d.getDate() + diff);
+              return d;
+            }
+
             // Grouper par semaine et agent
             const weeklySummary = {};
             enrichedPlanifications.forEach(plan => {
-              const weekKey = `${plan.user_id}_${from}`;
+              const planDate = new Date(plan.date);
+              const weekStart = startOfWeek(planDate);
+              const weekKey = `${plan.user_id}_${weekStart.toISOString().split('T')[0]}`;
+              
               if (!weeklySummary[weekKey]) {
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                
                 weeklySummary[weekKey] = {
                   user_id: plan.user_id,
-                  user_name: plan.user ? plan.user.name : `Utilisateur ${plan.user_id}`,
-                  week_start_date: from,
-                  week_end_date: to,
+                  users: {
+                    name: plan.user ? plan.user.name : `Utilisateur ${plan.user_id}`,
+                    email: plan.user ? plan.user.email : ''
+                  },
+                  week_start_date: weekStart.toISOString().split('T')[0],
+                  week_end_date: weekEnd.toISOString().split('T')[0],
                   project_name: plan.project_name || 'Aucun',
                   total_planned_hours: 0,
-                  planned_days: new Set(),
-                  activities: []
+                  total_planned_days: new Set(),
+                  activities_summary: []
                 };
               }
               
@@ -938,19 +956,28 @@ module.exports = async (req, res) => {
                 weeklySummary[weekKey].total_planned_hours += hours;
               }
               
-              weeklySummary[weekKey].planned_days.add(plan.date);
-              weeklySummary[weekKey].activities.push({
-                date: plan.date,
-                activity: plan.description_activite || 'Aucune activité',
-                start_time: plan.planned_start_time,
-                end_time: plan.planned_end_time
-              });
+              weeklySummary[weekKey].total_planned_days.add(plan.date);
+              
+              // Ajouter l'activité au résumé
+              if (plan.description_activite) {
+                const dateStr = new Date(plan.date).toLocaleDateString('fr-FR', { 
+                  weekday: 'short', 
+                  day: 'numeric' 
+                });
+                weeklySummary[weekKey].activities_summary.push(`${dateStr}: ${plan.description_activite}`);
+              }
             });
 
-            // Convertir en array
+            // Convertir en array et formater
             const summaryArray = Object.values(weeklySummary).map(summary => ({
-              ...summary,
-              planned_days: Array.from(summary.planned_days).length
+              user_id: summary.user_id,
+              users: summary.users,
+              week_start_date: summary.week_start_date,
+              week_end_date: summary.week_end_date,
+              project_name: summary.project_name,
+              total_planned_hours: Math.round(summary.total_planned_hours * 10) / 10, // Arrondir à 1 décimale
+              total_planned_days: summary.total_planned_days.size,
+              activities_summary: summary.activities_summary.join(' | ')
             }));
 
             return res.json({

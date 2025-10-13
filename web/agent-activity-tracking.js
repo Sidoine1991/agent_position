@@ -324,7 +324,7 @@
     }
 
     const filteredActivities = filterActivities();
-
+    
     // Regrouper par date pour afficher toutes les journées planifiées de la semaine
     filteredActivities.sort((a,b) => String(a.date).localeCompare(String(b.date)));
     
