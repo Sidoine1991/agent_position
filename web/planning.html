@@ -48,6 +48,25 @@
       color: white;
       text-decoration: none;
     }
+
+    /* Badge utilisateur */
+    .user-info-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-top: 0.5rem;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+
+    .user-info-badge i {
+      font-size: 0.8rem;
+    }
     
     .circle-action-active {
       background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
@@ -231,7 +250,15 @@
   </nav>
 
   <div class="container py-4">
-    <h1 class="h4 mb-3" data-translate="planning.title">Planification hebdomadaire et mensuelle</h1>
+    <div class="row mb-4">
+      <div class="col-md-8">
+        <h1 class="h4 mb-3" data-translate="planning.title">Planification hebdomadaire et mensuelle</h1>
+        <div class="user-info-badge">
+          <i class="bi bi-person"></i>
+          <span id="user-display-name">Chargement...</span>
+        </div>
+      </div>
+    </div>
 
     <div class="row g-3 align-items-end mb-4">
       <div class="col-auto">

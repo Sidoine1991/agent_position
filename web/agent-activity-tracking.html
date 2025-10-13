@@ -453,6 +453,42 @@
         font-size: 0.55rem;
       }
     }
+
+    /* Badge utilisateur */
+    .user-info-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-top: 0.5rem;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+
+    .user-info-badge i {
+      font-size: 0.8rem;
+    }
+
+    /* Correction affichage tableau */
+    .table-responsive {
+      position: relative;
+      z-index: 1;
+    }
+
+    .table-editable {
+      background: white;
+      position: relative;
+      z-index: 2;
+    }
+
+    .card-body {
+      position: relative;
+      z-index: 1;
+    }
   </style>
 </head>
 <body>
@@ -495,6 +531,10 @@
       <div class="col-md-8">
         <h1 class="h4 mb-3">Suivi d'Activité Agent</h1>
         <p class="text-muted">Marquez le statut d'exécution de vos activités planifiées</p>
+        <div class="user-info-badge">
+          <i class="fas fa-user"></i>
+          <span id="user-display-name">Chargement...</span>
+        </div>
       </div>
       <div class="col-md-3">
         <div class="d-flex gap-2">

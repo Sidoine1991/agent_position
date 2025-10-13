@@ -95,6 +95,9 @@
         currentUserId = user.id;
         isAdmin = user.role === 'admin' || user.role === 'super_admin';
         
+        // Afficher le nom de l'utilisateur
+        displayUserName(user);
+        
         console.log('Utilisateur:', user.email, 'Rôle:', user.role, 'Admin:', isAdmin);
         
         // Charger les agents si c'est un admin
@@ -162,6 +165,27 @@
     const container = document.getElementById('agent-filter-container');
     if (container) {
       container.style.display = 'none';
+    }
+  }
+
+  // Afficher le nom de l'utilisateur
+  function displayUserName(user) {
+    const displayElement = document.getElementById('user-display-name');
+    if (displayElement) {
+      const firstName = user.first_name || '';
+      const lastName = user.last_name || '';
+      const name = user.name || '';
+      
+      let displayName = '';
+      if (firstName && lastName) {
+        displayName = `${firstName} ${lastName}`;
+      } else if (name) {
+        displayName = name;
+      } else {
+        displayName = user.email;
+      }
+      
+      displayElement.textContent = displayName;
     }
   }
 

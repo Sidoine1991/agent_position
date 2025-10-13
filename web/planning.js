@@ -746,7 +746,46 @@
     container.appendChild(table);
   }
 
+  // Afficher le nom de l'utilisateur
+  function displayUserName(user) {
+    const displayElement = document.getElementById('user-display-name');
+    if (displayElement) {
+      const firstName = user.first_name || '';
+      const lastName = user.last_name || '';
+      const name = user.name || '';
+      
+      let displayName = '';
+      if (firstName && lastName) {
+        displayName = `${firstName} ${lastName}`;
+      } else if (name) {
+        displayName = name;
+      } else {
+        displayName = user.email;
+      }
+      
+      displayElement.textContent = displayName;
+    }
+  }
+
+  // Charger les informations utilisateur
+  async function loadUserInfo() {
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`${apiBase}/profile`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        const user = data.user;
+        displayUserName(user);
+      }
+    } catch (error) {
+      console.error('Erreur chargement info utilisateur:', error);
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
+    // Charger les informations utilisateur
+    loadUserInfo();
+    
     $('load-week').addEventListener('click', () => loadWeek($('week-start').value));
     $('load-month').addEventListener('click', () => loadMonth($('month').value));
     $('refresh-weekly-summary').addEventListener('click', () => loadWeeklySummary());
