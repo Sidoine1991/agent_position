@@ -242,30 +242,32 @@ class NavigationManager {
     getMenuLinks(role) {
         const normRole = String(role || '').toLowerCase();
         const roleKey = (normRole === 'superviseur') ? 'supervisor' : normRole;
-        const baseLinks = [
+        // Base for agents: Presence, Planning, Activity Tracking, Profile
+        const agentLinks = [
             { page: 'presence', href: '/index.html?stay=true', text: 'Présence', icon: '📍' },
             { page: 'planning', href: '/planning.html', text: 'Planification', icon: '🗓️' },
-            { page: 'dashboard', href: '/dashboard.html', text: 'Dashboard', icon: '📊' },
+            { page: 'activity', href: '/agent-activity-tracking.html', text: 'Suivi Activité', icon: '📋' },
             { page: 'profile', href: '/profile.html', text: 'Profil', icon: '👤' }
         ];
 
         switch(roleKey) {
             case 'admin':
+                // Admin: tout sauf configuration (réservé super admin). Donc pas de /admin.html ici.
                 return [
-                    ...baseLinks,
-                    { page: 'agents', href: '/agents.html', text: 'Agents', icon: '👥' },
-                    { page: 'reports', href: '/reports.html', text: 'Rapports', icon: '📈' },
-                    { page: 'admin', href: '/admin.html', text: 'Administration', icon: '⚙️' }
+                    ...agentLinks,
+                    { page: 'dashboard', href: '/dashboard.html', text: 'Dashboard', icon: '📊' },
+                    { page: 'agents', href: '/admin-agents.html', text: 'Agents', icon: '👥' },
+                    { page: 'reports', href: '/reports.html', text: 'Rapports', icon: '📈' }
                 ];
             case 'supervisor':
+                // Supervisor: agentLinks + dashboard uniquement
                 return [
-                    ...baseLinks,
-                    { page: 'agents', href: '/agents.html', text: 'Agents', icon: '👥' },
-                    { page: 'reports', href: '/reports.html', text: 'Rapports', icon: '📈' }
+                    ...agentLinks,
+                    { page: 'dashboard', href: '/dashboard.html', text: 'Dashboard', icon: '📊' }
                 ];
             case 'agent':
             default:
-                return baseLinks;
+                return agentLinks;
         }
     }
 
