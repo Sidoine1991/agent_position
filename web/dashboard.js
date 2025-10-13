@@ -1371,31 +1371,31 @@ async function loadProjects() {
   
   sel.innerHTML = '';
   try {
-    // Charger les projets depuis la table users (comme dans reports-backend.js)
     const result = await api('/admin/agents');
     const users = result.agents || result.data || result || [];
-    
-    // Vérifier que users est un array
+
     if (!Array.isArray(users)) {
       console.error('Erreur: users n\'est pas un array:', users);
       return;
     }
-    
-    // Extraire les projets uniques des agents
+
+    // Ne garder que les comptes rôle 'agent' et récupérer leur project_name propre
     const projects = new Set();
     users.forEach(user => {
-      if (user.project_name && user.project_name.trim()) {
-        projects.add(user.project_name.trim());
+      const role = (user.role || '').toLowerCase();
+      const projectName = (user.project_name || '').trim();
+      if (role === 'agent' && projectName) {
+        projects.add(projectName);
       }
     });
-    
+
     sel.append(new Option('Tous les projets', ''));
-    Array.from(projects).sort().forEach(project => {
+    Array.from(projects).sort((a,b)=>a.localeCompare(b)).forEach(project => {
       sel.append(new Option(project, project));
     });
-    
-    console.log('Projets chargés dans dashboard:', Array.from(projects));
-  } catch(e) { 
+
+    console.log('Projets chargés (agents) dans dashboard:', Array.from(projects));
+  } catch(e) {
     console.error('Erreur chargement projets:', e); 
     sel.append(new Option('Erreur chargement projets', ''));
   }
