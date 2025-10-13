@@ -134,3 +134,7 @@ tailwind.config.js
 apk-build/
 apk-download-guide.md
 .vercel
+
+# Sauvegardes de base de données
+backups/
+*.backup

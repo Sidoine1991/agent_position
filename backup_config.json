@@ -1,0 +1,27 @@
+{
+  "backup": {
+    "enabled": true,
+    "interval_hours": 24,
+    "max_backups": 7,
+    "tables": [
+      "users",
+      "planifications", 
+      "missions",
+      "checkins",
+      "profiles"
+    ],
+    "backup_dir": "backups",
+    "compress": false,
+    "encrypt": false
+  },
+  "restore": {
+    "confirm_before_restore": true,
+    "clear_existing_data": true,
+    "batch_size": 100
+  },
+  "notifications": {
+    "on_success": true,
+    "on_error": true,
+    "log_level": "info"
+  }
+}
