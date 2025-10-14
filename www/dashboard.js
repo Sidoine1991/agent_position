@@ -858,13 +858,6 @@ async function updateMonthlySummary() {
         presenceDays: Array.from(stats.presenceDays)
       });
       
-      // Décision agrégée par agent basée sur comparaison distance/tolérance
-      let decision = '—';
-      if (present === 0 && planned > 0) decision = 'Absent';
-      else if (outsideCount === 0 && withinCount > 0) decision = 'Présent';
-      else if (withinCount === 0 && outsideCount > 0) decision = 'Présent hors zone';
-      else if (withinCount > 0 && outsideCount > 0) decision = 'Mixte';
-
       if (present > 0 || planned > 0) {
         rowsOut.push({
           agent: stats.name,
@@ -872,7 +865,6 @@ async function updateMonthlySummary() {
           planned,
           present,
           absent,
-          decision,
           radius_m: tol,
           dist_min: distMin,
           dist_max: distMax,
@@ -886,7 +878,7 @@ async function updateMonthlySummary() {
     rowsOut.sort((a, b) => a.agent.localeCompare(b.agent));
 
     if (!rowsOut.length) {
-      tbody.innerHTML = '<tr><td colspan="9">Aucune donnée pour la période sélectionnée.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8">Aucune donnée pour la période sélectionnée.</td></tr>';
       return;
     }
 
@@ -897,7 +889,6 @@ async function updateMonthlySummary() {
         <td>${r.planned}</td>
         <td>${r.present}</td>
         <td>${r.absent}</td>
-        <td>${r.decision}</td>
         <td>${r.radius_m ?? '—'}</td>
         <td>${(r.dist_first != null) ? r.dist_first : (r.dist_min != null ? r.dist_min : '—')}</td>
         <td>${r.justification}</td>
