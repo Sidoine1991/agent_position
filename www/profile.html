@@ -123,6 +123,63 @@
           </div>
         </div>
 
+        <!-- Informations Professionnelles -->
+        <div class="card">
+          <h3>🏢 Informations Professionnelles</h3>
+          <div class="profile-details">
+            <div class="detail-item">
+              <label>Département :</label>
+              <span id="profile-departement">—</span>
+              <div class="edit-inline" style="margin-top:6px; display:flex; gap:8px; align-items:center;">
+                <input type="text" id="edit-departement-inline" placeholder="Département" style="max-width:220px; display:none;">
+                <button type="button" id="btn-edit-departement" class="btn-secondary">Modifier</button>
+                <button type="button" id="btn-save-departement" class="btn-primary" style="display:none;">Enregistrer</button>
+                <button type="button" id="btn-cancel-departement" class="btn-light" style="display:none;">Annuler</button>
+              </div>
+            </div>
+            <div class="detail-item">
+              <label>Commune :</label>
+              <span id="profile-commune">—</span>
+              <div class="edit-inline" style="margin-top:6px; display:flex; gap:8px; align-items:center;">
+                <input type="text" id="edit-commune-inline" placeholder="Commune" style="max-width:220px; display:none;">
+                <button type="button" id="btn-edit-commune" class="btn-secondary">Modifier</button>
+                <button type="button" id="btn-save-commune" class="btn-primary" style="display:none;">Enregistrer</button>
+                <button type="button" id="btn-cancel-commune" class="btn-light" style="display:none;">Annuler</button>
+              </div>
+            </div>
+            <div class="detail-item">
+              <label>Arrondissement :</label>
+              <span id="profile-arrondissement">—</span>
+              <div class="edit-inline" style="margin-top:6px; display:flex; gap:8px; align-items:center;">
+                <input type="text" id="edit-arrondissement-inline" placeholder="Arrondissement" style="max-width:220px; display:none;">
+                <button type="button" id="btn-edit-arrondissement" class="btn-secondary">Modifier</button>
+                <button type="button" id="btn-save-arrondissement" class="btn-primary" style="display:none;">Enregistrer</button>
+                <button type="button" id="btn-cancel-arrondissement" class="btn-light" style="display:none;">Annuler</button>
+              </div>
+            </div>
+            <div class="detail-item">
+              <label>Village :</label>
+              <span id="profile-village">—</span>
+              <div class="edit-inline" style="margin-top:6px; display:flex; gap:8px; align-items:center;">
+                <input type="text" id="edit-village-inline" placeholder="Village" style="max-width:220px; display:none;">
+                <button type="button" id="btn-edit-village" class="btn-secondary">Modifier</button>
+                <button type="button" id="btn-save-village" class="btn-primary" style="display:none;">Enregistrer</button>
+                <button type="button" id="btn-cancel-village" class="btn-light" style="display:none;">Annuler</button>
+              </div>
+            </div>
+            <div class="detail-item">
+              <label>Projet :</label>
+              <span id="profile-project">—</span>
+              <div class="edit-inline" style="margin-top:6px; display:flex; gap:8px; align-items:center;">
+                <input type="text" id="edit-project-inline" placeholder="Nom du projet" style="max-width:220px; display:none;">
+                <button type="button" id="btn-edit-project" class="btn-secondary">Modifier</button>
+                <button type="button" id="btn-save-project" class="btn-primary" style="display:none;">Enregistrer</button>
+                <button type="button" id="btn-cancel-project" class="btn-light" style="display:none;">Annuler</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Statistiques Personnelles -->
         <div class="card">
           <h3>📊 Mes Statistiques</h3>
@@ -197,7 +254,22 @@
         <!-- Contrat et Expérience -->
         <div class="card">
           <h3>📑 Contrat & Expérience</h3>
+          <div class="profile-details">
+            <div class="detail-item">
+              <label>Début de contrat :</label>
+              <span id="profile-contract-start">—</span>
+            </div>
+            <div class="detail-item">
+              <label>Fin de contrat :</label>
+              <span id="profile-contract-end">—</span>
+            </div>
+            <div class="detail-item">
+              <label>Années d'expérience :</label>
+              <span id="profile-years-service">—</span>
+            </div>
+          </div>
           <div class="settings-section">
+            <h4>Modifier les informations contractuelles</h4>
             <div class="form-group">
               <label for="edit-contract-start">Début de contrat</label>
               <input type="date" id="edit-contract-start">
@@ -209,6 +281,56 @@
             <div class="form-group">
               <label for="edit-years-service">Années d'expérience</label>
               <input type="number" step="0.1" min="0" id="edit-years-service" placeholder="Ex: 2.5">
+            </div>
+            <div class="d-flex gap-2" style="margin-top:8px;">
+              <button type="button" id="btn-save-contract" class="btn-primary">Enregistrer</button>
+              <button type="button" id="btn-cancel-contract" class="btn-light">Annuler</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Paramètres de Planification -->
+        <div class="card">
+          <h3>📅 Paramètres de Planification</h3>
+          <div class="profile-details">
+            <div class="detail-item">
+              <label>Jours attendus par mois :</label>
+              <span id="profile-expected-days">—</span>
+            </div>
+            <div class="detail-item">
+              <label>Heures attendues par mois :</label>
+              <span id="profile-expected-hours">—</span>
+            </div>
+            <div class="detail-item">
+              <label>Début de planification :</label>
+              <span id="profile-planning-start">—</span>
+            </div>
+            <div class="detail-item">
+              <label>Fin de planification :</label>
+              <span id="profile-planning-end">—</span>
+            </div>
+          </div>
+          <div class="settings-section">
+            <h4>Modifier les paramètres de planification</h4>
+            <div class="form-group">
+              <label for="edit-exp-days">Jours attendus par mois</label>
+              <input type="number" min="1" max="31" id="edit-exp-days" placeholder="Ex: 22">
+            </div>
+            <div class="form-group">
+              <label for="edit-exp-hours">Heures attendues par mois</label>
+              <input type="number" min="1" max="744" id="edit-exp-hours" placeholder="Ex: 176">
+            </div>
+            <div class="form-group">
+              <label for="edit-plan-start">Début de planification</label>
+              <input type="date" id="edit-plan-start">
+            </div>
+            <div class="form-group">
+              <label for="edit-plan-end">Fin de planification</label>
+              <input type="date" id="edit-plan-end">
+            </div>
+            <div class="d-flex gap-2" style="margin-top:8px;">
+              <button type="button" id="btn-save-planning" class="btn-primary">Enregistrer</button>
+              <button type="button" id="btn-cancel-planning" class="btn-light">Annuler</button>
             </div>
           </div>
         </div>

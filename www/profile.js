@@ -110,11 +110,31 @@ async function loadProfile() {
     // Mode strict: ne pas fusionner avec le cache; n'afficher que ce que renvoie l'API
     try { localStorage.setItem('userProfile', JSON.stringify(profile)); } catch {}
     
-    // Afficher les informations
+    // Afficher les informations personnelles
     $('profile-name').textContent = profile.name || [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Non défini';
     $('profile-email').textContent = profile.email || 'Non défini';
     $('profile-role').textContent = getRoleText(profile.role);
     $('profile-role').className = `role-badge role-${profile.role}`;
+    $('profile-phone').textContent = profile.phone || '—';
+    
+    // Afficher les informations professionnelles
+    $('profile-departement').textContent = profile.departement || '—';
+    $('profile-commune').textContent = profile.commune || '—';
+    $('profile-arrondissement').textContent = profile.arrondissement || '—';
+    $('profile-village').textContent = profile.village || '—';
+    $('profile-project').textContent = profile.project_name || '—';
+    
+    // Afficher les informations contractuelles
+    $('profile-contract-start').textContent = profile.contract_start_date ? new Date(profile.contract_start_date).toLocaleDateString('fr-FR') : '—';
+    $('profile-contract-end').textContent = profile.contract_end_date ? new Date(profile.contract_end_date).toLocaleDateString('fr-FR') : '—';
+    $('profile-years-service').textContent = profile.years_of_service ? `${profile.years_of_service} ans` : '—';
+    
+    // Afficher les paramètres de planification
+    $('profile-expected-days').textContent = profile.expected_days_per_month ? `${profile.expected_days_per_month} jours` : '—';
+    $('profile-expected-hours').textContent = profile.expected_hours_per_month ? `${profile.expected_hours_per_month} heures` : '—';
+    $('profile-planning-start').textContent = profile.planning_start_date ? new Date(profile.planning_start_date).toLocaleDateString('fr-FR') : '—';
+    $('profile-planning-end').textContent = profile.planning_end_date ? new Date(profile.planning_end_date).toLocaleDateString('fr-FR') : '—';
+    
     if (profile.photo_url || profile.photo_path) {
       const img = $('profile-avatar');
       if (img) img.src = (profile.photo_url || profile.photo_path) + ((profile.photo_url || profile.photo_path).includes('?') ? '&' : '?') + 'v=' + Date.now();
@@ -178,7 +198,9 @@ async function loadProfile() {
         
         // Planification (optionnelles)
         expected_days_per_month: profile.expected_days_per_month !== null && profile.expected_days_per_month !== undefined,
-        expected_hours_per_month: profile.expected_hours_per_month !== null && profile.expected_hours_per_month !== undefined
+        expected_hours_per_month: profile.expected_hours_per_month !== null && profile.expected_hours_per_month !== undefined,
+        planning_start_date: !!profile.planning_start_date,
+        planning_end_date: !!profile.planning_end_date
       };
       const total = Object.keys(fields).length;
       const filled = Object.values(fields).filter(Boolean).length;
@@ -257,6 +279,48 @@ async function loadStatistics() {
     if (attendanceRateEl) attendanceRateEl.textContent = '0%';
     if (currentMissionEl) currentMissionEl.textContent = 'Aucune mission';
   }
+}
+
+// Fonction pour configurer l'édition inline d'un champ
+function setupInlineEdit(fieldName, displayId, inputId, editBtnId, saveBtnId, cancelBtnId) {
+  const btnEdit = document.getElementById(editBtnId);
+  const btnSave = document.getElementById(saveBtnId);
+  const btnCancel = document.getElementById(cancelBtnId);
+  const input = document.getElementById(inputId);
+  const display = document.getElementById(displayId);
+  
+  if (!btnEdit || !btnSave || !btnCancel || !input || !display) {
+    console.warn(`⚠️ Éléments manquants pour l'édition inline de ${fieldName}`);
+    return;
+  }
+  
+  btnEdit.addEventListener('click', () => {
+    input.style.display = 'inline-block';
+    btnSave.style.display = 'inline-block';
+    btnCancel.style.display = 'inline-block';
+    btnEdit.style.display = 'none';
+    input.value = display.textContent === '—' ? '' : display.textContent;
+    input.focus();
+  });
+  
+  btnCancel.addEventListener('click', () => {
+    input.style.display = 'none';
+    btnSave.style.display = 'none';
+    btnCancel.style.display = 'none';
+    btnEdit.style.display = 'inline-block';
+  });
+  
+  btnSave.addEventListener('click', async () => {
+    const value = input.value.trim();
+    try {
+      await api('/me/profile', { method: 'POST', body: { [fieldName]: value || null } });
+      display.textContent = value || '—';
+      btnCancel.click();
+      updateProfileCompletion();
+    } catch (e) {
+      alert(`Erreur mise à jour ${fieldName}: ` + (e.message || ''));
+    }
+  });
 }
 
 // Obtenir le texte du rôle
@@ -536,6 +600,61 @@ document.addEventListener('DOMContentLoaded', async () => {
       btnCancelGps.addEventListener('click', async () => { await loadProfile(); });
     }
 
+    // Gestionnaires pour les nouveaux champs d'édition inline
+    setupInlineEdit('departement', 'profile-departement', 'edit-departement-inline', 'btn-edit-departement', 'btn-save-departement', 'btn-cancel-departement');
+    setupInlineEdit('commune', 'profile-commune', 'edit-commune-inline', 'btn-edit-commune', 'btn-save-commune', 'btn-cancel-commune');
+    setupInlineEdit('arrondissement', 'profile-arrondissement', 'edit-arrondissement-inline', 'btn-edit-arrondissement', 'btn-save-arrondissement', 'btn-cancel-arrondissement');
+    setupInlineEdit('village', 'profile-village', 'edit-village-inline', 'btn-edit-village', 'btn-save-village', 'btn-cancel-village');
+    setupInlineEdit('project_name', 'profile-project', 'edit-project-inline', 'btn-edit-project', 'btn-save-project', 'btn-cancel-project');
+
+    // Gestionnaires pour les sections contractuelles et de planification
+    const btnSaveContract = document.getElementById('btn-save-contract');
+    const btnCancelContract = document.getElementById('btn-cancel-contract');
+    if (btnSaveContract) {
+      btnSaveContract.addEventListener('click', async () => {
+        try {
+          const payload = {
+            contract_start_date: $('edit-contract-start')?.value || null,
+            contract_end_date: $('edit-contract-end')?.value || null,
+            years_of_service: $('edit-years-service')?.value ? Number($('edit-years-service').value) : null
+          };
+          await api('/me/profile', { method: 'POST', body: payload });
+          alert('Informations contractuelles enregistrées');
+          await loadProfile();
+          updateProfileCompletion();
+        } catch (e) {
+          alert('Erreur enregistrement contrat: ' + (e.message || ''));
+        }
+      });
+    }
+    if (btnCancelContract) {
+      btnCancelContract.addEventListener('click', async () => { await loadProfile(); });
+    }
+
+    const btnSavePlanning = document.getElementById('btn-save-planning');
+    const btnCancelPlanning = document.getElementById('btn-cancel-planning');
+    if (btnSavePlanning) {
+      btnSavePlanning.addEventListener('click', async () => {
+        try {
+          const payload = {
+            expected_days_per_month: $('edit-exp-days')?.value ? Number($('edit-exp-days').value) : null,
+            expected_hours_per_month: $('edit-exp-hours')?.value ? Number($('edit-exp-hours').value) : null,
+            planning_start_date: $('edit-plan-start')?.value || null,
+            planning_end_date: $('edit-plan-end')?.value || null
+          };
+          await api('/me/profile', { method: 'POST', body: payload });
+          alert('Paramètres de planification enregistrés');
+          await loadProfile();
+          updateProfileCompletion();
+        } catch (e) {
+          alert('Erreur enregistrement planification: ' + (e.message || ''));
+        }
+      });
+    }
+    if (btnCancelPlanning) {
+      btnCancelPlanning.addEventListener('click', async () => { await loadProfile(); });
+    }
+
     // Gestion de l'enregistrement du profil (auto-service)
     const saveBtn = document.getElementById('save-profile-btn');
     if (saveBtn) {
@@ -599,7 +718,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       'edit-departement', 'edit-commune', 'edit-arrondissement', 'edit-village',
       'edit-project', 'edit-contract-start', 'edit-contract-end', 'edit-years-service',
       'edit-lat', 'edit-lon', 'edit-tolerance',
-      'edit-exp-days', 'edit-exp-hours'
+      'edit-exp-days', 'edit-exp-hours', 'edit-plan-start', 'edit-plan-end',
+      'edit-departement-inline', 'edit-commune-inline', 'edit-arrondissement-inline', 
+      'edit-village-inline', 'edit-project-inline'
     ];
     
     formFields.forEach(fieldId => {
@@ -623,13 +744,13 @@ function updateProfileCompletion() {
       phone: !!($('edit-phone')?.value?.trim()),
       
       // Localisation (optionnelles)
-      departement: !!($('edit-departement')?.value?.trim()),
-      commune: !!($('edit-commune')?.value?.trim()),
-      arrondissement: !!($('edit-arrondissement')?.value?.trim()),
-      village: !!($('edit-village')?.value?.trim()),
+      departement: !!($('edit-departement')?.value?.trim()) || !!($('edit-departement-inline')?.value?.trim()),
+      commune: !!($('edit-commune')?.value?.trim()) || !!($('edit-commune-inline')?.value?.trim()),
+      arrondissement: !!($('edit-arrondissement')?.value?.trim()) || !!($('edit-arrondissement-inline')?.value?.trim()),
+      village: !!($('edit-village')?.value?.trim()) || !!($('edit-village-inline')?.value?.trim()),
       
       // Projet et contrat (optionnelles)
-      project_name: !!($('edit-project')?.value?.trim()),
+      project_name: !!($('edit-project')?.value?.trim()) || !!($('edit-project-inline')?.value?.trim()),
       contract_start_date: !!($('edit-contract-start')?.value),
       contract_end_date: !!($('edit-contract-end')?.value),
       years_of_service: !!($('edit-years-service')?.value) && Number($('edit-years-service').value) > 0,
