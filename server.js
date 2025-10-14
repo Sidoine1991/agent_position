@@ -393,9 +393,13 @@ app.get('/api/reports', async (req, res) => {
       const refLat = validation.reference_lat || user?.reference_lat;
       const refLon = validation.reference_lon || user?.reference_lon;
       
+      console.log(`🔍 Agent ${validation.agent_id}: distance_m=${distance_m}, refLat=${refLat}, refLon=${refLon}, checkin.lat=${checkin?.lat}, checkin.lon=${checkin?.lon}`);
+      
       if ((distance_m === null || distance_m === undefined) && refLat && refLon && checkin?.lat && checkin?.lon) {
         distance_m = calculateDistance(refLat, refLon, checkin.lat, checkin.lon);
         console.log(`📏 Distance calculée pour agent ${validation.agent_id}: ${distance_m}m (ref: ${refLat}, ${refLon} -> checkin: ${checkin.lat}, ${checkin.lon})`);
+      } else {
+        console.log(`⚠️ Distance non calculée pour agent ${validation.agent_id}: distance_m=${distance_m}, refLat=${refLat}, refLon=${refLon}, checkin.lat=${checkin?.lat}, checkin.lon=${checkin?.lon}`);
       }
       
       // Déterminer le statut
