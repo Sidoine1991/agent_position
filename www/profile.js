@@ -119,11 +119,32 @@ async function loadProfile() {
     $('profile-phone').textContent = profile.phone || '—';
     
     // Afficher les informations professionnelles
-    $('profile-departement').textContent = profile.departement || '—';
-    $('profile-commune').textContent = profile.commune || '—';
-    $('profile-arrondissement').textContent = profile.arrondissement || '—';
-    $('profile-village').textContent = profile.village || '—';
-    $('profile-project').textContent = profile.project_name || '—';
+    console.log('🔍 Données profil reçues:', profile);
+    console.log('🏢 Département:', profile.departement);
+    console.log('🏘️ Commune:', profile.commune);
+    console.log('📍 Arrondissement:', profile.arrondissement);
+    console.log('🏠 Village:', profile.village);
+    console.log('📋 Projet:', profile.project_name);
+    
+    const departementEl = $('profile-departement');
+    const communeEl = $('profile-commune');
+    const arrondissementEl = $('profile-arrondissement');
+    const villageEl = $('profile-village');
+    const projectEl = $('profile-project');
+    
+    console.log('🔍 Éléments HTML trouvés:', {
+      departement: !!departementEl,
+      commune: !!communeEl,
+      arrondissement: !!arrondissementEl,
+      village: !!villageEl,
+      project: !!projectEl
+    });
+    
+    if (departementEl) departementEl.textContent = profile.departement || '—';
+    if (communeEl) communeEl.textContent = profile.commune || '—';
+    if (arrondissementEl) arrondissementEl.textContent = profile.arrondissement || '—';
+    if (villageEl) villageEl.textContent = profile.village || '—';
+    if (projectEl) projectEl.textContent = profile.project_name || '—';
     
     // Afficher les informations contractuelles
     $('profile-contract-start').textContent = profile.contract_start_date ? new Date(profile.contract_start_date).toLocaleDateString('fr-FR') : '—';
