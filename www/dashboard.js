@@ -717,7 +717,8 @@ async function updateMonthlySummary() {
     }
     
     // Ajouter les jours de présence (check-ins) en jugeant par la distance/rayon
-    // On agrège par agent+jour le statut et la distance minimale observée (distance calculée via référence Supabase si pas fournie)
+    // On agrège par agent+jour le statut, la distance minimale et la distance du premier point de la journée
+    // (distance calculée via référence Supabase si pas fournie)
     const perAgentDay = new Map();
     const keyAD = (aid, day) => aid + '|' + day;
     filteredCheckins.forEach(checkin => {
@@ -737,9 +738,13 @@ async function updateMonthlySummary() {
       }
       if (tol == null) tol = 500;
       const within = (typeof checkin.within_tolerance === 'boolean') ? checkin.within_tolerance : (dist != null ? dist <= tol : false);
-      const prev = perAgentDay.get(k) || { within: false, minDist: null, hasAny: false, tol };
+      const prev = perAgentDay.get(k) || { within: false, minDist: null, firstDist: null, firstTime: null, hasAny: false, tol };
       const minDist = (prev.minDist == null) ? dist : (dist == null ? prev.minDist : Math.min(prev.minDist, dist));
-      perAgentDay.set(k, { within: prev.within || !!within, minDist, hasAny: true, tol });
+      // Déterminer si ce check-in est le premier de la journée
+      const isFirstOfDay = !prev.firstTime || (t && new Date(t) < new Date(prev.firstTime));
+      const firstDist = isFirstOfDay ? (dist != null ? dist : prev.firstDist) : prev.firstDist;
+      const firstTime = isFirstOfDay ? (t || prev.firstTime) : prev.firstTime;
+      perAgentDay.set(k, { within: prev.within || !!within, minDist, firstDist, firstTime, hasAny: true, tol });
     });
 
     // Intégrer l'algorithme serveur: /api/attendance/day-status
@@ -800,17 +805,23 @@ async function updateMonthlySummary() {
       absentDaysArr.forEach(d => { const agg = perAgentDay.get(agentId + '|' + d); if (agg?.minDist != null) distVals.push(Number(agg.minDist)); });
       const distMin = distVals.length ? Math.round(Math.min(...distVals)) : null;
       const distMax = distVals.length ? Math.round(Math.max(...distVals)) : null;
+      // Distance du premier point de la journée si disponible (sur une journée présente, prendre la première parmi les jours présents)
+      let firstDistAny = null;
+      for (const d of presenceDaysArr) {
+        const agg = perAgentDay.get(agentId + '|' + d);
+        if (agg?.firstDist != null) { firstDistAny = Math.round(Number(agg.firstDist)); break; }
+      }
       const withinCount = presenceDaysArr.filter(d => (perAgentDay.get(agentId + '|' + d)?.minDist ?? Infinity) <= tol).length;
       const outsideCount = presenceDaysArr.length - withinCount;
       let justification = '';
       if (present === 0 && planned > 0) {
         justification = `Rayon ${tol} m — Absent` + (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : '');
       } else if (outsideCount === 0 && withinCount > 0) {
-        justification = `Rayon ${tol} m — Présent dans la zone (${withinCount} j)` + (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : '');
+        justification = `Rayon ${tol} m — Présent dans la zone (${withinCount} j)` + (firstDistAny != null ? ` — Dist. premier point: ${firstDistAny} m` : (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : ''));
       } else if (withinCount === 0 && outsideCount > 0) {
-        justification = `Rayon ${tol} m — Présent hors zone (${outsideCount} j)` + (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : '');
+        justification = `Rayon ${tol} m — Présent hors zone (${outsideCount} j)` + (firstDistAny != null ? ` — Dist. premier point: ${firstDistAny} m` : (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : ''));
       } else if (withinCount > 0 && outsideCount > 0) {
-        justification = `Rayon ${tol} m — Mixte: ${withinCount} j dans zone, ${outsideCount} j hors zone` + (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : '');
+        justification = `Rayon ${tol} m — Mixte: ${withinCount} j dans zone, ${outsideCount} j hors zone` + (firstDistAny != null ? ` — Dist. premier point: ${firstDistAny} m` : (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : ''));
       } else {
         justification = (planned === 0) ? '—' : `Rayon ${tol} m — Absent` + (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : '');
       }
@@ -833,6 +844,7 @@ async function updateMonthlySummary() {
           radius_m: tol,
           dist_min: distMin,
           dist_max: distMax,
+          dist_first: firstDistAny,
           justification
         });
       }
