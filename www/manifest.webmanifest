@@ -2,7 +2,7 @@
   "name": "Presence CCRB - Suivi des Agents",
   "short_name": "Presence CCRB",
   "description": "Système de suivi de présence des agents CCRB avec géolocalisation",
-  "start_url": "/",
+  "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#0b1220",
   "theme_color": "#0ea5e9",

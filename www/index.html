@@ -8,6 +8,15 @@
     <link rel="icon" href="/Media/logo-ccrb.png" />
     <meta name="theme-color" content="#0ea5e9" />
     <title>Presence CCR-B - Agent</title>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(registration => console.log('SW registered: ', registration))
+            .catch(registrationError => console.log('SW registration failed: ', registrationError));
+        });
+      }
+    </script>
     <script src="/web-config.js"></script>
     <meta name="supabase-url" content="">
     <meta name="supabase-anon-key" content="">
