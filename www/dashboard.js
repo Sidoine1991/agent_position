@@ -830,6 +830,9 @@ async function updateMonthlySummary() {
           planned,
           present,
           absent,
+          radius_m: tol,
+          dist_min: distMin,
+          dist_max: distMax,
           justification
         });
       }
@@ -839,7 +842,7 @@ async function updateMonthlySummary() {
     rowsOut.sort((a, b) => a.agent.localeCompare(b.agent));
 
     if (!rowsOut.length) {
-      tbody.innerHTML = '<tr><td colspan="6">Aucune donnée pour la période sélectionnée.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8">Aucune donnée pour la période sélectionnée.</td></tr>';
       return;
     }
 
@@ -850,6 +853,8 @@ async function updateMonthlySummary() {
         <td>${r.planned}</td>
         <td>${r.present}</td>
         <td>${r.absent}</td>
+        <td>${r.radius_m ?? '—'}</td>
+        <td>${(r.dist_min != null || r.dist_max != null) ? `${r.dist_min ?? '—'}/${r.dist_max ?? '—'}` : '—'}</td>
         <td>${r.justification}</td>
       </tr>
     `).join('');
