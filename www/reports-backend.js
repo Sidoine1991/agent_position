@@ -155,6 +155,13 @@ function renderValidations(rows) {
     return;
   }
   
+  // Vérifier si on a des données
+  if (!rows || rows.length === 0) {
+    console.warn('⚠️ Aucune donnée à afficher dans le tableau');
+    tbody.innerHTML = '<tr><td colspan="10">Aucune donnée</td></tr>';
+    return;
+  }
+  
   const cell = v => (v == null || v === '') ? '—' : v;
   const fmt = d => new Date(d).toLocaleString('fr-FR');
   
@@ -221,6 +228,7 @@ window.generateReport = async function() {
   updateReportHeader();
   
   // Générer les diagrammes
+  console.log('🎨 Appel de generateCharts avec', rows?.length || 0, 'lignes');
   generateCharts(rows);
   
   const rr = document.getElementById('report-results');
@@ -298,6 +306,8 @@ function updateDateInputs() {
 
 // Fonction pour générer les diagrammes
 function generateCharts(rows) {
+  console.log('📊 Génération des diagrammes avec', rows?.length || 0, 'lignes');
+  console.log('📋 Première ligne pour debug:', rows?.[0]);
   generatePresenceEvolutionChart(rows);
   generateRoleDistributionChart(rows);
 }
@@ -305,11 +315,27 @@ function generateCharts(rows) {
 // Diagramme d'évolution de la présence
 function generatePresenceEvolutionChart(rows) {
   const chartContainer = document.getElementById('presence-evolution-chart');
-  if (!chartContainer) return;
+  if (!chartContainer) {
+    console.error('❌ Élément presence-evolution-chart non trouvé');
+    return;
+  }
+  
+  console.log('📊 Génération du diagramme d\'évolution de la présence...');
+  console.log('📋 Données reçues:', rows?.length || 0, 'lignes');
+  
+  if (!rows || rows.length === 0) {
+    chartContainer.innerHTML = '<div class="chart-loading">Aucune donnée disponible</div>';
+    return;
+  }
   
   // Grouper par date
   const dailyData = {};
   rows.forEach(row => {
+    if (!row.ts) {
+      console.warn('⚠️ Ligne sans timestamp:', row);
+      return;
+    }
+    
     const date = new Date(row.ts).toLocaleDateString('fr-FR');
     if (!dailyData[date]) {
       dailyData[date] = { present: 0, absent: 0, total: 0 };
@@ -322,7 +348,14 @@ function generatePresenceEvolutionChart(rows) {
     }
   });
   
+  console.log('📅 Données groupées par date:', dailyData);
+  
   const dates = Object.keys(dailyData).sort();
+  if (dates.length === 0) {
+    chartContainer.innerHTML = '<div class="chart-loading">Aucune date trouvée</div>';
+    return;
+  }
+  
   const maxTotal = Math.max(...Object.values(dailyData).map(d => d.total));
   
   let chartHTML = '<div class="chart-bar-container">';
@@ -343,12 +376,24 @@ function generatePresenceEvolutionChart(rows) {
   chartHTML += '</div>';
   
   chartContainer.innerHTML = chartHTML;
+  console.log('✅ Diagramme d\'évolution généré');
 }
 
 // Diagramme de répartition par projet
 function generateRoleDistributionChart(rows) {
   const chartContainer = document.getElementById('role-distribution-chart');
-  if (!chartContainer) return;
+  if (!chartContainer) {
+    console.error('❌ Élément role-distribution-chart non trouvé');
+    return;
+  }
+  
+  console.log('📊 Génération du diagramme de répartition par projet...');
+  console.log('📋 Données reçues:', rows?.length || 0, 'lignes');
+  
+  if (!rows || rows.length === 0) {
+    chartContainer.innerHTML = '<div class="chart-loading">Aucune donnée disponible</div>';
+    return;
+  }
   
   // Grouper par projet
   const projectData = {};
@@ -360,7 +405,14 @@ function generateRoleDistributionChart(rows) {
     projectData[project]++;
   });
   
+  console.log('📊 Données groupées par projet:', projectData);
+  
   const total = Object.values(projectData).reduce((sum, count) => sum + count, 0);
+  if (total === 0) {
+    chartContainer.innerHTML = '<div class="chart-loading">Aucun projet trouvé</div>';
+    return;
+  }
+  
   const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16'];
   
   let chartHTML = '<div class="chart-pie">';
@@ -382,6 +434,7 @@ function generateRoleDistributionChart(rows) {
   
   chartHTML += '</div>';
   chartContainer.innerHTML = chartHTML;
+  console.log('✅ Diagramme de répartition généré');
 }
 
 // Fonction d'export Excel
