@@ -135,7 +135,12 @@ async function loadAgents() {
         allAgents = Array.isArray(extracted) ? extracted : [];
         filteredAgents = [...allAgents];
         
-        console.log(`✅ ${allAgents.length} agents chargés:`, allAgents);
+        // Normaliser les rôles (supervisor -> superviseur) pour les stats et filtres
+        allAgents = (allAgents || []).map(a => ({
+            ...a,
+            role: String(a.role || '').trim().toLowerCase() === 'supervisor' ? 'superviseur' : String(a.role || '').trim().toLowerCase()
+        }));
+        console.log(`✅ ${allAgents.length} agents chargés (rôles normalisés):`, allAgents);
         
         updateStats();
         displayAgents();
@@ -199,8 +204,11 @@ async function loadDepartements() {
 function updateStats() {
     const total = Array.isArray(allAgents) ? allAgents.length : 0;
     const active = Array.isArray(allAgents) ? allAgents.filter(a => (a.status || 'active') === 'active').length : 0;
-    const supervisors = Array.isArray(allAgents) ? allAgents.filter(a => a.role === 'superviseur').length : 0;
-    const admins = Array.isArray(allAgents) ? allAgents.filter(a => a.role === 'admin').length : 0;
+    const supervisors = Array.isArray(allAgents) ? allAgents.filter(a => {
+        const r = String(a.role || '').trim().toLowerCase();
+        return r === 'superviseur' || r === 'supervisor';
+    }).length : 0;
+    const admins = Array.isArray(allAgents) ? allAgents.filter(a => String(a.role || '').trim().toLowerCase() === 'admin').length : 0;
 
     document.getElementById('total-agents').textContent = total;
     document.getElementById('active-agents').textContent = active;
@@ -269,7 +277,8 @@ function getRoleLabel(role) {
         'superviseur': 'Superviseur',
         'admin': 'Administrateur'
     };
-    return labels[role] || role;
+    const key = String(role || '').trim().toLowerCase() === 'supervisor' ? 'superviseur' : String(role || '').trim().toLowerCase();
+    return labels[key] || role;
 }
 
 // Obtenir le libellé du statut

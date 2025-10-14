@@ -119,7 +119,7 @@ registerForm.addEventListener('submit', async (e) => {
     commune: formData.get('commune'),
     arrondissement: formData.get('arrondissement'),
     village: formData.get('village'),
-    project_name: formData.get('project_name'),
+    project_name: (formData.get('project_name') || '').trim(),
     expected_days_per_month: formData.get('expected_days_per_month'),
     expected_hours_per_month: formData.get('expected_hours_per_month'),
     contract_start_date: formData.get('contract_start_date'),
