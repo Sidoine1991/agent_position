@@ -216,6 +216,9 @@ window.generateReport = async function() {
   set('absent-agents', absent);
   set('attendance-rate', rate + '%');
   
+  // Mettre à jour l'en-tête du rapport avec la date, l'heure et le nom de l'administrateur
+  updateReportHeader();
+  
   const rr = document.getElementById('report-results');
   if (rr) rr.style.display = 'block';
 };
@@ -250,6 +253,73 @@ window.exportReport = function() {
 };
 
 window.printReport = () => window.print();
+
+// Fonction pour mettre à jour l'en-tête du rapport
+function updateReportHeader() {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('fr-FR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  const timeStr = now.toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  
+  // Mettre à jour la date de génération
+  const generatedDateEl = document.getElementById('generated-date');
+  if (generatedDateEl) {
+    generatedDateEl.textContent = `${dateStr} à ${timeStr}`;
+  }
+  
+  // Mettre à jour le nom de l'administrateur
+  const generatorNameEl = document.getElementById('generator-name');
+  if (generatorNameEl && currentUser) {
+    const adminName = currentUser.name || currentUser.first_name + ' ' + currentUser.last_name || currentUser.email || 'Administrateur';
+    generatorNameEl.textContent = adminName;
+  }
+  
+  // Mettre à jour la période
+  const periodEl = document.getElementById('report-period');
+  if (periodEl) {
+    const dateRange = document.getElementById('date-range');
+    if (dateRange) {
+      const selectedPeriod = dateRange.value;
+      let periodText = 'Aujourd\'hui';
+      
+      switch(selectedPeriod) {
+        case 'today':
+          periodText = 'Aujourd\'hui';
+          break;
+        case 'yesterday':
+          periodText = 'Hier';
+          break;
+        case 'week':
+          periodText = 'Cette semaine';
+          break;
+        case 'month':
+          periodText = 'Ce mois';
+          break;
+        case 'year':
+          periodText = 'Cette année';
+          break;
+        case 'custom':
+          const startDate = document.getElementById('start-date')?.value;
+          const endDate = document.getElementById('end-date')?.value;
+          if (startDate && endDate) {
+            const start = new Date(startDate).toLocaleDateString('fr-FR');
+            const end = new Date(endDate).toLocaleDateString('fr-FR');
+            periodText = `Du ${start} au ${end}`;
+          }
+          break;
+      }
+      
+      periodEl.textContent = `Période: ${periodText}`;
+    }
+  }
+}
 
 // === Chargement des agents pour le filtre ===
 async function loadAgentsForFilter() {

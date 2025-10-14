@@ -11,6 +11,54 @@
     <link rel="stylesheet" href="/modern-ui.css?v=1" />
     <link rel="stylesheet" href="/styles.css?v=2" />
     <link rel="stylesheet" href="/modern-ui.css?v=1" />
+    <style>
+      .report-header {
+        border-bottom: 2px solid #e5e7eb;
+        padding-bottom: 1rem;
+        margin-bottom: 1.5rem;
+      }
+      
+      .report-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
+        color: #6b7280;
+      }
+      
+      .report-meta span {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+      }
+      
+      .report-meta span::before {
+        content: "•";
+        margin-right: 0.5rem;
+        color: #9ca3af;
+      }
+      
+      .report-meta span:first-child::before {
+        display: none;
+      }
+      
+      #generated-date, #generator-name {
+        font-weight: 600;
+        color: #374151;
+      }
+      
+      @media (max-width: 768px) {
+        .report-meta {
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+        
+        .report-meta span::before {
+          display: none;
+        }
+      }
+    </style>
   </head>
   <body>
     <!-- Navigation Bar -->
@@ -143,6 +191,7 @@
             <div class="report-meta">
               <span id="report-period">Période: Aujourd'hui</span>
               <span id="report-generated">Généré le: <span id="generated-date"></span></span>
+              <span id="report-generator">Par: <span id="generator-name"></span></span>
             </div>
           </div>
           
