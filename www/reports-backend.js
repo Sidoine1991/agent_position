@@ -1,5 +1,6 @@
 // Script pour la page de rapports - Version Backend uniquement
-// Utilise /api/reports au lieu de Supabase directement
+// Utilise /api/reports/validations au lieu de Supabase directement
+console.log('🔄 reports-backend.js v4 chargé - ' + new Date().toISOString());
 
 let jwt = localStorage.getItem('jwt') || '';
 let currentUser = null;
