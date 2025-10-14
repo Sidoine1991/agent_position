@@ -180,25 +180,7 @@ app.delete('/api/admin/agents/:id', async (req, res) => {
   }
 });
 
-// API endpoint pour les administrateurs - gestion des agents
-app.get('/api/admin/agents', async (req, res) => {
-  try {
-    const { data, error } = await supabaseClient
-      .from('users')
-      .select('id,name,email,role,phone,departement,commune,arrondissement,village,project_name,photo_path,status,admin_unit,last_activity,first_name,last_name')
-      .order('name');
-    
-    if (error) {
-      console.error('Erreur Supabase admin/agents:', error);
-      return res.status(500).json({ error: 'Erreur lors de la récupération des agents' });
-    }
-
-    res.json({ success: true, agents: data || [] });
-  } catch (error) {
-    console.error('Erreur API admin/agents:', error);
-    res.status(500).json({ error: 'Erreur interne du serveur' });
-  }
-});
+// API endpoint pour les administrateurs - gestion des agents - SUPPRIMÉ (utilise l'endpoint plus complet ci-dessous)
 
 // API endpoint pour les utilisateurs (agents)
 app.get('/api/users', async (req, res) => {
@@ -1005,7 +987,26 @@ app.post('/api/login', async (req, res) => {
 // Register
 app.post('/api/register', async (req, res) => {
   try {
-    const { email, password, name, role = 'agent' } = req.body;
+    const { 
+      email, 
+      password, 
+      name, 
+      role = 'agent',
+      phone,
+      departement,
+      commune,
+      arrondissement,
+      village,
+      project_name,
+      reference_lat,
+      reference_lon,
+      tolerance_radius_meters,
+      expected_days_per_month,
+      expected_hours_per_month,
+      contract_start_date,
+      contract_end_date,
+      years_of_service
+    } = req.body;
     
     if (!email || !password || !name) {
       return res.status(400).json({ error: 'Email, mot de passe et nom requis' });
@@ -1041,6 +1042,20 @@ app.post('/api/register', async (req, res) => {
         password_hash: passwordHash,
         name,
         role,
+        phone,
+        departement,
+        commune,
+        arrondissement,
+        village,
+        project_name,
+        reference_lat: reference_lat ? parseFloat(reference_lat) : null,
+        reference_lon: reference_lon ? parseFloat(reference_lon) : null,
+        tolerance_radius_meters: tolerance_radius_meters ? parseInt(tolerance_radius_meters) : 5000,
+        expected_days_per_month: expected_days_per_month ? parseInt(expected_days_per_month) : null,
+        expected_hours_per_month: expected_hours_per_month ? parseInt(expected_hours_per_month) : null,
+        contract_start_date,
+        contract_end_date,
+        years_of_service: years_of_service ? parseFloat(years_of_service) : null,
         is_verified: false,
         verification_code: verificationCode,
         verification_expires: verificationExpires.toISOString()
@@ -1361,20 +1376,7 @@ app.get('/api/presence', authenticateToken, authenticateSupervisorOrAdmin, async
   }
 });
 
-// Liste des agents pour l'admin
-app.get('/api/admin/agents', authenticateToken, authenticateSupervisorOrAdmin, async (req, res) => {
-  try {
-    const { data: users, error } = await supabaseClient
-      .from('users')
-      .select('id, email, name, project_name');
-
-    if (error) throw error;
-    return res.json({ success: true, data: users || [] });
-  } catch (e) {
-    console.error('❌ /api/admin/agents error:', e);
-    return res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
+// Liste des agents pour l'admin - SUPPRIMÉ (utilise l'endpoint plus complet ci-dessous)
 
 // Récapitulatif mensuel validé par agent (admin)
 app.get('/api/admin/attendance', authenticateToken, authenticateSupervisorOrAdmin, async (req, res) => {
@@ -2290,7 +2292,7 @@ app.get('/api/admin/agents', authenticateToken, authenticateSupervisorOrAdmin, a
       photo_path: agent.photo_path || null
     }));
 
-    res.json({ success: true, agents: enrichedAgents });
+    res.json({ success: true, data: enrichedAgents });
   } catch (error) {
     console.error('Erreur récupération agents:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });

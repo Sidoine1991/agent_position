@@ -71,9 +71,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const profile = response.ok ? await response.json() : { name: 'Utilisateur', role: 'admin' };
         
-        // Si rôle non admin/supervisor, continuer en lecture seule au lieu de rediriger
-        if (profile.role !== 'admin' && profile.role !== 'supervisor') {
-            console.warn('⚠️ Rôle non admin/supervisor, mode lecture');
+        // Si rôle non admin/superviseur, continuer en lecture seule au lieu de rediriger
+        if (profile.role !== 'admin' && profile.role !== 'superviseur') {
+            console.warn('⚠️ Rôle non admin/superviseur, mode lecture');
         }
 
         // Mettre à jour l'info utilisateur
@@ -128,7 +128,7 @@ async function loadAgents() {
         // Supporte plusieurs formats: {success, data}, {data: {items}}, tableau direct
         const extracted = Array.isArray(result)
           ? result
-          : (result?.data?.items || result?.data || result?.agents || []);
+          : (result?.data || result?.agents || []);
         allAgents = Array.isArray(extracted) ? extracted : [];
         filteredAgents = [...allAgents];
         
@@ -196,7 +196,7 @@ async function loadDepartements() {
 function updateStats() {
     const total = Array.isArray(allAgents) ? allAgents.length : 0;
     const active = Array.isArray(allAgents) ? allAgents.filter(a => (a.status || 'active') === 'active').length : 0;
-    const supervisors = Array.isArray(allAgents) ? allAgents.filter(a => a.role === 'supervisor').length : 0;
+    const supervisors = Array.isArray(allAgents) ? allAgents.filter(a => a.role === 'superviseur').length : 0;
     const admins = Array.isArray(allAgents) ? allAgents.filter(a => a.role === 'admin').length : 0;
 
     document.getElementById('total-agents').textContent = total;
@@ -263,7 +263,7 @@ function displayAgents() {
 function getRoleLabel(role) {
     const labels = {
         'agent': 'Agent',
-        'supervisor': 'Superviseur',
+        'superviseur': 'Superviseur',
         'admin': 'Administrateur'
     };
     return labels[role] || role;
@@ -369,13 +369,21 @@ function openAgentModal() {
 // Modifier un agent
 async function editAgent(agentId) {
     try {
-        console.log(`✏️ Modification agent ID: ${agentId}`);
+        console.log(`✏️ Modification agent ID: ${agentId} (type: ${typeof agentId})`);
         
-        const agent = allAgents.find(a => a.id === agentId);
+        // Convertir agentId en nombre pour la comparaison
+        const numericAgentId = parseInt(agentId, 10);
+        console.log(`🔍 Recherche agent avec ID numérique: ${numericAgentId}`);
+        console.log(`📋 Agents disponibles:`, allAgents.map(a => ({ id: a.id, type: typeof a.id, name: a.name })));
+        
+        const agent = allAgents.find(a => a.id === numericAgentId || a.id === agentId || String(a.id) === String(agentId));
         if (!agent) {
+            console.error(`❌ Agent non trouvé. ID recherché: ${agentId} (${typeof agentId}), Agents disponibles:`, allAgents.map(a => a.id));
             alert('❌ Agent non trouvé');
             return;
         }
+
+        console.log(`✅ Agent trouvé:`, agent);
 
         // Ouvrir le modal
         document.getElementById('agent-modal').classList.remove('hidden');
