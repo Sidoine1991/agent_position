@@ -122,18 +122,51 @@
     }
   }
 
-  // Charger la liste des agents (pour les admins)
+  // Charger la liste des agents (admin/superviseur) ou restreindre à soi (agent)
   async function loadAgents() {
     try {
       const headers = await authHeaders();
-      const res = await fetch(`${apiBase}/users`, { headers });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.users) {
-          agents = data.users.filter(user => user.role === 'agent');
-          populateAgentSelect();
+      let loaded = false;
+      // 1) Endpoint complet réservé admin/superviseur
+      try {
+        const res = await fetch(`${apiBase}/admin/agents`, { headers });
+        if (res.ok) {
+          const payload = await res.json();
+          const list = payload?.data || payload?.agents || payload?.items || [];
+          if (Array.isArray(list) && list.length) {
+            agents = list.filter(u => String(u.role || '').trim().toLowerCase() === 'agent');
+            loaded = true;
+          }
         }
+      } catch {}
+
+      // 2) Fallback endpoint générique utilisateurs
+      if (!loaded) {
+        try {
+          const res2 = await fetch(`${apiBase}/users`, { headers });
+          if (res2.ok) {
+            const data = await res2.json();
+            const list = data?.items || data?.users || data?.data || [];
+            if (Array.isArray(list) && list.length) {
+              agents = list.filter(u => String(u.role || '').trim().toLowerCase() === 'agent');
+              loaded = true;
+            }
+          }
+        } catch {}
       }
+
+      // 3) Fallback: si profil courant est agent, limiter au compte courant
+      if (!loaded) {
+        try {
+          if (currentUser && String(currentUser.role || '').toLowerCase() === 'agent') {
+            agents = [{ id: currentUser.id, first_name: currentUser.first_name, last_name: currentUser.last_name, email: currentUser.email, role: 'agent' }];
+            loaded = true;
+          }
+        } catch {}
+      }
+
+      if (!Array.isArray(agents)) agents = [];
+      populateAgentSelect();
     } catch (error) {
       console.error('Erreur chargement agents:', error);
     }
