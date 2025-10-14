@@ -219,6 +219,9 @@ window.generateReport = async function() {
   // Mettre à jour l'en-tête du rapport avec la date, l'heure et le nom de l'administrateur
   updateReportHeader();
   
+  // Générer les diagrammes
+  generateCharts(rows);
+  
   const rr = document.getElementById('report-results');
   if (rr) rr.style.display = 'block';
 };
@@ -253,6 +256,165 @@ window.exportReport = function() {
 };
 
 window.printReport = () => window.print();
+
+// Fonction pour générer les diagrammes
+function generateCharts(rows) {
+  generatePresenceEvolutionChart(rows);
+  generateRoleDistributionChart(rows);
+}
+
+// Diagramme d'évolution de la présence
+function generatePresenceEvolutionChart(rows) {
+  const chartContainer = document.getElementById('presence-evolution-chart');
+  if (!chartContainer) return;
+  
+  // Grouper par date
+  const dailyData = {};
+  rows.forEach(row => {
+    const date = new Date(row.ts).toLocaleDateString('fr-FR');
+    if (!dailyData[date]) {
+      dailyData[date] = { present: 0, absent: 0, total: 0 };
+    }
+    dailyData[date].total++;
+    if (row.statut === 'Présent') {
+      dailyData[date].present++;
+    } else {
+      dailyData[date].absent++;
+    }
+  });
+  
+  const dates = Object.keys(dailyData).sort();
+  const maxTotal = Math.max(...Object.values(dailyData).map(d => d.total));
+  
+  let chartHTML = '<div class="chart-bar-container">';
+  dates.forEach(date => {
+    const data = dailyData[date];
+    const presentPercent = (data.present / data.total) * 100;
+    const absentPercent = (data.absent / data.total) * 100;
+    
+    chartHTML += `
+      <div class="chart-bar">
+        <div class="chart-bar-label">${date}</div>
+        <div class="chart-bar-fill" style="width: ${(data.total / maxTotal) * 200}px; background: linear-gradient(90deg, #10b981 ${presentPercent}%, #ef4444 ${presentPercent}%);">
+          ${data.present}/${data.total}
+        </div>
+      </div>
+    `;
+  });
+  chartHTML += '</div>';
+  
+  chartContainer.innerHTML = chartHTML;
+}
+
+// Diagramme de répartition par rôle
+function generateRoleDistributionChart(rows) {
+  const chartContainer = document.getElementById('role-distribution-chart');
+  if (!chartContainer) return;
+  
+  // Grouper par rôle
+  const roleData = {};
+  rows.forEach(row => {
+    const role = row.role || 'Agent';
+    if (!roleData[role]) {
+      roleData[role] = 0;
+    }
+    roleData[role]++;
+  });
+  
+  const total = Object.values(roleData).reduce((sum, count) => sum + count, 0);
+  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+  
+  let chartHTML = '<div class="chart-pie">';
+  let colorIndex = 0;
+  
+  Object.entries(roleData).forEach(([role, count]) => {
+    const percentage = ((count / total) * 100).toFixed(1);
+    const color = colors[colorIndex % colors.length];
+    
+    chartHTML += `
+      <div class="chart-pie-item">
+        <div class="chart-pie-color" style="background-color: ${color};"></div>
+        <div class="chart-pie-label">${role}</div>
+        <div class="chart-pie-value">${count} (${percentage}%)</div>
+      </div>
+    `;
+    colorIndex++;
+  });
+  
+  chartHTML += '</div>';
+  chartContainer.innerHTML = chartHTML;
+}
+
+// Fonction d'export Excel
+window.exportExcel = function() {
+  const rows = window.__lastRows || [];
+  if (rows.length === 0) {
+    alert('Aucune donnée à exporter');
+    return;
+  }
+  
+  // Créer le contenu Excel (format HTML table pour Excel)
+  const excelContent = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+      <meta charset="utf-8">
+      <meta name="ExcelCreated" content="01/01/2025">
+      <style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; font-weight: bold; }
+        .header { background-color: #4f46e5; color: white; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <h2>Rapport de Présence - Presence CCRB</h2>
+      <p><strong>Généré le:</strong> ${new Date().toLocaleString('fr-FR')}</p>
+      <p><strong>Par:</strong> ${currentUser?.name || currentUser?.email || 'Administrateur'}</p>
+      <p><strong>Période:</strong> ${document.getElementById('report-period')?.textContent || 'Non spécifiée'}</p>
+      
+      <table>
+        <thead>
+          <tr class="header">
+            <th>Agent</th>
+            <th>Projet</th>
+            <th>Localisation</th>
+            <th>Rayon (m)</th>
+            <th>Ref (lat, lon)</th>
+            <th>Actuel (lat, lon)</th>
+            <th>Date</th>
+            <th>Distance (m)</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(row => `
+            <tr>
+              <td>${row.agent || '—'}</td>
+              <td>${row.projet || '—'}</td>
+              <td>${row.localisation || '—'}</td>
+              <td>${row.rayon_m || '—'}</td>
+              <td>${(row.ref_lat != null && row.ref_lon != null) ? `${row.ref_lat}, ${row.ref_lon}` : '—'}</td>
+              <td>${(row.lat != null && row.lon != null) ? `${row.lat}, ${row.lon}` : '—'}</td>
+              <td>${row.ts ? new Date(row.ts).toLocaleString('fr-FR') : '—'}</td>
+              <td>${row.distance_m || '—'}</td>
+              <td>${row.statut || '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `;
+  
+  // Créer et télécharger le fichier
+  const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rapport_presence_${new Date().toISOString().slice(0, 10)}.xls`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
 // Fonction pour mettre à jour l'en-tête du rapport
 function updateReportHeader() {
@@ -368,6 +530,11 @@ document.addEventListener('DOMContentLoaded', async function() {
   const exportBtn = document.getElementById('export-btn');
   if (exportBtn) {
     exportBtn.addEventListener('click', window.exportReport);
+  }
+  
+  const exportExcelBtn = document.getElementById('export-excel-btn');
+  if (exportExcelBtn) {
+    exportExcelBtn.addEventListener('click', window.exportExcel);
   }
   
   const printBtn = document.getElementById('print-btn');
