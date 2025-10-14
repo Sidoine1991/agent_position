@@ -899,7 +899,7 @@ async function updateMonthlySummary() {
         <td>${r.absent}</td>
         <td>${r.decision}</td>
         <td>${r.radius_m ?? '—'}</td>
-        <td>${(r.dist_min != null || r.dist_max != null) ? `${r.dist_min ?? '—'}/${r.dist_max ?? '—'}` : '—'}</td>
+        <td>${(r.dist_first != null) ? r.dist_first : (r.dist_min != null ? r.dist_min : '—')}</td>
         <td>${r.justification}</td>
       </tr>
     `).join('');
