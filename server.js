@@ -1842,50 +1842,76 @@ app.post('/api/me/profile', authenticateToken, async (req, res) => {
       reference_lon,
       tolerance_radius_meters,
       project_name,
-      hire_date,
-      age
+      contract_start_date,
+      contract_end_date,
+      years_of_service,
+      expected_days_per_month,
+      expected_hours_per_month,
+      planning_start_date,
+      planning_end_date
     } = req.body || {};
 
+    // Validation des coordonnées GPS
     const lat = reference_lat === undefined || reference_lat === null || reference_lat === '' ? null : Number(reference_lat);
     const lon = reference_lon === undefined || reference_lon === null || reference_lon === '' ? null : Number(reference_lon);
-    if (lat !== null && (!Number.isFinite(lat) || lat < -90 || lat > 90)) return res.status(400).json({ success: false, error: 'Latitude de référence invalide' });
-    if (lon !== null && (!Number.isFinite(lon) || lon < -180 || lon > 180)) return res.status(400).json({ success: false, error: 'Longitude de référence invalide' });
+    if (lat !== null && (!Number.isFinite(lat) || lat < -90 || lat > 90)) {
+      return res.status(400).json({ success: false, error: 'Latitude de référence invalide' });
+    }
+    if (lon !== null && (!Number.isFinite(lon) || lon < -180 || lon > 180)) {
+      return res.status(400).json({ success: false, error: 'Longitude de référence invalide' });
+    }
+    
     const tol = tolerance_radius_meters === undefined || tolerance_radius_meters === null || tolerance_radius_meters === '' ? null : Math.max(0, parseInt(String(tolerance_radius_meters), 10) || 0);
 
-    const payload = {
-      user_id: userId,
-      photo_path: photo_path ?? null,
-      first_name: first_name ?? null,
-      last_name: last_name ?? null,
-      phone: phone ?? null,
-      departement: departement ?? null,
-      commune: commune ?? null,
-      arrondissement: arrondissement ?? null,
-      village: village ?? null,
-      reference_lat: lat,
-      reference_lon: lon,
-      tolerance_radius_meters: tol ?? 500,
-      project_name: project_name ?? null,
-      hire_date: hire_date ?? null,
-      age: (age === undefined || age === null || age === '') ? null : (parseInt(String(age), 10) || null),
-      updated_at: new Date().toISOString()
-    };
+    // Préparer les données pour la mise à jour de la table users
+    const updateData = {};
+    
+    // Champs de base
+    if (typeof photo_path !== 'undefined') updateData.photo_path = photo_path || null;
+    if (typeof first_name !== 'undefined') updateData.first_name = first_name || null;
+    if (typeof last_name !== 'undefined') updateData.last_name = last_name || null;
+    if (typeof phone !== 'undefined') updateData.phone = phone || null;
+    
+    // Localisation
+    if (typeof departement !== 'undefined') updateData.departement = departement || null;
+    if (typeof commune !== 'undefined') updateData.commune = commune || null;
+    if (typeof arrondissement !== 'undefined') updateData.arrondissement = arrondissement || null;
+    if (typeof village !== 'undefined') updateData.village = village || null;
+    
+    // Projet
+    if (typeof project_name !== 'undefined') updateData.project_name = project_name || null;
+    
+    // GPS
+    if (typeof reference_lat !== 'undefined') updateData.reference_lat = lat;
+    if (typeof reference_lon !== 'undefined') updateData.reference_lon = lon;
+    if (typeof tolerance_radius_meters !== 'undefined') updateData.tolerance_radius_meters = tol || 5000;
+    
+    // Contrat
+    if (typeof contract_start_date !== 'undefined') updateData.contract_start_date = contract_start_date || null;
+    if (typeof contract_end_date !== 'undefined') updateData.contract_end_date = contract_end_date || null;
+    if (typeof years_of_service !== 'undefined') updateData.years_of_service = years_of_service ? Number(years_of_service) : null;
+    
+    // Planification
+    if (typeof expected_days_per_month !== 'undefined') updateData.expected_days_per_month = expected_days_per_month ? Number(expected_days_per_month) : null;
+    if (typeof expected_hours_per_month !== 'undefined') updateData.expected_hours_per_month = expected_hours_per_month ? Number(expected_hours_per_month) : null;
+    if (typeof planning_start_date !== 'undefined') updateData.planning_start_date = planning_start_date || null;
+    if (typeof planning_end_date !== 'undefined') updateData.planning_end_date = planning_end_date || null;
 
+    // Mettre à jour la table users directement
     const { data, error } = await supabaseClient
-      .from('profiles')
-      .upsert(payload, { onConflict: 'user_id' })
+      .from('users')
+      .update(updateData)
+      .eq('id', userId)
       .select('*')
       .single();
-    if (error) throw error;
-
-    const usersUpdate = {};
-    if (typeof hire_date !== 'undefined') usersUpdate.hire_date = hire_date || null;
-    if (typeof age !== 'undefined') usersUpdate.age = (payload.age ?? null);
-    if (Object.keys(usersUpdate).length > 0) {
-      try { await supabaseClient.from('users').update(usersUpdate).eq('id', userId); } catch {}
+    
+    if (error) {
+      console.error('Erreur mise à jour users:', error);
+      throw error;
     }
 
-    return res.json({ success: true, profile: data });
+    console.log('✅ Profil utilisateur mis à jour dans la table users:', userId);
+    return res.json({ success: true, user: data });
   } catch (error) {
     console.error('Erreur upsert me/profile:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
