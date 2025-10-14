@@ -390,12 +390,12 @@ app.get('/api/reports', async (req, res) => {
       
       // Calculer la distance si elle n'est pas déjà calculée
       let distance_m = validation.distance_m;
-      if ((distance_m === null || distance_m === undefined) && validation.reference_lat && validation.reference_lon && checkin?.lat && checkin?.lon) {
-        distance_m = calculateDistance(
-          validation.reference_lat, validation.reference_lon,
-          checkin.lat, checkin.lon
-        );
-        console.log(`📏 Distance calculée pour agent ${validation.agent_id}: ${distance_m}m`);
+      const refLat = validation.reference_lat || user?.reference_lat;
+      const refLon = validation.reference_lon || user?.reference_lon;
+      
+      if ((distance_m === null || distance_m === undefined) && refLat && refLon && checkin?.lat && checkin?.lon) {
+        distance_m = calculateDistance(refLat, refLon, checkin.lat, checkin.lon);
+        console.log(`📏 Distance calculée pour agent ${validation.agent_id}: ${distance_m}m (ref: ${refLat}, ${refLon} -> checkin: ${checkin.lat}, ${checkin.lon})`);
       }
       
       // Déterminer le statut
