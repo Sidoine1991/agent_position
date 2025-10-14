@@ -736,7 +736,7 @@ async function updateMonthlySummary() {
           dist = computeDistanceMeters(meta.refLat, meta.refLon, Number(checkin.lat), Number(checkin.lon));
         }
       }
-      if (tol == null) tol = 500;
+      if (tol == null) tol = 5000;
       const within = (typeof checkin.within_tolerance === 'boolean') ? checkin.within_tolerance : (dist != null ? dist <= tol : false);
       const prev = perAgentDay.get(k) || { within: false, minDist: null, firstDist: null, firstTime: null, hasAny: false, tol };
       const minDist = (prev.minDist == null) ? dist : (dist == null ? prev.minDist : Math.min(prev.minDist, dist));
@@ -798,7 +798,7 @@ async function updateMonthlySummary() {
         if (meta?.tol) return meta.tol;
         const keys = [...new Set([...presenceDaysArr, ...absentDaysArr])].map(d => agentId + '|' + d);
         for (const key of keys) { const agg = perAgentDay.get(key); if (agg?.tol) return agg.tol; }
-        return 500;
+        return 5000;
       })();
       const distVals = [];
       presenceDaysArr.forEach(d => { const agg = perAgentDay.get(agentId + '|' + d); if (agg?.minDist != null) distVals.push(Number(agg.minDist)); });
@@ -834,6 +834,13 @@ async function updateMonthlySummary() {
         presenceDays: Array.from(stats.presenceDays)
       });
       
+      // Décision agrégée par agent basée sur comparaison distance/tolérance
+      let decision = '—';
+      if (present === 0 && planned > 0) decision = 'Absent';
+      else if (outsideCount === 0 && withinCount > 0) decision = 'Présent';
+      else if (withinCount === 0 && outsideCount > 0) decision = 'Présent hors zone';
+      else if (withinCount > 0 && outsideCount > 0) decision = 'Mixte';
+
       if (present > 0 || planned > 0) {
         rowsOut.push({
           agent: stats.name,
@@ -841,6 +848,7 @@ async function updateMonthlySummary() {
           planned,
           present,
           absent,
+          decision,
           radius_m: tol,
           dist_min: distMin,
           dist_max: distMax,
@@ -854,7 +862,7 @@ async function updateMonthlySummary() {
     rowsOut.sort((a, b) => a.agent.localeCompare(b.agent));
 
     if (!rowsOut.length) {
-      tbody.innerHTML = '<tr><td colspan="8">Aucune donnée pour la période sélectionnée.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9">Aucune donnée pour la période sélectionnée.</td></tr>';
       return;
     }
 
@@ -865,6 +873,7 @@ async function updateMonthlySummary() {
         <td>${r.planned}</td>
         <td>${r.present}</td>
         <td>${r.absent}</td>
+        <td>${r.decision}</td>
         <td>${r.radius_m ?? '—'}</td>
         <td>${(r.dist_min != null || r.dist_max != null) ? `${r.dist_min ?? '—'}/${r.dist_max ?? '—'}` : '—'}</td>
         <td>${r.justification}</td>
