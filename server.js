@@ -3068,14 +3068,14 @@ app.get('/api/reports/validations', authenticateToken, authenticateSupervisorOrA
       (checkins || []).forEach(c => checkinsMap.set(c.id, c));
     }
 
-    // 3) Charger profils/agents
+    // 3) Charger profils/agents depuis la table users
     const agentIds = Array.from(new Set(items.map(i => i.agent_id).filter(Boolean)));
     let profilesMap = new Map();
     if (agentIds.length) {
       const { data: profs } = await supabaseClient
-        .from('profiles')
-        .select('user_id, name, first_name, last_name, project_name, departement, commune, arrondissement, village');
-      (profs || []).forEach(p => profilesMap.set(p.user_id, p));
+        .from('users')
+        .select('id, name, first_name, last_name, project_name, departement, commune, arrondissement, village');
+      (profs || []).forEach(p => profilesMap.set(p.id, p));
     }
 
     // 4) Construire sorties
