@@ -115,10 +115,11 @@ registerForm.addEventListener('submit', async (e) => {
 
   // Champs supplémentaires mappés à la table `users` (si présents dans le formulaire)
   const extraFields = {
-    departement: formData.get('departement'),
-    commune: formData.get('commune'),
-    arrondissement: formData.get('arrondissement'),
-    village: formData.get('village'),
+    // Sauvegarder les LIBELLÉS visibles (pas les ids numériques)
+    departement: (() => { const el = document.getElementById('departement'); return el && el.selectedIndex >= 0 ? el.options[el.selectedIndex].text : ''; })(),
+    commune: (() => { const el = document.getElementById('commune'); return el && el.selectedIndex >= 0 ? el.options[el.selectedIndex].text : ''; })(),
+    arrondissement: (() => { const el = document.getElementById('arrondissement'); return el && el.selectedIndex >= 0 ? el.options[el.selectedIndex].text : ''; })(),
+    village: (() => { const el = document.getElementById('village'); return el && el.selectedIndex >= 0 ? el.options[el.selectedIndex].text : ''; })(),
     project_name: (formData.get('project_name') || '').trim(),
     expected_days_per_month: formData.get('expected_days_per_month'),
     expected_hours_per_month: formData.get('expected_hours_per_month'),
