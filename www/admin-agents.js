@@ -142,7 +142,9 @@ async function loadAgents() {
         }));
         console.log(`✅ ${allAgents.length} agents chargés (rôles normalisés):`, allAgents);
         
-        updateStats();
+        // Initialiser la liste filtrée et mettre à jour les stats
+        filteredAgents = [...allAgents];
+        updateStats(filteredAgents);
         displayAgents();
         
     } catch (error) {
@@ -211,10 +213,10 @@ function updateStats(source) {
     }).length : 0;
     const admins = Array.isArray(list) ? list.filter(a => String(a.role || '').trim().toLowerCase() === 'admin').length : 0;
 
-    document.getElementById('total-agents').textContent = total;
-    document.getElementById('active-agents').textContent = active;
-    document.getElementById('supervisors').textContent = supervisors;
-    document.getElementById('admins').textContent = admins;
+    try { document.getElementById('total-agents').textContent = total; } catch {}
+    try { document.getElementById('active-agents').textContent = active; } catch {}
+    try { document.getElementById('supervisors').textContent = supervisors; } catch {}
+    try { document.getElementById('admins').textContent = admins; } catch {}
 }
 
 // Afficher les agents dans le tableau
