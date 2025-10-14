@@ -1027,6 +1027,243 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // Admin - Liste des agents
+    if (path === '/api/admin/agents' && method === 'GET') {
+      console.log('🔍 Endpoint /api/admin/agents appelé');
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          // Vérifier que l'utilisateur est admin ou superviseur
+          if (req.user.role !== 'admin' && req.user.role !== 'superviseur') {
+            return res.status(403).json({ error: 'Accès refusé' });
+          }
+
+          const { data: agents, error } = await supabaseClient
+            .from('users')
+            .select(`
+              id, name, first_name, last_name, email, role, phone, status, photo_path,
+              departement, commune, arrondissement, village, project_name,
+              expected_days_per_month, expected_hours_per_month, planning_start_date, planning_end_date,
+              reference_lat, reference_lon, tolerance_radius_meters,
+              created_at, contract_start_date, contract_end_date, years_of_service, last_activity,
+              is_verified, verification_code, verification_expires
+            `)
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+
+          return res.json({
+            success: true,
+            data: agents || []
+          });
+        } catch (error) {
+          console.error('Erreur récupération agents:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Admin - Créer un agent
+    if (path === '/api/admin/agents' && method === 'POST') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          // Vérifier que l'utilisateur est admin
+          if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Accès refusé' });
+          }
+
+          const { 
+            name, email, password, first_name, last_name, phone, role = 'agent',
+            project_name, project_description, planning_start_date, planning_end_date,
+            expected_days_per_month, expected_hours_per_month, work_schedule, contract_type,
+            ref_lat, ref_lon, tolerance, gps_accuracy, observations,
+            departement, commune, arrondissement, village
+          } = req.body;
+
+          if (!email || !name) {
+            return res.status(400).json({ error: 'Email et nom requis' });
+          }
+
+          // Vérifier si l'utilisateur existe déjà
+          const { data: existingUsers, error: checkError } = await supabaseClient
+            .from('users')
+            .select('id')
+            .eq('email', email)
+            .limit(1);
+
+          if (checkError) throw checkError;
+          if (existingUsers && existingUsers.length > 0) {
+            return res.status(400).json({ error: 'Cet email est déjà utilisé' });
+          }
+
+          // Hasher le mot de passe
+          const bcrypt = require('bcrypt');
+          const passwordHash = await bcrypt.hash(password || '123456', 10);
+
+          const { data: newAgent, error: insertError } = await supabaseClient
+            .from('users')
+            .insert([{
+              name,
+              email,
+              password_hash: passwordHash,
+              first_name,
+              last_name,
+              phone,
+              role,
+              project_name,
+              project_description,
+              planning_start_date,
+              planning_end_date,
+              expected_days_per_month: expected_days_per_month ? parseInt(expected_days_per_month) : null,
+              expected_hours_per_month: expected_hours_per_month ? parseInt(expected_hours_per_month) : null,
+              work_schedule,
+              contract_type,
+              reference_lat: ref_lat ? parseFloat(ref_lat) : null,
+              reference_lon: ref_lon ? parseFloat(ref_lon) : null,
+              tolerance_radius_meters: tolerance ? parseInt(tolerance) : null,
+              gps_accuracy,
+              observations,
+              departement,
+              commune,
+              arrondissement,
+              village,
+              is_verified: true,
+              status: 'active'
+            }])
+            .select()
+            .single();
+
+          if (insertError) throw insertError;
+
+          return res.json({
+            success: true,
+            data: newAgent
+          });
+        } catch (error) {
+          console.error('Erreur création agent:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Admin - Modifier un agent
+    if (path.startsWith('/api/admin/agents/') && method === 'PUT') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          // Vérifier que l'utilisateur est admin
+          if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Accès refusé' });
+          }
+
+          const agentId = path.split('/').pop();
+          const { 
+            name, email, password, first_name, last_name, phone, role,
+            project_name, project_description, planning_start_date, planning_end_date,
+            expected_days_per_month, expected_hours_per_month, work_schedule, contract_type,
+            ref_lat, ref_lon, tolerance, gps_accuracy, observations,
+            departement, commune, arrondissement, village
+          } = req.body;
+
+          const updateData = {
+            name,
+            email,
+            first_name,
+            last_name,
+            phone,
+            role,
+            project_name,
+            project_description,
+            planning_start_date,
+            planning_end_date,
+            expected_days_per_month: expected_days_per_month ? parseInt(expected_days_per_month) : null,
+            expected_hours_per_month: expected_hours_per_month ? parseInt(expected_hours_per_month) : null,
+            work_schedule,
+            contract_type,
+            reference_lat: ref_lat ? parseFloat(ref_lat) : null,
+            reference_lon: ref_lon ? parseFloat(ref_lon) : null,
+            tolerance_radius_meters: tolerance ? parseInt(tolerance) : null,
+            gps_accuracy,
+            observations,
+            departement,
+            commune,
+            arrondissement,
+            village
+          };
+
+          // Ajouter le mot de passe seulement s'il est fourni
+          if (password) {
+            const bcrypt = require('bcrypt');
+            updateData.password_hash = await bcrypt.hash(password, 10);
+          }
+
+          const { data: updatedAgent, error: updateError } = await supabaseClient
+            .from('users')
+            .update(updateData)
+            .eq('id', agentId)
+            .select()
+            .single();
+
+          if (updateError) throw updateError;
+
+          return res.json({
+            success: true,
+            data: updatedAgent
+          });
+        } catch (error) {
+          console.error('Erreur modification agent:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Admin - Supprimer un agent
+    if (path.startsWith('/api/admin/agents/') && method === 'DELETE') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          // Vérifier que l'utilisateur est admin
+          if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Accès refusé' });
+          }
+
+          const agentId = path.split('/').pop();
+
+          const { error: deleteError } = await supabaseClient
+            .from('users')
+            .delete()
+            .eq('id', agentId);
+
+          if (deleteError) throw deleteError;
+
+          return res.json({
+            success: true,
+            message: 'Agent supprimé avec succès'
+          });
+        } catch (error) {
+          console.error('Erreur suppression agent:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
     // Route non trouvée
     return res.status(404).json({ error: 'Route non trouvée' });
 

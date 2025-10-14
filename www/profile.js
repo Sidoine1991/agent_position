@@ -40,7 +40,8 @@ async function api(path, opts = {}) {
   if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
   if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
   
-  console.log('API call:', apiBase + path, { method: opts.method || 'GET', headers, body: opts.body });
+  console.log('🔍 API call:', apiBase + path, { method: opts.method || 'GET', headers, body: opts.body });
+  console.log('🔑 JWT token:', jwt ? jwt.substring(0, 50) + '...' : 'Aucun token');
   
   let res = await fetch(apiBase + path, {
     method: opts.method || 'GET',
@@ -48,7 +49,7 @@ async function api(path, opts = {}) {
     body: opts.body instanceof FormData ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined),
   });
   
-  console.log('API response:', res.status, res.statusText);
+  console.log('📡 API response:', res.status, res.statusText);
   
   if (!res.ok) {
     // Retry logique pour /profile sans token: fallback via email si disponible
@@ -312,12 +313,15 @@ function setupInlineEdit(fieldName, displayId, inputId, editBtnId, saveBtnId, ca
   
   btnSave.addEventListener('click', async () => {
     const value = input.value.trim();
+    console.log(`💾 Sauvegarde ${fieldName}:`, value);
     try {
-      await api('/me/profile', { method: 'POST', body: { [fieldName]: value || null } });
+      const result = await api('/me/profile', { method: 'POST', body: { [fieldName]: value || null } });
+      console.log(`✅ ${fieldName} mis à jour:`, result);
       display.textContent = value || '—';
       btnCancel.click();
       updateProfileCompletion();
     } catch (e) {
+      console.error(`❌ Erreur mise à jour ${fieldName}:`, e);
       alert(`Erreur mise à jour ${fieldName}: ` + (e.message || ''));
     }
   });
