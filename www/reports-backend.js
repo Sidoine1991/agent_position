@@ -257,6 +257,44 @@ window.exportReport = function() {
 
 window.printReport = () => window.print();
 
+// Fonction de déconnexion
+window.logout = function() {
+  if (confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) {
+    localStorage.removeItem('jwt');
+    localStorage.removeItem('user_email');
+    localStorage.removeItem('email');
+    localStorage.removeItem('userEmail');
+    window.location.href = '/index.html';
+  }
+};
+
+// Fonction pour mettre à jour les informations utilisateur dans la navbar
+function updateNavbarUser() {
+  const userInfoEl = document.getElementById('user-info');
+  if (userInfoEl && currentUser) {
+    const userName = currentUser.name || currentUser.first_name + ' ' + currentUser.last_name || currentUser.email || 'Utilisateur';
+    const userRole = currentUser.role || 'Agent';
+    userInfoEl.textContent = `${userName} (${userRole})`;
+  }
+}
+
+// Fonction pour gérer les filtres de date
+function updateDateInputs() {
+  const dateRange = document.getElementById('date-range');
+  const customStartGroup = document.getElementById('custom-date-group');
+  const customEndGroup = document.getElementById('custom-date-group-end');
+  
+  if (dateRange && customStartGroup && customEndGroup) {
+    if (dateRange.value === 'custom') {
+      customStartGroup.style.display = 'block';
+      customEndGroup.style.display = 'block';
+    } else {
+      customStartGroup.style.display = 'none';
+      customEndGroup.style.display = 'none';
+    }
+  }
+}
+
 // Fonction pour générer les diagrammes
 function generateCharts(rows) {
   generatePresenceEvolutionChart(rows);
@@ -306,35 +344,35 @@ function generatePresenceEvolutionChart(rows) {
   chartContainer.innerHTML = chartHTML;
 }
 
-// Diagramme de répartition par rôle
+// Diagramme de répartition par projet
 function generateRoleDistributionChart(rows) {
   const chartContainer = document.getElementById('role-distribution-chart');
   if (!chartContainer) return;
   
-  // Grouper par rôle
-  const roleData = {};
+  // Grouper par projet
+  const projectData = {};
   rows.forEach(row => {
-    const role = row.role || 'Agent';
-    if (!roleData[role]) {
-      roleData[role] = 0;
+    const project = row.projet || 'Non spécifié';
+    if (!projectData[project]) {
+      projectData[project] = 0;
     }
-    roleData[role]++;
+    projectData[project]++;
   });
   
-  const total = Object.values(roleData).reduce((sum, count) => sum + count, 0);
-  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+  const total = Object.values(projectData).reduce((sum, count) => sum + count, 0);
+  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16'];
   
   let chartHTML = '<div class="chart-pie">';
   let colorIndex = 0;
   
-  Object.entries(roleData).forEach(([role, count]) => {
+  Object.entries(projectData).forEach(([project, count]) => {
     const percentage = ((count / total) * 100).toFixed(1);
     const color = colors[colorIndex % colors.length];
     
     chartHTML += `
       <div class="chart-pie-item">
         <div class="chart-pie-color" style="background-color: ${color};"></div>
-        <div class="chart-pie-label">${role}</div>
+        <div class="chart-pie-label">${project}</div>
         <div class="chart-pie-value">${count} (${percentage}%)</div>
       </div>
     `;
@@ -513,13 +551,16 @@ document.addEventListener('DOMContentLoaded', async function() {
   // Vérifier l'authentification
   await checkAuth();
   
+  // Mettre à jour les informations utilisateur dans la navbar
+  updateNavbarUser();
+  
   // Charger les agents pour le filtre
   await loadAgentsForFilter();
   
   // Attacher les événements
   const dateRangeSelect = document.getElementById('date-range');
   if (dateRangeSelect) {
-    dateRangeSelect.addEventListener('change', window.updateDateInputs);
+    dateRangeSelect.addEventListener('change', updateDateInputs);
   }
   
   const generateBtn = document.getElementById('generate-btn');
