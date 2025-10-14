@@ -126,9 +126,12 @@ async function fetchReportsFromBackend(agentId = null) {
   }
   
   try {
-    // Utiliser l'API /reports/validations qui contient les vraies données
+    console.log('🔍 Appel API /reports/validations avec params:', params.toString());
     const result = await api('/reports/validations?' + params.toString());
-    if (result.success && result.items) {
+    console.log('📊 Résultat API /reports/validations:', result);
+    
+    if (result && result.success && result.items) {
+      console.log('✅ Données trouvées:', result.items.length, 'validations');
       // Transformer les données pour correspondre au format attendu
       return result.items.map(item => ({
         agent: item.agent_name || `Agent #${item.agent_id}`,
@@ -144,10 +147,12 @@ async function fetchReportsFromBackend(agentId = null) {
         distance_m: item.distance_from_reference_m,
         statut: item.status || (item.within_tolerance ? 'Présent' : 'Hors zone')
       }));
+    } else {
+      console.warn('⚠️ Aucune donnée dans /reports/validations ou format inattendu:', result);
     }
     return [];
   } catch (error) {
-    console.error('Erreur lors de la récupération des rapports:', error);
+    console.error('❌ Erreur lors de la récupération des rapports:', error);
     return [];
   }
 }
