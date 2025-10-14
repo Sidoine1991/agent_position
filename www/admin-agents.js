@@ -201,14 +201,15 @@ async function loadDepartements() {
 }
 
 // Mettre à jour les statistiques
-function updateStats() {
-    const total = Array.isArray(allAgents) ? allAgents.length : 0;
-    const active = Array.isArray(allAgents) ? allAgents.filter(a => (a.status || 'active') === 'active').length : 0;
-    const supervisors = Array.isArray(allAgents) ? allAgents.filter(a => {
+function updateStats(source) {
+    const list = Array.isArray(source) ? source : (Array.isArray(filteredAgents) ? filteredAgents : allAgents);
+    const total = Array.isArray(list) ? list.length : 0;
+    const active = Array.isArray(list) ? list.filter(a => (a.status || 'active') === 'active').length : 0;
+    const supervisors = Array.isArray(list) ? list.filter(a => {
         const r = String(a.role || '').trim().toLowerCase();
         return r === 'superviseur' || r === 'supervisor';
     }).length : 0;
-    const admins = Array.isArray(allAgents) ? allAgents.filter(a => String(a.role || '').trim().toLowerCase() === 'admin').length : 0;
+    const admins = Array.isArray(list) ? list.filter(a => String(a.role || '').trim().toLowerCase() === 'admin').length : 0;
 
     document.getElementById('total-agents').textContent = total;
     document.getElementById('active-agents').textContent = active;
@@ -330,6 +331,8 @@ function filterAgents() {
 
     currentPage = 1;
     displayAgents();
+    // Mettre à jour les stats du tableau de bord avec la liste filtrée
+    try { updateStats(filteredAgents); } catch {}
 }
 
 // Mettre à jour la pagination
