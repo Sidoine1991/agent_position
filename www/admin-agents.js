@@ -252,6 +252,11 @@ function displayAgents() {
             <td class="agent-arrondissement">${agent.arrondissement || '-'}</td>
             <td class="agent-village">${agent.village || '-'}</td>
             <td class="agent-project">${agent.project_name || '-'}</td>
+            <td class="agent-ref">${
+                (agent.reference_lat != null && agent.reference_lon != null)
+                  ? `${Number(agent.reference_lat).toFixed(6)}, ${Number(agent.reference_lon).toFixed(6)}`
+                  : '-'
+            }</td>
             <td class="agent-status">
                 <span class="status-badge status-${agent.status || 'active'}">${getStatusLabel(agent.status)}</span>
             </td>
