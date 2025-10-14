@@ -716,6 +716,28 @@ async function updateMonthlySummary() {
       });
     }
     
+    // Charger les validations (distances calculées par l'algorithme serveur) et indexer par agent|jour
+    const validationsByAgentDay = new Map();
+    try {
+      const resp = await api('/reports/validations');
+      const items = resp?.items || [];
+      const fromDay = new Date(from.getFullYear(), from.getMonth(), 1);
+      const toDay = new Date(from.getFullYear(), from.getMonth() + 1, 0);
+      items.forEach(v => {
+        const aid = Number(v.agent_id);
+        const dayKey = (v.date || '').toString().slice(0,10);
+        if (!aid || !dayKey) return;
+        const dObj = new Date(dayKey + 'T00:00:00');
+        if (isNaN(dObj)) return;
+        if (dObj < fromDay || dObj > toDay) return;
+        const k = aid + '|' + dayKey;
+        const current = validationsByAgentDay.get(k) || {};
+        const dist = (typeof v.distance_from_reference_m === 'number') ? Number(v.distance_from_reference_m) : current.distance_m;
+        const tol = (typeof v.tolerance_radius_meters === 'number') ? Number(v.tolerance_radius_meters) : current.tol;
+        validationsByAgentDay.set(k, { distance_m: dist, tol });
+      });
+    } catch {}
+
     // Ajouter les jours de présence (check-ins) en jugeant par la distance/rayon
     // On agrège par agent+jour le statut, la distance minimale et la distance du premier point de la journée
     // (distance calculée via référence Supabase si pas fournie)
@@ -727,11 +749,13 @@ async function updateMonthlySummary() {
       if (!agentId || !t) return;
         const day = new Date(t).toISOString().slice(0, 10);
       const k = keyAD(agentId, day);
-      let dist = (typeof checkin.distance_from_reference_m === 'number') ? Number(checkin.distance_from_reference_m) : null;
-      let tol = Number(checkin.tol) || null;
+      // Préférer les distances/tolérances validées côté serveur si disponibles
+      const val = validationsByAgentDay.get(k);
+      let dist = (val && typeof val.distance_m === 'number') ? Number(val.distance_m) : ((typeof checkin.distance_from_reference_m === 'number') ? Number(checkin.distance_from_reference_m) : null);
+      let tol = (val && typeof val.tol === 'number') ? Number(val.tol) : (Number(checkin.tol) || null);
       if ((dist == null || !Number.isFinite(dist)) && usersMeta && usersMeta.has(Number(agentId))) {
         const meta = usersMeta.get(Number(agentId));
-        tol = tol || meta.tol || 500;
+        tol = tol || meta.tol || 5000;
         if (Number.isFinite(meta?.refLat) && Number.isFinite(meta?.refLon) && Number.isFinite(checkin.lat) && Number.isFinite(checkin.lon)) {
           dist = computeDistanceMeters(meta.refLat, meta.refLon, Number(checkin.lat), Number(checkin.lon));
         }
