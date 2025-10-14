@@ -158,8 +158,14 @@ async function fetchReportsFromBackend(agentId = null) {
 }
 
 function renderValidations(rows) {
+  console.log('🔍 renderValidations appelée avec:', rows?.length || 0, 'lignes');
+  console.log('📋 Premier élément:', rows?.[0]);
+  
   const tbody = document.getElementById('validations-body');
-  if (!tbody) return;
+  if (!tbody) {
+    console.error('❌ Élément validations-body non trouvé');
+    return;
+  }
   
   const cell = v => (v == null || v === '') ? '—' : v;
   const fmt = d => new Date(d).toLocaleString('fr-FR');
@@ -178,14 +184,18 @@ function renderValidations(rows) {
     </tr>
   `).join('') || `<tr><td colspan="9">Aucune donnée</td></tr>`;
   
+  console.log('✅ Tableau rendu avec', (rows || []).length, 'lignes');
   window.__lastRows = rows;
 }
 
 window.loadValidations = async function() {
+  console.log('🔍 loadValidations appelée');
   const agentSel = document.getElementById('agent-filter')?.value;
   const agentId = (agentSel && agentSel !== 'all') ? agentSel : null;
   
+  console.log('📋 Agent sélectionné:', agentId);
   const rows = await fetchReportsFromBackend(agentId);
+  console.log('📊 Rows récupérées:', rows?.length || 0);
   renderValidations(rows);
 };
 
