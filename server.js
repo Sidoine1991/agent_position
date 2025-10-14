@@ -338,44 +338,106 @@ app.get('/api/reports', async (req, res) => {
   try {
     const { from, to, agent_id } = req.query;
     
-    let query = supabaseClient
-      .from('report_presence_view')
-      .select('*')
-      .order('ts', { ascending: false });
+    // Construire les rapports à partir des tables existantes
+    // 1. Récupérer les validations
+    let validationsQuery = supabaseClient
+      .from('checkin_validations')
+      .select('id, checkin_id, agent_id, valid, distance_m, tolerance_m, reference_lat, reference_lon, created_at')
+      .order('created_at', { ascending: false });
 
     // Filtres optionnels
     if (from) {
-      query = query.gte('ts', from);
+      validationsQuery = validationsQuery.gte('created_at', from);
     }
     if (to) {
-      query = query.lte('ts', to);
+      validationsQuery = validationsQuery.lte('created_at', to);
     }
     if (agent_id && agent_id !== 'all') {
-      query = query.eq('user_id', parseInt(agent_id, 10));
+      validationsQuery = validationsQuery.eq('agent_id', parseInt(agent_id, 10));
     }
 
-    const { data, error } = await query;
+    const { data: validations, error: validationsError } = await validationsQuery;
     
-    if (error) {
-      console.error('Erreur Supabase report_presence_view:', error);
-      return res.status(500).json({ error: 'Erreur lors de la récupération des rapports' });
+    console.log('🔍 Debug API /api/reports:');
+    console.log('📊 Validations trouvées:', validations?.length || 0);
+    console.log('📋 Erreur validations:', validationsError);
+    
+    if (validationsError) {
+      console.error('Erreur Supabase checkin_validations:', validationsError);
+      return res.status(500).json({ error: 'Erreur lors de la récupération des validations' });
     }
 
-    // Les données sont déjà dans le bon format depuis la vue
-    const reports = (data || []).map(report => ({
-      agent_id: report.user_id,
-      agent: report.agent || '—',
-      projet: report.projet || '—',
-      localisation: report.localisation || '—',
-      rayon_m: report.rayon_m || '—',
-      ref_lat: report.ref_lat,
-      ref_lon: report.ref_lon,
-      lat: report.lat,
-      lon: report.lon,
-      ts: report.ts,
-      distance_m: report.distance_m || '—',
-      statut: report.statut || '—'
-    }));
+    if (!validations || validations.length === 0) {
+      console.log('⚠️ Aucune validation trouvée');
+      return res.json({ success: true, data: [] });
+    }
+
+    // 2. Récupérer les checkins correspondants
+    const checkinIds = validations.map(v => v.checkin_id);
+    const { data: checkins, error: checkinsError } = await supabaseClient
+      .from('checkins')
+      .select('id, mission_id, lat, lon, timestamp, note, photo_path')
+      .in('id', checkinIds);
+    
+    if (checkinsError) {
+      console.error('Erreur Supabase checkins:', checkinsError);
+      return res.status(500).json({ error: 'Erreur lors de la récupération des checkins' });
+    }
+
+    // 3. Récupérer les informations des utilisateurs
+    const agentIds = [...new Set(validations.map(v => v.agent_id))];
+    const { data: users, error: usersError } = await supabaseClient
+      .from('users')
+      .select('id, name, first_name, last_name, project_name, departement, commune, arrondissement, village, reference_lat, reference_lon, tolerance_radius_meters')
+      .in('id', agentIds);
+    
+    if (usersError) {
+      console.error('Erreur Supabase users:', usersError);
+      return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs' });
+    }
+
+    // 4. Créer les maps pour les jointures
+    const checkinsMap = new Map();
+    (checkins || []).forEach(c => checkinsMap.set(c.id, c));
+    
+    const usersMap = new Map();
+    (users || []).forEach(user => {
+      usersMap.set(user.id, user);
+    });
+
+    // 5. Construire les rapports
+    const reports = validations.map(validation => {
+      const checkin = checkinsMap.get(validation.checkin_id);
+      const user = usersMap.get(validation.agent_id);
+      
+      // Calculer la distance si elle n'est pas déjà calculée
+      let distance_m = validation.distance_m;
+      if (!distance_m && validation.reference_lat && validation.reference_lon && checkin?.lat && checkin?.lon) {
+        distance_m = calculateDistance(
+          validation.reference_lat, validation.reference_lon,
+          checkin.lat, checkin.lon
+        );
+      }
+      
+      // Déterminer le statut
+      const tolerance = validation.tolerance_m || user?.tolerance_radius_meters || 5000;
+      const isWithinTolerance = distance_m ? distance_m <= tolerance : validation.valid;
+      
+      return {
+        agent_id: validation.agent_id,
+        agent: user?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || `Agent #${validation.agent_id}`,
+        projet: user?.project_name || 'Non spécifié',
+        localisation: `${user?.departement || ''} ${user?.commune || ''} ${user?.arrondissement || ''} ${user?.village || ''}`.trim() || 'Non spécifié',
+        rayon_m: tolerance,
+        ref_lat: validation.reference_lat || user?.reference_lat,
+        ref_lon: validation.reference_lon || user?.reference_lon,
+        lat: checkin?.lat,
+        lon: checkin?.lon,
+        ts: checkin?.timestamp || validation.created_at,
+        distance_m: distance_m,
+        statut: isWithinTolerance ? 'Présent' : 'Hors zone'
+      };
+    });
 
     res.json({ success: true, data: reports });
   } catch (error) {
@@ -383,6 +445,18 @@ app.get('/api/reports', async (req, res) => {
     res.status(500).json({ error: 'Erreur interne du serveur' });
   }
 });
+
+// Fonction pour calculer la distance entre deux points (formule de Haversine)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // Rayon de la Terre en mètres
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c; // Distance en mètres
+}
 
 // Rate limiting
 if (process.env.NODE_ENV !== 'test') {
