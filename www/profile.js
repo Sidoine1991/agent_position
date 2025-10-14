@@ -604,6 +604,42 @@ document.addEventListener('DOMContentLoaded', async () => {
       btnCancelGps.addEventListener('click', async () => { await loadProfile(); });
     }
 
+    // Sauvegarde dédiée Unités Administratives
+    const btnSaveAdmin = document.getElementById('btn-save-admin');
+    const btnCancelAdmin = document.getElementById('btn-cancel-admin');
+    if (btnSaveAdmin) {
+      btnSaveAdmin.addEventListener('click', async () => {
+        const departement = $('edit-departement')?.value;
+        const commune = $('edit-commune')?.value;
+        const arrondissement = $('edit-arrondissement')?.value;
+        const village = $('edit-village')?.value;
+        
+        if (!departement || !commune || !arrondissement || !village) {
+          alert('Veuillez renseigner tous les champs de localisation administrative.');
+          return;
+        }
+        
+        try {
+          await api('/me/profile', { 
+            method: 'POST', 
+            body: { 
+              departement, 
+              commune, 
+              arrondissement, 
+              village 
+            } 
+          });
+          alert('Localisation administrative enregistrée');
+          updateProfileCompletion();
+        } catch (e) {
+          alert('Erreur enregistrement localisation: ' + (e.message || ''));
+        }
+      });
+    }
+    if (btnCancelAdmin) {
+      btnCancelAdmin.addEventListener('click', async () => { await loadProfile(); });
+    }
+
     // Gestionnaires pour les nouveaux champs d'édition inline
     setupInlineEdit('departement', 'profile-departement', 'edit-departement-inline', 'btn-edit-departement', 'btn-save-departement', 'btn-cancel-departement');
     setupInlineEdit('commune', 'profile-commune', 'edit-commune-inline', 'btn-edit-commune', 'btn-save-commune', 'btn-cancel-commune');

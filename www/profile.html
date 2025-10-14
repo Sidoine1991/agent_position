@@ -224,6 +224,38 @@
           </div>
         </div>
 
+        <!-- Unités Administratives de Référence -->
+        <div class="card">
+          <h3>🏛️ Unités Administratives de Référence</h3>
+          <div class="settings-section">
+            <h4>Localisation administrative</h4>
+            <div class="form-group">
+              <label for="edit-departement">Département :</label>
+              <input type="text" id="edit-departement" placeholder="Ex: Littoral" required>
+              <small class="form-text text-muted">Département de référence pour les missions</small>
+            </div>
+            <div class="form-group">
+              <label for="edit-commune">Commune :</label>
+              <input type="text" id="edit-commune" placeholder="Ex: Cotonou" required>
+              <small class="form-text text-muted">Commune de référence pour les missions</small>
+            </div>
+            <div class="form-group">
+              <label for="edit-arrondissement">Arrondissement :</label>
+              <input type="text" id="edit-arrondissement" placeholder="Ex: Centre" required>
+              <small class="form-text text-muted">Arrondissement de référence pour les missions</small>
+            </div>
+            <div class="form-group">
+              <label for="edit-village">Village/Quartier :</label>
+              <input type="text" id="edit-village" placeholder="Ex: Cotonou Centre" required>
+              <small class="form-text text-muted">Village ou quartier de référence pour les missions</small>
+            </div>
+            <div class="d-flex gap-2" style="margin-top:8px;">
+              <button type="button" id="btn-save-admin" class="btn-primary">Enregistrer la localisation</button>
+              <button type="button" id="btn-cancel-admin" class="btn-light">Annuler</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Paramètres GPS -->
         <div class="card">
           <h3>🌍 Paramètres GPS</h3>
