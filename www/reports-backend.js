@@ -160,17 +160,18 @@ function renderValidations(rows) {
   
   tbody.innerHTML = (rows || []).map(it => `
     <tr>
+      <td>${it.ts ? fmt(it.ts) : '—'}</td>
       <td>${cell(it.agent)}</td>
       <td>${cell(it.projet)}</td>
       <td>${cell(it.localisation)}</td>
       <td>${cell(it.rayon_m)}</td>
       <td>${(it.ref_lat != null && it.ref_lon != null) ? `${it.ref_lat}, ${it.ref_lon}` : '—'}</td>
       <td>${(it.lat != null && it.lon != null) ? `${it.lat}, ${it.lon}` : '—'}</td>
-      <td>${it.ts ? fmt(it.ts) : '—'}</td>
       <td>${cell(it.distance_m)}</td>
+      <td>${cell(it.mission_duration)}</td>
       <td>${cell(it.statut)}</td>
     </tr>
-  `).join('') || `<tr><td colspan="9">Aucune donnée</td></tr>`;
+  `).join('') || `<tr><td colspan="10">Aucune donnée</td></tr>`;
   
   console.log('✅ Tableau rendu avec', (rows || []).length, 'lignes');
   window.__lastRows = rows;
@@ -412,29 +413,31 @@ window.exportExcel = function() {
       
       <table>
         <thead>
-          <tr class="header">
-            <th>Agent</th>
-            <th>Projet</th>
-            <th>Localisation</th>
-            <th>Rayon (m)</th>
-            <th>Ref (lat, lon)</th>
-            <th>Actuel (lat, lon)</th>
-            <th>Date</th>
-            <th>Distance (m)</th>
-            <th>Statut</th>
-          </tr>
+                 <tr class="header">
+                   <th>Date</th>
+                   <th>Agent</th>
+                   <th>Projet</th>
+                   <th>Localisation</th>
+                   <th>Rayon (m)</th>
+                   <th>Ref (lat, lon)</th>
+                   <th>Actuel (lat, lon)</th>
+                   <th>Distance (m)</th>
+                   <th>Durée Mission</th>
+                   <th>Statut</th>
+                 </tr>
         </thead>
         <tbody>
           ${rows.map(row => `
             <tr>
+              <td>${row.ts ? new Date(row.ts).toLocaleString('fr-FR') : '—'}</td>
               <td>${row.agent || '—'}</td>
               <td>${row.projet || '—'}</td>
               <td>${row.localisation || '—'}</td>
               <td>${row.rayon_m || '—'}</td>
               <td>${(row.ref_lat != null && row.ref_lon != null) ? `${row.ref_lat}, ${row.ref_lon}` : '—'}</td>
               <td>${(row.lat != null && row.lon != null) ? `${row.lat}, ${row.lon}` : '—'}</td>
-              <td>${row.ts ? new Date(row.ts).toLocaleString('fr-FR') : '—'}</td>
               <td>${row.distance_m || '—'}</td>
+              <td>${row.mission_duration ? `${row.mission_duration} min` : '—'}</td>
               <td>${row.statut || '—'}</td>
             </tr>
           `).join('')}

@@ -384,44 +384,55 @@ app.get('/api/reports', async (req, res) => {
 
     // 3. Construire les rapports
     console.log('🔄 Construction des rapports...');
-    const reports = validations.map(validation => {
-      const checkin = validation.checkins;
-      const user = usersMap.get(validation.agent_id);
-      
-      // Calculer la distance si elle n'est pas déjà calculée
-      let distance_m = validation.distance_m;
-      const refLat = validation.reference_lat || user?.reference_lat;
-      const refLon = validation.reference_lon || user?.reference_lon;
-      
-      if ((distance_m === null || distance_m === undefined) && refLat && refLon && checkin?.lat && checkin?.lon) {
-        distance_m = calculateDistance(refLat, refLon, checkin.lat, checkin.lon);
-      }
-      
-      // Déterminer le statut - utiliser uniquement le rayon de tolérance de l'utilisateur
-      const tolerance = user?.tolerance_radius_meters || 5000; // Valeur par défaut si non définie
-      const isWithinTolerance = distance_m ? distance_m <= tolerance : validation.valid;
-      
-      return {
-        agent_id: validation.agent_id,
-        agent: user?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || `Agent #${validation.agent_id}`,
-        projet: user?.project_name || 'Non spécifié',
-        localisation: `${user?.departement || ''} ${user?.commune || ''} ${user?.arrondissement || ''} ${user?.village || ''}`.trim() || 'Non spécifié',
-        rayon_m: tolerance,
-        ref_lat: validation.reference_lat || user?.reference_lat,
-        ref_lon: validation.reference_lon || user?.reference_lon,
-        lat: checkin?.lat,
-        lon: checkin?.lon,
-        ts: checkin?.timestamp || validation.created_at,
-        distance_m: distance_m,
-        statut: isWithinTolerance ? 'Présent' : 'Hors zone'
-      };
-    });
+           const reports = validations.map(validation => {
+             const checkin = validation.checkins;
+             const user = usersMap.get(validation.agent_id);
+             
+             // Calculer la distance si elle n'est pas déjà calculée
+             let distance_m = validation.distance_m;
+             const refLat = validation.reference_lat || user?.reference_lat;
+             const refLon = validation.reference_lon || user?.reference_lon;
+             
+             if ((distance_m === null || distance_m === undefined) && refLat && refLon && checkin?.lat && checkin?.lon) {
+               distance_m = calculateDistance(refLat, refLon, checkin.lat, checkin.lon);
+             }
+             
+             // Déterminer le statut - utiliser uniquement le rayon de tolérance de l'utilisateur
+             const tolerance = user?.tolerance_radius_meters || 5000; // Valeur par défaut si non définie
+             const isWithinTolerance = distance_m ? distance_m <= tolerance : validation.valid;
+             
+             // Calculer la durée de mission si disponible
+             let mission_duration = null;
+             if (checkin?.mission_duration !== null && checkin?.mission_duration !== undefined) {
+               mission_duration = checkin.mission_duration;
+             } else if (checkin?.timestamp) {
+               // Si pas de durée stockée, on peut essayer de calculer approximativement
+               // Pour l'instant, on laisse null jusqu'à ce que la colonne soit ajoutée
+               mission_duration = null;
+             }
+             
+             return {
+               agent_id: validation.agent_id,
+               agent: user?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || `Agent #${validation.agent_id}`,
+               projet: user?.project_name || 'Non spécifié',
+               localisation: `${user?.departement || ''} ${user?.commune || ''} ${user?.arrondissement || ''} ${user?.village || ''}`.trim() || 'Non spécifié',
+               rayon_m: tolerance,
+               ref_lat: validation.reference_lat || user?.reference_lat,
+               ref_lon: validation.reference_lon || user?.reference_lon,
+               lat: checkin?.lat,
+               lon: checkin?.lon,
+               ts: checkin?.timestamp || validation.created_at,
+               distance_m: distance_m,
+               mission_duration: mission_duration,
+               statut: isWithinTolerance ? 'Présent' : 'Hors zone'
+             };
+           });
 
     console.log('📊 Rapports construits:', reports.length);
     if (reports.length > 0) {
       console.log('📋 Premier rapport:', reports[0]);
     }
-    
+
     res.json({ success: true, data: reports });
   } catch (error) {
     console.error('❌ Erreur API reports:', error);
