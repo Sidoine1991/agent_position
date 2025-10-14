@@ -126,8 +126,26 @@ async function fetchReportsFromBackend(agentId = null) {
   }
   
   try {
-    const result = await api('/reports?' + params.toString());
-    return result.success ? result.data : [];
+    // Utiliser l'API /reports/validations qui contient les vraies données
+    const result = await api('/reports/validations?' + params.toString());
+    if (result.success && result.items) {
+      // Transformer les données pour correspondre au format attendu
+      return result.items.map(item => ({
+        agent: item.agent_name || `Agent #${item.agent_id}`,
+        agent_id: item.agent_id,
+        projet: item.project_name || 'Non spécifié',
+        localisation: `${item.departement || ''} ${item.commune || ''} ${item.arrondissement || ''} ${item.village || ''}`.trim() || 'Non spécifié',
+        rayon_m: item.tolerance_radius_meters || 5000,
+        ref_lat: item.reference_lat,
+        ref_lon: item.reference_lon,
+        lat: item.lat,
+        lon: item.lon,
+        ts: item.date,
+        distance_m: item.distance_from_reference_m,
+        statut: item.status || (item.within_tolerance ? 'Présent' : 'Hors zone')
+      }));
+    }
+    return [];
   } catch (error) {
     console.error('Erreur lors de la récupération des rapports:', error);
     return [];
@@ -233,8 +251,8 @@ window.printReport = () => window.print();
 // === Chargement des agents pour le filtre ===
 async function loadAgentsForFilter() {
   try {
-    const result = await api('/users');
-    const agents = result.items || result.data || result || [];
+    const result = await api('/admin/agents');
+    const agents = result.data || result.agents || result || [];
     
     const select = document.getElementById('agent-filter');
     if (!select) return;
@@ -289,8 +307,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     loadBtn.addEventListener('click', window.loadValidations);
   }
   
+  const reloadBtn = document.getElementById('reload-validations');
+  if (reloadBtn) {
+    reloadBtn.addEventListener('click', window.loadValidations);
+  }
+  
   // Initialiser les champs de date
   window.updateDateInputs();
+  
+  // Charger automatiquement les données au démarrage
+  console.log('📊 Chargement automatique des données...');
+  await window.loadValidations();
   
   console.log('✅ Reports.js initialisé avec succès');
 });
