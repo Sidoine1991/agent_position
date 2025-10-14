@@ -78,9 +78,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const profile = response.ok ? await response.json() : { name: 'Utilisateur', role: 'admin' };
         
-        // Si rôle non admin/superviseur, continuer en lecture seule au lieu de rediriger
-        if (profile.role !== 'admin' && profile.role !== 'superviseur') {
-            console.warn('⚠️ Rôle non admin/superviseur, mode lecture');
+        // Si rôle non admin/superviseur/superadmin, interdire accès
+        const email = String(profile?.email || '').toLowerCase();
+        const roleNorm = String(profile.role || '').trim().toLowerCase();
+        const isSupervisor = roleNorm === 'superviseur' || roleNorm === 'supervisor';
+        const isAdmin = roleNorm === 'admin';
+        const isSuperAdmin = email === 'syebadokpo@gmail.com';
+        if (!(isSupervisor || isAdmin || isSuperAdmin)) {
+            alert('Accès refusé. Page réservée aux superviseurs et administrateurs.');
+            window.location.href = '/index.html';
+            return;
         }
 
         // Mettre à jour l'info utilisateur

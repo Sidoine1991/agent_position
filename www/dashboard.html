@@ -25659,6 +25659,26 @@ document.addEventListener('DOMContentLoaded', function() {
     <script src="/cascade-selectors.js"></script>
     <script src="/dashboard.js"></script>
     <script>
+      // Guard: dashboard accessible aux superviseurs, admins, superadmin
+      document.addEventListener('DOMContentLoaded', async () => {
+        try {
+          const jwt = localStorage.getItem('jwt') || '';
+          if (!jwt) { location.href = '/index.html'; return; }
+          const res = await fetch('/api/me', { headers: { Authorization: 'Bearer ' + jwt } });
+          const me = res.ok ? await res.json() : null;
+          const email = (me?.user?.email || '').toLowerCase();
+          const role = String(me?.user?.role || '').trim().toLowerCase();
+          const isSupervisor = role === 'supervisor' || role === 'superviseur';
+          const isAdmin = role === 'admin';
+          const isSuperAdmin = email === 'syebadokpo@gmail.com';
+          if (!(isSupervisor || isAdmin || isSuperAdmin)) {
+            alert('Accès refusé au tableau de bord');
+            location.href = '/index.html';
+          }
+        } catch {}
+      });
+    </script>
+    <script>
       // Vercel Speed Insights
       if (typeof window !== 'undefined') {
         /* Vercel Speed Insights désactivé pour éviter les erreurs CSP */

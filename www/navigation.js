@@ -240,32 +240,30 @@ class NavigationManager {
     }
 
     getMenuLinks(role) {
-        const normRole = String(role || '').toLowerCase();
+        const normRole = String(role || '').trim().toLowerCase();
         const roleKey = (normRole === 'superviseur') ? 'supervisor' : normRole;
-        const baseLinks = [
+
+        const agentLinks = [
             { page: 'presence', href: '/index.html', text: 'Présence', icon: '📍' },
+            { page: 'activity', href: '/agent-activity-tracking.html', text: 'Suivi activité', icon: '🛰️' },
             { page: 'planning', href: '/planning.html', text: 'Planification', icon: '🗓️' },
-            { page: 'dashboard', href: '/dashboard.html', text: 'Dashboard', icon: '📊' },
             { page: 'profile', href: '/profile.html', text: 'Profil', icon: '👤' }
+        ];
+
+        const supvExtras = [
+            { page: 'dashboard', href: '/dashboard.html', text: 'Dashboard', icon: '📊' },
+            { page: 'agents', href: '/agents.html', text: 'Agents', icon: '👥' },
+            { page: 'reports', href: '/reports.html', text: 'Rapports', icon: '📈' }
         ];
 
         switch(roleKey) {
             case 'admin':
-                return [
-                    ...baseLinks,
-                    { page: 'agents', href: '/agents.html', text: 'Agents', icon: '👥' },
-                    { page: 'reports', href: '/reports.html', text: 'Rapports', icon: '📈' },
-                    { page: 'admin', href: '/admin.html', text: 'Administration', icon: '⚙️' }
-                ];
+                return [...agentLinks, ...supvExtras]; // pas de lien /admin.html ici
             case 'supervisor':
-                return [
-                    ...baseLinks,
-                    { page: 'agents', href: '/agents.html', text: 'Agents', icon: '👥' },
-                    { page: 'reports', href: '/reports.html', text: 'Rapports', icon: '📈' }
-                ];
+                return [...agentLinks, ...supvExtras];
             case 'agent':
             default:
-                return baseLinks;
+                return agentLinks;
         }
     }
 
