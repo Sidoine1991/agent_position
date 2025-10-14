@@ -77,7 +77,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // Mettre à jour l'info utilisateur
-        document.getElementById('user-info').textContent = `${profile.name} (${profile.role})`;
+        const userInfoEl = document.getElementById('user-info');
+        if (userInfoEl) {
+            userInfoEl.textContent = `${profile.name} (${profile.role})`;
+        }
         
     } catch (error) {
         console.warn('⚠️ Profil indisponible, poursuite en mode lecture:', error?.message || error);
@@ -364,6 +367,11 @@ function openAgentModal() {
     loadAfDepartements();
     // Activer la bascule saisie/select
     setupManualGeoInputsAdmin();
+}
+
+// Alias pour la fonction openAgentModal (pour compatibilité)
+function openCreateAgentModal() {
+    return openAgentModal();
 }
 
 // Modifier un agent
@@ -759,6 +767,8 @@ function setupModalEventListeners() {
             console.log('🔄 Clic sur Annuler (modal agent)');
             closeAgentModal();
         });
+    } else {
+        console.warn('⚠️ Bouton Annuler du modal agent non trouvé');
     }
     
     // Gestionnaire pour le bouton Annuler du modal de suppression
@@ -770,6 +780,8 @@ function setupModalEventListeners() {
             console.log('🔄 Clic sur Annuler (modal suppression)');
             closeDeleteModal();
         });
+    } else {
+        console.warn('⚠️ Bouton Annuler du modal suppression non trouvé');
     }
     
     // Gestionnaire pour le bouton Supprimer du modal de suppression
@@ -781,20 +793,32 @@ function setupModalEventListeners() {
             console.log('🔄 Clic sur Supprimer');
             confirmDelete();
         });
+    } else {
+        console.warn('⚠️ Bouton Supprimer du modal suppression non trouvé');
     }
     
     // Fermer les modals en cliquant sur l'arrière-plan
-    document.getElementById('agent-modal').addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeAgentModal();
-        }
-    });
+    const agentModal = document.getElementById('agent-modal');
+    if (agentModal) {
+        agentModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeAgentModal();
+            }
+        });
+    } else {
+        console.warn('⚠️ Modal agent non trouvé');
+    }
     
-    document.getElementById('delete-modal').addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeDeleteModal();
-        }
-    });
+    const deleteModal = document.getElementById('delete-modal');
+    if (deleteModal) {
+        deleteModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeDeleteModal();
+            }
+        });
+    } else {
+        console.warn('⚠️ Modal suppression non trouvé');
+    }
     
     console.log('✅ Gestionnaires d\'événements configurés');
 }
