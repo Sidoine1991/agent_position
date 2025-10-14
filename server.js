@@ -336,55 +336,46 @@ app.get('/api/attendance/day-status', async (req, res) => {
 // API endpoint pour les rapports de présence
 app.get('/api/reports', async (req, res) => {
   try {
-    const { from, to, agent_id } = req.query;
+    console.log('🔍 API /api/reports appelée');
     
-    // Construire les rapports à partir des tables existantes
-    // 1. Récupérer les validations
-    let validationsQuery = supabaseClient
+    // Utiliser l'API /api/reports/validations qui fonctionne
+    const { data: validations, error: validationsError } = await supabaseClient
       .from('checkin_validations')
-      .select('id, checkin_id, agent_id, valid, distance_m, tolerance_m, reference_lat, reference_lon, created_at')
-      .order('created_at', { ascending: false });
-
-    // Filtres optionnels
-    if (from) {
-      validationsQuery = validationsQuery.gte('created_at', from);
-    }
-    if (to) {
-      validationsQuery = validationsQuery.lte('created_at', to);
-    }
-    if (agent_id && agent_id !== 'all') {
-      validationsQuery = validationsQuery.eq('agent_id', parseInt(agent_id, 10));
-    }
-
-    const { data: validations, error: validationsError } = await validationsQuery;
+      .select(`
+        id,
+        checkin_id,
+        agent_id,
+        valid,
+        distance_m,
+        tolerance_m,
+        reference_lat,
+        reference_lon,
+        created_at,
+        checkins(
+          id,
+          mission_id,
+          lat,
+          lon,
+          timestamp,
+          note,
+          photo_path
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .limit(50); // Limiter pour éviter les timeouts
     
-    console.log('🔍 Debug API /api/reports:');
     console.log('📊 Validations trouvées:', validations?.length || 0);
-    console.log('📋 Erreur validations:', validationsError);
     
     if (validationsError) {
-      console.error('Erreur Supabase checkin_validations:', validationsError);
+      console.error('Erreur Supabase:', validationsError);
       return res.status(500).json({ error: 'Erreur lors de la récupération des validations' });
     }
 
     if (!validations || validations.length === 0) {
-      console.log('⚠️ Aucune validation trouvée');
       return res.json({ success: true, data: [] });
     }
 
-    // 2. Récupérer les checkins correspondants
-    const checkinIds = validations.map(v => v.checkin_id);
-    const { data: checkins, error: checkinsError } = await supabaseClient
-      .from('checkins')
-      .select('id, mission_id, lat, lon, timestamp, note, photo_path')
-      .in('id', checkinIds);
-    
-    if (checkinsError) {
-      console.error('Erreur Supabase checkins:', checkinsError);
-      return res.status(500).json({ error: 'Erreur lors de la récupération des checkins' });
-    }
-
-    // 3. Récupérer les informations des utilisateurs
+    // Récupérer les informations des utilisateurs
     const agentIds = [...new Set(validations.map(v => v.agent_id))];
     const { data: users, error: usersError } = await supabaseClient
       .from('users')
@@ -396,18 +387,14 @@ app.get('/api/reports', async (req, res) => {
       return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs' });
     }
 
-    // 4. Créer les maps pour les jointures
-    const checkinsMap = new Map();
-    (checkins || []).forEach(c => checkinsMap.set(c.id, c));
-    
     const usersMap = new Map();
     (users || []).forEach(user => {
       usersMap.set(user.id, user);
     });
 
-    // 5. Construire les rapports
+    // Construire les rapports
     const reports = validations.map(validation => {
-      const checkin = checkinsMap.get(validation.checkin_id);
+      const checkin = validation.checkins;
       const user = usersMap.get(validation.agent_id);
       
       // Calculer la distance si elle n'est pas déjà calculée
@@ -439,6 +426,7 @@ app.get('/api/reports', async (req, res) => {
       };
     });
 
+    console.log('📊 Rapports construits:', reports.length);
     res.json({ success: true, data: reports });
   } catch (error) {
     console.error('Erreur API reports:', error);
