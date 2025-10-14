@@ -315,12 +315,14 @@ app.get('/api/attendance/day-status', async (req, res) => {
   }
 });
 
-// API endpoint pour les rapports de présence
+// API endpoint pour les rapports de présence - utilise les mêmes données que /api/reports/validations
 app.get('/api/reports', async (req, res) => {
   try {
-    console.log('🔍 API /api/reports appelée');
+    const { from, to, agent_id } = req.query;
     
-    // Utiliser l'API /api/reports/validations qui fonctionne
+    console.log('🔍 API /api/reports appelée avec params:', { from, to, agent_id });
+    
+    // Utiliser exactement la même logique que /api/reports/validations
     const { data: validations, error: validationsError } = await supabaseClient
       .from('checkin_validations')
       .select(`
@@ -344,12 +346,12 @@ app.get('/api/reports', async (req, res) => {
         )
       `)
       .order('created_at', { ascending: false })
-      .limit(50); // Limiter pour éviter les timeouts
+      .limit(100);
     
     console.log('📊 Validations trouvées:', validations?.length || 0);
     
     if (validationsError) {
-      console.error('Erreur Supabase:', validationsError);
+      console.error('Erreur Supabase validations:', validationsError);
       return res.status(500).json({ error: 'Erreur lors de la récupération des validations' });
     }
 
@@ -374,7 +376,7 @@ app.get('/api/reports', async (req, res) => {
       usersMap.set(user.id, user);
     });
 
-    // Construire les rapports
+    // Construire les rapports dans le format attendu par reports-backend.js
     const reports = validations.map(validation => {
       const checkin = validation.checkins;
       const user = usersMap.get(validation.agent_id);

@@ -127,29 +127,16 @@ async function fetchReportsFromBackend(agentId = null) {
   }
   
   try {
-    console.log('🔍 Appel API /reports/validations avec params:', params.toString());
-    const result = await api('/reports/validations?' + params.toString());
-    console.log('📊 Résultat API /reports/validations:', result);
+    console.log('🔍 Appel API /reports avec params:', params.toString());
+    const result = await api('/reports?' + params.toString());
+    console.log('📊 Résultat API /reports:', result);
     
-    if (result && result.success && result.items) {
-      console.log('✅ Données trouvées:', result.items.length, 'validations');
-      // Transformer les données pour correspondre au format attendu
-      return result.items.map(item => ({
-        agent: item.agent_name || `Agent #${item.agent_id}`,
-        agent_id: item.agent_id,
-        projet: item.project_name || 'Non spécifié',
-        localisation: `${item.departement || ''} ${item.commune || ''} ${item.arrondissement || ''} ${item.village || ''}`.trim() || 'Non spécifié',
-        rayon_m: item.tolerance_radius_meters || 5000,
-        ref_lat: item.reference_lat,
-        ref_lon: item.reference_lon,
-        lat: item.lat,
-        lon: item.lon,
-        ts: item.date,
-        distance_m: item.distance_from_reference_m,
-        statut: item.status || (item.within_tolerance ? 'Présent' : 'Hors zone')
-      }));
+    if (result && result.success && result.data) {
+      console.log('✅ Données trouvées:', result.data.length, 'rapports');
+      // Les données sont déjà dans le bon format
+      return result.data;
     } else {
-      console.warn('⚠️ Aucune donnée dans /reports/validations ou format inattendu:', result);
+      console.warn('⚠️ Aucune donnée dans /reports ou format inattendu:', result);
     }
     return [];
   } catch (error) {
