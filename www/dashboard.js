@@ -742,12 +742,39 @@ async function updateMonthlySummary() {
       perAgentDay.set(k, { within: prev.within || !!within, minDist, hasAny: true, tol });
     });
 
-    // Reporter les jours jugés présents dans presenceDays
-    for (const [k, agg] of perAgentDay.entries()) {
-      const [aidStr, day] = k.split('|');
-      const aid = Number(aidStr);
-      if (!agentStats.has(aid)) continue;
-      if (agg.within) agentStats.get(aid).presenceDays.add(day);
+    // Intégrer l'algorithme serveur: /api/attendance/day-status
+    let dayStatus = null;
+    try {
+      const monthStart = new Date(from.getFullYear(), from.getMonth(), 1);
+      const monthEnd = new Date(from.getFullYear(), from.getMonth() + 1, 1);
+      const q = new URLSearchParams();
+      q.set('from', monthStart.toISOString());
+      q.set('to', monthEnd.toISOString());
+      if (typeof selectedAgentId === 'number' && isFinite(selectedAgentId)) {
+        q.set('agent_id', String(selectedAgentId));
+      }
+      const resp = await api('/attendance/day-status?' + q.toString());
+      if (resp && resp.success && resp.days) dayStatus = resp.days;
+    } catch {}
+
+    if (dayStatus && typeof selectedAgentId === 'number' && isFinite(selectedAgentId)) {
+      // Si on a un agent ciblé, on remplace presenceDays par la décision serveur
+      const m = agentStats.get(selectedAgentId);
+      if (m) {
+        for (const [dayKey, info] of Object.entries(dayStatus)) {
+          if (info && (info.status === 'valid' || info.status === 'present')) {
+            m.presenceDays.add(dayKey);
+          }
+        }
+      }
+    } else {
+      // Fallback: juger via distance/rayon localement
+      for (const [k, agg] of perAgentDay.entries()) {
+        const [aidStr, day] = k.split('|');
+        const aid = Number(aidStr);
+        if (!agentStats.has(aid)) continue;
+        if (agg.within) agentStats.get(aid).presenceDays.add(day);
+      }
     }
 
     // Calculer les statistiques pour chaque agent

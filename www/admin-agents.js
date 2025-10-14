@@ -43,6 +43,13 @@ async function fetchUsersFromSupabase() {
     return Array.isArray(rows) ? rows : null;
 }
 
+// Normalise un rôle en une clé standardisée pour comparaisons/compteurs
+function normalizeRole(role) {
+    const r = String(role || '').trim().toLowerCase();
+    if (r === 'supervisor') return 'superviseur';
+    return r;
+}
+
 function getQueryParam(name){ try{ return new URLSearchParams(window.location.search).get(name) || ''; } catch { return ''; } }
 function getEmailHint(){ return getQueryParam('email') || localStorage.getItem('userEmail') || localStorage.getItem('email') || ''; }
 
@@ -138,7 +145,7 @@ async function loadAgents() {
         // Normaliser les rôles (supervisor -> superviseur) pour les stats et filtres
         allAgents = (allAgents || []).map(a => ({
             ...a,
-            role: String(a.role || '').trim().toLowerCase() === 'supervisor' ? 'superviseur' : String(a.role || '').trim().toLowerCase()
+            role: normalizeRole(a.role)
         }));
         console.log(`✅ ${allAgents.length} agents chargés (rôles normalisés):`, allAgents);
         
@@ -207,10 +214,7 @@ function updateStats(source) {
     const list = Array.isArray(source) ? source : (Array.isArray(filteredAgents) ? filteredAgents : allAgents);
     const total = Array.isArray(list) ? list.length : 0;
     const active = Array.isArray(list) ? list.filter(a => (a.status || 'active') === 'active').length : 0;
-    const supervisors = Array.isArray(list) ? list.filter(a => {
-        const r = String(a.role || '').trim().toLowerCase();
-        return r === 'superviseur' || r === 'supervisor';
-    }).length : 0;
+    const supervisors = Array.isArray(list) ? list.filter(a => normalizeRole(a.role) === 'superviseur').length : 0;
     const admins = Array.isArray(list) ? list.filter(a => String(a.role || '').trim().toLowerCase() === 'admin').length : 0;
 
     try { document.getElementById('total-agents').textContent = total; } catch {}
@@ -282,10 +286,10 @@ function displayAgents() {
 function getRoleLabel(role) {
     const labels = {
         'agent': 'Agent',
-        'superviseur': 'Superviseur',
+        'superviseur': 'SUPERVISEUR',
         'admin': 'Administrateur'
     };
-    const key = String(role || '').trim().toLowerCase() === 'supervisor' ? 'superviseur' : String(role || '').trim().toLowerCase();
+    const key = normalizeRole(role);
     return labels[key] || role;
 }
 
@@ -330,7 +334,7 @@ function filterAgents() {
             (agent.first_name && agent.first_name.toLowerCase().includes(search)) ||
             (agent.last_name && agent.last_name.toLowerCase().includes(search));
 
-        const matchesRole = !role || agent.role === role;
+        const matchesRole = !role || normalizeRole(agent.role) === normalizeRole(role);
         const matchesDept = !departement || agent.departement === departement;
 
         return matchesSearch && matchesRole && matchesDept;
