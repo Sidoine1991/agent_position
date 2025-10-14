@@ -402,7 +402,7 @@ function getMonthRangeFromDateInput() {
 async function updateMonthlySummary() {
   const tbody = document.getElementById('monthly-summary-body');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="6">Chargement...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="7">Chargement...</td></tr>';
 
   try {
     const { from, to } = getMonthRangeFromDateInput();
@@ -439,24 +439,20 @@ async function updateMonthlySummary() {
           const planned = plannedIsNum ? row.planned_days : plannedDaysArr.length;
           const present = presentIsNum ? (row.present_days ?? row.presence_days) : presenceDaysArr.length;
           const absent = absentIsNum ? row.absent_days : (absentDaysArr.length || Math.max(planned - present, 0));
-          let justification = row.justification;
-          if (!justification) {
-            if (planned === 0 && present === 0) justification = 'Aucune mission planifiée ce mois';
-            else if (present === 0 && planned > 0) justification = `Absence (rayon/distance): ${absentDaysArr.join(', ')}`;
-            else if (present > 0 && absent === 0) justification = `Présence validée (rayon): ${presenceDaysArr.join(', ')}`;
-            else justification = `Présent: ${presenceDaysArr.join(', ')} / Absent: ${absentDaysArr.join(', ')}`;
-          }
           rowsOut.push({
             agent: agentName,
             project: row.project || 'Terrain',
             planned,
             present,
             absent,
-            justification
+            radius_m: row.tolerance_radius_meters || row.radius_m || 5000,
+            dist_min: row.dist_min,
+            dist_max: row.dist_max,
+            dist_first: row.dist_first
           });
         });
 
-        // Enrichir la justification avec distances/rayon sur la période (texte simple)
+        // Enrichir les données avec distances/rayon sur la période
         try {
           const qck = new URLSearchParams({ from, to, limit: String(10000), offset: String(0) });
           let list = [];
@@ -552,7 +548,8 @@ async function updateMonthlySummary() {
             <td>${r.planned}</td>
             <td>${r.present}</td>
             <td>${r.absent}</td>
-            <td title="${r.justification}">${r.justification}</td>
+            <td>${r.radius_m ?? '—'}</td>
+            <td>${(r.dist_first != null) ? r.dist_first : (r.dist_min != null ? r.dist_min : '—')}</td>
           </tr>
         `).join('');
         console.log('✅ MonthlySummary (validé backend):', rowsOut.length);
@@ -798,11 +795,11 @@ async function updateMonthlySummary() {
       }
     } else {
       // Fallback: juger via distance/rayon localement
-      for (const [k, agg] of perAgentDay.entries()) {
-        const [aidStr, day] = k.split('|');
-        const aid = Number(aidStr);
-        if (!agentStats.has(aid)) continue;
-        if (agg.within) agentStats.get(aid).presenceDays.add(day);
+    for (const [k, agg] of perAgentDay.entries()) {
+      const [aidStr, day] = k.split('|');
+      const aid = Number(aidStr);
+      if (!agentStats.has(aid)) continue;
+      if (agg.within) agentStats.get(aid).presenceDays.add(day);
       }
     }
 
@@ -813,7 +810,7 @@ async function updateMonthlySummary() {
       const present = stats.presenceDays.size;
       const absent = Math.max(planned - present, 0);
 
-      // Construire une justification lisible basée sur distance/rayon (Supabase)
+      // Calculer les distances pour les jours de présence
       const plannedDaysArr = Array.from(stats.plannedDays).sort();
       const presenceDaysArr = Array.from(stats.presenceDays).sort();
       const absentDaysArr = plannedDaysArr.filter(d => !stats.presenceDays.has(d));
@@ -835,20 +832,6 @@ async function updateMonthlySummary() {
         const agg = perAgentDay.get(agentId + '|' + d);
         if (agg?.firstDist != null) { firstDistAny = Math.round(Number(agg.firstDist)); break; }
       }
-      const withinCount = presenceDaysArr.filter(d => (perAgentDay.get(agentId + '|' + d)?.minDist ?? Infinity) <= tol).length;
-      const outsideCount = presenceDaysArr.length - withinCount;
-      let justification = '';
-      if (present === 0 && planned > 0) {
-        justification = `Rayon ${tol} m — Absent` + (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : '');
-      } else if (outsideCount === 0 && withinCount > 0) {
-        justification = `Rayon ${tol} m — Présent dans la zone (${withinCount} j)` + (firstDistAny != null ? ` — Dist. premier point: ${firstDistAny} m` : (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : ''));
-      } else if (withinCount === 0 && outsideCount > 0) {
-        justification = `Rayon ${tol} m — Présent hors zone (${outsideCount} j)` + (firstDistAny != null ? ` — Dist. premier point: ${firstDistAny} m` : (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : ''));
-      } else if (withinCount > 0 && outsideCount > 0) {
-        justification = `Rayon ${tol} m — Mixte: ${withinCount} j dans zone, ${outsideCount} j hors zone` + (firstDistAny != null ? ` — Dist. premier point: ${firstDistAny} m` : (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : ''));
-      } else {
-        justification = (planned === 0) ? '—' : `Rayon ${tol} m — Absent` + (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : '');
-      }
       
       console.log(`📊 Statistiques agent ${stats.name}:`, {
         planned,
@@ -868,8 +851,7 @@ async function updateMonthlySummary() {
           radius_m: tol,
           dist_min: distMin,
           dist_max: distMax,
-          dist_first: firstDistAny,
-          justification
+          dist_first: firstDistAny
         });
       }
     }
@@ -878,7 +860,7 @@ async function updateMonthlySummary() {
     rowsOut.sort((a, b) => a.agent.localeCompare(b.agent));
 
     if (!rowsOut.length) {
-      tbody.innerHTML = '<tr><td colspan="8">Aucune donnée pour la période sélectionnée.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7">Aucune donnée pour la période sélectionnée.</td></tr>';
       return;
     }
 
@@ -891,14 +873,13 @@ async function updateMonthlySummary() {
         <td>${r.absent}</td>
         <td>${r.radius_m ?? '—'}</td>
         <td>${(r.dist_first != null) ? r.dist_first : (r.dist_min != null ? r.dist_min : '—')}</td>
-        <td>${r.justification}</td>
       </tr>
     `).join('');
     
     console.log('✅ MonthlySummary rows pour tous les agents:', rowsOut.length, rowsOut);
   } catch (e) {
     console.warn('updateMonthlySummary error:', e);
-    tbody.innerHTML = '<tr><td colspan="5">Impossible de charger le récapitulatif.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7">Impossible de charger le récapitulatif.</td></tr>';
   }
 }
 
