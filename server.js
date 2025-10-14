@@ -182,25 +182,7 @@ app.delete('/api/admin/agents/:id', async (req, res) => {
 
 // API endpoint pour les administrateurs - gestion des agents - SUPPRIMÉ (utilise l'endpoint plus complet ci-dessous)
 
-// API endpoint pour les utilisateurs (agents)
-app.get('/api/users', async (req, res) => {
-  try {
-    const { data, error } = await supabaseClient
-      .from('users')
-      .select('id,name,email,role,phone,departement,project_name,photo_path,status')
-      .order('name');
-    
-    if (error) {
-      console.error('Erreur Supabase users:', error);
-      return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs' });
-    }
-
-    res.json({ success: true, items: data || [] });
-  } catch (error) {
-    console.error('Erreur API users:', error);
-    res.status(500).json({ error: 'Erreur interne du serveur' });
-  }
-});
+// API endpoint pour les utilisateurs (agents) - Supprimé car doublon avec l'endpoint plus complet plus bas
 
 // Admin stats: superadmin dashboard data
 app.get('/api/admin/stats', async (req, res) => {
