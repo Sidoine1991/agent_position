@@ -189,31 +189,48 @@
     }
   }
 
-  // Charger le projet de l'agent depuis son profil
+  // Charger les projets disponibles depuis la base de données
   async function loadAgentProject(user) {
     try {
-      // Récupérer le projet de l'agent depuis son profil
-      const agentProject = user.project_name || user.project || 'Projet non spécifié';
+      const headers = await authHeaders();
+      const res = await fetch(`${apiBase}/admin/agents`, { headers });
       
-      // Créer une liste avec le projet de l'agent
-      projects = [
-        { id: 1, name: agentProject, status: 'active' },
-        { id: 2, name: 'Projet Riz', status: 'active' },
-        { id: 3, name: 'Projet Maïs', status: 'active' },
-        { id: 4, name: 'Projet Formation', status: 'active' },
-        { id: 5, name: 'Projet Suivi', status: 'active' }
-      ];
-      
-      updateProjectFilter();
-      console.log('Projet de l\'agent:', agentProject);
+      if (res.ok) {
+        const data = await res.json();
+        const agents = data.data || data.agents || [];
+        
+        // Extraire les projets uniques depuis les agents
+        const uniqueProjects = new Set();
+        agents.forEach(agent => {
+          if (agent.project_name && agent.project_name.trim() !== '') {
+            uniqueProjects.add(agent.project_name.trim());
+          }
+        });
+        
+        // Créer la liste des projets
+        projects = Array.from(uniqueProjects).map((projectName, index) => ({
+          id: index + 1,
+          name: projectName,
+          status: 'active'
+        }));
+        
+        console.log('Projets chargés depuis la base de données:', projects);
+        updateProjectFilter();
+      } else {
+        console.error('Erreur lors du chargement des agents:', res.status);
+        // Utiliser le projet de l'agent actuel en cas d'erreur
+        const agentProject = user.project_name || user.project || 'Projet non spécifié';
+        projects = [
+          { id: 1, name: agentProject, status: 'active' }
+        ];
+        updateProjectFilter();
+      }
     } catch (error) {
-      console.error('Erreur chargement projet agent:', error);
-      // Utiliser des projets par défaut en cas d'erreur
+      console.error('Erreur chargement projets:', error);
+      // Utiliser le projet de l'agent actuel en cas d'erreur
+      const agentProject = user.project_name || user.project || 'Projet non spécifié';
       projects = [
-        { id: 1, name: 'Projet Riz', status: 'active' },
-        { id: 2, name: 'Projet Maïs', status: 'active' },
-        { id: 3, name: 'Projet Formation', status: 'active' },
-        { id: 4, name: 'Projet Suivi', status: 'active' }
+        { id: 1, name: agentProject, status: 'active' }
       ];
       updateProjectFilter();
     }
