@@ -315,14 +315,13 @@ app.get('/api/attendance/day-status', async (req, res) => {
   }
 });
 
-// API endpoint pour les rapports de présence - utilise les mêmes données que /api/reports/validations
+// API endpoint pour les rapports de présence - utilise la logique qui fonctionne
 app.get('/api/reports', async (req, res) => {
   try {
-    const { from, to, agent_id } = req.query;
+    console.log('🔍 API /api/reports appelée');
     
-    console.log('🔍 API /api/reports appelée avec params:', { from, to, agent_id });
-    
-    // Utiliser exactement la même logique que /api/reports/validations
+    // 1. Récupérer les validations avec leurs checkins
+    console.log('📊 Récupération des validations...');
     const { data: validations, error: validationsError } = await supabaseClient
       .from('checkin_validations')
       .select(`
@@ -349,25 +348,32 @@ app.get('/api/reports', async (req, res) => {
       .limit(100);
     
     console.log('📊 Validations trouvées:', validations?.length || 0);
+    console.log('📋 Erreur validations:', validationsError);
     
     if (validationsError) {
-      console.error('Erreur Supabase validations:', validationsError);
+      console.error('❌ Erreur lors de la récupération des validations:', validationsError);
       return res.status(500).json({ error: 'Erreur lors de la récupération des validations' });
     }
 
     if (!validations || validations.length === 0) {
+      console.log('⚠️ Aucune validation trouvée');
       return res.json({ success: true, data: [] });
     }
 
-    // Récupérer les informations des utilisateurs
+    // 2. Récupérer les informations des utilisateurs
     const agentIds = [...new Set(validations.map(v => v.agent_id))];
+    console.log('👥 Agent IDs uniques:', agentIds);
+    
     const { data: users, error: usersError } = await supabaseClient
       .from('users')
       .select('id, name, first_name, last_name, project_name, departement, commune, arrondissement, village, reference_lat, reference_lon, tolerance_radius_meters')
       .in('id', agentIds);
     
+    console.log('👥 Utilisateurs trouvés:', users?.length || 0);
+    console.log('📋 Erreur utilisateurs:', usersError);
+    
     if (usersError) {
-      console.error('Erreur Supabase users:', usersError);
+      console.error('❌ Erreur lors de la récupération des utilisateurs:', usersError);
       return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs' });
     }
 
@@ -376,7 +382,8 @@ app.get('/api/reports', async (req, res) => {
       usersMap.set(user.id, user);
     });
 
-    // Construire les rapports dans le format attendu par reports-backend.js
+    // 3. Construire les rapports
+    console.log('🔄 Construction des rapports...');
     const reports = validations.map(validation => {
       const checkin = validation.checkins;
       const user = usersMap.get(validation.agent_id);
@@ -411,9 +418,13 @@ app.get('/api/reports', async (req, res) => {
     });
 
     console.log('📊 Rapports construits:', reports.length);
+    if (reports.length > 0) {
+      console.log('📋 Premier rapport:', reports[0]);
+    }
+    
     res.json({ success: true, data: reports });
   } catch (error) {
-    console.error('Erreur API reports:', error);
+    console.error('❌ Erreur API reports:', error);
     res.status(500).json({ error: 'Erreur interne du serveur' });
   }
 });
