@@ -397,8 +397,8 @@ app.get('/api/reports', async (req, res) => {
         distance_m = calculateDistance(refLat, refLon, checkin.lat, checkin.lon);
       }
       
-      // Déterminer le statut
-      const tolerance = validation.tolerance_m || user?.tolerance_radius_meters || 5000;
+      // Déterminer le statut - utiliser uniquement le rayon de tolérance de l'utilisateur
+      const tolerance = user?.tolerance_radius_meters || 5000; // Valeur par défaut si non définie
       const isWithinTolerance = distance_m ? distance_m <= tolerance : validation.valid;
       
       return {
