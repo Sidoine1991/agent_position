@@ -2,6 +2,8 @@
 const apiBase = '/api';
 let jwt = localStorage.getItem('jwt') || '';
 let currentMissionId = null;
+let userZonesCache = null; // [{id,name,departement,commune,arrondissement,village,ref_lat,ref_lon,radius_m}]
+let selectedZoneId = null;
 let currentCalendarDate = new Date();
 let presenceData = {};
 let appSettings = null;
@@ -704,6 +706,15 @@ async function init() {
   if (loginFormEl && typeof loginFormEl.addEventListener === 'function') loginFormEl.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     try {
+      // Nettoyage pré-login: éviter mélange de sessions
+      try {
+        const keep = {
+          lastUserEmail: localStorage.getItem('lastUserEmail') || ''
+        };
+        localStorage.clear();
+        if (keep.lastUserEmail) localStorage.setItem('lastUserEmail', keep.lastUserEmail);
+      } catch {}
+
       const email = $('email').value.trim();
       const password = $('password').value.trim();
       
@@ -721,6 +732,8 @@ async function init() {
       localStorage.setItem('lastUserEmail', data.user.email || email);
       
       hide(authSection); show(appSection);
+      // Rediriger systématiquement vers l'accueil après connexion (peu importe le rôle)
+      try { window.location.href = '/index.html'; } catch {}
       // Vérifier l'onboarding immédiatement après connexion
       try {
         const prof = normalizeProfileResponse(await api(`/profile?email=${encodeURIComponent(data.user.email || email)}`));
@@ -764,6 +777,19 @@ async function init() {
       }, 100);
       
       await updateNavbar(); // Mettre à jour la navbar après connexion
+      // Garde de cohérence session: si le profil ne correspond pas à l'email saisi, forcer logout
+      try {
+        const prof = JSON.parse(localStorage.getItem('userProfile') || '{}');
+        const loggedEmail = (prof && (prof.email || prof.user?.email)) || localStorage.getItem('userEmail');
+        if (loggedEmail && email && loggedEmail.toLowerCase() !== email.toLowerCase()) {
+          console.warn('Incohérence de session détectée, déconnexion préventive');
+          localStorage.removeItem('jwt');
+          localStorage.removeItem('userProfile');
+          localStorage.removeItem('loginData');
+          window.location.href = '/index.html';
+          return;
+        }
+      } catch {}
       // Rendre immédiatement les actions circulaires
       try { updateCircleActionsVisibility(); } catch {}
     } catch (e) { 
@@ -1073,6 +1099,23 @@ async function init() {
       const photo = $('photo').files[0];
       if (photo) fd.append('photo', photo);
 
+      // Inclure la zone sélectionnée (multi-UD)
+      try {
+        const sel = document.getElementById('zone-select');
+        const chosen = (sel && sel.value) ? sel.value : (selectedZoneId || localStorage.getItem('selectedZoneId') || '');
+        if (chosen) {
+          fd.append('zone_id', String(chosen));
+          localStorage.setItem('selectedZoneId', String(chosen));
+        } else if (Array.isArray(userZonesCache) && userZonesCache.length) {
+          // Autoselect: zone la plus proche
+          const nearest = pickNearestZone(coords, userZonesCache);
+          if (nearest) {
+            fd.append('zone_id', String(nearest.id));
+            localStorage.setItem('selectedZoneId', String(nearest.id));
+          }
+        }
+      } catch {}
+
       status.textContent = 'Envoi...';
       
       const data = await api('/presence/start', { method: 'POST', body: fd });
@@ -1107,6 +1150,14 @@ async function init() {
       try { await computeAndStoreDailyDistance(currentMissionId); } catch {}
       try { markTodayPresentOnCalendar(); } catch {}
       try { notifyPresenceUpdate('start'); } catch {}
+      // Afficher zone retenue
+      try {
+        const zId = localStorage.getItem('selectedZoneId');
+        if (zId && Array.isArray(userZonesCache)) {
+          const z = userZonesCache.find(zz => String(zz.id) === String(zId));
+          if (z) showNotification(`Zone active: ${z.name} (${z.commune || ''} ${z.village || ''})`, 'info');
+        }
+      } catch {}
       
       // Activer le bouton Finir position et désactiver début
       const endBtn = $('end-mission');
@@ -1215,6 +1266,12 @@ async function init() {
       fd.append('lat', String(coords.latitude));
       fd.append('lon', String(coords.longitude));
       fd.append('note', $('note').value || 'Fin de mission');
+      // Joindre zone_id si connue
+      try {
+        const sel = document.getElementById('zone-select');
+        const chosen = (sel && sel.value) ? sel.value : (selectedZoneId || localStorage.getItem('selectedZoneId') || '');
+        if (chosen) fd.append('zone_id', String(chosen));
+      } catch {}
       if (typeof coords.accuracy !== 'undefined') fd.append('accuracy', String(Math.round(coords.accuracy)));
       
       const photo = $('photo').files[0];
@@ -2894,6 +2951,33 @@ async function updateNavbar() {
       }
     }
     
+    // Charger zones d'intervention (multi-UD)
+    try {
+      userZonesCache = await api('/me/zones'); // attendu: { zones: [{id,name,departement,commune,arrondissement,village,reference_lat,reference_lon,tolerance_radius_meters}] }
+      if (userZonesCache && userZonesCache.zones && Array.isArray(userZonesCache.zones)) {
+        userZonesCache = userZonesCache.zones.map((z, idx) => ({
+          id: z.id ?? idx + 1,
+          name: z.name || buildZoneName(z),
+          departement: z.departement || z.department || '',
+          commune: z.commune || '',
+          arrondissement: z.arrondissement || '',
+          village: z.village || '',
+          ref_lat: z.reference_lat ?? z.ref_lat ?? null,
+          ref_lon: z.reference_lon ?? z.ref_lon ?? null,
+          radius_m: z.tolerance_radius_meters ?? z.radius_m ?? 1000
+        }));
+        // Restaurer sélection précédente si dispo
+        try {
+          const saved = localStorage.getItem('selectedZoneId');
+          if (saved && userZonesCache.some(z => String(z.id) === String(saved))) selectedZoneId = saved;
+        } catch {}
+      } else {
+        userZonesCache = [];
+      }
+    } catch { userZonesCache = []; }
+    // Exposer globalement pour index.html (injection sélecteur)
+    try { window.userZonesCache = userZonesCache || []; } catch {}
+
     // Utiliser le nouveau système de navigation
   if (window.navigation && typeof window.navigation.updateForUser === 'function') {
     await window.navigation.updateForUser(profile);
@@ -3001,6 +3085,44 @@ function getGeoValue(field) {
     return manualInput.value.trim();
   } else if (select && select.value) {
     return select.options[select.selectedIndex]?.text || select.value;
+  }
+
+  // Construction nom de zone par défaut
+  function buildZoneName(z) {
+    try {
+      const commune = (z.commune || '').trim();
+      const village = (z.village || '').trim();
+      const c3 = commune ? commune.slice(0,3).toUpperCase() : 'XXX';
+      const v3 = village ? village.slice(0,3).toUpperCase() : 'XXX';
+      return `Zone_${c3}_${v3}`;
+    } catch { return 'Zone'; }
+  }
+
+  // Choisir la zone la plus proche d'une coordonnée
+  function pickNearestZone(coords, zones) {
+    try {
+      if (!coords || !Array.isArray(zones) || !zones.length) return null;
+      let best = null, bestD = Infinity;
+      const { latitude, longitude } = coords;
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+      for (const z of zones) {
+        if (z && Number.isFinite(Number(z.ref_lat)) && Number.isFinite(Number(z.ref_lon))) {
+          const d = haversineMeters(latitude, longitude, Number(z.ref_lat), Number(z.ref_lon));
+          if (d < bestD) { bestD = d; best = z; }
+        }
+      }
+      return best;
+    } catch { return null; }
+  }
+
+  function haversineMeters(lat1, lon1, lat2, lon2) {
+    const R = 6371000; // m
+    const toRad = (v) => v * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
   }
   
   return '';

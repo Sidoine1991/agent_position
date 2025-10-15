@@ -14,6 +14,9 @@ const verifyBtn = document.getElementById('verifyBtn');
 const btnText = document.getElementById('btnText');
 const verifyBtnText = document.getElementById('verifyBtnText');
 const resendBtn = document.getElementById('resendBtn');
+const zonesContainer = document.getElementById('zones-container');
+const addZoneBtn = document.getElementById('add-zone-btn');
+let zoneTempId = 0;
 
 // Fonction utilitaire pour les requêtes API
 // Configuration de l'API - utiliser Render en production sur Vercel
@@ -100,6 +103,58 @@ function showForm(formType) {
   successContainer.style.display = formType === 'success' ? 'block' : 'none';
 }
 
+function buildZoneRow(zone = {}) {
+  const id = ++zoneTempId;
+  const row = document.createElement('div');
+  row.className = 'zone-row';
+  row.style.cssText = 'border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin:8px 0;background:#f9fafb';
+  row.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <label>Département</label>
+        <input type="text" data-field="departement" placeholder="Département" value="${zone.departement || ''}">
+      </div>
+      <div>
+        <label>Commune</label>
+        <input type="text" data-field="commune" placeholder="Commune" value="${zone.commune || ''}">
+      </div>
+      <div>
+        <label>Arrondissement</label>
+        <input type="text" data-field="arrondissement" placeholder="Arrondissement" value="${zone.arrondissement || ''}">
+      </div>
+      <div>
+        <label>Village</label>
+        <input type="text" data-field="village" placeholder="Village" value="${zone.village || ''}">
+      </div>
+      <div>
+        <label>Latitude de référence</label>
+        <input type="number" step="0.000001" data-field="reference_lat" placeholder="Ex: 6.4969" value="${zone.reference_lat || ''}">
+      </div>
+      <div>
+        <label>Longitude de référence</label>
+        <input type="number" step="0.000001" data-field="reference_lon" placeholder="Ex: 2.6036" value="${zone.reference_lon || ''}">
+      </div>
+      <div>
+        <label>Rayon de tolérance (m)</label>
+        <input type="number" min="10" max="10000" data-field="tolerance_radius_meters" placeholder="Ex: 500" value="${zone.tolerance_radius_meters || 1000}">
+      </div>
+    </div>
+    <div style="text-align:right;margin-top:8px">
+      <button type="button" class="btn-register" data-action="remove" style="background:#ef4444">🗑️ Supprimer</button>
+    </div>
+  `;
+  row.querySelector('[data-action="remove"]').addEventListener('click', ()=>{ row.remove(); });
+  return row;
+}
+
+if (addZoneBtn && zonesContainer) {
+  addZoneBtn.addEventListener('click', () => {
+    zonesContainer.appendChild(buildZoneRow());
+  });
+  // Ajouter une zone par défaut
+  zonesContainer.appendChild(buildZoneRow());
+}
+
 // Gestion de l'inscription
 registerForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -126,16 +181,12 @@ registerForm.addEventListener('submit', async (e) => {
     contract_start_date: formData.get('contract_start_date'),
     contract_end_date: formData.get('contract_end_date'),
     years_of_service: formData.get('years_of_service'),
-    reference_lat: formData.get('reference_lat'),
-    reference_lon: formData.get('reference_lon')
+    // Multi-zones: collecter depuis zonesContainer
   };
 
   Object.entries(extraFields).forEach(([k, v]) => {
     if (v !== null && v !== undefined && String(v).trim() !== '') {
-      if (k === 'reference_lat' || k === 'reference_lon') {
-        const num = parseFloat(String(v).replace(',', '.'));
-        if (!Number.isNaN(num)) data[k] = num;
-      } else if (k === 'expected_days_per_month' || k === 'expected_hours_per_month') {
+      if (k === 'expected_days_per_month' || k === 'expected_hours_per_month') {
         const num = parseInt(String(v), 10);
         if (!Number.isNaN(num)) data[k] = num;
       } else if (k === 'years_of_service') {
@@ -146,6 +197,28 @@ registerForm.addEventListener('submit', async (e) => {
       }
     }
   });
+
+  // Construire zones depuis le conteneur
+  try {
+    const rows = Array.from(zonesContainer.querySelectorAll('.zone-row'));
+    const zones = rows.map(r => {
+      const get = sel => r.querySelector(`[data-field="${sel}"]`)?.value || '';
+      const lat = parseFloat(String(get('reference_lat')).replace(',', '.'));
+      const lon = parseFloat(String(get('reference_lon')).replace(',', '.'));
+      const tol = parseFloat(String(get('tolerance_radius_meters')).replace(',', '.'));
+      return {
+        id: undefined,
+        departement: get('departement').trim(),
+        commune: get('commune').trim(),
+        arrondissement: get('arrondissement').trim(),
+        village: get('village').trim(),
+        reference_lat: Number.isFinite(lat) ? lat : null,
+        reference_lon: Number.isFinite(lon) ? lon : null,
+        tolerance_radius_meters: Number.isFinite(tol) ? tol : 1000
+      };
+    }).filter(z => z.departement || z.commune || z.village || (z.reference_lat != null && z.reference_lon != null));
+    if (zones.length) data.zones = zones;
+  } catch {}
   
   // Validation côté client
   if (data.password !== formData.get('confirmPassword')) {

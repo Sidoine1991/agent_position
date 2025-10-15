@@ -25784,6 +25784,72 @@ document.addEventListener('DOMContentLoaded', function() {
     <script src="/cascade-selectors.js"></script>
     <script src="/app.js?v=5" type="module"></script>
     <script>
+      // Zone selector (multi-UD): render when zones are available (auto-nearest by default, allow manual override)
+      (function(){
+        try {
+          const mount = document.getElementById('zone-selector-container') || document.querySelector('.presence-form') || document.body;
+          const tryRender = () => {
+            const zones = (window.userZonesCache || (window.app && window.app.userZonesCache)) || [];
+            if (!Array.isArray(zones) || !zones.length) return;
+            if (document.getElementById('zone-select')) return;
+            const wrap = document.createElement('div');
+            wrap.style.margin = '8px 0';
+            wrap.innerHTML = `
+              <label for="zone-select" style="display:block;margin-bottom:6px">Zone d'intervention</label>
+              <select id="zone-select" class="form-control" style="max-width:420px">
+                ${zones.map(z => `<option value="${z.id}">${z.name} — ${[z.commune,z.village].filter(Boolean).join(' / ')}</option>`).join('')}
+              </select>
+            `;
+            mount.insertBefore(wrap, mount.firstChild);
+            try {
+              const sel = document.getElementById('zone-select');
+              const saved = localStorage.getItem('selectedZoneId');
+              const manual = localStorage.getItem('zoneManualSelected') === 'true';
+              if (saved) sel.value = saved;
+              sel.addEventListener('change', (e) => {
+                localStorage.setItem('selectedZoneId', e.target.value);
+                localStorage.setItem('zoneManualSelected', 'true');
+              });
+              // Auto-select nearest if no manual selection yet or saved value invalid
+              if (!manual && (!saved || !Array.from(sel.options).some(o => o.value === saved))) {
+                const toRad = v => v * Math.PI / 180;
+                const haversine = (a,b,c,d) => {
+                  const R=6371000, dLat=toRad(c-a), dLon=toRad(d-b);
+                  const A=Math.sin(dLat/2)**2+Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLon/2)**2; return 2*R*Math.atan2(Math.sqrt(A),Math.sqrt(1-A));
+                };
+                const chooseNearest = (lat, lon) => {
+                  try {
+                    let best=null, bestD=Infinity;
+                    zones.forEach(z=>{
+                      const rlat = Number(z.ref_lat ?? z.reference_lat);
+                      const rlon = Number(z.ref_lon ?? z.reference_lon);
+                      if (Number.isFinite(rlat) && Number.isFinite(rlon)) {
+                        const d = haversine(lat, lon, rlat, rlon);
+                        if (d < bestD) { bestD = d; best = z; }
+                      }
+                    });
+                    if (best) {
+                      sel.value = String(best.id);
+                      localStorage.setItem('selectedZoneId', String(best.id));
+                    }
+                  } catch {}
+                };
+                try {
+                  navigator.geolocation.getCurrentPosition(
+                    (pos)=>{ chooseNearest(pos.coords.latitude, pos.coords.longitude); },
+                    ()=>{},
+                    { maximumAge: 60000, timeout: 2000, enableHighAccuracy: false }
+                  );
+                } catch {}
+              }
+            } catch {}
+          };
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tryRender); else tryRender();
+          window.addEventListener('load', tryRender);
+        } catch {}
+      })();
+    </script>
+    <script>
       // File: index.html inline fallback to ensure navbar links are always clickable
       (function(){
         try {

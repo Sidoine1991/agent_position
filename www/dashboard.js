@@ -152,35 +152,14 @@ async function getProfile() {
 }
 
 async function tryAutoLoginIfNeeded() {
-  if (jwt && jwt.length > 20) return false;
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const email = params.get('email') || localStorage.getItem('userEmail') || localStorage.getItem('lastUserEmail');
-    const password = params.get('password') || localStorage.getItem('userPassword') || localStorage.getItem('lastPassword');
-    if (!email || !password) return false;
-    console.log('🔐 Auto-login (dashboard) avec paramètres disponibles...');
-    const res = await api('/login', { method: 'POST', body: { email, password } });
-    if (res && res.success && res.token) {
-      jwt = res.token;
-      localStorage.setItem('jwt', jwt);
-      localStorage.setItem('userEmail', res.user?.email || email);
-      console.log('✅ Auto-login réussi (dashboard)');
-      return true;
-    }
-  } catch (e) {
-    console.warn('Auto-login dashboard échoué:', e.message || e);
-  }
+  // Désactivé: ne jamais auto-connecter depuis le dashboard
   return false;
 }
 
 async function ensureAuth() {
-  // Mode libre: tenter de restaurer ou d'auto-connecter puis continuer
+  // Ne pas auto-connecter depuis cette page; s'appuyer sur la garde HTML
   jwt = localStorage.getItem('jwt') || jwt;
-  if (!jwt) {
-    await tryAutoLoginIfNeeded();
-    jwt = localStorage.getItem('jwt') || jwt;
-  }
-  console.log('ensureAuth: mode libre, jwt présent =', !!jwt);
+  console.log('ensureAuth: jwt présent =', !!jwt);
   // Optionnel: tenter d'obtenir le profil, sans bloquer
   try { await getProfile(); } catch {}
 }
@@ -405,6 +384,29 @@ async function updateMonthlySummary() {
   tbody.innerHTML = '<tr><td colspan="7">Chargement...</td></tr>';
 
   try {
+    // Helper to format a user meta object into a display name
+    const maskEmail = (email) => {
+      try {
+        if (!email || typeof email !== 'string') return '';
+        const [u, d] = email.split('@');
+        if (!u || !d) return email;
+        return (u.length > 2 ? u.slice(0, 2) + '***' : u[0] + '*') + '@' + d;
+      } catch { return String(email); }
+    };
+    const displayNameFromMeta = (meta) => {
+      if (!meta) return '';
+      const full = [meta.first_name, meta.last_name].filter(Boolean).join(' ').trim();
+      return full || meta.name || maskEmail(meta.email) || '';
+    };
+    const getAgentDisplayName = (agentId, row, usersMetaMap, fallback) => {
+      const fromRow = row?.agent_name || row?.name;
+      if (fromRow) return String(fromRow);
+      const meta = usersMetaMap?.get?.(Number(agentId));
+      const byMeta = displayNameFromMeta(meta);
+      if (byMeta) return byMeta;
+      return fallback || `Agent ${agentId || ''}`;
+    };
+
     const { from, to } = getMonthRangeFromDateInput();
     console.log('📊 Période récapitulatif:', { from, to });
 
@@ -422,12 +424,15 @@ async function updateMonthlySummary() {
 
       if (Array.isArray(validated) && validated.length) {
         console.log('✅ Données validées backend utilisées:', validated.length);
+        // Préparer une map usersMeta (id -> meta) pour la résolution des noms si possible
+        let usersMetaMap = null;
+        try { usersMetaMap = await fetchUsersMetaFromSupabase(); } catch { usersMetaMap = null; }
         // Format attendu (souple):
         // - soit des tableaux de jours: planned_days[], present_days[], absent_days[]
         // - soit des nombres: planned_days, present_days, absent_days
         const rowsOut = [];
         validated.forEach(row => {
-          const agentName = row.agent_name || row.name || `Agent ${row.agent_id || ''}`;
+          const agentName = getAgentDisplayName(row.agent_id, row, usersMetaMap);
           const plannedIsNum = typeof row.planned_days === 'number';
           const presentIsNum = typeof row.present_days === 'number' || typeof row.presence_days === 'number';
           const absentIsNum = typeof row.absent_days === 'number';
@@ -474,9 +479,7 @@ async function updateMonthlySummary() {
           }
           const perAgentDay = new Map(); // agentName => Map(day => {within, hasAny, minDist, tol})
           const perAgentMeta = new Map(); // agentName => { tol }
-          // Récupérer les métadonnées utilisateurs pour recalculer la distance si absente
-          let usersMetaMap = null;
-          try { usersMetaMap = await fetchUsersMetaFromSupabase(); } catch { usersMetaMap = null; }
+          // usersMetaMap est potentiellement déjà chargé ci-dessus
           const nameToMeta = new Map();
           if (usersMetaMap) {
             for (const [, meta] of usersMetaMap.entries()) {
@@ -649,8 +652,14 @@ async function updateMonthlySummary() {
     // Initialiser les statistiques pour chaque agent (priorité données Supabase)
     allAgents.forEach(agent => {
       const meta = usersMeta?.get(Number(agent.id));
+      const displayName = (() => {
+        const fromMeta = displayNameFromMeta(meta);
+        if (fromMeta) return fromMeta;
+        const full = [agent.first_name, agent.last_name].filter(Boolean).join(' ').trim();
+        return full || agent.name || maskEmail(agent.email) || `Agent ${agent.id}`;
+      })();
       agentStats.set(agent.id, {
-        name: (meta?.name) || agent.name || agent.first_name || `Agent ${agent.id}`,
+        name: displayName,
         project: (meta?.project) || agent.project_name || agent.project || agent.assigned_project || agent.projet || agent.projectName || '',
         plannedDays: new Set(),
         presenceDays: new Set()
@@ -661,8 +670,10 @@ async function updateMonthlySummary() {
     const ensureAgent = (id, nameGuess, projectGuess) => {
       if (!id) return;
       if (!agentStats.has(id)) {
+        const meta = usersMeta?.get(Number(id));
+        const displayName = displayNameFromMeta(meta) || nameGuess || `Agent ${id}`;
         agentStats.set(id, {
-          name: nameGuess || `Agent ${id}`,
+          name: displayName,
           project: projectGuess || '',
           plannedDays: new Set(),
           presenceDays: new Set()
@@ -734,7 +745,7 @@ async function updateMonthlySummary() {
         validationsByAgentDay.set(k, { distance_m: dist, tol });
       });
     } catch {}
-
+    
     // Ajouter les jours de présence (check-ins) en jugeant par la distance/rayon
     // On agrège par agent+jour le statut, la distance minimale et la distance du premier point de la journée
     // (distance calculée via référence Supabase si pas fournie)
@@ -2435,26 +2446,8 @@ function cancelStartPoint() {
 
 // Fonction pour créer le bouton d'ajout de point
 function createAddStartPointButton() {
-  // Vérifier si le bouton existe déjà
-  if (document.getElementById('add-presence-point-btn')) return;
-  
-  const button = document.createElement('button');
-  button.id = 'add-presence-point-btn';
-  button.className = 'btn btn-primary btn-sm';
-  button.innerHTML = '📍 Ajouter présence';
-  button.style.position = 'absolute';
-  button.style.top = '10px';
-  button.style.right = '10px';
-  button.style.zIndex = '1000';
-  button.style.fontSize = '12px';
-  button.style.padding = '8px 12px';
-  button.onclick = addStartMissionPoint;
-  
-  // Ajouter le bouton à la carte
-  const mapContainer = document.getElementById('map');
-  if (mapContainer) {
-    mapContainer.appendChild(button);
-  }
+  // Désactivé: on ne montre plus le bouton d'ajout de présence sur le dashboard
+  return;
 }
 
 // Exposer les nouvelles fonctions
@@ -2465,33 +2458,8 @@ window.createAddStartPointButton = createAddStartPointButton;
 
 // Boutons Début/Fin mission sur la carte (dashboard)
 function createDashboardPresenceButtons() {
-  const mapContainer = document.getElementById('map');
-  if (!mapContainer) return;
-  if (document.getElementById('dash-start-btn')) return;
-
-  const wrap = document.createElement('div');
-  wrap.style.position = 'absolute';
-  wrap.style.top = '10px';
-  wrap.style.left = '10px';
-  wrap.style.zIndex = '1000';
-  wrap.style.display = 'flex';
-  wrap.style.gap = '8px';
-
-  const startBtn = document.createElement('button');
-  startBtn.id = 'dash-start-btn';
-  startBtn.className = 'btn btn-success btn-sm';
-  startBtn.textContent = 'Début mission';
-  startBtn.onclick = startMissionFromDashboard;
-
-  const endBtn = document.createElement('button');
-  endBtn.id = 'dash-end-btn';
-  endBtn.className = 'btn btn-danger btn-sm';
-  endBtn.textContent = 'Fin mission';
-  endBtn.onclick = endMissionFromDashboard;
-
-  wrap.appendChild(startBtn);
-  wrap.appendChild(endBtn);
-  mapContainer.appendChild(wrap);
+  // Désactivé: pas de boutons début/fin mission sur le dashboard
+  return;
 }
 
 async function startMissionFromDashboard() {

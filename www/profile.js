@@ -791,6 +791,104 @@ document.addEventListener('DOMContentLoaded', async () => {
         field.addEventListener('change', updateProfileCompletion);
       }
     });
+
+    // ====== Zones d'intervention (multi-UD) ======
+    const zonesContainer = document.getElementById('zones-container');
+    const btnAddZone = document.getElementById('btn-add-zone');
+    const btnSaveZones = document.getElementById('btn-save-zones');
+    const btnReloadZones = document.getElementById('btn-reload-zones');
+
+    function buildZoneRow(zone = {}) {
+      const row = document.createElement('div');
+      row.className = 'zone-row';
+      row.style.cssText = 'border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin:8px 0;background:#f9fafb';
+      row.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+          <div>
+            <label>Département</label>
+            <input type="text" data-field="departement" placeholder="Département" value="${zone.departement || ''}">
+          </div>
+          <div>
+            <label>Commune</label>
+            <input type="text" data-field="commune" placeholder="Commune" value="${zone.commune || ''}">
+          </div>
+          <div>
+            <label>Arrondissement</label>
+            <input type="text" data-field="arrondissement" placeholder="Arrondissement" value="${zone.arrondissement || ''}">
+          </div>
+          <div>
+            <label>Village</label>
+            <input type="text" data-field="village" placeholder="Village" value="${zone.village || ''}">
+          </div>
+          <div>
+            <label>Latitude de référence</label>
+            <input type="number" step="0.000001" data-field="reference_lat" placeholder="Ex: 6.4969" value="${zone.reference_lat ?? ''}">
+          </div>
+          <div>
+            <label>Longitude de référence</label>
+            <input type="number" step="0.000001" data-field="reference_lon" placeholder="Ex: 2.6036" value="${zone.reference_lon ?? ''}">
+          </div>
+          <div>
+            <label>Rayon de tolérance (m)</label>
+            <input type="number" min="10" max="10000" data-field="tolerance_radius_meters" placeholder="Ex: 500" value="${zone.tolerance_radius_meters ?? 1000}">
+          </div>
+        </div>
+        <div style="text-align:right;margin-top:8px">
+          <button type="button" class="btn-primary" data-action="duplicate">🧩 Dupliquer</button>
+          <button type="button" class="btn-register" data-action="remove" style="background:#ef4444">🗑️ Supprimer</button>
+        </div>
+      `;
+      row.querySelector('[data-action="remove"]').addEventListener('click', ()=>{ row.remove(); });
+      row.querySelector('[data-action="duplicate"]').addEventListener('click', ()=>{
+        zonesContainer.insertBefore(buildZoneRow(zone), row.nextSibling);
+      });
+      return row;
+    }
+
+    async function loadZones() {
+      if (!zonesContainer) return;
+      zonesContainer.innerHTML = '<div style="color:#6b7280">Chargement des zones...</div>';
+      try {
+        const res = await api('/me/zones');
+        const zones = (res && res.zones && Array.isArray(res.zones)) ? res.zones : [];
+        zonesContainer.innerHTML = '';
+        if (!zones.length) zonesContainer.appendChild(buildZoneRow({ tolerance_radius_meters: 1000 }));
+        zones.forEach(z => zonesContainer.appendChild(buildZoneRow(z)));
+      } catch (e) {
+        zonesContainer.innerHTML = '<div style="color:#dc2626">Erreur de chargement des zones</div>';
+      }
+    }
+
+    async function saveZones() {
+      if (!zonesContainer) return;
+      const rows = Array.from(zonesContainer.querySelectorAll('.zone-row'));
+      const zones = rows.map(r => {
+        const get = sel => r.querySelector(`[data-field="${sel}"]`)?.value || '';
+        const lat = parseFloat(String(get('reference_lat')).replace(',', '.'));
+        const lon = parseFloat(String(get('reference_lon')).replace(',', '.'));
+        const tol = parseFloat(String(get('tolerance_radius_meters')).replace(',', '.'));
+        return {
+          departement: get('departement').trim(),
+          commune: get('commune').trim(),
+          arrondissement: get('arrondissement').trim(),
+          village: get('village').trim(),
+          reference_lat: Number.isFinite(lat) ? lat : null,
+          reference_lon: Number.isFinite(lon) ? lon : null,
+          tolerance_radius_meters: Number.isFinite(tol) ? tol : 1000
+        };
+      }).filter(z => z.departement || z.commune || z.village || (z.reference_lat != null && z.reference_lon != null));
+      try {
+        await api('/me/zones', { method: 'PUT', body: { zones } });
+        alert('Zones enregistrées');
+      } catch (e) {
+        alert('Erreur lors de l\'enregistrement des zones: ' + (e.message || ''));
+      }
+    }
+
+    if (btnAddZone) btnAddZone.addEventListener('click', () => zonesContainer.appendChild(buildZoneRow()));
+    if (btnSaveZones) btnSaveZones.addEventListener('click', saveZones);
+    if (btnReloadZones) btnReloadZones.addEventListener('click', loadZones);
+    await loadZones();
   }
 });
 

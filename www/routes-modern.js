@@ -34,6 +34,26 @@ function requireRole(roles) {
   };
 }
 
+// Utils: haversine distance (meters)
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // meters
+  const toRad = (v) => v * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+async function getZoneForUser(db, userId, zoneId) {
+  if (!zoneId) return null;
+  const res = await db.query(`SELECT zones FROM users WHERE id = $1`, [userId]);
+  const zones = res.rows?.[0]?.zones || [];
+  const zid = Number(zoneId);
+  const found = (zones || []).find(z => Number(z.id ?? z.temp_id ?? -1) === zid);
+  return found || null;
+}
+
 // ===== AUTHENTIFICATION =====
 
 // Inscription
@@ -49,7 +69,18 @@ router.post('/auth/register', async (req, res) => {
     planning_start_date: z.string().optional(),
     planning_end_date: z.string().optional(),
     expected_days_per_month: z.number().optional(),
-    expected_hours_per_month: z.number().optional()
+    expected_hours_per_month: z.number().optional(),
+    zones: z.array(z.object({
+      id: z.number().optional(),
+      name: z.string().optional(),
+      departement: z.string().optional(),
+      commune: z.string().optional(),
+      arrondissement: z.string().optional(),
+      village: z.string().optional(),
+      reference_lat: z.number().nullable().optional(),
+      reference_lon: z.number().nullable().optional(),
+      tolerance_radius_meters: z.number().optional()
+    })).optional()
   });
   
   try {
@@ -68,15 +99,15 @@ router.post('/auth/register', async (req, res) => {
     const result = await db.query(`
       INSERT INTO users (first_name, last_name, email, password, phone, role, project_name, 
                         planning_start_date, planning_end_date, expected_days_per_month, 
-                        expected_hours_per_month, is_active, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, NOW())
+                        expected_hours_per_month, is_active, created_at, zones)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, NOW(), $12::jsonb)
       RETURNING id, first_name, last_name, email, role, phone, project_name, 
                 planning_start_date, planning_end_date, expected_days_per_month, 
                 expected_hours_per_month, is_active, created_at
     `, [
       data.first_name, data.last_name, data.email, hashedPassword, data.phone, data.role,
       data.project_name, data.planning_start_date, data.planning_end_date,
-      data.expected_days_per_month, data.expected_hours_per_month
+      data.expected_days_per_month, data.expected_hours_per_month, JSON.stringify(data.zones || [])
     ]);
     
     const user = result.rows[0];
@@ -192,6 +223,47 @@ router.get('/profile', requireAuth, async (req, res) => {
   }
 });
 
+// Zones d'intervention (multi-UD)
+router.get('/me/zones', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await db.query(`SELECT COALESCE(zones, '[]'::jsonb) as zones FROM users WHERE id = $1`, [userId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    const zones = result.rows[0].zones || [];
+    res.json({ zones });
+  } catch (error) {
+    console.error('Get zones error:', error);
+    res.status(500).json({ error: 'Erreur lors du chargement des zones' });
+  }
+});
+
+router.put('/me/zones', requireAuth, async (req, res) => {
+  const zoneSchema = z.object({
+    id: z.number().optional(),
+    name: z.string().optional(),
+    departement: z.string().optional(),
+    commune: z.string().optional(),
+    arrondissement: z.string().optional(),
+    village: z.string().optional(),
+    reference_lat: z.number().nullable().optional(),
+    reference_lon: z.number().nullable().optional(),
+    tolerance_radius_meters: z.number().optional()
+  });
+  const schema = z.object({ zones: z.array(zoneSchema) });
+  try {
+    const data = schema.parse(req.body);
+    const userId = req.user.id;
+    const payload = JSON.stringify(data.zones || []);
+    const result = await db.query(`
+      UPDATE users SET zones = $1::jsonb, updated_at = NOW() WHERE id = $2 RETURNING COALESCE(zones, '[]'::jsonb) as zones
+    `, [payload, userId]);
+    res.json({ zones: result.rows[0].zones || [] });
+  } catch (error) {
+    console.error('Update zones error:', error);
+    res.status(400).json({ error: 'Erreur lors de la mise à jour des zones' });
+  }
+});
+
 // Mettre à jour le profil
 router.put('/profile', requireAuth, async (req, res) => {
   const schema = z.object({
@@ -249,12 +321,49 @@ router.put('/profile', requireAuth, async (req, res) => {
   }
 });
 
+// Mettre à jour le profil (alias pratique utilisé par le front)
+router.post('/me/profile', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const data = req.body || {};
+    // Construire la requête dynamiquement à partir des clés fournies
+    const allowed = new Set([
+      'first_name','last_name','phone','project_name',
+      'departement','commune','arrondissement','village',
+      'reference_lat','reference_lon','tolerance_radius_meters',
+      'contract_start_date','contract_end_date','years_of_service',
+      'expected_days_per_month','expected_hours_per_month',
+      'planning_start_date','planning_end_date','photo_path'
+    ]);
+    const updates = [];
+    const values = [];
+    let idx = 1;
+    for (const [k, v] of Object.entries(data)) {
+      if (!allowed.has(k)) continue;
+      updates.push(`${k} = $${idx}`);
+      values.push(v);
+      idx++;
+    }
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Aucune donnée à mettre à jour' });
+    }
+    values.push(userId);
+    const q = `UPDATE users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`;
+    const result = await db.query(q, values);
+    res.json({ success: true, user: result.rows[0] });
+  } catch (error) {
+    console.error('me/profile update error:', error);
+    res.status(400).json({ error: 'Erreur lors de la mise à jour du profil' });
+  }
+});
+
 // ===== GESTION DES MISSIONS =====
 
 // Démarrer une mission
 router.post('/presence/start', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
+    const zoneId = (req.body && (req.body.zone_id || req.body.zoneId)) || null;
     
     // Vérifier s'il y a déjà une mission active
     const activeMission = await db.query(`
@@ -273,7 +382,27 @@ router.post('/presence/start', requireAuth, async (req, res) => {
       RETURNING id, user_id, status, start_time, created_at
     `, [userId]);
     
-    res.json(result.rows[0]);
+    const mission = result.rows[0];
+    // Geofencing calculation if coords provided
+    let distance_m = null, tol_m = null, within_tolerance = null;
+    try {
+      const lat = Number(req.body?.lat ?? req.body?.latitude);
+      const lon = Number(req.body?.lon ?? req.body?.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lon) && zoneId) {
+        const z = await getZoneForUser(db, userId, zoneId);
+        const refLat = Number(z?.reference_lat ?? z?.ref_lat);
+        const refLon = Number(z?.reference_lon ?? z?.ref_lon);
+        const tol = Number(z?.tolerance_radius_meters ?? z?.radius_m ?? 1000);
+        if (Number.isFinite(refLat) && Number.isFinite(refLon)) {
+          distance_m = Math.round(haversineMeters(lat, lon, refLat, refLon));
+          tol_m = tol;
+          within_tolerance = distance_m <= tol_m;
+        }
+      }
+    } catch {}
+    // Echo back selected zone and geofence result
+    // Persister un premier check-in de départ dans presences (optionnel) ou juste renvoyer le calcul
+    res.json({ ...mission, zone_id: zoneId ? Number(zoneId) : null, distance_m, tol_m, within_tolerance });
   } catch (error) {
     console.error('Start mission error:', error);
     res.status(500).json({ error: 'Erreur lors du démarrage de la mission' });
@@ -284,6 +413,23 @@ router.post('/presence/start', requireAuth, async (req, res) => {
 router.post('/presence/end', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
+    const zoneId = (req.body && (req.body.zone_id || req.body.zoneId)) || null;
+    let distance_m = null, tol_m = null, within_tolerance = null;
+    try {
+      const lat = Number(req.body?.lat ?? req.body?.latitude);
+      const lon = Number(req.body?.lon ?? req.body?.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lon) && zoneId) {
+        const z = await getZoneForUser(db, userId, zoneId);
+        const refLat = Number(z?.reference_lat ?? z?.ref_lat);
+        const refLon = Number(z?.reference_lon ?? z?.ref_lon);
+        const tol = Number(z?.tolerance_radius_meters ?? z?.radius_m ?? 1000);
+        if (Number.isFinite(refLat) && Number.isFinite(refLon)) {
+          distance_m = Math.round(haversineMeters(lat, lon, refLat, refLon));
+          tol_m = tol;
+          within_tolerance = distance_m <= tol_m;
+        }
+      }
+    } catch {}
     
     // Trouver la mission active
     const activeMission = await db.query(`
@@ -302,7 +448,7 @@ router.post('/presence/end', requireAuth, async (req, res) => {
       WHERE user_id = $1 AND status = 'active'
     `, [userId]);
     
-    res.json({ message: 'Mission terminée avec succès' });
+    res.json({ message: 'Mission terminée avec succès', zone_id: zoneId ? Number(zoneId) : null, distance_m, tol_m, within_tolerance });
   } catch (error) {
     console.error('End mission error:', error);
     res.status(500).json({ error: 'Erreur lors de la fin de la mission' });
@@ -341,7 +487,8 @@ router.post('/mission/checkin', requireAuth, async (req, res) => {
     accuracy: z.number().optional(),
     note: z.string().optional(),
     photo: z.string().optional(),
-    timestamp: z.string().optional()
+    timestamp: z.string().optional(),
+    zone_id: z.number().optional()
   });
   
   try {
@@ -359,18 +506,34 @@ router.post('/mission/checkin', requireAuth, async (req, res) => {
     }
     
     const missionId = activeMission.rows[0].id;
+    // Geofencing using selected zone
+    let distance_m = null, tol_m = null, within_tolerance = null;
+    try {
+      if (data.zone_id) {
+        const z = await getZoneForUser(db, userId, data.zone_id);
+        const refLat = Number(z?.reference_lat ?? z?.ref_lat);
+        const refLon = Number(z?.reference_lon ?? z?.ref_lon);
+        const tol = Number(z?.tolerance_radius_meters ?? z?.radius_m ?? 1000);
+        if (Number.isFinite(refLat) && Number.isFinite(refLon)) {
+          distance_m = Math.round(haversineMeters(data.latitude, data.longitude, refLat, refLon));
+          tol_m = tol;
+          within_tolerance = distance_m <= tol_m;
+        }
+      }
+    } catch {}
     
-    // Enregistrer la présence
+    // Enregistrer la présence (avec zone_id / within_tolerance si migration appliquée)
     const result = await db.query(`
-      INSERT INTO presences (mission_id, user_id, latitude, longitude, accuracy, note, photo, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamp, NOW()))
-      RETURNING id, mission_id, user_id, latitude, longitude, accuracy, note, photo, created_at
+      INSERT INTO presences (mission_id, user_id, latitude, longitude, accuracy, note, photo, created_at, zone_id, within_tolerance, distance_from_reference_m, tolerance_meters)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamp, NOW()), $9, $10, $11, $12)
+      RETURNING id, mission_id, user_id, latitude, longitude, accuracy, note, photo, created_at, zone_id, within_tolerance, distance_from_reference_m, tolerance_meters
     `, [
       missionId, userId, data.latitude, data.longitude, data.accuracy,
-      data.note, data.photo, data.timestamp
+      data.note, data.photo, data.timestamp,
+      data.zone_id ?? null, within_tolerance, distance_m, tol_m
     ]);
     
-    res.json(result.rows[0]);
+    res.json({ ...result.rows[0], zone_id: data.zone_id ?? null, distance_m, tol_m, within_tolerance });
   } catch (error) {
     console.error('Checkin error:', error);
     res.status(500).json({ error: 'Erreur lors de l\'enregistrement de la présence' });
