@@ -148,6 +148,10 @@
               <option value="custom">Période personnalisée</option>
             </select>
           </div>
+          <div class="filter-group">
+            <label for="date-filter">Date précise :</label>
+            <input type="date" id="date-filter">
+          </div>
           <div class="filter-group" id="custom-date-group" style="display: none;">
             <label for="start-date">Date de début :</label>
             <input type="date" id="start-date">
@@ -173,6 +177,14 @@
           </div>
         </div>
         <div class="filter-actions">
+          <button class="btn-primary" id="apply-filters-btn">
+            <span class="btn-icon">✅</span>
+            Appliquer les filtres
+          </button>
+          <button class="btn-secondary" id="reset-filters-btn">
+            <span class="btn-icon">♻️</span>
+            Réinitialiser
+          </button>
           <button class="btn-primary" id="generate-btn">
             <span class="btn-icon">📊</span>
             Générer le Rapport

@@ -578,6 +578,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateReportFilters();
     await loadAgentsOptions();
     updateDateInputs();
+    // Initialiser la date précise par défaut (aujourd'hui)
+    try { const df = document.getElementById('date-filter'); if (df) df.value = new Date().toISOString().split('T')[0]; } catch {}
     
     // Charger les rapports sauvegardés
     await loadSavedReports();
@@ -586,6 +588,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const selRange = document.getElementById('date-range');
       if (selRange) selRange.addEventListener('change', () => { try { updateDateInputs(); } catch {} });
+      const btnApply = document.getElementById('apply-filters-btn');
+      if (btnApply) btnApply.addEventListener('click', () => { try { applyFilters(); } catch (e) { console.error(e); } });
+      const btnReset = document.getElementById('reset-filters-btn');
+      if (btnReset) btnReset.addEventListener('click', () => { try { resetFilters(); } catch (e) { console.error(e); } });
       const btnGen = document.getElementById('generate-btn');
       if (btnGen) btnGen.addEventListener('click', () => { try { generateReport(); } catch (e) { console.error(e); } });
       const btnExp = document.getElementById('export-btn');
@@ -606,4 +612,73 @@ try {
   window.updateDateInputs = updateDateInputs;
   window.updateReportFilters = updateReportFilters;
   window.loadValidations = loadValidations;
+  window.applyFilters = applyFilters;
+  window.resetFilters = resetFilters;
 } catch {}
+
+// Appliquer explicitement les filtres sur la page Rapports
+function getSelectedFilters() {
+  const dateRange = $('date-range')?.value || 'today';
+  const preciseDate = $('date-filter')?.value || '';
+  const agentId = $('agent-filter')?.value || 'all';
+  const project = $('project-filter')?.value || 'all';
+  return { dateRange, preciseDate, agentId, project };
+}
+
+async function applyFilters() {
+  const { dateRange, preciseDate } = getSelectedFilters();
+  // Priorité à la date précise si renseignée
+  if (preciseDate) {
+    // Forcer la période sur le jour sélectionné pour toutes les requêtes suivantes
+    try {
+      // Met à jour l'affichage de la période
+      const periodText = `Période: ${preciseDate}`;
+      const el = $('report-period'); if (el) el.textContent = periodText;
+    } catch {}
+  }
+  // Recharger les validations avec le bon intervalle
+  await loadValidationsWithPreciseDate();
+}
+
+function resetFilters() {
+  try { $('date-range').value = 'today'; } catch {}
+  try { const df = $('date-filter'); if (df) df.value = new Date().toISOString().split('T')[0]; } catch {}
+  try { $('agent-filter').value = 'all'; } catch {}
+  try { $('project-filter').value = 'all'; } catch {}
+  // Rafraîchir l'affichage par défaut
+  loadValidationsWithPreciseDate();
+}
+
+async function loadValidationsWithPreciseDate() {
+  try {
+    const { dateRange, preciseDate } = getSelectedFilters();
+    let start, end;
+    if (preciseDate) {
+      start = preciseDate; end = preciseDate;
+    } else {
+      const r = getRangeDates(dateRange); start = r.start; end = r.end;
+    }
+    const qs = new URLSearchParams();
+    if (start) qs.set('from', start);
+    if (end) qs.set('to', end);
+    const resp = await api('/reports/validations?' + qs.toString());
+    const items = resp?.items || [];
+    const body = $('validations-body');
+    body.innerHTML = items.map(it => `
+      <tr>
+        <td>${it.agent_name || ('Agent #' + it.agent_id)}</td>
+        <td>${it.project_name || ''}</td>
+        <td>${[it.departement,it.commune,it.arrondissement,it.village].filter(Boolean).join(' / ')}</td>
+        <td>${it.tolerance_radius_meters ?? ''}</td>
+        <td>${(it.reference_lat??'')}, ${(it.reference_lon??'')}</td>
+        <td>${(it.lat??'')}, ${(it.lon??'')}</td>
+        <td>${new Date(it.date).toLocaleString('fr-FR')}</td>
+        <td>${it.distance_from_reference_m ?? ''}</td>
+        <td><span class="status-badge ${it.within_tolerance ? 'status-present' : 'status-absent'}">${it.within_tolerance ? 'Validé' : 'Hors zone'}</span></td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    console.error('Erreur loadValidationsWithPreciseDate:', e);
+    $('validations-body').innerHTML = '<tr><td colspan="9">Erreur de chargement</td></tr>';
+  }
+}
