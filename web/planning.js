@@ -125,6 +125,8 @@
     const projectSelect = document.getElementById('project-select');
     const agentSelect = document.getElementById('agent-select');
     const weekInput = document.getElementById('week-start');
+    const applyBtn = document.getElementById('apply-filters-btn');
+    const resetBtn = document.getElementById('reset-filters-btn');
     
     if (projectSelect) {
       projectSelect.addEventListener('change', (e) => {
@@ -147,6 +149,36 @@
         // Recharger avec la période choisie et les filtres courants
         loadWeek(weekInput.value);
         scheduleMonthRefresh(200);
+      });
+    }
+
+    if (applyBtn) {
+      applyBtn.addEventListener('click', () => {
+        // Appliquer explicitement les filtres actuels
+        loadWeek(weekInput?.value || undefined);
+        scheduleMonthRefresh(0);
+        loadWeeklySummary();
+      });
+    }
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        // Réinitialiser les filtres (agent, projet, semaine, mois)
+        if (agentSelect) agentSelect.value = '';
+        selectedAgentId = '';
+        if (projectSelect) projectSelect.value = '';
+        selectedProjectId = '';
+        // Semaine actuelle
+        const now = new Date();
+        const ws = startOfWeek(now);
+        if (weekInput) weekInput.value = toISODate(ws);
+        // Mois courant
+        const mEl = document.getElementById('month');
+        if (mEl) mEl.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+        // Rechargements
+        loadWeek(weekInput?.value || undefined);
+        loadMonth(mEl?.value || undefined);
+        loadWeeklySummary();
       });
     }
   });
