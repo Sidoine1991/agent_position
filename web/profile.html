@@ -175,6 +175,27 @@
         <!-- Statistiques Personnelles -->
         <div class="card">
           <h3>📊 Mes Statistiques</h3>
+          <!-- Filtres admin: Superviseur → Agent -->
+          <div id="admin-stats-filter" class="mb-3" style="display:none">
+            <div class="row g-2 align-items-end">
+              <div class="col-12 col-md-4">
+                <label for="filter-supervisor" class="form-label">Superviseur</label>
+                <select id="filter-supervisor" class="form-select">
+                  <option value="">— Tous —</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-5">
+                <label for="filter-agent" class="form-label">Agent</label>
+                <select id="filter-agent" class="form-select">
+                  <option value="">— Sélectionner un agent —</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-3 d-flex gap-2">
+                <button type="button" id="btn-apply-filter" class="btn-primary w-100">Appliquer</button>
+                <button type="button" id="btn-reset-filter" class="btn-light w-100">Réinitialiser</button>
+              </div>
+            </div>
+          </div>
           <div class="mb-3">
             <label class="form-label d-flex align-items-center justify-content-between">
               <span>Complétion du profil</span>

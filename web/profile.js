@@ -150,6 +150,8 @@ async function loadProfile() {
     
     // Charger les statistiques
     await loadStatistics();
+    // Afficher/charger les filtres admin au besoin
+    try { await setupAdminFilters(profile); } catch (e) { console.warn('Filtres admin indisponibles:', e?.message || e); }
 
     // Calculer la complétion du profil sur la base des colonnes de la table users
     try {
@@ -212,7 +214,9 @@ async function loadStatistics() {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth() + 1;
-    const email = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail') || localStorage.getItem('email');
+    // Prendre en compte un email forcé par le filtre admin
+    const forcedEmail = localStorage.getItem('profile_filter_email') || '';
+    const email = forcedEmail || (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail') || localStorage.getItem('email');
     
     console.log(`📅 Période: ${year}-${month.toString().padStart(2, '0')}, Email: ${email}`);
     
@@ -257,6 +261,138 @@ async function loadStatistics() {
     if (attendanceRateEl) attendanceRateEl.textContent = '0%';
     if (currentMissionEl) currentMissionEl.textContent = 'Aucune mission';
   }
+}
+
+// --- Filtres Admin (Superviseur -> Agent) ---
+async function setupAdminFilters(currentProfile) {
+  try {
+    const container = document.getElementById('admin-stats-filter');
+    if (!container) return;
+    const role = (currentProfile && currentProfile.role) || '';
+    if (role !== 'admin') {
+      container.style.display = 'none';
+      return;
+    }
+    container.style.display = '';
+
+    const supervisorSelect = document.getElementById('filter-supervisor');
+    const agentSelect = document.getElementById('filter-agent');
+    const applyBtn = document.getElementById('btn-apply-filter');
+    const resetBtn = document.getElementById('btn-reset-filter');
+
+    // Charger listes superviseurs et agents
+    const { supervisors, agents } = await loadSupervisorsAndAgents();
+
+    // Peupler superviseurs
+    try {
+      supervisorSelect.innerHTML = '<option value="">— Tous —</option>' + supervisors.map(u => `<option value="${u.email}">${escapeHtml(u.name || u.email)} (${u.email})</option>`).join('');
+    } catch {}
+
+    // Peupler agents
+    try {
+      agentSelect.innerHTML = '<option value="">— Sélectionner un agent —</option>' + agents.map(u => `<option value="${u.email}" data-supervisor="${u.supervisor_email || ''}">${escapeHtml(u.name || u.email)} (${u.email})</option>`).join('');
+    } catch {}
+
+    // Filtrage des agents par superviseur
+    supervisorSelect.addEventListener('change', () => {
+      const supEmail = supervisorSelect.value;
+      const options = Array.from(agentSelect.querySelectorAll('option'));
+      options.forEach((opt, idx) => {
+        if (idx === 0) return; // garder placeholder
+        const sup = opt.getAttribute('data-supervisor') || '';
+        opt.style.display = (!supEmail || supEmail === sup) ? '' : 'none';
+      });
+      agentSelect.value = '';
+    });
+
+    // Appliquer: recharger stats pour l'agent choisi
+    applyBtn.addEventListener('click', async () => {
+      const selectedEmail = agentSelect.value || supervisorSelect.value || '';
+      if (!selectedEmail) {
+        alert('Sélectionnez un agent (ou un superviseur)');
+        return;
+      }
+      try { localStorage.setItem('profile_filter_email', selectedEmail); } catch {}
+      await loadStatistics();
+    });
+
+    // Réinitialiser: revenir à l'email connecté
+    resetBtn.addEventListener('click', async () => {
+      try { localStorage.removeItem('profile_filter_email'); } catch {}
+      supervisorSelect.value = '';
+      agentSelect.value = '';
+      // réafficher tout
+      Array.from(agentSelect.querySelectorAll('option')).forEach((opt) => { opt.style.display = ''; });
+      await loadStatistics();
+    });
+  } catch (e) {
+    console.warn('setupAdminFilters error:', e?.message || e);
+  }
+}
+
+function escapeHtml(str) {
+  try {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  } catch { return String(str || ''); }
+}
+
+async function loadSupervisorsAndAgents() {
+  // Stratégie: essayer backend /admin/agents puis fallback Supabase direct
+  const jwtLocal = localStorage.getItem('jwt') || localStorage.getItem('token') || '';
+  const supervisors = [];
+  const agents = [];
+  try {
+    if (jwtLocal) {
+      const res = await fetch('/api/admin/agents', { headers: { Authorization: 'Bearer ' + jwtLocal } });
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : (data?.data?.items || data?.data || data?.agents || []);
+        list.forEach(u => {
+          const role = u.role || '';
+          const entry = {
+            email: u.email,
+            name: u.name || [u.first_name, u.last_name].filter(Boolean).join(' '),
+            supervisor_email: u.supervisor_email || u.supervisor || ''
+          };
+          if (role === 'supervisor') supervisors.push(entry);
+          if (role === 'agent') agents.push(entry);
+        });
+        return { supervisors, agents };
+      }
+    }
+  } catch {}
+
+  // Fallback Supabase direct (si config disponible via meta ou globals)
+  try {
+    const metaUrl = document.querySelector('meta[name="supabase-url"]')?.content || '';
+    const metaKey = document.querySelector('meta[name="supabase-anon-key"]')?.content || '';
+    const lsUrl = localStorage.getItem('SUPABASE_URL') || '';
+    const lsKey = localStorage.getItem('SUPABASE_ANON_KEY') || '';
+    const url = (window.SUPABASE_URL || metaUrl || lsUrl || '').trim().replace(/\/+$/,'');
+    const key = (window.SUPABASE_ANON_KEY || metaKey || lsKey || '').trim();
+    if (url && key) {
+      const p = new URLSearchParams();
+      p.set('select', 'name,first_name,last_name,email,role,supervisor_email');
+      p.set('order', 'name.asc');
+      const res = await fetch(`${url}/rest/v1/users?${p.toString()}`, { headers: { apikey: key, Authorization: 'Bearer ' + key } });
+      if (res.ok) {
+        const rows = await res.json();
+        rows.forEach(u => {
+          const entry = { email: u.email, name: u.name || [u.first_name, u.last_name].filter(Boolean).join(' '), supervisor_email: u.supervisor_email || '' };
+          if (u.role === 'supervisor') supervisors.push(entry);
+          if (u.role === 'agent') agents.push(entry);
+        });
+        return { supervisors, agents };
+      }
+    }
+  } catch {}
+
+  return { supervisors, agents };
 }
 
 // Obtenir le texte du rôle
