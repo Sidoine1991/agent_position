@@ -2279,14 +2279,23 @@ async function loadPresenceData() {
     
     if (!jwt) return;
     
-    // Charger les missions ET les check-ins pour avoir l'historique complet
-    const [missionsResponse, checkinsResponse] = await Promise.all([
+    // Période du mois affiché
+    const from = `${year}-${String(month).padStart(2,'0')}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const to = `${year}-${String(month).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+
+    // Charger missions, check-ins, planifications et validations
+    const [missionsResponse, checkinsResponse, plansResponse, validationsResponse] = await Promise.all([
       api('/me/missions').catch(() => ({ missions: [] })),
-      api('/checkins/mine').catch(() => ({ items: [] }))
+      api('/checkins/mine').catch(() => ({ items: [] })),
+      api(`/planifications?from=${from}&to=${to}`).catch(() => ({ items: [] })),
+      api(`/validations/mine?from=${from}&to=${to}`).catch(() => ({ items: [] }))
     ]);
     
     const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
     const checkins = checkinsResponse?.items || checkinsResponse?.data?.items || [];
+    const plans = plansResponse?.items || [];
+    const validations = validationsResponse?.items || [];
     
     // Traiter les données de présence
     presenceData = {};
@@ -2323,6 +2332,47 @@ async function loadPresenceData() {
             location: checkin.commune || checkin.village || ''
           };
         }
+      }
+    });
+
+    // 3) Appliquer statut orange (partial) si hors-zone ou mission en cours non terminée
+    const partialDates = new Set();
+    // a) validations hors tolérance (within_tolerance === false)
+    validations.forEach(v => {
+      const d = new Date(v.created_at || v.date || v.ts);
+      if (!d || isNaN(d.getTime())) return;
+      const key = formatDateKey(d.getFullYear(), d.getMonth(), d.getDate());
+      if (v.within_tolerance === false) partialDates.add(key);
+    });
+    // b) mission démarrée sans fin ce jour-là
+    missions.forEach(m => {
+      if (!m.start_time) return;
+      const sd = new Date(m.start_time);
+      const key = formatDateKey(sd.getFullYear(), sd.getMonth(), sd.getDate());
+      const hasEndSameDay = m.end_time && (new Date(m.end_time)).toDateString() === sd.toDateString();
+      if (!hasEndSameDay) partialDates.add(key);
+    });
+    partialDates.forEach(key => {
+      if (!presenceData[key]) {
+        presenceData[key] = { status: 'partial' };
+      } else {
+        presenceData[key].status = 'partial';
+      }
+    });
+
+    // 4) Marquer en rouge (absent) les jours planifiés sans présence après 18h
+    const now = new Date();
+    const todayKey = formatDateKey(now.getFullYear(), now.getMonth(), now.getDate());
+    plans.forEach(p => {
+      const key = String(p.date).slice(0,10);
+      if (!key) return;
+      const d = new Date(key + 'T00:00:00');
+      const isPastDay = d < new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const isTodayAfter18 = key === todayKey && now.getHours() >= 18;
+      const isPlanned = Boolean(p.planned_start_time || p.planned_end_time || p.description_activite);
+      if (!isPlanned) return;
+      if (!presenceData[key] && (isPastDay || isTodayAfter18)) {
+        presenceData[key] = { status: 'absent' };
       }
     });
     
