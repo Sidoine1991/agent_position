@@ -143,12 +143,14 @@ async function generateReport() {
   const reportType = $('report-type').value;
   const dateRange = $('date-range').value;
   const agentFilter = $('agent-filter').value;
+  const preciseDate = (document.getElementById('date-filter')?.value || '').trim();
   
   try {
     let reportData;
     if (reportType === 'presence') {
       // Utiliser la RPC Supabase attendance_report pour des données fiables
-      const { start, end } = getRangeDates(dateRange);
+      let { start, end } = getRangeDates(dateRange);
+      if (preciseDate) { start = preciseDate; end = preciseDate; }
       const fromISO = start ? new Date(start + 'T00:00:00Z').toISOString() : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
       const toISO   = end   ? new Date(end   + 'T23:59:59Z').toISOString() : new Date().toISOString();
       const key  = window.SUPABASE_ANON_KEY || localStorage.getItem('SUPABASE_ANON_KEY') || '';
@@ -185,7 +187,7 @@ async function generateReport() {
       }));
       reportData = {
         type: 'presence',
-        period: start && end ? `${start} → ${end}` : getPeriodText(dateRange),
+        period: (preciseDate ? preciseDate : (start && end ? `${start} → ${end}` : getPeriodText(dateRange))),
         totalAgents: details.length,
         presentAgents: details.filter(d => d.status === 'present').length,
         absentAgents: details.filter(d => d.status !== 'present').length,
@@ -275,7 +277,9 @@ function displayReport(data) {
 async function loadValidations() {
   try {
     const dateRange = $('date-range').value;
-    const { start, end } = getRangeDates(dateRange);
+    const preciseDate = (document.getElementById('date-filter')?.value || '').trim();
+    let { start, end } = getRangeDates(dateRange);
+    if (preciseDate) { start = preciseDate; end = preciseDate; }
     const qs = new URLSearchParams();
     if (start) qs.set('from', start);
     if (end) qs.set('to', end);
@@ -315,7 +319,9 @@ async function exportReport() {
 
     // Récupérer les données depuis l'API existante (admin export) si dispo
     const dateRange = $('date-range').value;
-    const { start, end } = getRangeDates(dateRange);
+    const preciseDate = (document.getElementById('date-filter')?.value || '').trim();
+    let { start, end } = getRangeDates(dateRange);
+    if (preciseDate) { start = preciseDate; end = preciseDate; }
     const qs = new URLSearchParams();
     if (start) qs.set('from', start);
     if (end) qs.set('to', end);
@@ -638,6 +644,8 @@ async function applyFilters() {
   }
   // Recharger les validations avec le bon intervalle
   await loadValidationsWithPreciseDate();
+  // Regénérer le rapport avec la même contrainte de date
+  try { await generateReport(); } catch {}
 }
 
 function resetFilters() {
