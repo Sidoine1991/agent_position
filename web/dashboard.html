@@ -290,8 +290,22 @@
           <a href="/admin.html" class="circle-action" id="admin-link"><div class="icon">⚙️</div><div class="label">Administration</div></a>
           <a href="/help.html" class="circle-action" id="help-link"><div class="icon">❓</div><div class="label">Aide</div></a>
         </div>
-        <div class="page-controls">
-          <input type="month" id="report-month" class="month-input" placeholder="Mois/Année">
+        <div class="page-controls" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <div>
+            <label for="report-month" class="form-label" style="margin:0 6px 0 0">Mois:</label>
+            <input type="month" id="report-month" class="month-input" placeholder="Mois/Année">
+          </div>
+          <div>
+            <label for="week-of-month" class="form-label" style="margin:0 6px 0 12px">Semaine:</label>
+            <select id="week-of-month" class="form-select" style="min-width:140px">
+              <option value="">Toutes</option>
+              <option value="1">Semaine 1</option>
+              <option value="2">Semaine 2</option>
+              <option value="3">Semaine 3</option>
+              <option value="4">Semaine 4</option>
+              <option value="5">Semaine 5</option>
+            </select>
+          </div>
         </div>
       </div>
       <div class="card">

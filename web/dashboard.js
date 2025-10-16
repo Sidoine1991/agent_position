@@ -393,14 +393,36 @@ function getMonthRangeFromDateInput() {
   // Si une date est choisie, prendre le mois entier
   const dateStr = $('date')?.value;
   const fmt = d => d.toISOString().split('T')[0];
-  if (dateStr) {
-    // Quand une date est sélectionnée, on filtre sur CE JOUR uniquement
-    return { from: dateStr, to: dateStr };
+  // Priorité 1: filtre jour
+  if (dateStr) return { from: dateStr, to: dateStr };
+
+  // Priorité 2: filtre mois via report-month
+  const monthStr = $('report-month')?.value || '';
+  if (monthStr) {
+    const [y,m] = monthStr.split('-').map(Number);
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 0);
+    return { from: fmt(start), to: fmt(end) };
   }
+
+  // Défaut: mois courant
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   return { from: fmt(start), to: fmt(end) };
+}
+
+// Calcule si une date appartient à la semaine du mois sélectionnée (1..5)
+function matchWeekOfMonth(dateISO, weekStr) {
+  if (!weekStr) return true;
+  const d = new Date(dateISO + 'T00:00:00');
+  if (isNaN(d)) return false;
+  const dayOfMonth = d.getDate();
+  const firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
+  // Lundi=0
+  const offset = (firstDay.getDay() + 6) % 7;
+  const weekOfMonth = 1 + Math.floor((dayOfMonth - 1 + offset) / 7);
+  return String(weekOfMonth) === String(weekStr);
 }
 
 async function updateMonthlySummary() {
@@ -1076,9 +1098,24 @@ async function loadCheckinsOnMap() {
       
       if (Array.isArray(checkins) && checkins.length > 0) {
         // Traiter les check-ins de l'endpoint admin
+        const selectedDate = $('date')?.value || '';
+        const monthStr = $('report-month')?.value || '';
+        const weekStr = $('week-of-month')?.value || '';
         const filteredCheckins = checkins.filter(checkin => {
           const hasCoords = Number.isFinite(Number(checkin.lat)) && Number.isFinite(Number(checkin.lon));
-          return hasCoords;
+          if (!hasCoords) return false;
+          const d = String(checkin.timestamp || checkin.created_at || '').slice(0,10);
+          if (selectedDate) {
+            if (d !== selectedDate) return false;
+            return matchWeekOfMonth(d, weekStr);
+          }
+          if (monthStr) {
+            const [y,m] = monthStr.split('-');
+            if (!d.startsWith(`${y}-${m}`)) return false;
+            return matchWeekOfMonth(d, weekStr);
+          }
+          // Pas de filtre de date/mois -> conserver
+          return true;
         });
         
         console.log('📋 Check-ins avec coordonnées valides:', filteredCheckins.length);
