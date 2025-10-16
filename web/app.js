@@ -2335,15 +2335,22 @@ async function loadPresenceData() {
       }
     });
 
-    // 3) Appliquer statut orange (partial) si hors-zone ou mission en cours non terminée
+    // 3) Appliquer statut orange (partial) si hors-zone (pour superviseurs) ou mission en cours non terminée
     const partialDates = new Set();
-    // a) validations hors tolérance (within_tolerance === false)
-    validations.forEach(v => {
-      const d = new Date(v.created_at || v.date || v.ts);
-      if (!d || isNaN(d.getTime())) return;
-      const key = formatDateKey(d.getFullYear(), d.getMonth(), d.getDate());
-      if (v.within_tolerance === false) partialDates.add(key);
-    });
+    // a) validations hors tolérance (within_tolerance === false) — uniquement pour les superviseurs
+    try {
+      const cachedProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+      const roleLower = String(cachedProfile.role || '').toLowerCase();
+      const isSupervisor = roleLower === 'superviseur' || roleLower === 'supervisor';
+      if (isSupervisor) {
+        validations.forEach(v => {
+          const d = new Date(v.created_at || v.date || v.ts);
+          if (!d || isNaN(d.getTime())) return;
+          const key = formatDateKey(d.getFullYear(), d.getMonth(), d.getDate());
+          if (v.within_tolerance === false) partialDates.add(key);
+        });
+      }
+    } catch {}
     // b) mission démarrée sans fin ce jour-là
     missions.forEach(m => {
       if (!m.start_time) return;
