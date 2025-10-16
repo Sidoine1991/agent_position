@@ -1101,9 +1101,15 @@ async function loadCheckinsOnMap() {
         const selectedDate = $('date')?.value || '';
         const monthStr = $('report-month')?.value || '';
         const weekStr = $('week-of-month')?.value || '';
+        const agentFilter = $('agent')?.value || '';
         const filteredCheckins = checkins.filter(checkin => {
           const hasCoords = Number.isFinite(Number(checkin.lat)) && Number.isFinite(Number(checkin.lon));
           if (!hasCoords) return false;
+          // Filtre agent (si sélectionné)
+          if (agentFilter) {
+            const cid = checkin.missions?.agent_id || checkin.user_id || checkin.agent_id;
+            if (String(cid) !== String(agentFilter)) return false;
+          }
           const d = String(checkin.timestamp || checkin.created_at || '').slice(0,10);
           if (selectedDate) {
             if (d !== selectedDate) return false;
@@ -1459,14 +1465,14 @@ function setupFilterEventListeners() {
   if (projectSelect) {
     projectSelect.addEventListener('change', () => {
       console.log('Filtre projet changé:', projectSelect.value);
-      applyFilters();
+      // Ne pas appliquer automatiquement
     });
   }
   
   if (dateSelect) {
     dateSelect.addEventListener('change', () => {
       console.log('Filtre date changé:', dateSelect.value);
-      applyFilters();
+      // Ne pas appliquer automatiquement
     });
   }
   
@@ -1494,6 +1500,28 @@ async function applyFilters() {
     console.error('Erreur lors de l\'application des filtres:', error);
   }
 }
+
+// Boutons Appliquer / Réinitialiser
+document.addEventListener('DOMContentLoaded', () => {
+  const applyBtn = document.getElementById('apply-filters');
+  const clearBtn = document.getElementById('clear-filters');
+  if (applyBtn) {
+    applyBtn.addEventListener('click', () => applyFilters());
+  }
+  if (clearBtn) {
+    clearBtn.addEventListener('click', async () => {
+      try {
+        if ($('date')) $('date').value = '';
+        if ($('agent')) $('agent').value = '';
+        if ($('project')) $('project').value = '';
+        if ($('report-month')) $('report-month').value = '';
+        if ($('week-of-month')) $('week-of-month').value = '';
+        await refresh();
+        await updateMonthlySummary();
+      } catch (e) { console.warn('Clear filters error', e); }
+    });
+  }
+});
 
 function openAgentModal(agent = null) {
   $('agent-modal-title').textContent = agent ? 'Modifier un Agent' : 'Créer un Agent';
