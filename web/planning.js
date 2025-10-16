@@ -309,6 +309,7 @@
     const start = new Date(weekStart);
     const end = new Date(weekEnd);
     const days = [];
+    const todayIso = toISODate(new Date());
     
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       days.push(new Date(d));
@@ -318,30 +319,32 @@
       const iso = toISODate(day);
       const plan = weekPlans.find(p => p.date === iso);
       const dayName = day.toLocaleDateString('fr-FR', { weekday: 'long' });
+      const isPast = iso < todayIso;
       
       return `
         <div class="row mb-3 border-bottom pb-3">
-          <div class="col-12">
-            <h6 class="fw-bold">${dayName} ${day.toLocaleDateString()}</h6>
+          <div class="col-12 d-flex align-items-center gap-2">
+            <h6 class="fw-bold mb-0">${dayName} ${day.toLocaleDateString()}</h6>
+            ${isPast ? '<span class="badge bg-secondary">Verrouillé (jour passé)</span>' : ''}
           </div>
           <div class="col-md-4">
             <label class="form-label">Heure de début</label>
-            <input type="time" class="form-control" id="edit-start-${iso}" value="${plan?.planned_start_time || ''}">
+            <input type="time" class="form-control" id="edit-start-${iso}" value="${plan?.planned_start_time || ''}" ${isPast ? 'disabled' : ''}>
           </div>
           <div class="col-md-4">
             <label class="form-label">Heure de fin</label>
-            <input type="time" class="form-control" id="edit-end-${iso}" value="${plan?.planned_end_time || ''}">
+            <input type="time" class="form-control" id="edit-end-${iso}" value="${plan?.planned_end_time || ''}" ${isPast ? 'disabled' : ''}>
           </div>
           <div class="col-md-4">
             <label class="form-label">Projet</label>
-            <select class="form-select" id="edit-project-${iso}">
+            <select class="form-select" id="edit-project-${iso}" ${isPast ? 'disabled' : ''}>
               <option value="">Sélectionner un projet</option>
               ${projects.map(p => `<option value="${p}" ${plan?.project_name === p ? 'selected' : ''}>${p}</option>`).join('')}
             </select>
           </div>
           <div class="col-12 mt-2">
             <label class="form-label">Description de l'activité</label>
-            <textarea class="form-control" id="edit-desc-${iso}" rows="2" placeholder="Décrivez l'activité prévue...">${plan?.description_activite || ''}</textarea>
+            <textarea class="form-control" id="edit-desc-${iso}" rows="2" placeholder="Décrivez l'activité prévue..." ${isPast ? 'disabled' : ''}>${plan?.description_activite || ''}</textarea>
           </div>
         </div>
       `;
@@ -354,6 +357,7 @@
       const start = new Date(weekStart);
       const end = new Date(weekEnd);
       const days = [];
+      const todayIso = toISODate(new Date());
       
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         days.push(new Date(d));
@@ -362,6 +366,10 @@
       const headers = await authHeaders();
       const promises = days.map(async (day) => {
         const iso = toISODate(day);
+        if (iso < todayIso) {
+          // Ne pas enregistrer les jours passés
+          return true;
+        }
         const startTime = document.getElementById(`edit-start-${iso}`)?.value || null;
         const endTime = document.getElementById(`edit-end-${iso}`)?.value || null;
         const project = document.getElementById(`edit-project-${iso}`)?.value || null;
@@ -396,7 +404,7 @@
         await loadMonth(document.getElementById('month').value);
         await loadWeeklySummary();
       } else {
-        alert('Erreur lors de la sauvegarde de certaines planifications');
+        alert('Certaines journées n’ont pas été enregistrées (jours passés verrouillés ou erreurs).');
       }
     } catch (error) {
       console.error('Erreur sauvegarde semaine:', error);
@@ -468,7 +476,7 @@
       weeklyMinutes += duration;
       const hasPresence = checkinDates.has(iso);
       const isValidated = validatedDates.has(iso);
-      const isPast = iso < todayIso; // garder l'info mais permettre l'édition
+      const isPast = iso < todayIso;
 
       const row = document.createElement('div');
       row.className = 'gantt-row d-flex align-items-center border-bottom py-2';
@@ -478,17 +486,18 @@
           ${planned ? '<span class="badge bg-primary">Planifié</span>' : '<span class="badge bg-secondary">Libre</span>'}
           ${hasPresence ? `<span class="badge ${isValidated ? 'bg-success' : 'bg-warning'}">${isValidated ? 'Présence validée' : 'Présence à valider'}</span>` : ''}
           ${plan?.projects?.name ? `<span class="badge bg-info">${plan.projects.name}</span>` : ''}
+          ${isPast ? '<span class="badge bg-secondary">Verrouillé</span>' : ''}
         </div>
         <div class="flex-grow-1 position-relative" style="height:34px">
           <div class="position-absolute bg-light w-100 h-100" style="opacity:.6"></div>
           ${planned && duration > 0 ? `<div class="position-absolute bg-primary" style="left:${startMin}px;width:${duration}px;height:26px;border-radius:6px;opacity:.85"></div>` : ''}
           <div class="position-absolute d-flex gap-2" style="left:4px;top:4px">
-            <input type="time" class="form-control form-control-sm" id="gs-${iso}" value="${plan?.planned_start_time || ''}" style="width:110px">
-            <input type="time" class="form-control form-control-sm" id="ge-${iso}" value="${plan?.planned_end_time || ''}" style="width:110px">
-            <button class="btn btn-sm btn-success" data-date="${iso}">OK</button>
+            <input type="time" class="form-control form-control-sm" id="gs-${iso}" value="${plan?.planned_start_time || ''}" style="width:110px" ${isPast ? 'disabled title="Jour passé — verrouillé"' : ''}>
+            <input type="time" class="form-control form-control-sm" id="ge-${iso}" value="${plan?.planned_end_time || ''}" style="width:110px" ${isPast ? 'disabled title="Jour passé — verrouillé"' : ''}>
+            <button class="btn btn-sm btn-success" data-date="${iso}" ${isPast ? 'disabled title="Jour passé — verrouillé"' : ''}>OK</button>
           </div>
           <div class="position-absolute d-flex gap-2" style="left:4px;top:40px">
-            <input type="text" class="form-control form-control-sm" id="desc-${iso}" placeholder="Description de l'activité (2 lignes max)" value="${plan?.description_activite || ''}" style="width:300px">
+            <input type="text" class="form-control form-control-sm" id="desc-${iso}" placeholder="Description de l'activité (2 lignes max)" value="${plan?.description_activite || ''}" style="width:300px" ${isPast ? 'disabled' : ''}>
           </div>
         </div>`;
       
@@ -520,6 +529,10 @@
     gantt.querySelectorAll('button[data-date]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const date = btn.getAttribute('data-date');
+        if (date < todayIso) {
+          alert('Impossible de planifier un jour passé.');
+          return;
+        }
         const planned_start_time = document.getElementById(`gs-${date}`).value || null;
         const planned_end_time = document.getElementById(`ge-${date}`).value || null;
         const description_activite = document.getElementById(`desc-${date}`)?.value || null;
