@@ -24,7 +24,10 @@
     }
     
     // Définir la date d'aujourd'hui par défaut
-    document.getElementById('date-select').value = currentDate;
+    const dateInput = document.getElementById('date-select');
+    if (dateInput) {
+      dateInput.value = currentDate;
+    }
     
     // Charger les données utilisateur et agents
     loadUserInfo();
