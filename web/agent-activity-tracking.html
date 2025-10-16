@@ -592,11 +592,9 @@
           <i class="fas fa-user"></i>
           <span id="user-display-name">Chargement...</span>
         </div>
-      </div>
-      <div class="col-md-3">
-        <div class="d-flex gap-2">
-          <label for="date-select" class="form-label mb-0 align-self-center">Date:</label>
-          <input type="date" id="date-select" class="form-control" />
+        <div class="user-info-badge mt-2" id="agent-project-badge" style="display: none;">
+          <i class="fas fa-project-diagram"></i>
+          <span id="agent-project-name">Projet</span>
         </div>
       </div>
       <div class="col-md-3" id="agent-filter-container" style="display: none;">
@@ -614,13 +612,23 @@
 
     <!-- Filtres -->
     <div class="row mb-4">
-      <div class="col-md-6">
+      <div class="col-md-3">
         <label for="project-filter" class="form-label">Filtrer par projet:</label>
         <select id="project-filter" class="form-select">
           <option value="">Tous les projets</option>
         </select>
       </div>
-      <div class="col-md-6">
+      <div class="col-md-3">
+        <label for="supervisor-filter" class="form-label">Filtrer par superviseur:</label>
+        <select id="supervisor-filter" class="form-select" style="display:none">
+          <option value="">Tous les superviseurs</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label for="month-select" class="form-label">Mois:</label>
+        <input id="month-select" type="month" class="form-control" />
+      </div>
+      <div class="col-md-3">
         <label for="status-filter" class="form-label">Filtrer par statut:</label>
         <select id="status-filter" class="form-select">
           <option value="">Tous les statuts</option>
@@ -630,6 +638,34 @@
           <option value="en_cours">En cours</option>
           <option value="sans_resultat">Sans résultat</option>
         </select>
+      </div>
+    </div>
+
+    <!-- Filtres semaine du mois -->
+    <div class="row mb-3">
+      <div class="col-md-3">
+        <label for="week-filter" class="form-label">Semaine du mois:</label>
+        <select id="week-filter" class="form-select">
+          <option value="">Toutes les semaines</option>
+          <option value="1">Semaine 1</option>
+          <option value="2">Semaine 2</option>
+          <option value="3">Semaine 3</option>
+          <option value="4">Semaine 4</option>
+          <option value="5">Semaine 5</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Indicateur de filtres actifs -->
+    <div class="row mb-3" id="active-filters" style="display: none;">
+      <div class="col-12">
+        <div class="alert alert-info d-flex align-items-center">
+          <i class="fas fa-filter me-2"></i>
+          <span id="filter-indicator">Filtres actifs</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="clear-filters">
+            <i class="fas fa-times"></i> Effacer les filtres
+          </button>
+        </div>
       </div>
     </div>
 

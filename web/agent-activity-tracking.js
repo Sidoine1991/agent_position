@@ -3,6 +3,7 @@
   let activities = [];
   let projects = [];
   let agents = [];
+  let supervisors = [];
   let currentDate = new Date().toISOString().split('T')[0];
   let currentActivityId = null;
   let isAdmin = false;
@@ -30,11 +31,19 @@
   }
 
   function setupEventListeners() {
-    // Date selector
-    document.getElementById('date-select').addEventListener('change', (e) => {
-      currentDate = e.target.value;
-      loadActivities();
-    });
+    // Date input removed from filters; keep currentDate default for internal use if needed
+
+    // Month selector
+    const monthSelect = document.getElementById('month-select');
+    if (monthSelect) {
+      // Initialiser au mois courant
+      const now = new Date();
+      const monthValue = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      monthSelect.value = monthValue;
+      monthSelect.addEventListener('change', () => {
+        loadActivities();
+      });
+    }
 
     // Load activities button
     document.getElementById('load-activities').addEventListener('click', () => {
@@ -49,12 +58,36 @@
     // Project filter
     document.getElementById('project-filter').addEventListener('change', () => {
       filterActivities();
+      updateStatistics();
+      updateFilterIndicator();
     });
 
     // Status filter
     document.getElementById('status-filter').addEventListener('change', () => {
       filterActivities();
+      updateStatistics();
+      updateFilterIndicator();
     });
+
+    // Supervisor filter (visible only for admins)
+    const supervisorSelect = document.getElementById('supervisor-filter');
+    if (supervisorSelect) {
+      supervisorSelect.addEventListener('change', () => {
+        filterActivities();
+        updateStatistics();
+        updateFilterIndicator();
+      });
+    }
+
+    // Week-of-month filter
+    const weekFilter = document.getElementById('week-filter');
+    if (weekFilter) {
+      weekFilter.addEventListener('change', () => {
+        filterActivities();
+        updateStatistics();
+        updateFilterIndicator();
+      });
+    }
 
     // Add activity row button
     document.getElementById('add-activity-row').addEventListener('click', () => {
@@ -69,6 +102,11 @@
     // Download activity image button
     document.getElementById('download-activity-image').addEventListener('click', () => {
       downloadActivityImage();
+    });
+
+    // Clear filters button
+    document.getElementById('clear-filters').addEventListener('click', () => {
+      clearFilters();
     });
 
     // Track changes in table inputs
@@ -110,6 +148,11 @@
         
         // Charger le projet de l'agent
         await loadAgentProject(user);
+        
+        // Pour les agents non-admin, appliquer automatiquement le filtre de leur projet
+        if (!isAdmin && user.project_name) {
+          applyAgentProjectFilter(user.project_name);
+        }
         
         // Charger les activités
         loadActivities();
@@ -167,6 +210,10 @@
 
       if (!Array.isArray(agents)) agents = [];
       populateAgentSelect();
+      // Charger la liste des superviseurs pour le filtre (admins)
+      if (isAdmin) {
+        populateSupervisorFilter();
+      }
     } catch (error) {
       console.error('Erreur chargement agents:', error);
     }
@@ -183,6 +230,54 @@
       option.textContent = `${agent.first_name || ''} ${agent.last_name || ''} (${agent.email})`.trim();
       agentSelect.appendChild(option);
     });
+  }
+
+  // Remplir le filtre des superviseurs (admins uniquement)
+  function populateSupervisorFilter() {
+    try {
+      const supervisorSelect = document.getElementById('supervisor-filter');
+      if (!supervisorSelect) return;
+
+      // Afficher le select pour les admins
+      supervisorSelect.style.display = 'block';
+
+      // Charger la liste des superviseurs depuis /users (role = 'superviseur')
+      (async () => {
+        const uniqueSupervisors = new Map();
+        try {
+          const headers = await authHeaders();
+          const res = await fetch(`${apiBase}/admin/agents`, { headers });
+          if (res.ok) {
+            const data = await res.json();
+            const list = data?.data || data?.agents || [];
+            list.forEach(u => {
+              const roleNorm = String(u.role || '').trim().toLowerCase();
+              if (roleNorm === 'superviseur' || roleNorm === 'supervisor') {
+                const key = u.id || u.email;
+                if (key && !uniqueSupervisors.has(key)) {
+                  uniqueSupervisors.set(key, {
+                    id: u.id,
+                    name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || (u.name || 'Superviseur'),
+                    email: u.email || ''
+                  });
+                }
+              }
+            });
+          }
+        } catch {}
+
+        supervisors = Array.from(uniqueSupervisors.values());
+
+        // Peupler le select avec les NOMS (valeur = id)
+        supervisorSelect.innerHTML = '<option value="">Tous les superviseurs</option>';
+        supervisors.forEach(sup => {
+          const opt = document.createElement('option');
+          opt.value = sup.id;
+          opt.textContent = sup.name;
+          supervisorSelect.appendChild(opt);
+        });
+      })();
+    } catch {}
   }
 
   // Afficher le filtre par agent
@@ -225,37 +320,48 @@
   // Charger les projets disponibles depuis la base de données
   async function loadAgentProject(user) {
     try {
-      const headers = await authHeaders();
-      const res = await fetch(`${apiBase}/admin/agents`, { headers });
-      
-      if (res.ok) {
-        const data = await res.json();
-        const agents = data.data || data.agents || [];
+      if (isAdmin) {
+        // Pour les admins, charger tous les projets
+        const headers = await authHeaders();
+        const res = await fetch(`${apiBase}/admin/agents`, { headers });
         
-        // Extraire les projets uniques depuis les agents
-        const uniqueProjects = new Set();
-        agents.forEach(agent => {
-          if (agent.project_name && agent.project_name.trim() !== '') {
-            uniqueProjects.add(agent.project_name.trim());
-          }
-        });
-        
-        // Créer la liste des projets
-        projects = Array.from(uniqueProjects).map((projectName, index) => ({
-          id: index + 1,
-          name: projectName,
-          status: 'active'
-        }));
-        
-        console.log('Projets chargés depuis la base de données:', projects);
-        updateProjectFilter();
+        if (res.ok) {
+          const data = await res.json();
+          const agents = data.data || data.agents || [];
+          
+          // Extraire les projets uniques depuis les agents
+          const uniqueProjects = new Set();
+          agents.forEach(agent => {
+            if (agent.project_name && agent.project_name.trim() !== '') {
+              uniqueProjects.add(agent.project_name.trim());
+            }
+          });
+          
+          // Créer la liste des projets
+          projects = Array.from(uniqueProjects).map((projectName, index) => ({
+            id: index + 1,
+            name: projectName,
+            status: 'active'
+          }));
+          
+          console.log('Projets chargés depuis la base de données:', projects);
+          updateProjectFilter();
+        } else {
+          console.error('Erreur lors du chargement des agents:', res.status);
+          // Utiliser le projet de l'agent actuel en cas d'erreur
+          const agentProject = user.project_name || user.project || 'Projet non spécifié';
+          projects = [
+            { id: 1, name: agentProject, status: 'active' }
+          ];
+          updateProjectFilter();
+        }
       } else {
-        console.error('Erreur lors du chargement des agents:', res.status);
-        // Utiliser le projet de l'agent actuel en cas d'erreur
+        // Pour les agents, utiliser uniquement leur projet
         const agentProject = user.project_name || user.project || 'Projet non spécifié';
         projects = [
           { id: 1, name: agentProject, status: 'active' }
         ];
+        console.log('Projet de l\'agent:', agentProject);
         updateProjectFilter();
       }
     } catch (error) {
@@ -274,10 +380,32 @@
     select.innerHTML = '<option value="">Tous les projets</option>';
     projects.forEach(project => {
       const option = document.createElement('option');
-      option.value = project.id;
+      option.value = project.name; // Utiliser le nom du projet comme valeur pour la cohérence
       option.textContent = project.name;
       select.appendChild(option);
     });
+  }
+
+  // Appliquer automatiquement le filtre projet pour un agent
+  function applyAgentProjectFilter(projectName) {
+    const projectFilter = document.getElementById('project-filter');
+    if (projectFilter && projectName) {
+      projectFilter.value = projectName;
+      
+      // Masquer le filtre projet pour les agents (ils ne voient que leur projet)
+      const projectFilterContainer = document.getElementById('project-filter').closest('.col-md-6');
+      if (projectFilterContainer) {
+        projectFilterContainer.style.display = 'none';
+      }
+      
+      // Afficher le badge du projet de l'agent
+      const agentProjectBadge = document.getElementById('agent-project-badge');
+      const agentProjectName = document.getElementById('agent-project-name');
+      if (agentProjectBadge && agentProjectName) {
+        agentProjectName.textContent = projectName;
+        agentProjectBadge.style.display = 'block';
+      }
+    }
   }
 
   // Charger les activités pour une date donnée
@@ -300,26 +428,43 @@
 
       const headers = await authHeaders();
       
-      // Construire la période: semaine contenant currentDate (lundi -> dimanche)
-      const base = new Date(currentDate + 'T00:00:00');
-      const day = base.getDay(); // 0=dimanche, 1=lundi
-      const diffToMonday = ((day + 6) % 7); // nombre de jours depuis lundi
-      const monday = new Date(base);
-      monday.setDate(base.getDate() - diffToMonday);
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      const fromStr = monday.toISOString().slice(0,10);
-      const toStr = sunday.toISOString().slice(0,10);
+      // Construire la période: basé sur mois sélectionné (si présent), sinon semaine contenant currentDate
+      const monthSelect = document.getElementById('month-select');
+      let fromStr, toStr;
+      if (monthSelect && monthSelect.value) {
+        const [year, month] = monthSelect.value.split('-').map(Number);
+        const fromDate = new Date(Date.UTC(year, month - 1, 1));
+        const toDate = new Date(Date.UTC(year, month, 0)); // dernier jour du mois
+        fromStr = fromDate.toISOString().slice(0, 10);
+        toStr = toDate.toISOString().slice(0, 10);
+      } else {
+        const base = new Date(currentDate + 'T00:00:00');
+        const day = base.getDay(); // 0=dimanche, 1=lundi
+        const diffToMonday = ((day + 6) % 7); // nombre de jours depuis lundi
+        const monday = new Date(base);
+        monday.setDate(base.getDate() - diffToMonday);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        fromStr = monday.toISOString().slice(0,10);
+        toStr = sunday.toISOString().slice(0,10);
+      }
 
       // Construire l'URL pour la période hebdomadaire, avec filtre agent si applicable
       let url = `${apiBase}/planifications?from=${fromStr}&to=${toStr}`;
       const selectedAgentId = document.getElementById('agent-select').value;
+      const projectFilterValue = document.getElementById('project-filter').value;
+      const supervisorFilterValue = (document.getElementById('supervisor-filter') || {}).value || '';
       
       if (isAdmin && selectedAgentId) {
         url += `&agent_id=${selectedAgentId}`;
       } else if (!isAdmin) {
         // Pour les agents non-admin, filtrer par leur propre ID
         url += `&agent_id=${currentUserId}`;
+      }
+
+      // Appliquer le filtre projet au niveau API si présent
+      if (projectFilterValue) {
+        url += `&project_name=${encodeURIComponent(projectFilterValue)}`;
       }
       
       const res = await fetch(url, { headers });
@@ -332,8 +477,37 @@
       if (res.ok) {
         const data = await res.json();
         activities = data.items || [];
-        displayActivities();
-        updateStatistics();
+
+        // Enrichir les activités avec infos agent si disponibles (pour filtre superviseur)
+        // (best-effort: si backend renvoie déjà l'agent/superviseur, on l'utilise)
+        const agentMap = new Map();
+        agents.forEach(a => agentMap.set(a.id, a));
+        activities.forEach(a => {
+          if (!a.agent && a.agent_id && agentMap.has(a.agent_id)) {
+            a.agent = agentMap.get(a.agent_id);
+          }
+        });
+        
+        // Appliquer automatiquement le filtre projet si c'est un agent
+        if (!isAdmin) {
+          const projectFilter = document.getElementById('project-filter').value;
+          if (projectFilter) {
+            // Le filtre est déjà appliqué, on affiche directement les activités filtrées
+            displayActivities();
+            updateStatistics();
+            updateFilterIndicator();
+          } else {
+            // Pas de filtre, afficher toutes les activités
+            displayActivities();
+            updateStatistics();
+            updateFilterIndicator();
+          }
+        } else {
+          // Pour les admins, afficher toutes les activités
+          displayActivities();
+          updateStatistics();
+          updateFilterIndicator();
+        }
       } else {
         throw new Error('Erreur lors du chargement des activités');
       }
@@ -604,11 +778,17 @@
   function filterActivities() {
     const projectFilter = document.getElementById('project-filter').value;
     const statusFilter = document.getElementById('status-filter').value;
+    const supervisorFilter = (document.getElementById('supervisor-filter') || {}).value || '';
+    const weekFilter = (document.getElementById('week-filter') || {}).value || '';
 
     let filtered = activities;
 
     if (projectFilter) {
-      filtered = filtered.filter(activity => activity.project_id == projectFilter);
+      // Filtrer par nom de projet (cohérent avec updateProjectFilter)
+      filtered = filtered.filter(activity => {
+        const activityProjectName = activity.project_name || activity.projects?.name || '';
+        return activityProjectName === projectFilter;
+      });
     }
 
     if (statusFilter) {
@@ -619,18 +799,45 @@
       }
     }
 
+    // Filtrer par superviseur (admins uniquement)
+    if (isAdmin && supervisorFilter) {
+      filtered = filtered.filter(activity => {
+        const agent = activity.agent || {};
+        const matchById = agent.supervisor_id && String(agent.supervisor_id) === String(supervisorFilter);
+        const matchByActivity = activity.supervisor_id && String(activity.supervisor_id) === String(supervisorFilter);
+        return matchById || matchByActivity;
+      });
+    }
+
+    // Filtrer par semaine du mois (1..5) si sélectionnée
+    if (weekFilter) {
+      const targetWeek = parseInt(weekFilter, 10);
+      filtered = filtered.filter(activity => {
+        const d = new Date(String(activity.date) + 'T00:00:00');
+        if (isNaN(d)) return false;
+        // semaine du mois: 1 + floor((jour-1 + offset) / 7)
+        const dayOfMonth = d.getUTCDate();
+        const firstDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+        const offset = (firstDay.getUTCDay() + 6) % 7; // convertir dimanche=0 -> lundi=0
+        const weekOfMonth = 1 + Math.floor((dayOfMonth - 1 + offset) / 7);
+        return weekOfMonth === targetWeek;
+      });
+    }
+
     return filtered;
   }
 
   // Mettre à jour les statistiques
   function updateStatistics() {
+    // Utiliser les activités filtrées pour les statistiques
+    const filteredActivities = filterActivities();
     const stats = {
-      realise: activities.filter(a => a.resultat_journee === 'realise').length,
-      partiellement_realise: activities.filter(a => a.resultat_journee === 'partiellement_realise').length,
-      non_realise: activities.filter(a => a.resultat_journee === 'non_realise').length,
-      en_cours: activities.filter(a => a.resultat_journee === 'en_cours').length,
-      sans_resultat: activities.filter(a => !a.resultat_journee).length,
-      total: activities.length
+      realise: filteredActivities.filter(a => a.resultat_journee === 'realise').length,
+      partiellement_realise: filteredActivities.filter(a => a.resultat_journee === 'partiellement_realise').length,
+      non_realise: filteredActivities.filter(a => a.resultat_journee === 'non_realise').length,
+      en_cours: filteredActivities.filter(a => a.resultat_journee === 'en_cours').length,
+      sans_resultat: filteredActivities.filter(a => !a.resultat_journee).length,
+      total: filteredActivities.length
     };
 
     // Mettre à jour les nombres
@@ -915,6 +1122,59 @@
       button.innerHTML = '<i class="fas fa-download"></i> Télécharger en image';
       button.disabled = false;
     }
+  }
+
+  // Mettre à jour l'indicateur de filtres actifs
+  function updateFilterIndicator() {
+    const projectFilter = document.getElementById('project-filter').value;
+    const statusFilter = document.getElementById('status-filter').value;
+    const supervisorFilter = (document.getElementById('supervisor-filter') || {}).value || '';
+    const activeFiltersDiv = document.getElementById('active-filters');
+    const filterIndicator = document.getElementById('filter-indicator');
+    
+    // Pour les agents, ne pas afficher l'indicateur de filtres (ils ne voient que leur projet)
+    if (!isAdmin) {
+      activeFiltersDiv.style.display = 'none';
+      return;
+    }
+    
+    const activeFilters = [];
+    
+    if (projectFilter) {
+      const projectName = projects.find(p => p.name === projectFilter)?.name || projectFilter;
+      activeFilters.push(`Projet: ${projectName}`);
+    }
+    
+    if (statusFilter) {
+      const statusText = getStatusText(statusFilter);
+      activeFilters.push(`Statut: ${statusText}`);
+    }
+    if (supervisorFilter) {
+      const sup = supervisors.find(s => String(s.id) === String(supervisorFilter));
+      const name = sup ? sup.name : supervisorFilter;
+      activeFilters.push(`Superviseur: ${name}`);
+    }
+    
+    if (activeFilters.length > 0) {
+      activeFiltersDiv.style.display = 'block';
+      filterIndicator.textContent = `Filtres actifs: ${activeFilters.join(', ')}`;
+    } else {
+      activeFiltersDiv.style.display = 'none';
+    }
+  }
+
+  // Effacer tous les filtres
+  function clearFilters() {
+    // Pour les agents, ne pas permettre d'effacer le filtre projet
+    if (!isAdmin) {
+      document.getElementById('status-filter').value = '';
+    } else {
+      document.getElementById('project-filter').value = '';
+      document.getElementById('status-filter').value = '';
+    }
+    filterActivities();
+    updateStatistics();
+    updateFilterIndicator();
   }
 
   // Fonctions globales pour les boutons du tableau

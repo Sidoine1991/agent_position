@@ -634,7 +634,7 @@ module.exports = async (req, res) => {
     if (path === '/api/planifications' && method === 'GET') {
       authenticateToken(req, res, async () => {
         try {
-          const { from, to, project_id, agent_id } = req.query;
+          const { from, to, project_id, project_name, agent_id } = req.query;
           
           // Récupérer les planifications sans embedding pour éviter le conflit de relations
           let query = supabaseClient
@@ -654,7 +654,12 @@ module.exports = async (req, res) => {
 
           if (from) query = query.gte('date', from);
           if (to) query = query.lte('date', to);
-          if (project_id) query = query.eq('project_name', project_id);
+          // Supporter project_name (préféré) et project_id (rétro-compat)
+          if (project_name) {
+            query = query.eq('project_name', project_name);
+          } else if (project_id) {
+            query = query.eq('project_name', project_id);
+          }
 
           const { data: planifications, error } = await query.order('date', { ascending: false });
 

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion des Rayons de Tolérance - Presence CCRB</title>
+    <link href="/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css?v=5" />
+    <link rel="stylesheet" href="/modern-ui.css?v=2" />
+    <link rel="stylesheet" href="/styles-theme.css?v=1">
+    <style>
+        .tolerance-card {
+            border-left: 4px solid #0ea5e9;
+            margin-bottom: 1rem;
+        }
+        .tolerance-card.zone-pda4 {
+            border-left-color: #10b981;
+        }
+        .tolerance-card.zone-sud {
+            border-left-color: #f59e0b;
+        }
+        .tolerance-card.default {
+            border-left-color: #6b7280;
+        }
+        .radius-display {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #0ea5e9;
+        }
+        .zone-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .zone-pda4-badge {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+        .zone-sud-badge {
+            background-color: #fef3c7;
+            color: #d97706;
+        }
+        .zone-default-badge {
+            background-color: #f3f4f6;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
+            <div class="navbar-title">
+                <h1>Presence CCRB</h1>
+                <span class="navbar-subtitle">Gestion des Rayons de Tolérance</span>
+            </div>
+        </div>
+        
+        <div class="navbar-menu">
+            <a href="/" class="navbar-link">
+                <span class="navbar-icon">🏠</span>
+                <span>Accueil</span>
+            </a>
+            <a href="/profile.html" class="navbar-link">
+                <span class="navbar-icon">👤</span>
+                <span>Mon Profil</span>
+            </a>
+            <a href="/admin.html" class="navbar-link">
+                <span class="navbar-icon">⚙️</span>
+                <span>Administration</span>
+            </a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="page-header">
+            <h2>Gestion des Rayons de Tolérance</h2>
+            <p>Configuration des distances de tolérance GPS pour chaque agent</p>
+        </div>
+
+        <!-- Statistiques globales -->
+        <div class="card mb-4">
+            <h3>📊 Statistiques Globales</h3>
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="stat-card text-center">
+                        <div class="stat-number" id="total-agents">0</div>
+                        <div class="stat-label">Agents configurés</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card text-center">
+                        <div class="stat-number" id="zone-pda4-count">0</div>
+                        <div class="stat-label">Zone PDA4</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card text-center">
+                        <div class="stat-number" id="zone-sud-count">0</div>
+                        <div class="stat-label">Zone SUD</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card text-center">
+                        <div class="stat-number" id="avg-radius">0</div>
+                        <div class="stat-label">Rayon moyen (km)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtres -->
+        <div class="card mb-4">
+            <h3>🔍 Filtres</h3>
+            <div class="row">
+                <div class="col-md-4">
+                    <label for="zone-filter" class="form-label">Zone</label>
+                    <select id="zone-filter" class="form-control">
+                        <option value="">Toutes les zones</option>
+                        <option value="PDA4">PDA4 (Nord)</option>
+                        <option value="SUD">SUD</option>
+                        <option value="default">Par défaut</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="commune-filter" class="form-label">Commune</label>
+                    <select id="commune-filter" class="form-control">
+                        <option value="">Toutes les communes</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="search-agent" class="form-label">Rechercher un agent</label>
+                    <input type="text" id="search-agent" class="form-control" placeholder="Nom de l'agent...">
+                </div>
+            </div>
+        </div>
+
+        <!-- Liste des agents -->
+        <div class="card">
+            <h3>👥 Configuration des Agents</h3>
+            <div id="agents-list">
+                <!-- Les agents seront chargés dynamiquement ici -->
+            </div>
+        </div>
+    </main>
+
+    <script src="/agent-tolerance-config.js"></script>
+    <script>
+        // Variables globales
+        let allAgents = [];
+        let filteredAgents = [];
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAgents();
+            setupFilters();
+            updateStatistics();
+        });
+
+        // Charger la liste des agents
+        function loadAgents() {
+            allAgents = getAllAgentConfigs();
+            filteredAgents = [...allAgents];
+            renderAgents();
+            populateCommuneFilter();
+        }
+
+        // Rendre la liste des agents
+        function renderAgents() {
+            const container = document.getElementById('agents-list');
+            container.innerHTML = '';
+
+            if (filteredAgents.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted p-4">Aucun agent trouvé avec les filtres actuels.</div>';
+                return;
+            }
+
+            filteredAgents.forEach(agent => {
+                const agentCard = createAgentCard(agent);
+                container.appendChild(agentCard);
+            });
+        }
+
+        // Créer une carte d'agent
+        function createAgentCard(agent) {
+            const card = document.createElement('div');
+            card.className = `card tolerance-card zone-${agent.zone.toLowerCase()}`;
+            
+            const zoneClass = agent.zone === 'PDA4' ? 'zone-pda4-badge' : 
+                            agent.zone === 'SUD' ? 'zone-sud-badge' : 'zone-default-badge';
+
+            card.innerHTML = `
+                <div class="row align-items-center">
+                    <div class="col-md-3">
+                        <h5 class="mb-1">${agent.nom}</h5>
+                        <span class="zone-badge ${zoneClass}">${agent.zone}</span>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="text-muted">Commune</div>
+                        <div class="fw-bold">${agent.commune}</div>
+                    </div>
+                    <div class="col-md-1 text-center">
+                        <div class="text-muted">CEP</div>
+                        <div class="fw-bold">${agent.cep}</div>
+                    </div>
+                    <div class="col-md-2 text-center">
+                        <div class="text-muted">Distance déclarée</div>
+                        <div class="fw-bold">${agent.distanceDeclaree} km</div>
+                    </div>
+                    <div class="col-md-2 text-center">
+                        <div class="text-muted">Rayon de tolérance</div>
+                        <div class="radius-display">${agent.rayonTolerance} km</div>
+                    </div>
+                    <div class="col-md-2 text-center">
+                        <button class="btn btn-primary btn-sm" onclick="editAgentTolerance('${agent.nom}')">
+                            Modifier
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            return card;
+        }
+
+        // Configurer les filtres
+        function setupFilters() {
+            // Filtre par zone
+            document.getElementById('zone-filter').addEventListener('change', applyFilters);
+            
+            // Filtre par commune
+            document.getElementById('commune-filter').addEventListener('change', applyFilters);
+            
+            // Recherche d'agent
+            document.getElementById('search-agent').addEventListener('input', applyFilters);
+        }
+
+        // Appliquer les filtres
+        function applyFilters() {
+            const zoneFilter = document.getElementById('zone-filter').value;
+            const communeFilter = document.getElementById('commune-filter').value;
+            const searchFilter = document.getElementById('search-agent').value.toLowerCase();
+
+            filteredAgents = allAgents.filter(agent => {
+                const matchesZone = !zoneFilter || agent.zone === zoneFilter || 
+                                  (zoneFilter === 'default' && !agent.zone);
+                const matchesCommune = !communeFilter || agent.commune === communeFilter;
+                const matchesSearch = !searchFilter || agent.nom.toLowerCase().includes(searchFilter);
+
+                return matchesZone && matchesCommune && matchesSearch;
+            });
+
+            renderAgents();
+        }
+
+        // Peupler le filtre des communes
+        function populateCommuneFilter() {
+            const communes = [...new Set(allAgents.map(agent => agent.commune))].sort();
+            const select = document.getElementById('commune-filter');
+            
+            communes.forEach(commune => {
+                const option = document.createElement('option');
+                option.value = commune;
+                option.textContent = commune;
+                select.appendChild(option);
+            });
+        }
+
+        // Mettre à jour les statistiques
+        function updateStatistics() {
+            document.getElementById('total-agents').textContent = allAgents.length;
+            
+            const pda4Count = allAgents.filter(a => a.zone === 'PDA4').length;
+            const sudCount = allAgents.filter(a => a.zone === 'SUD').length;
+            
+            document.getElementById('zone-pda4-count').textContent = pda4Count;
+            document.getElementById('zone-sud-count').textContent = sudCount;
+            
+            const avgRadius = allAgents.reduce((sum, agent) => sum + agent.rayonTolerance, 0) / allAgents.length;
+            document.getElementById('avg-radius').textContent = avgRadius.toFixed(1);
+        }
+
+        // Modifier la tolérance d'un agent
+        function editAgentTolerance(agentName) {
+            const agent = getAgentConfig(agentName);
+            
+            const newRadius = prompt(
+                `Modifier le rayon de tolérance pour ${agentName}\n\n` +
+                `Commune: ${agent.commune}\n` +
+                `Distance déclarée: ${agent.distanceDeclaree} km\n` +
+                `Rayon actuel: ${agent.rayonTolerance} km\n\n` +
+                `Nouveau rayon (en km):`,
+                agent.rayonTolerance
+            );
+
+            if (newRadius !== null && !isNaN(newRadius) && newRadius > 0) {
+                // Ici, vous pourriez sauvegarder la modification
+                alert(`Rayon de tolérance mis à jour pour ${agentName}: ${newRadius} km`);
+                loadAgents(); // Recharger la liste
+            }
+        }
+    </script>
+</body>
+</html>

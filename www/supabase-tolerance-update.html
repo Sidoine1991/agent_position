@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mise à jour Supabase - Rayons de Tolérance</title>
+    <link href="/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css?v=5" />
+    <link rel="stylesheet" href="/modern-ui.css?v=2" />
+    <link rel="stylesheet" href="/styles-theme.css?v=1">
+    <style>
+        .update-card {
+            border-left: 4px solid #0ea5e9;
+            margin-bottom: 1rem;
+        }
+        .update-card.success {
+            border-left-color: #10b981;
+        }
+        .update-card.error {
+            border-left-color: #ef4444;
+        }
+        .update-card.warning {
+            border-left-color: #f59e0b;
+        }
+        .log-container {
+            background: #1e293b;
+            color: #e2e8f0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        .log-entry {
+            margin-bottom: 0.5rem;
+        }
+        .log-success { color: #10b981; }
+        .log-error { color: #ef4444; }
+        .log-warning { color: #f59e0b; }
+        .log-info { color: #0ea5e9; }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
+            <div class="navbar-title">
+                <h1>Presence CCRB</h1>
+                <span class="navbar-subtitle">Mise à jour Supabase - Rayons de Tolérance</span>
+            </div>
+        </div>
+        
+        <div class="navbar-menu">
+            <a href="/" class="navbar-link">
+                <span class="navbar-icon">🏠</span>
+                <span>Accueil</span>
+            </a>
+            <a href="/agent-tolerance-admin.html" class="navbar-link">
+                <span class="navbar-icon">⚙️</span>
+                <span>Admin Tolérance</span>
+            </a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="page-header">
+            <h2>Mise à jour des Rayons de Tolérance dans Supabase</h2>
+            <p>Exécution des mises à jour SQL pour appliquer les rayons personnalisés</p>
+        </div>
+
+        <!-- Avertissement -->
+        <div class="card mb-4">
+            <div class="alert alert-warning">
+                <h4>⚠️ Attention</h4>
+                <p>Cette opération va modifier directement la base de données Supabase. Assurez-vous d'avoir une sauvegarde avant de procéder.</p>
+                <p><strong>IMPORTANT:</strong> Si vous obtenez une erreur "column does not exist", exécutez d'abord le script <code>add_tolerance_columns.sql</code> pour ajouter les colonnes manquantes.</p>
+            </div>
+        </div>
+
+        <!-- Instructions d'exécution -->
+        <div class="card mb-4">
+            <h3>📋 Instructions d'exécution</h3>
+            <div class="alert alert-info">
+                <h5>Étape 1: Vérifier la structure de la table</h5>
+                <p>Exécutez d'abord: <code>database/check_users_structure.sql</code></p>
+                
+                <h5>Étape 2: Ajouter les colonnes manquantes (si nécessaire)</h5>
+                <p>Si les colonnes <code>tolerance_radius_meters</code>, <code>custom_tolerance_applied</code>, <code>tolerance_source</code>, <code>tolerance_commune</code> n'existent pas, exécutez: <code>database/add_tolerance_columns.sql</code></p>
+                
+                <h5>Étape 3: Corriger les contraintes (NOUVEAU)</h5>
+                <p>Si vous obtenez l'erreur "check constraint violation", exécutez: <code>database/fix_tolerance_constraint.sql</code></p>
+                
+                <h5>Étape 4: Mettre à jour les rayons</h5>
+                <p>Exécutez: <code>database/update_agent_tolerance_radius_final.sql</code></p>
+            </div>
+        </div>
+
+        <!-- Erreurs courantes -->
+        <div class="card mb-4">
+            <h3>🚨 Erreurs courantes et solutions</h3>
+            <div class="alert alert-warning">
+                <h5>Erreur: "column does not exist"</h5>
+                <p><strong>Solution:</strong> Exécutez <code>database/add_tolerance_columns.sql</code></p>
+                
+                <h5>Erreur: "check constraint violation"</h5>
+                <p><strong>Solution:</strong> Exécutez <code>database/fix_tolerance_constraint.sql</code></p>
+                
+                <h5>Erreur: "permission denied"</h5>
+                <p><strong>Solution:</strong> Vérifiez vos permissions dans Supabase ou utilisez un service role</p>
+            </div>
+        </div>
+
+        <!-- Contrôles d'exécution -->
+        <div class="card mb-4">
+            <h3>🚀 Exécution des Mises à jour</h3>
+            <div class="row">
+                <div class="col-md-4">
+                    <button class="btn btn-primary w-100 mb-2" onclick="executeCustomUpdates()">
+                        Mettre à jour les agents personnalisés
+                    </button>
+                    <small class="text-muted">15 agents avec rayons calculés</small>
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-secondary w-100 mb-2" onclick="executeDefaultUpdates()">
+                        Mettre à jour les agents par défaut
+                    </button>
+                    <small class="text-muted">Rayon 6km pour les autres</small>
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-success w-100 mb-2" onclick="executeAllUpdates()">
+                        Exécuter toutes les mises à jour
+                    </button>
+                    <small class="text-muted">Opération complète</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Script SQL -->
+        <div class="card mb-4">
+            <h3>📄 Script SQL à exécuter</h3>
+            <div class="mb-3">
+                <button class="btn btn-outline-primary" onclick="copySQLScript()">Copier le script SQL</button>
+                <button class="btn btn-outline-secondary" onclick="downloadSQLScript()">Télécharger le fichier SQL</button>
+            </div>
+            <div class="bg-light p-3 rounded">
+                <pre id="sql-script" style="max-height: 300px; overflow-y: auto; font-size: 0.8rem;"></pre>
+            </div>
+        </div>
+
+        <!-- Logs d'exécution -->
+        <div class="card mb-4">
+            <h3>📋 Logs d'exécution</h3>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span>Journal des opérations</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="clearLogs()">Effacer les logs</button>
+            </div>
+            <div id="execution-logs" class="log-container">
+                <div class="log-entry log-info">Prêt à exécuter les mises à jour...</div>
+            </div>
+        </div>
+
+        <!-- Résultats -->
+        <div class="card">
+            <h3>📊 Résultats des Mises à jour</h3>
+            <div id="update-results">
+                <div class="text-muted">Aucune mise à jour exécutée pour le moment.</div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/update-tolerance-supabase.js"></script>
+    <script>
+        // Variables globales
+        let executionLogs = [];
+        let updateResults = null;
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSQLScript();
+        });
+
+        // Charger le script SQL
+        function loadSQLScript() {
+            const sqlScript = `
+-- Script SQL pour mettre à jour les rayons de tolérance personnalisés
+-- Zone PDA4 (Nord) - 11 Agents
+UPDATE users SET tolerance_radius_meters = 20000, custom_tolerance_applied = true, tolerance_source = 'PDA4', tolerance_commune = 'DJOUGOU' WHERE LOWER(TRIM(CONCAT(first_name, ' ', last_name))) LIKE '%djibril%abdel%hafiz%';
+UPDATE users SET tolerance_radius_meters = 17600, custom_tolerance_applied = true, tolerance_source = 'PDA4', tolerance_commune = 'DASSA-ZOUMÉ' WHERE LOWER(TRIM(CONCAT(first_name, ' ', last_name))) LIKE '%goukalode%calixte%';
+UPDATE users SET tolerance_radius_meters = 16000, custom_tolerance_applied = true, tolerance_source = 'PDA4', tolerance_commune = 'BASSILA' WHERE LOWER(TRIM(CONCAT(first_name, ' ', last_name))) LIKE '%ekpa%chabi%';
+UPDATE users SET tolerance_radius_meters = 20000, custom_tolerance_applied = true, tolerance_source = 'PDA4', tolerance_commune = 'OUAKÉ' WHERE LOWER(TRIM(CONCAT(first_name, ' ', last_name))) LIKE '%kaloa%moukimiou%';
+UPDATE users SET tolerance_radius_meters = 24000, custom_tolerance_applied = true, tolerance_source = 'PDA4', tolerance_commune = 'SAVALOU' WHERE LOWER(TRIM(CONCAT(first_name, ' ', last_name))) LIKE '%cherif%fabade%';
+UPDATE users SET tolerance_radius_meters = 12000, custom_tolerance_applied = true, tolerance_source = 'PDA4', tolerance_commune = 'BANTÈ' WHERE LOWER(TRIM(CONCAT(first_name, ' ', last_name))) LIKE '%fado%kami%';
+UPDATE users SET tolerance_radius_meters = 8000, custom_tolerance_applied = true, tolerance_source = 'PDA4', tolerance_commune = 'GLAZOUE' WHERE LOWER(TRIM(CONCAT(first_name, ' ', last_name))) LIKE '%tchetan%prudence%';
+UPDATE users SET tolerance_radius_meters = 16800, custom_tolerance_applied = true, tolerance_source = 'PDA4', tolerance_commune = 'DASSA ZOUMÈ' WHERE LOWER(TRIM(CONCAT(first_name, ' ', last_name))) LIKE '%akpo%anos%';
+UPDATE users SET tolerance_radius_meters = 20000, custom_tolerance_applied = true, tolerance_source = 'PDA4', tolerance_commune = 'Glazoué' WHERE LOWER(TRIM(CONCAT(first_name, ' ', last_name))) LIKE '%dagan%bruno%';
+UPDATE users SET tolerance_radius_meters = 44000, custom_tolerance_applied = true, tolerance_source = 'PDA4', tolerance_commune = 'SAVALOU' WHERE LOWER(TRIM(CONCAT(first_name, ' ', last_name))) LIKE '%adoho%thiburce%';
+UPDATE users SET tolerance_radius_meters = 17600, custom_tolerance_applied = true, tolerance_source = 'PDA4', tolerance_commune = 'BANTÉ' WHERE LOWER(TRIM(CONCAT(first_name, ' ', last_name))) LIKE '%seriki%fatai%';
+
+-- Zone SUD - 4 Agents
+UPDATE users SET tolerance_radius_meters = 28000, custom_tolerance_applied = true, tolerance_source = 'SUD', tolerance_commune = 'Zogbodomey' WHERE LOWER(TRIM(CONCAT(first_name, ' ', last_name))) LIKE '%dagnito%mariano%';
+UPDATE users SET tolerance_radius_meters = 28000, custom_tolerance_applied = true, tolerance_source = 'SUD', tolerance_commune = 'Zogbodomey' WHERE LOWER(TRIM(CONCAT(first_name, ' ', last_name))) LIKE '%gogan%ida%';
+UPDATE users SET tolerance_radius_meters = 28000, custom_tolerance_applied = true, tolerance_source = 'SUD', tolerance_commune = 'Zogbodomey' WHERE LOWER(TRIM(CONCAT(first_name, ' ', last_name))) LIKE '%adjovi%sabeck%';
+UPDATE users SET tolerance_radius_meters = 28000, custom_tolerance_applied = true, tolerance_source = 'SUD', tolerance_commune = 'Zogbodomey' WHERE LOWER(TRIM(CONCAT(first_name, ' ', last_name))) LIKE '%tognon%tchegnonsi%';
+
+-- Agents sans déclaration - Rayon par défaut (6km)
+UPDATE users SET tolerance_radius_meters = 6000, custom_tolerance_applied = false, tolerance_source = 'default' WHERE custom_tolerance_applied IS NULL OR custom_tolerance_applied = false OR tolerance_radius_meters IS NULL;
+            `;
+            
+            document.getElementById('sql-script').textContent = sqlScript.trim();
+        }
+
+        // Ajouter un log
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = {
+                timestamp,
+                message,
+                type
+            };
+            
+            executionLogs.push(logEntry);
+            updateLogDisplay();
+        }
+
+        // Mettre à jour l'affichage des logs
+        function updateLogDisplay() {
+            const container = document.getElementById('execution-logs');
+            container.innerHTML = executionLogs.map(log => 
+                `<div class="log-entry log-${log.type}">[${log.timestamp}] ${log.message}</div>`
+            ).join('');
+            
+            // Scroll vers le bas
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Effacer les logs
+        function clearLogs() {
+            executionLogs = [];
+            updateLogDisplay();
+        }
+
+        // Exécuter les mises à jour personnalisées
+        async function executeCustomUpdates() {
+            addLog('🚀 Début des mises à jour personnalisées...', 'info');
+            
+            try {
+                const results = await updateAllAgentTolerances();
+                
+                addLog(`✅ Mises à jour personnalisées terminées: ${results.success} succès, ${results.failed} échecs, ${results.notFound} non trouvés`, 'success');
+                
+                updateResults = results;
+                displayResults();
+            } catch (error) {
+                addLog(`❌ Erreur lors des mises à jour personnalisées: ${error.message}`, 'error');
+            }
+        }
+
+        // Exécuter les mises à jour par défaut
+        async function executeDefaultUpdates() {
+            addLog('🔄 Début des mises à jour par défaut...', 'info');
+            
+            try {
+                const results = await updateDefaultTolerance();
+                
+                if (results.success) {
+                    addLog('✅ Mises à jour par défaut terminées avec succès', 'success');
+                } else {
+                    addLog(`❌ Erreur lors des mises à jour par défaut: ${results.error}`, 'error');
+                }
+            } catch (error) {
+                addLog(`❌ Erreur lors des mises à jour par défaut: ${error.message}`, 'error');
+            }
+        }
+
+        // Exécuter toutes les mises à jour
+        async function executeAllUpdates() {
+            addLog('🚀 Début de l\'exécution complète...', 'info');
+            
+            try {
+                const results = await executeAllToleranceUpdates();
+                
+                addLog('🎉 Exécution complète terminée!', 'success');
+                
+                updateResults = results;
+                displayResults();
+            } catch (error) {
+                addLog(`❌ Erreur lors de l'exécution complète: ${error.message}`, 'error');
+            }
+        }
+
+        // Afficher les résultats
+        function displayResults() {
+            if (!updateResults) return;
+            
+            const container = document.getElementById('update-results');
+            
+            let html = '<div class="row">';
+            
+            if (updateResults.customUpdates) {
+                const custom = updateResults.customUpdates;
+                html += `
+                    <div class="col-md-6">
+                        <div class="card update-card ${custom.failed > 0 ? 'error' : 'success'}">
+                            <h5>Mises à jour personnalisées</h5>
+                            <p><strong>Succès:</strong> ${custom.success}</p>
+                            <p><strong>Échecs:</strong> ${custom.failed}</p>
+                            <p><strong>Non trouvés:</strong> ${custom.notFound}</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (updateResults.defaultUpdates) {
+                const default_ = updateResults.defaultUpdates;
+                html += `
+                    <div class="col-md-6">
+                        <div class="card update-card ${default_.success ? 'success' : 'error'}">
+                            <h5>Mises à jour par défaut</h5>
+                            <p><strong>Status:</strong> ${default_.success ? 'Succès' : 'Échec'}</p>
+                            ${default_.error ? `<p><strong>Erreur:</strong> ${default_.error}</p>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += '</div>';
+            
+            if (updateResults.customUpdates && updateResults.customUpdates.details) {
+                html += '<div class="mt-4"><h5>Détails des mises à jour:</h5>';
+                html += '<div class="table-responsive"><table class="table table-sm">';
+                html += '<thead><tr><th>Agent</th><th>Status</th><th>Détails</th></tr></thead><tbody>';
+                
+                updateResults.customUpdates.details.forEach(detail => {
+                    const statusClass = detail.status === 'success' ? 'success' : 
+                                      detail.status === 'failed' ? 'danger' : 'warning';
+                    html += `<tr><td>${detail.agent}</td><td><span class="badge bg-${statusClass}">${detail.status}</span></td><td>${detail.message || detail.error || 'OK'}</td></tr>`;
+                });
+                
+                html += '</tbody></table></div></div>';
+            }
+            
+            container.innerHTML = html;
+        }
+
+        // Copier le script SQL
+        function copySQLScript() {
+            const sqlText = document.getElementById('sql-script').textContent;
+            navigator.clipboard.writeText(sqlText).then(() => {
+                addLog('📋 Script SQL copié dans le presse-papiers', 'success');
+            }).catch(err => {
+                addLog(`❌ Erreur lors de la copie: ${err.message}`, 'error');
+            });
+        }
+
+        // Télécharger le script SQL
+        function downloadSQLScript() {
+            const sqlText = document.getElementById('sql-script').textContent;
+            const blob = new Blob([sqlText], { type: 'text/sql' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'update_agent_tolerance_radius.sql';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            addLog('💾 Script SQL téléchargé', 'success');
+        }
+    </script>
+</body>
+</html>

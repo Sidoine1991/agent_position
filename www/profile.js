@@ -793,102 +793,213 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // ====== Zones d'intervention (multi-UD) ======
-    const zonesContainer = document.getElementById('zones-container');
-    const btnAddZone = document.getElementById('btn-add-zone');
-    const btnSaveZones = document.getElementById('btn-save-zones');
-    const btnReloadZones = document.getElementById('btn-reload-zones');
+    const zonesContainer = document.getElementById('zones-list');
+    const btnAddZone = document.getElementById('add-zone-btn');
+    const btnSaveZones = document.getElementById('save-zones-btn');
+    const btnReloadZones = document.getElementById('reload-zones-btn');
+    const zoneTemplate = document.getElementById('zone-template');
 
-    function buildZoneRow(zone = {}) {
-      const row = document.createElement('div');
-      row.className = 'zone-row';
-      row.style.cssText = 'border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin:8px 0;background:#f9fafb';
-      row.innerHTML = `
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
-          <div>
-            <label>Département</label>
-            <input type="text" data-field="departement" placeholder="Département" value="${zone.departement || ''}">
-          </div>
-          <div>
-            <label>Commune</label>
-            <input type="text" data-field="commune" placeholder="Commune" value="${zone.commune || ''}">
-          </div>
-          <div>
-            <label>Arrondissement</label>
-            <input type="text" data-field="arrondissement" placeholder="Arrondissement" value="${zone.arrondissement || ''}">
-          </div>
-          <div>
-            <label>Village</label>
-            <input type="text" data-field="village" placeholder="Village" value="${zone.village || ''}">
-          </div>
-          <div>
-            <label>Latitude de référence</label>
-            <input type="number" step="0.000001" data-field="reference_lat" placeholder="Ex: 6.4969" value="${zone.reference_lat ?? ''}">
-          </div>
-          <div>
-            <label>Longitude de référence</label>
-            <input type="number" step="0.000001" data-field="reference_lon" placeholder="Ex: 2.6036" value="${zone.reference_lon ?? ''}">
-          </div>
-          <div>
-            <label>Rayon de tolérance (m)</label>
-            <input type="number" min="10" max="10000" data-field="tolerance_radius_meters" placeholder="Ex: 500" value="${zone.tolerance_radius_meters ?? 1000}">
-          </div>
-        </div>
-        <div style="text-align:right;margin-top:8px">
-          <button type="button" class="btn-primary" data-action="duplicate">🧩 Dupliquer</button>
-          <button type="button" class="btn-register" data-action="remove" style="background:#ef4444">🗑️ Supprimer</button>
-        </div>
-      `;
-      row.querySelector('[data-action="remove"]').addEventListener('click', ()=>{ row.remove(); });
-      row.querySelector('[data-action="duplicate"]').addEventListener('click', ()=>{
-        zonesContainer.insertBefore(buildZoneRow(zone), row.nextSibling);
-      });
-      return row;
-    }
+    let userZones = [];
 
-    async function loadZones() {
-      if (!zonesContainer) return;
-      zonesContainer.innerHTML = '<div style="color:#6b7280">Chargement des zones...</div>';
+    // Charger les zones depuis l'API
+    async function loadUserZones() {
       try {
         const res = await api('/me/zones');
-        const zones = (res && res.zones && Array.isArray(res.zones)) ? res.zones : [];
-        zonesContainer.innerHTML = '';
-        if (!zones.length) zonesContainer.appendChild(buildZoneRow({ tolerance_radius_meters: 1000 }));
-        zones.forEach(z => zonesContainer.appendChild(buildZoneRow(z)));
+        userZones = (res && res.zones && Array.isArray(res.zones)) ? res.zones : [];
+        renderZones();
       } catch (e) {
-        zonesContainer.innerHTML = '<div style="color:#dc2626">Erreur de chargement des zones</div>';
+        console.error('Erreur lors du chargement des zones:', e);
+        userZones = [];
+        renderZones();
       }
     }
 
-    async function saveZones() {
-      if (!zonesContainer) return;
-      const rows = Array.from(zonesContainer.querySelectorAll('.zone-row'));
-      const zones = rows.map(r => {
-        const get = sel => r.querySelector(`[data-field="${sel}"]`)?.value || '';
-        const lat = parseFloat(String(get('reference_lat')).replace(',', '.'));
-        const lon = parseFloat(String(get('reference_lon')).replace(',', '.'));
-        const tol = parseFloat(String(get('tolerance_radius_meters')).replace(',', '.'));
-        return {
-          departement: get('departement').trim(),
-          commune: get('commune').trim(),
-          arrondissement: get('arrondissement').trim(),
-          village: get('village').trim(),
-          reference_lat: Number.isFinite(lat) ? lat : null,
-          reference_lon: Number.isFinite(lon) ? lon : null,
-          tolerance_radius_meters: Number.isFinite(tol) ? tol : 1000
-        };
-      }).filter(z => z.departement || z.commune || z.village || (z.reference_lat != null && z.reference_lon != null));
+    // Rendre la liste des zones
+    function renderZones() {
+      zonesContainer.innerHTML = '';
+      if (userZones.length === 0) {
+        zonesContainer.innerHTML = '<div class="text-muted">Aucune zone configurée. Cliquez sur "Ajouter une zone" pour commencer.</div>';
+        return;
+      }
+      
+      userZones.forEach((zone, index) => {
+        const zoneElement = renderZoneItem(zone, index);
+        zonesContainer.appendChild(zoneElement);
+      });
+    }
+
+    // Rendre un élément de zone
+    function renderZoneItem(zone, index) {
+      const clone = zoneTemplate.content.cloneNode(true);
+      const zoneItem = clone.querySelector('.zone-item');
+      const zoneName = clone.querySelector('.zone-name');
+      const zoneNameInput = clone.querySelector('.zone-name-input');
+      const zoneDepartement = clone.querySelector('.zone-departement');
+      const zoneCommune = clone.querySelector('.zone-commune');
+      const zoneArrondissement = clone.querySelector('.zone-arrondissement');
+      const zoneVillage = clone.querySelector('.zone-village');
+      const zoneLat = clone.querySelector('.zone-lat');
+      const zoneLon = clone.querySelector('.zone-lon');
+      const zoneTolerance = clone.querySelector('.zone-tolerance');
+      const zoneProject = clone.querySelector('.zone-project');
+
+      // Générer un nom de zone si pas défini
+      const zoneNameValue = zone.name || `Zone_${(zone.commune || '').substring(0, 3)}_${(zone.village || '').substring(0, 3)}`;
+      
+      zoneItem.setAttribute('data-zone-id', index);
+      zoneName.textContent = zoneNameValue;
+      zoneNameInput.value = zoneNameValue;
+      zoneDepartement.value = zone.departement || '';
+      zoneCommune.value = zone.commune || '';
+      zoneArrondissement.value = zone.arrondissement || '';
+      zoneVillage.value = zone.village || '';
+      zoneLat.value = zone.reference_lat || '';
+      zoneLon.value = zone.reference_lon || '';
+      zoneTolerance.value = zone.tolerance_radius_meters || 1000;
+      zoneProject.value = zone.project_name || '';
+
+      // Event listeners pour les boutons
+      const btnEdit = zoneItem.querySelector('.btn-edit-zone');
+      const btnDuplicate = zoneItem.querySelector('.btn-duplicate-zone');
+      const btnDelete = zoneItem.querySelector('.btn-delete-zone');
+
+      btnEdit.addEventListener('click', () => editZone(index));
+      btnDuplicate.addEventListener('click', () => duplicateZone(index));
+      btnDelete.addEventListener('click', () => deleteZone(index));
+
+      return zoneItem;
+    }
+
+    // Ajouter une nouvelle zone
+    function addZone() {
+      const newZone = {
+        name: '',
+        departement: '',
+        commune: '',
+        arrondissement: '',
+        village: '',
+        reference_lat: null,
+        reference_lon: null,
+        tolerance_radius_meters: 1000,
+        project_name: ''
+      };
+      userZones.push(newZone);
+      renderZones();
+      // Éditer automatiquement la nouvelle zone
+      setTimeout(() => editZone(userZones.length - 1), 100);
+    }
+
+    // Éditer une zone
+    function editZone(index) {
+      const zoneItem = zonesContainer.querySelector(`[data-zone-id="${index}"]`);
+      if (zoneItem) {
+        zoneItem.classList.add('editing');
+        const zoneNameInput = zoneItem.querySelector('.zone-name-input');
+        if (zoneNameInput) zoneNameInput.focus();
+      }
+    }
+
+    // Sauvegarder une zone
+    function saveZone(index) {
+      const zoneItem = zonesContainer.querySelector(`[data-zone-id="${index}"]`);
+      if (!zoneItem || index >= userZones.length) return;
+
+      const zoneNameInput = zoneItem.querySelector('.zone-name-input');
+      const zoneDepartement = zoneItem.querySelector('.zone-departement');
+      const zoneCommune = zoneItem.querySelector('.zone-commune');
+      const zoneArrondissement = zoneItem.querySelector('.zone-arrondissement');
+      const zoneVillage = zoneItem.querySelector('.zone-village');
+      const zoneLat = zoneItem.querySelector('.zone-lat');
+      const zoneLon = zoneItem.querySelector('.zone-lon');
+      const zoneTolerance = zoneItem.querySelector('.zone-tolerance');
+      const zoneProject = zoneItem.querySelector('.zone-project');
+
+      // Mettre à jour les données
+      userZones[index] = {
+        ...userZones[index],
+        name: zoneNameInput.value.trim() || `Zone_${zoneCommune.value.substring(0, 3)}_${zoneVillage.value.substring(0, 3)}`,
+        departement: zoneDepartement.value.trim(),
+        commune: zoneCommune.value.trim(),
+        arrondissement: zoneArrondissement.value.trim(),
+        village: zoneVillage.value.trim(),
+        reference_lat: parseFloat(zoneLat.value) || null,
+        reference_lon: parseFloat(zoneLon.value) || null,
+        tolerance_radius_meters: parseFloat(zoneTolerance.value) || 1000,
+        project_name: zoneProject.value.trim()
+      };
+
+      // Mettre à jour l'affichage
+      const zoneName = zoneItem.querySelector('.zone-name');
+      zoneName.textContent = userZones[index].name;
+      zoneItem.classList.remove('editing');
+    }
+
+    // Dupliquer une zone
+    function duplicateZone(index) {
+      if (index >= userZones.length) return;
+      const originalZone = { ...userZones[index] };
+      originalZone.name = originalZone.name + ' (copie)';
+      userZones.splice(index + 1, 0, originalZone);
+      renderZones();
+    }
+
+    // Supprimer une zone
+    function deleteZone(index) {
+      if (userZones.length <= 1) {
+        alert('Vous devez avoir au moins une zone d\'intervention.');
+        return;
+      }
+      if (confirm('Êtes-vous sûr de vouloir supprimer cette zone ?')) {
+        userZones.splice(index, 1);
+        renderZones();
+      }
+    }
+
+    // Sauvegarder toutes les zones
+    async function saveAllZones() {
       try {
-        await api('/me/zones', { method: 'PUT', body: { zones } });
-        alert('Zones enregistrées');
+        // Sauvegarder toutes les zones en cours d'édition
+        const editingZones = zonesContainer.querySelectorAll('.zone-item.editing');
+        editingZones.forEach(zoneItem => {
+          const index = parseInt(zoneItem.getAttribute('data-zone-id'));
+          saveZone(index);
+        });
+
+        await api('/me/zones', { method: 'PUT', body: { zones: userZones } });
+        alert('Zones enregistrées avec succès !');
+        await loadUserZones(); // Recharger pour s'assurer de la cohérence
       } catch (e) {
-        alert('Erreur lors de l\'enregistrement des zones: ' + (e.message || ''));
+        console.error('Erreur lors de l\'enregistrement des zones:', e);
+        alert('Erreur lors de l\'enregistrement des zones: ' + (e.message || 'Erreur inconnue'));
       }
     }
 
-    if (btnAddZone) btnAddZone.addEventListener('click', () => zonesContainer.appendChild(buildZoneRow()));
-    if (btnSaveZones) btnSaveZones.addEventListener('click', saveZones);
-    if (btnReloadZones) btnReloadZones.addEventListener('click', loadZones);
-    await loadZones();
+    // Event listeners
+    if (btnAddZone) btnAddZone.addEventListener('click', addZone);
+    if (btnSaveZones) btnSaveZones.addEventListener('click', saveAllZones);
+    if (btnReloadZones) btnReloadZones.addEventListener('click', loadUserZones);
+
+    // Event listeners pour les champs en édition
+    zonesContainer.addEventListener('blur', (e) => {
+      if (e.target.classList.contains('zone-name-input') || 
+          e.target.classList.contains('zone-departement') ||
+          e.target.classList.contains('zone-commune') ||
+          e.target.classList.contains('zone-arrondissement') ||
+          e.target.classList.contains('zone-village') ||
+          e.target.classList.contains('zone-lat') ||
+          e.target.classList.contains('zone-lon') ||
+          e.target.classList.contains('zone-tolerance') ||
+          e.target.classList.contains('zone-project')) {
+        const zoneItem = e.target.closest('.zone-item');
+        if (zoneItem) {
+          const index = parseInt(zoneItem.getAttribute('data-zone-id'));
+          saveZone(index);
+        }
+      }
+    }, true);
+
+    // Charger les zones au démarrage
+    await loadUserZones();
   }
 });
 

@@ -17,27 +17,8 @@
         const forceStay = urlParams.get('stay') === 'true';
         
         // Si l'utilisateur est connecté ET qu'il n'a pas explicitement demandé de rester
-        if (token && !forceStay) {
-          // Vérifier si c'est un retour depuis le dashboard (via referrer)
-          const referrer = document.referrer;
-          const isFromDashboard = referrer && (
-            referrer.includes('dashboard') || 
-            referrer.includes('admin') || 
-            referrer.includes('supervisor')
-          );
-          
-          // Si ce n'est pas un retour depuis le dashboard, rediriger
-          if (!isFromDashboard) {
-            const userRole = localStorage.getItem('userRole');
-            if (userRole === 'admin') {
-              window.location.href = '/admin-dashboard.html';
-            } else if (userRole === 'superviseur') {
-              window.location.href = '/supervisor-dashboard.html';
-            } else {
-              window.location.href = '/dashboard.html';
-            }
-          }
-        }
+        // Ancienne redirection automatique supprimée: rester sur index.html après connexion
+        // if (token && !forceStay) { ... }
         // Si pas connecté ou si forceStay=true, rester sur la page de connexion
       });
     </script>

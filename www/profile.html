@@ -7,9 +7,85 @@
     <meta name="theme-color" content="#0ea5e9" />
     <title>Mon Profil - Presence CCRB</title>
     <link href="/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/styles.css?v=4" />
-    <link rel="stylesheet" href="/modern-ui.css?v=1" />
-    <link rel="stylesheet" href="/styles-theme.css">
+    <link rel="stylesheet" href="/styles.css?v=5" />
+    <link rel="stylesheet" href="/modern-ui.css?v=2" />
+    <link rel="stylesheet" href="/styles-theme.css?v=1">
+    <style>
+      /* Styles pour les zones d'intervention */
+      .zone-item {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+        background: #f9f9f9;
+      }
+      
+      .zone-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #e0e0e0;
+      }
+      
+      .zone-name {
+        margin: 0;
+        color: #333;
+        font-size: 1.1em;
+      }
+      
+      .zone-actions {
+        display: flex;
+        gap: 5px;
+      }
+      
+      .zone-details {
+        display: none;
+      }
+      
+      .zone-details.editing {
+        display: block;
+      }
+      
+      .zone-item.editing .zone-details {
+        display: block;
+      }
+      
+      .zone-item.editing .zone-header .zone-actions .btn-edit-zone {
+        display: none;
+      }
+      
+      .zone-item:not(.editing) .zone-header .zone-actions .btn-save-zone,
+      .zone-item:not(.editing) .zone-header .zone-actions .btn-cancel-zone {
+        display: none;
+      }
+      
+      .form-group {
+        margin-bottom: 10px;
+      }
+      
+      .form-group label {
+        font-weight: 500;
+        color: #555;
+        margin-bottom: 5px;
+        display: block;
+      }
+      
+      .form-control {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      
+      .form-control:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+      }
+    </style>
   </head>
   <body>
     <!-- Navigation Bar -->
@@ -381,6 +457,77 @@
           </div>
         </div>
 
+        <!-- Zones d'intervention -->
+        <div class="card">
+          <h3>🗺️ Zones d'intervention</h3>
+          <div id="zones-list">
+            <!-- Les zones seront chargées dynamiquement ici -->
+          </div>
+          <div class="d-flex gap-2 mt-3">
+            <button type="button" id="add-zone-btn" class="btn-primary">➕ Ajouter une zone</button>
+            <button type="button" id="save-zones-btn" class="btn-success">💾 Enregistrer les zones</button>
+            <button type="button" id="reload-zones-btn" class="btn-light">🔄 Recharger les zones</button>
+          </div>
+          
+          <!-- Template pour une zone (caché) -->
+          <template id="zone-template">
+            <div class="zone-item" data-zone-id="">
+              <div class="zone-header">
+                <h5 class="zone-name">Zone</h5>
+                <div class="zone-actions">
+                  <button type="button" class="btn-edit-zone btn-sm btn-outline-primary">Modifier</button>
+                  <button type="button" class="btn-duplicate-zone btn-sm btn-outline-secondary">Dupliquer</button>
+                  <button type="button" class="btn-delete-zone btn-sm btn-outline-danger">Supprimer</button>
+                </div>
+              </div>
+              <div class="zone-details">
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label>Nom de la zone</label>
+                      <input type="text" class="zone-name-input form-control" placeholder="Ex: Zone_Boh_Com">
+                    </div>
+                    <div class="form-group">
+                      <label>Département</label>
+                      <input type="text" class="zone-departement form-control" placeholder="Ex: Borgou">
+                    </div>
+                    <div class="form-group">
+                      <label>Commune</label>
+                      <input type="text" class="zone-commune form-control" placeholder="Ex: Bembèrèkè">
+                    </div>
+                    <div class="form-group">
+                      <label>Arrondissement</label>
+                      <input type="text" class="zone-arrondissement form-control" placeholder="Ex: Bembèrèkè">
+                    </div>
+                    <div class="form-group">
+                      <label>Village</label>
+                      <input type="text" class="zone-village form-control" placeholder="Ex: Comè">
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label>Latitude de référence</label>
+                      <input type="number" step="any" class="zone-lat form-control" placeholder="Ex: 10.123456">
+                    </div>
+                    <div class="form-group">
+                      <label>Longitude de référence</label>
+                      <input type="number" step="any" class="zone-lon form-control" placeholder="Ex: 2.654321">
+                    </div>
+                    <div class="form-group">
+                      <label>Rayon de tolérance (mètres)</label>
+                      <input type="number" min="100" max="10000" class="zone-tolerance form-control" placeholder="Ex: 5000">
+                    </div>
+                    <div class="form-group">
+                      <label>Nom du projet</label>
+                      <input type="text" class="zone-project form-control" placeholder="Ex: Projet Riz">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
         <!-- Paramètres -->
         <div class="card">
           <h3>⚙️ Paramètres</h3>
@@ -420,8 +567,8 @@
 
     <script src="/capacitor-native.js"></script>
     <script src="/navigation.js"></script>
-    <script src="/app.js?v=2" type="module"></script>
-    <script src="/profile.js"></script>
+    <script src="/app.js?v=3" type="module"></script>
+    <script src="/profile.js?v=2"></script>
     <script src="/debug_profile_frontend.js"></script>
     <script>
       // Vercel Speed Insights

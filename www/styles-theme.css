@@ -1,17 +1,17 @@
-/* Thème vibrant et harmonieux (vert, noir, rose, bleu) */
+/* Thème vibrant et harmonieux (vert, bleu, rose) - Compatible thème clair */
 :root{
   --brand:#0ea5e9;           /* Bleu ciel vif */
   --brand-2:#6366f1;         /* Indigo */
   --accent:#ec4899;          /* Rose */
   --success:#10b981;         /* Vert */
-  --bg:#0b0f14;              /* Noir bleuté pour meilleur contraste */
-  --surface:#0f172a;         /* Surface sombre */
-  --text:#e5e7eb;            /* Texte clair */
-  --muted:#9ca3af;           /* Texte secondaire */
-  --card:#111827;            /* Cartes */
-  --border:#1f2937;          /* Bordures */
+  --bg:#ffffff;              /* Fond blanc pour meilleur contraste */
+  --surface:#f8fafc;         /* Surface claire */
+  --text:#1e293b;            /* Texte sombre */
+  --muted:#64748b;           /* Texte secondaire */
+  --card:#ffffff;            /* Cartes blanches */
+  --border:#e2e8f0;          /* Bordures claires */
 }
-html,body{background:linear-gradient(180deg, #0b0f14 0%, #0f172a 60%, #111827 100%); color:var(--text);} 
+html,body{background:linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f1f5f9 100%); color:var(--text);} 
 .container{max-width:1120px;margin:0 auto;padding:16px}
 
 /* Navbar */
@@ -33,15 +33,15 @@ html,body{background:linear-gradient(180deg, #0b0f14 0%, #0f172a 60%, #111827 10
 @keyframes navbarGradient{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
 
 /* Cards */
-.card{background:linear-gradient(180deg, rgba(17,24,39,.92), rgba(17,24,39,.86));border:1px solid var(--border);border-radius:14px;padding:16px}
-.card-title{font-weight:700;margin-bottom:8px}
+.card{background:linear-gradient(180deg, rgba(255,255,255,.95), rgba(248,250,252,.9));border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 4px 6px -1px rgba(0, 0, 0, 0.1)}
+.card-title{font-weight:700;margin-bottom:8px;color:var(--text)}
 
 /* Buttons (grands cibles tactiles) */
 .btn{display:inline-flex;align-items:center;gap:10px;border-radius:12px;border:1px solid transparent;padding:14px 18px;font-weight:700;cursor:pointer;min-height:48px;min-width:48px}
-.btn-primary{background:linear-gradient(135deg,var(--success),var(--brand));color:#0b0f14}
+.btn-primary{background:linear-gradient(135deg,var(--success),var(--brand));color:#ffffff}
 .btn-primary:hover{filter:brightness(1.05)}
-.btn-outline{background:#0b1220;border-color:var(--brand);color:var(--brand)}
-.btn-outline:hover{background:rgba(13,110,253,.08)}
+.btn-outline{background:var(--card);border-color:var(--brand);color:var(--brand)}
+.btn-outline:hover{background:rgba(14,165,233,.08)}
 
 /* Boutons de navigation flottants (si utilisés) */
 .fab{position:fixed;right:16px;bottom:16px;background:linear-gradient(135deg,var(--accent),var(--brand));color:#fff;border-radius:9999px;width:56px;height:56px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 28px rgba(0,0,0,.35)}
@@ -51,8 +51,8 @@ html,body{background:linear-gradient(180deg, #0b0f14 0%, #0f172a 60%, #111827 10
 .section-sub{color:var(--muted);font-size:14px}
 
 /* Tables */
-table.table{background:#0b1220;border-radius:12px;overflow:hidden;color:var(--text)}
-table.table th{background:#111827;color:#e5e7eb}
+table.table{background:var(--card);border-radius:12px;overflow:hidden;color:var(--text)}
+table.table th{background:var(--surface);color:var(--text)}
 table.table td, table.table th{border-color:var(--border)}
 
 /* Utilities */
@@ -64,13 +64,13 @@ table.table td, table.table th{border-color:var(--border)}
 /* Actions circulaires (home/index) */
 .circle-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:18px;align-items:center}
 .circle-action{display:flex;flex-direction:column;align-items:center;gap:10px;text-decoration:none}
-.circle-action .icon{width:96px;height:96px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:30px;box-shadow:0 8px 24px rgba(0,0,0,.22);background:linear-gradient(135deg,var(--brand-2),var(--brand))}
+.circle-action .icon{width:96px;height:96px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:30px;box-shadow:0 8px 24px rgba(0,0,0,.15);background:linear-gradient(135deg,var(--brand-2),var(--brand))}
 .circle-action .label{font-weight:600;color:var(--text)}
 .circle-action:hover .icon{filter:brightness(1.08)}
 
 /* Typographie responsive */
 @media (max-width: 480px){
-  .navbar{background:#0b1220 !important}
+  .navbar{background:linear-gradient(90deg,var(--brand),var(--brand-2),var(--accent)) !important}
   .navbar .navbar-link{padding:12px 12px;color:#ffffff !important}
   .btn{padding:12px 16px;min-height:44px}
 }

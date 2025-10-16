@@ -392,10 +392,14 @@ function getBasemapType() {
 function getMonthRangeFromDateInput() {
   // Si une date est choisie, prendre le mois entier
   const dateStr = $('date')?.value;
-  const now = dateStr ? new Date(dateStr) : new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  if (dateStr) {
+    // Quand une date est sélectionnée, on filtre sur CE JOUR uniquement
+    return { from: dateStr, to: dateStr };
+  }
+  const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const fmt = d => d.toISOString().split('T')[0];
   return { from: fmt(start), to: fmt(end) };
 }
 
@@ -552,19 +556,17 @@ async function updateMonthlySummary() {
         } catch(e) { console.warn('Justification enrichie (distance) indisponible:', e?.message || e); }
 
         rowsOut.sort((a, b) => a.agent.localeCompare(b.agent));
-        tbody.innerHTML = rowsOut.map(r => {
-          const decision = (r.present && r.present > 0) ? 'Présent' : ((r.absent && r.absent > 0) ? 'Absent' : '—');
-          return `
+        tbody.innerHTML = rowsOut.map(r => `
           <tr>
             <td>${r.agent}</td>
             <td>${r.project}</td>
             <td>${r.planned}</td>
             <td>${r.present}</td>
             <td>${r.absent}</td>
-            <td>${decision}</td>
-            <td title="${r.justification}">${r.justification}</td>
+            <td>${r.radius_m ?? '—'}</td>
+            <td>${(r.dist_first != null) ? r.dist_first : (r.dist_min != null ? r.dist_min : '—')}</td>
           </tr>
-        `; }).join('');
+        `).join('');
         console.log('✅ MonthlySummary (validé backend):', rowsOut.length);
         return; // On n'utilise pas le fallback si validé dispo
       }

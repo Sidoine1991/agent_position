@@ -527,19 +527,7 @@ async function updateMonthlySummary() {
             days.forEach(v => { if (v && v.minDist != null) distVals.push(Number(v.minDist)); });
             const distMin = distVals.length ? Math.round(Math.min(...distVals)) : null;
             const distMax = distVals.length ? Math.round(Math.max(...distVals)) : null;
-            const absSuffix = (r.absent && r.absent > 0) ? ` — Absents: ${r.absent} j` : '';
-            // Texte simple avec rayon et décision
-            if ((r.present || 0) === 0 && (r.planned || 0) > 0) {
-              r.justification = `Rayon ${tol} m — Absent` + (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : '') + absSuffix;
-            } else if (withinCount > 0 && outsideCount === 0) {
-              r.justification = `Rayon ${tol} m — Présent dans la zone (${withinCount} j)` + (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : '') + absSuffix;
-            } else if (withinCount === 0 && outsideCount > 0) {
-              r.justification = `Rayon ${tol} m — Présent hors zone (${outsideCount} j)` + (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : '') + absSuffix;
-            } else if (withinCount > 0 && outsideCount > 0) {
-              r.justification = `Rayon ${tol} m — Mixte: ${withinCount} j dans zone, ${outsideCount} j hors zone` + (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : '') + absSuffix;
-            } else {
-              r.justification = `Rayon ${tol} m — ${missing > 0 ? 'Absent' : '—'}` + (distMin != null ? ` — Dist. min/max: ${distMin}/${distMax} m` : '') + absSuffix;
-            }
+            // Ne plus générer de justification textuelle dans le tableau
           });
         } catch(e) { console.warn('Justification enrichie (distance) indisponible:', e?.message || e); }
 
