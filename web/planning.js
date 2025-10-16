@@ -124,6 +124,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     const projectSelect = document.getElementById('project-select');
     const agentSelect = document.getElementById('agent-select');
+    const weekInput = document.getElementById('week-start');
     
     if (projectSelect) {
       projectSelect.addEventListener('change', (e) => {
@@ -138,6 +139,14 @@
         selectedAgentId = e.target.value;
         console.log('Filtre agent changé:', selectedAgentId);
         loadWeek(document.getElementById('week-start').value);
+      });
+    }
+
+    if (weekInput) {
+      weekInput.addEventListener('change', () => {
+        // Recharger avec la période choisie et les filtres courants
+        loadWeek(weekInput.value);
+        scheduleMonthRefresh(200);
       });
     }
   });
@@ -422,10 +431,12 @@
 
     const projectParam = selectedProjectId ? `&project_name=${selectedProjectId}` : '';
     const agentParam = selectedAgentId ? `&agent_id=${selectedAgentId}` : '';
+    const checkinsPath = selectedAgentId ? `/checkins?agent_id=${encodeURIComponent(selectedAgentId)}&from=${from}&to=${to}` : `/checkins/mine?from=${from}&to=${to}`;
+    const validationsPath = selectedAgentId ? `/validations?agent_id=${encodeURIComponent(selectedAgentId)}&from=${from}&to=${to}` : `/validations/mine?from=${from}&to=${to}`;
     const [plansRes, checkinsRes, validationsRes] = await Promise.all([
       fetch(`${apiBase}/planifications?from=${from}&to=${to}${projectParam}${agentParam}`, { headers }),
-      fetch(`${apiBase}/checkins/mine?from=${from}&to=${to}`, { headers }),
-      fetch(`${apiBase}/validations/mine?from=${from}&to=${to}`, { headers })
+      fetch(`${apiBase}${checkinsPath}`, { headers }),
+      fetch(`${apiBase}${validationsPath}`, { headers })
     ]);
     if (plansRes.status === 401 || checkinsRes.status === 401 || validationsRes.status === 401) {
       showPlanningAuthBanner('🔒 Session requise pour charger la planification. Connectez-vous depuis la page d\'accueil, puis revenez ici.');
@@ -586,9 +597,10 @@
 
     const projectParam = selectedProjectId ? `&project_name=${selectedProjectId}` : '';
     const agentParam = selectedAgentId ? `&agent_id=${selectedAgentId}` : '';
+    const checkinsPathM = selectedAgentId ? `/checkins?agent_id=${encodeURIComponent(selectedAgentId)}&from=${from}&to=${to}` : `/checkins/mine?from=${from}&to=${to}`;
     const [plansRes, checkinsRes] = await Promise.all([
       fetch(`${apiBase}/planifications?from=${from}&to=${to}${projectParam}${agentParam}`, { headers }),
-      fetch(`${apiBase}/checkins/mine?from=${from}&to=${to}`, { headers })
+      fetch(`${apiBase}${checkinsPathM}`, { headers })
     ]);
     if (plansRes.status === 401 || checkinsRes.status === 401) {
       if (gantt) { gantt.innerHTML = '<div class="text-muted">Connexion requise pour afficher le récap mensuel.</div>'; }
