@@ -162,7 +162,37 @@ async function generateReport() {
         body: JSON.stringify(body)
       });
       if (!r.ok) throw new Error(`RPC ${r.status}`);
-      const rows = await r.json();
+      let rows = await r.json();
+      // Appliquer le filtre projet côté client si sélectionné
+      try {
+        const proj = (document.getElementById('project-filter')?.value || 'all').trim();
+        if (proj && proj !== 'all') {
+          rows = rows.filter(it => {
+            const a = (it.projet || it.project_name || '').trim();
+            return a === proj;
+          });
+        }
+      } catch {}
+      // Appliquer le filtre de date précise côté client (robuste fuseaux/format)
+      try {
+        const precise = (document.getElementById('date-filter')?.value || '').trim();
+        if (precise) {
+          rows = rows.filter(it => dateMatchesPrecise(precise, it.ts || it.date || it.created_at));
+        }
+      } catch {}
+      // Appliquer le filtre agent côté client (fallback si l'ID ne correspond pas)
+      try {
+        const sel = document.getElementById('agent-filter');
+        const val = sel ? sel.value : 'all';
+        if (val && val !== 'all') {
+          const label = sel.options[sel.selectedIndex]?.text?.trim() || '';
+          rows = rows.filter(it => {
+            const byId = String(it.agent_id || '') === String(val);
+            const byName = label && String(it.agent || '').trim() === label;
+            return byId || byName;
+          });
+        }
+      } catch {}
       // Convertir vers le modèle d’affichage existant
       const agents = new Map();
       for (const it of rows) {
@@ -284,7 +314,10 @@ async function loadValidations() {
     if (start) qs.set('from', start);
     if (end) qs.set('to', end);
     const resp = await api('/reports/validations?' + qs.toString());
-    const items = resp?.items || [];
+    let items = resp?.items || [];
+    if (preciseDate) {
+      items = items.filter(it => dateMatchesPrecise(preciseDate, it.date || it.ts || it.created_at));
+    }
     const body = $('validations-body');
     body.innerHTML = items.map(it => `
       <tr>
@@ -583,12 +616,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialiser les filtres
     updateReportFilters();
     await loadAgentsOptions();
+    try { await loadProjectsOptions(); } catch {}
     updateDateInputs();
     // Initialiser la date précise par défaut (aujourd'hui)
     try { const df = document.getElementById('date-filter'); if (df) df.value = new Date().toISOString().split('T')[0]; } catch {}
     
     // Charger les rapports sauvegardés
     await loadSavedReports();
+    // Charger les validations selon les filtres initiaux
+    try { await loadValidationsWithPreciseDate(); } catch {}
 
     // Brancher les boutons et selects (backend-side, sans inline handlers)
     try {
@@ -655,6 +691,9 @@ function resetFilters() {
   try { $('project-filter').value = 'all'; } catch {}
   // Rafraîchir l'affichage par défaut
   loadValidationsWithPreciseDate();
+  try {
+    const results = $('report-results'); if (results) results.style.display = 'none';
+  } catch {}
 }
 
 async function loadValidationsWithPreciseDate() {
@@ -670,7 +709,35 @@ async function loadValidationsWithPreciseDate() {
     if (start) qs.set('from', start);
     if (end) qs.set('to', end);
     const resp = await api('/reports/validations?' + qs.toString());
-    const items = resp?.items || [];
+    let items = resp?.items || [];
+    if (preciseDate) {
+      items = items.filter(it => dateMatchesPrecise(preciseDate, it.date || it.ts || it.created_at));
+    }
+
+// Utilitaire de comparaison de dates robuste multi-format/fuseaux
+function dateMatchesPrecise(preciseYmd, value) {
+  try {
+    if (!value) return false;
+    // Normaliser différentes formes possibles
+    // - ISO: 2025-10-16T...
+    // - Epoch (nombre)
+    // - Chaîne locale fr "16/10/2025 12:34:56"
+    let d;
+    if (typeof value === 'number') d = new Date(value);
+    else if (/^\d{4}-\d{2}-\d{2}/.test(String(value))) d = new Date(value);
+    else if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(String(value))) {
+      const [dd, mm, yyyy] = String(value).split(/[\s/]/);
+      d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+    } else d = new Date(value);
+    if (!d || isNaN(d.getTime())) return false;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    const localDate = `${y}-${m}-${day}`;
+    const isoDate = d.toISOString().slice(0,10);
+    return localDate === preciseYmd || isoDate === preciseYmd;
+  } catch { return false; }
+}
     const body = $('validations-body');
     body.innerHTML = items.map(it => `
       <tr>
@@ -688,5 +755,52 @@ async function loadValidationsWithPreciseDate() {
   } catch (e) {
     console.error('Erreur loadValidationsWithPreciseDate:', e);
     $('validations-body').innerHTML = '<tr><td colspan="9">Erreur de chargement</td></tr>';
+  }
+}
+
+// Charger les projets disponibles pour le filtre
+async function loadProjectsOptions() {
+  try {
+    const sel = $('project-filter');
+    if (!sel) return;
+    // Par défaut
+    sel.innerHTML = '<option value="all">Tous les projets</option>';
+
+    // 1) Essayer via backend admin/agents pour extraire les projets uniques
+    let projects = new Set();
+    try {
+      if (jwt) {
+        const res = await fetch(apiBase + '/admin/agents', { headers: { 'Authorization': 'Bearer ' + jwt } });
+        if (res.ok) {
+          const payload = await res.json();
+          const list = Array.isArray(payload) ? payload : (payload?.data || payload?.agents || payload?.items || []);
+          list.forEach(u => { if (u.project_name && String(u.project_name).trim()) projects.add(String(u.project_name).trim()); });
+        }
+      }
+    } catch {}
+
+    // 2) Fallback Supabase direct si pas de projets via backend
+    if (projects.size === 0) {
+      try {
+        const key  = window.SUPABASE_ANON_KEY || localStorage.getItem('SUPABASE_ANON_KEY') || '';
+        const base = (window.SUPABASE_URL || localStorage.getItem('SUPABASE_URL') || '').replace(/\/+$/,'');
+        if (key && base) {
+          // Sélectionner juste les colonnes utiles, ordre par project_name
+          const p = new URLSearchParams();
+          p.set('select', 'project_name');
+          p.set('order', 'project_name');
+          const r = await fetch(`${base}/rest/v1/users?${p.toString()}`, { headers: { apikey: key, Authorization: 'Bearer ' + key } });
+          const rows = r.ok ? await r.json() : [];
+          rows.forEach(u => { if (u.project_name && String(u.project_name).trim()) projects.add(String(u.project_name).trim()); });
+        }
+      } catch {}
+    }
+
+    // Renseigner le select
+    if (projects.size > 0) {
+      sel.innerHTML = '<option value="all">Tous les projets</option>' + Array.from(projects).map(name => `<option value="${name}">${name}</option>`).join('');
+    }
+  } catch (e) {
+    console.warn('loadProjectsOptions failed:', e?.message || e);
   }
 }

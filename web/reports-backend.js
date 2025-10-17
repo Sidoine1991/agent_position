@@ -3,6 +3,8 @@
 
 let jwt = localStorage.getItem('jwt') || '';
 let currentUser = null;
+let presenceLineChart = null;
+let rolePieChart = null;
 
 function getQueryParam(name) {
   const params = new URLSearchParams(window.location.search);
@@ -71,6 +73,8 @@ function getRangeDatesFromUI() {
   const range = document.getElementById('date-range')?.value || 'month';
   const fmt = d => d.toISOString().split('T')[0];
   const today = new Date();
+  const precise = (document.getElementById('date-filter')?.value || '').trim();
+  if (precise) return { start: precise, end: precise };
   
   if (range === 'today') return { start: fmt(today), end: fmt(today) };
   if (range === 'week') {
@@ -127,7 +131,17 @@ async function fetchReportsFromBackend(agentId = null) {
   
   try {
     const result = await api('/reports?' + params.toString());
-    return result.success ? result.data : [];
+    let rows = result.success ? (result.data || []) : [];
+    // Filtrage client complémentaire: projet et date précise
+    try {
+      const proj = (document.getElementById('project-filter')?.value || 'all').trim();
+      if (proj && proj !== 'all') rows = rows.filter(r => String(r.projet || r.project_name || '').trim() === proj);
+    } catch {}
+    try {
+      const precise = (document.getElementById('date-filter')?.value || '').trim();
+      if (precise) rows = rows.filter(r => dateMatchesPrecise(precise, r.ts || r.date || r.created_at));
+    } catch {}
+    return rows;
   } catch (error) {
     console.error('Erreur lors de la récupération des rapports:', error);
     return [];
@@ -197,6 +211,9 @@ window.generateReport = async function() {
   
   const rr = document.getElementById('report-results');
   if (rr) rr.style.display = 'block';
+
+  // Dessiner/mettre à jour les graphiques
+  try { renderCharts(rows); } catch (e) { console.warn('Charts render failed:', e?.message || e); }
 };
 
 window.exportReport = function() {
@@ -320,9 +337,122 @@ document.addEventListener('DOMContentLoaded', async function() {
   if (loadBtn) {
     loadBtn.addEventListener('click', window.loadValidations);
   }
+  const applyBtn = document.getElementById('apply-filters-btn');
+  if (applyBtn) {
+    applyBtn.addEventListener('click', async () => { try { await window.generateReport(); } catch (e) { console.error(e); } });
+  }
+  const resetBtn = document.getElementById('reset-filters-btn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      try {
+        const dr = document.getElementById('date-range'); if (dr) dr.value = 'today';
+        const df = document.getElementById('date-filter'); if (df) df.value = new Date().toISOString().slice(0,10);
+        const ag = document.getElementById('agent-filter'); if (ag) ag.value = 'all';
+        const pj = document.getElementById('project-filter'); if (pj) pj.value = 'all';
+        const rr = document.getElementById('report-results'); if (rr) rr.style.display = 'none';
+      } catch {}
+    });
+  }
   
   // Initialiser les champs de date
   window.updateDateInputs();
   
   console.log('✅ Reports.js initialisé avec succès');
 });
+
+// === Utilitaires ===
+function dateMatchesPrecise(preciseYmd, value) {
+  try {
+    if (!value) return false;
+    let d;
+    if (typeof value === 'number') d = new Date(value);
+    else if (/^\d{4}-\d{2}-\d{2}/.test(String(value))) d = new Date(value);
+    else if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(String(value))) {
+      const [dd, mm, yyyy] = String(value).split(/[\s/]/);
+      d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+    } else d = new Date(value);
+    if (!d || isNaN(d.getTime())) return false;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    const localDate = `${y}-${m}-${day}`;
+    const isoDate = d.toISOString().slice(0,10);
+    return localDate === preciseYmd || isoDate === preciseYmd;
+  } catch { return false; }
+}
+
+function renderCharts(rows) {
+  // Préparer données d'évolution de présence par jour (Présents par date)
+  const byDate = new Map(); // dateYMD -> { present: n, total: n }
+  const fmtYMD = d => {
+    const dt = new Date(d);
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const da = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${da}`;
+  };
+  (rows || []).forEach(r => {
+    if (!r.ts) return;
+    const key = fmtYMD(r.ts);
+    const rec = byDate.get(key) || { present: 0, total: 0 };
+    rec.total++;
+    if (!String(r.statut || '').toLowerCase().includes('hors')) rec.present++;
+    byDate.set(key, rec);
+  });
+  const labels = Array.from(byDate.keys()).sort();
+  const presentValues = labels.map(k => byDate.get(k).present);
+
+  // Détruire les graphiques précédents si existants
+  try { if (presenceLineChart) { presenceLineChart.destroy(); presenceLineChart = null; } } catch {}
+  try { if (rolePieChart) { rolePieChart.destroy(); rolePieChart = null; } } catch {}
+
+  // Line chart
+  const lineCanvas = document.getElementById('presence-line-chart');
+  if (lineCanvas && typeof Chart !== 'undefined') {
+    presenceLineChart = new Chart(lineCanvas.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Présents par jour',
+          data: presentValues,
+          borderColor: '#4f46e5',
+          backgroundColor: 'rgba(79,70,229,0.2)',
+          tension: 0.25,
+          fill: true,
+          pointRadius: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: true } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+      }
+    });
+  }
+
+  // Pie chart: répartition Présents vs Absents
+  let present = 0, absent = 0;
+  const agentsSet = new Map(); // agent_id -> present boolean OR
+  (rows || []).forEach(r => {
+    const key = r.agent_id || r.agent || Math.random();
+    const isPresent = !String(r.statut || '').toLowerCase().includes('hors');
+    if (!agentsSet.has(key)) agentsSet.set(key, isPresent);
+    else agentsSet.set(key, agentsSet.get(key) || isPresent);
+  });
+  Array.from(agentsSet.values()).forEach(v => v ? present++ : absent++);
+  const pieCanvas = document.getElementById('role-pie-chart');
+  if (pieCanvas && typeof Chart !== 'undefined') {
+    rolePieChart = new Chart(pieCanvas.getContext('2d'), {
+      type: 'pie',
+      data: {
+        labels: ['Présents', 'Absents'],
+        datasets: [{
+          data: [present, absent],
+          backgroundColor: ['#10b981', '#ef4444']
+        }]
+      },
+      options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+}

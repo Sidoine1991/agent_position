@@ -1457,7 +1457,10 @@ async function init() {
       let distanceStr = null;
       try {
         if (m.start_time) startStr = new Date(m.start_time).toLocaleString();
-        if (m.end_time) endStr = new Date(m.end_time).toLocaleString();
+        let startMs = null;
+        let endMs = null;
+        if (m.start_time) { const d = new Date(m.start_time); startStr = d.toLocaleString(); startMs = d.getTime(); }
+        if (m.end_time) { const d = new Date(m.end_time); endStr = d.toLocaleString(); endMs = d.getTime(); }
         // Distance: depuis mission si présent, sinon depuis cache, sinon calcul
         if (typeof m.total_distance_m !== 'undefined' && m.total_distance_m !== null) {
           const d = Number(m.total_distance_m);
@@ -1474,8 +1477,8 @@ async function init() {
           const rows = Array.isArray(resp) ? resp : (resp.items || resp.checkins || (resp.data && (resp.data.items || resp.data.checkins)) || []);
           if (rows && rows.length) {
             const sorted = rows.slice().sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
-            if (startStr === '-' && sorted[0] && sorted[0].timestamp) startStr = new Date(sorted[0].timestamp).toLocaleString();
-            if (endStr === '-' && sorted[sorted.length-1] && sorted[sorted.length-1].timestamp) endStr = new Date(sorted[sorted.length-1].timestamp).toLocaleString();
+            if (startStr === '-' && sorted[0] && sorted[0].timestamp) { const d0 = new Date(sorted[0].timestamp); startStr = d0.toLocaleString(); startMs = d0.getTime(); }
+            if (endStr === '-' && sorted[sorted.length-1] && sorted[sorted.length-1].timestamp) { const dl = new Date(sorted[sorted.length-1].timestamp); endStr = dl.toLocaleString(); endMs = dl.getTime(); }
             if (!distanceStr) {
               try { await computeAndStoreDailyDistance(m.id); } catch {}
               try {
@@ -1495,10 +1498,23 @@ async function init() {
       const comName = manualCommune || getCommuneNameById(m.departement, m.commune);
       const arrText = manualArr || '';
       const vilText = manualVil || '';
+      // Durée passée sur le terrain (si heure de début disponible)
+      let durationStr = '';
+      try {
+        if (startMs) {
+          const effectiveEnd = endMs || Date.now();
+          const diff = Math.max(0, effectiveEnd - startMs);
+          const h = Math.floor(diff / 3600000);
+          const mns = Math.floor((diff % 3600000) / 60000);
+          durationStr = h > 0 ? `${h}h ${mns}min` : `${mns}min`;
+          if (!endMs && String(m.status || '').toLowerCase() !== 'completed') durationStr += ' (en cours)';
+        }
+      } catch {}
       li.innerHTML = `
         <div class="list-item">
           <div><strong>Mission #${m.id}</strong> — ${m.status}</div>
           <div>Début: ${startStr} • Fin: ${endStr}</div>
+          ${durationStr ? `<div>Durée sur le terrain: ${durationStr}</div>` : ''}
           <div>Département: ${depName || '-'} • Commune: ${comName || '-'}</div>
           ${arrText ? `<div>Arrondissement: ${arrText}</div>` : ''}
           ${vilText ? `<div>Village: ${vilText}</div>` : ''}
@@ -1643,10 +1659,26 @@ async function refreshCheckins() {
     li.style.animationDelay = `${i * 0.1}s`;
     
     const when = new Date(c.timestamp + 'Z').toLocaleString();
+    // Durée jusqu'au prochain check-in (ou en cours)
+    let durationStr = '';
+    try {
+      const curTs = new Date(c.timestamp).getTime();
+      const nextTs = (i < items.length - 1) ? new Date(items[i+1].timestamp).getTime() : NaN;
+      let endTs = Number.isFinite(nextTs) ? nextTs : NaN;
+      if (!Number.isFinite(endTs)) {
+        // si pas de prochain point, utiliser maintenant (mission en cours)
+        endTs = Date.now();
+      }
+      const diff = Math.max(0, endTs - curTs);
+      const h = Math.floor(diff / 3600000);
+      const mns = Math.floor((diff % 3600000) / 60000);
+      durationStr = h > 0 ? `${h}h ${mns}min` : `${mns}min`;
+    } catch {}
     li.innerHTML = `
       <div class="checkin-item">
         <div class="checkin-time">${when}</div>
         <div class="checkin-coords">(${c.lat.toFixed(5)}, ${c.lon.toFixed(5)})</div>
+        ${durationStr ? `<div class="checkin-duration">Durée jusqu'au suivant: ${durationStr}</div>` : ''}
         <div class="checkin-note">${c.note || ''}</div>
       </div>
     `;
