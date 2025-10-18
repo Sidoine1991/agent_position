@@ -29,7 +29,7 @@ BEGIN
          '[{"key": "Ctrl + G", "action": "Générer un rapport"}, {"key": "Ctrl + E", "action": "Exporter en PDF"}, {"key": "Ctrl + R", "action": "Actualiser les données"}]'::jsonb)
         ON CONFLICT DO NOTHING;
         
-        RAISE NOTICE '✅ Données contextual_help corrigées';
+        RAISE NOTICE '✅ Donnees contextual_help corrigees';
     ELSE
         RAISE NOTICE '⚠️ Table contextual_help n''existe pas encore';
     END IF;
@@ -180,7 +180,7 @@ BEGIN
         DELETE FROM enriched_reports WHERE user_id NOT IN (SELECT id FROM users);
         DELETE FROM personal_goals WHERE user_id NOT IN (SELECT id FROM users);
         
-        RAISE NOTICE '✅ Violations de contraintes nettoyées';
+        RAISE NOTICE '✅ Violations de contraintes nettoyees';
     END IF;
 END $$;
 
@@ -268,14 +268,14 @@ BEGIN
     RAISE NOTICE '🎉 ====================================================';
     RAISE NOTICE '';
     RAISE NOTICE '🔧 Corrections effectuées:';
-    RAISE NOTICE '   • Erreurs de syntaxe JSON corrigées';
-    RAISE NOTICE '   • Blocs DO $$ vérifiés et corrigés';
-    RAISE NOTICE '   • Tables manquantes créées';
-    RAISE NOTICE '   • Extensions vérifiées';
-    RAISE NOTICE '   • Données corrompues nettoyées';
-    RAISE NOTICE '   • Contraintes vérifiées et réparées';
-    RAISE NOTICE '   • Index manquants créés';
+    RAISE NOTICE '   • Erreurs de syntaxe JSON corrigees';
+        RAISE NOTICE '   • Blocs DO $$ verifies et corriges';
+    RAISE NOTICE '   • Tables manquantes creees';
+    RAISE NOTICE '   • Extensions verifiees';
+    RAISE NOTICE '   • Donnees corrompues nettoyees';
+    RAISE NOTICE '   • Contraintes verifiees et reparees';
+    RAISE NOTICE '   • Index manquants crees';
     RAISE NOTICE '';
-    RAISE NOTICE '🚀 Votre base de données est maintenant prête!';
+    RAISE NOTICE '🚀 Votre base de donnees est maintenant prete!';
     RAISE NOTICE '';
 END $$;
