@@ -135,8 +135,8 @@
       <!-- Filtres de rapport -->
       <div class="filters-section">
         <h3>📅 Paramètres du Rapport</h3>
-        <div class="filters-grid">
-          <div class="filter-group">
+        <div class="filters-grid" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
+          <div class="filter-group" style="flex: 1 1 180px; min-width: 150px;">
             <label for="report-type">Type de rapport :</label>
             <select id="report-type" onchange="updateReportFilters()">
               <option value="presence">Rapport de Présence</option>
@@ -145,7 +145,7 @@
               <option value="summary">Résumé Exécutif</option>
             </select>
           </div>
-          <div class="filter-group">
+          <div class="filter-group" style="flex: 1 1 180px; min-width: 150px;">
             <label for="date-range">Période :</label>
             <select id="date-range">
               <option value="today">Aujourd'hui</option>
@@ -156,19 +156,19 @@
               <option value="custom">Période personnalisée</option>
             </select>
           </div>
-          <div class="filter-group">
+          <div class="filter-group" style="flex: 1 1 180px; min-width: 150px;">
             <label for="date-filter">Date précise :</label>
             <input type="date" id="date-filter">
           </div>
-          <div class="filter-group" id="custom-date-group" style="display: none;">
+          <div class="filter-group" id="custom-date-group" style="flex: 1 1 180px; min-width: 150px; display: none;">
             <label for="start-date">Date de début :</label>
             <input type="date" id="start-date">
           </div>
-          <div class="filter-group" id="custom-date-group-end" style="display: none;">
+          <div class="filter-group" id="custom-date-group-end" style="flex: 1 1 180px; min-width: 150px; display: none;">
             <label for="end-date">Date de fin :</label>
             <input type="date" id="end-date">
           </div>
-          <div class="filter-group">
+          <div class="filter-group" style="flex: 1 1 180px; min-width: 150px;">
             <label for="agent-filter">Agent :</label>
             <select id="agent-filter">
               <option value="all">Tous les agents</option>
@@ -177,7 +177,7 @@
               <option value="3">Agent Test</option>
             </select>
           </div>
-          <div class="filter-group">
+          <div class="filter-group" style="flex: 1 1 180px; min-width: 150px;">
             <label for="project-filter">Projet :</label>
             <select id="project-filter">
               <option value="all">Tous les projets</option>
@@ -278,7 +278,7 @@
               <canvas id="presence-line-chart" height="120"></canvas>
             </div>
             <div class="chart-container">
-              <h4>🥧 Répartition par Rôle</h4>
+              <h4>🥧 Répartition par Statut</h4>
               <canvas id="role-pie-chart" height="120"></canvas>
             </div>
           </div>

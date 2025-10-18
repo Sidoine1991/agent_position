@@ -30,6 +30,8 @@
   let selectedProjectId = '';
   let agents = [];
   let selectedAgentId = '';
+  let supervisors = [];
+  let selectedSupervisorId = '';
 
   // Charger les agents
   async function loadAgents() {
@@ -56,6 +58,37 @@
     } catch (error) {
       console.error('Erreur chargement agents:', error);
     }
+  }
+
+  // Charger les superviseurs
+  async function loadSupervisors() {
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`${apiBase}/admin/agents`, { headers });
+      if (res.ok) {
+        const result = await res.json();
+        const users = result.agents || result.data || result || [];
+        if (!Array.isArray(users)) return;
+        supervisors = users.filter(u => (String(u.role || '').toLowerCase() === 'supervisor' || String(u.role || '').toLowerCase() === 'superviseur'));
+        updateSupervisorSelect();
+      }
+    } catch (e) { console.error('Erreur chargement superviseurs:', e); }
+  }
+
+  function updateSupervisorSelect() {
+    const select = document.getElementById('supervisor-select');
+    if (!select) return;
+    const prev = select.value;
+    select.innerHTML = '<option value="">Tous</option>';
+    supervisors.forEach(sup => {
+      const opt = document.createElement('option');
+      opt.value = String(sup.id || sup.email || '');
+      const name = sup.name || `${sup.first_name || ''} ${sup.last_name || ''}`.trim() || sup.email;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
+    // Rétablir valeur précédente si possible
+    if (prev) select.value = prev;
   }
 
   function updateAgentSelect() {
@@ -124,9 +157,18 @@
   document.addEventListener('DOMContentLoaded', () => {
     const projectSelect = document.getElementById('project-select');
     const agentSelect = document.getElementById('agent-select');
+    const supervisorSelect = document.getElementById('supervisor-select');
     const weekInput = document.getElementById('week-start');
     const applyBtn = document.getElementById('apply-filters-btn');
     const resetBtn = document.getElementById('reset-filters-btn');
+    if (supervisorSelect) {
+      supervisorSelect.addEventListener('change', (e) => {
+        selectedSupervisorId = e.target.value;
+        // Filtrer la liste d'agents selon le superviseur
+        filterAgentsBySupervisor();
+        loadWeek(document.getElementById('week-start').value);
+      });
+    }
     
     if (projectSelect) {
       projectSelect.addEventListener('change', (e) => {
@@ -166,6 +208,8 @@
         // Réinitialiser les filtres (agent, projet, semaine, mois)
         if (agentSelect) agentSelect.value = '';
         selectedAgentId = '';
+        if (supervisorSelect) supervisorSelect.value = '';
+        selectedSupervisorId = '';
         if (projectSelect) projectSelect.value = '';
         selectedProjectId = '';
         // Semaine actuelle
@@ -182,6 +226,32 @@
       });
     }
   });
+
+  function filterAgentsBySupervisor() {
+    try {
+      const select = document.getElementById('agent-select');
+      if (!select) return;
+      const options = Array.from(select.querySelectorAll('option'));
+      options.forEach((opt, idx) => {
+        if (idx === 0) return;
+        const agent = agents.find(a => String(a.id) === String(opt.value));
+        if (!agent) { opt.style.display = 'none'; return; }
+        const supId = String(agent.supervisor_id || agent.supervisor || agent.supervisor_email || '');
+        const show = !selectedSupervisorId || supId === String(selectedSupervisorId);
+        opt.style.display = show ? '' : 'none';
+      });
+      // Si l'agent sélectionné ne correspond plus, vider
+      const current = select.value;
+      const curAgent = agents.find(a => String(a.id) === String(current));
+      if (current && curAgent) {
+        const supId = String(curAgent.supervisor_id || curAgent.supervisor || curAgent.supervisor_email || '');
+        if (selectedSupervisorId && supId !== String(selectedSupervisorId)) {
+          select.value = '';
+          selectedAgentId = '';
+        }
+      }
+    } catch {}
+  }
 
   function findToken() {
     const candidates = ['jwt','access_token','token','sb-access-token','sb:token'];
@@ -461,12 +531,13 @@
     const to = toISODate(days[6]);
     const headers = await authHeaders();
 
-    const projectParam = selectedProjectId ? `&project_name=${selectedProjectId}` : '';
-    const agentParam = selectedAgentId ? `&agent_id=${selectedAgentId}` : '';
+    const projectParam = selectedProjectId ? `&project_name=${encodeURIComponent(selectedProjectId)}` : '';
+    const agentParam = selectedAgentId ? `&agent_id=${encodeURIComponent(selectedAgentId)}` : '';
+    const supervisorParam = selectedSupervisorId ? `&supervisor_id=${encodeURIComponent(selectedSupervisorId)}` : '';
     const checkinsPath = selectedAgentId ? `/checkins?agent_id=${encodeURIComponent(selectedAgentId)}&from=${from}&to=${to}` : `/checkins/mine?from=${from}&to=${to}`;
     const validationsPath = selectedAgentId ? `/validations?agent_id=${encodeURIComponent(selectedAgentId)}&from=${from}&to=${to}` : `/validations/mine?from=${from}&to=${to}`;
     const [plansRes, checkinsRes, validationsRes] = await Promise.all([
-      fetch(`${apiBase}/planifications?from=${from}&to=${to}${projectParam}${agentParam}`, { headers }),
+      fetch(`${apiBase}/planifications?from=${from}&to=${to}${projectParam}${agentParam}${supervisorParam}`, { headers }),
       fetch(`${apiBase}${checkinsPath}`, { headers }),
       fetch(`${apiBase}${validationsPath}`, { headers })
     ]);
@@ -627,11 +698,12 @@
     const gantt = $('month-gantt');
     if (gantt) { gantt.innerHTML = '<div class="text-muted">Chargement du récap mensuel…</div>'; }
 
-    const projectParam = selectedProjectId ? `&project_name=${selectedProjectId}` : '';
-    const agentParam = selectedAgentId ? `&agent_id=${selectedAgentId}` : '';
+    const projectParam = selectedProjectId ? `&project_name=${encodeURIComponent(selectedProjectId)}` : '';
+    const agentParam = selectedAgentId ? `&agent_id=${encodeURIComponent(selectedAgentId)}` : '';
+    const supervisorParam = selectedSupervisorId ? `&supervisor_id=${encodeURIComponent(selectedSupervisorId)}` : '';
     const checkinsPathM = selectedAgentId ? `/checkins?agent_id=${encodeURIComponent(selectedAgentId)}&from=${from}&to=${to}` : `/checkins/mine?from=${from}&to=${to}`;
     const [plansRes, checkinsRes] = await Promise.all([
-      fetch(`${apiBase}/planifications?from=${from}&to=${to}${projectParam}${agentParam}`, { headers }),
+      fetch(`${apiBase}/planifications?from=${from}&to=${to}${projectParam}${agentParam}${supervisorParam}`, { headers }),
       fetch(`${apiBase}${checkinsPathM}`, { headers })
     ]);
     if (plansRes.status === 401 || checkinsRes.status === 401) {
@@ -735,12 +807,13 @@
     await loadWeeklySummary();
   }
 
-  // Fonction pour charger le récap hebdomadaire
+  // Fonction pour charger le récap hebdomadaire (agrégation côté client)
   async function loadWeeklySummary() {
     try {
       const headers = await authHeaders();
-      const projectParam = selectedProjectId ? `&project_name=${selectedProjectId}` : '';
-      const agentParam = selectedAgentId ? `&agent_id=${selectedAgentId}` : '';
+      const projectParam = selectedProjectId ? `&project_name=${encodeURIComponent(selectedProjectId)}` : '';
+      const agentParam = selectedAgentId ? `&agent_id=${encodeURIComponent(selectedAgentId)}` : '';
+      const supervisorParam = selectedSupervisorId ? `&supervisor_id=${encodeURIComponent(selectedSupervisorId)}` : '';
       
       // Utiliser la plage de dates du mois sélectionné ou de la semaine actuelle
       let from, to;
@@ -771,14 +844,70 @@
         to = toISODate(weekEnd);
       }
       
-      const res = await fetch(`${apiBase}/planifications/weekly-summary?from=${from}&to=${to}${projectParam}${agentParam}`, { headers });
-      if (res.ok) {
-        const result = await res.json();
-        const weeklySummaries = result.items || [];
-        displayWeeklySummary(weeklySummaries);
-      } else {
+      // Récupérer les planifications depuis le backend
+      const res = await fetch(`${apiBase}/planifications?from=${from}&to=${to}${projectParam}${agentParam}${supervisorParam}`, { headers });
+      if (!res.ok) {
         displayWeeklySummary([]);
+        return;
       }
+      
+      const result = await res.json();
+      const plans = result.items || [];
+      
+      // Agréger les planifications par semaine, agent, et projet
+      const summaryMap = new Map();
+      
+      for (const plan of plans) {
+        const planDate = new Date(plan.date);
+        const weekStart = startOfWeek(planDate);
+        const weekEnd = addDays(weekStart, 6);
+        const weekKey = `${toISODate(weekStart)}_${plan.user_id}_${plan.project_name || 'général'}`;
+        
+        if (!summaryMap.has(weekKey)) {
+          summaryMap.set(weekKey, {
+            week_start_date: toISODate(weekStart),
+            week_end_date: toISODate(weekEnd),
+            user_id: plan.user_id,
+            users: plan.users || { name: 'Agent', email: '' },
+            project_name: plan.project_name || 'Projet Général',
+            total_planned_hours: 0,
+            total_planned_days: new Set(),
+            activities: []
+          });
+        }
+        
+        const summary = summaryMap.get(weekKey);
+        
+        // Calculer les heures planifiées
+        if (plan.planned_start_time && plan.planned_end_time) {
+          const startMinutes = hoursToX(plan.planned_start_time);
+          const endMinutes = hoursToX(plan.planned_end_time);
+          if (Number.isFinite(startMinutes) && Number.isFinite(endMinutes) && endMinutes > startMinutes) {
+            summary.total_planned_hours += (endMinutes - startMinutes) / 60;
+          }
+        }
+        
+        // Compter les jours uniques
+        summary.total_planned_days.add(toISODate(planDate));
+        
+        // Collecter les activités
+        if (plan.activity && !summary.activities.includes(plan.activity)) {
+          summary.activities.push(plan.activity);
+        }
+      }
+      
+      // Convertir en tableau et formater
+      const weeklySummaries = Array.from(summaryMap.values()).map(summary => ({
+        ...summary,
+        total_planned_hours: Math.round(summary.total_planned_hours * 10) / 10,
+        total_planned_days: summary.total_planned_days.size,
+        activities_summary: summary.activities.join(' | ') || 'Aucune activité'
+      }));
+      
+      // Trier par date de début de semaine
+      weeklySummaries.sort((a, b) => a.week_start_date.localeCompare(b.week_start_date));
+      
+      displayWeeklySummary(weeklySummaries);
     } catch (error) {
       console.error('Erreur chargement récap hebdomadaire:', error);
       displayWeeklySummary([]);
@@ -920,7 +1049,7 @@
       loadWeek(toISODate(d));
     });
     // Wait for auth token if needed to avoid 401 on first load
-    const boot = () => { loadAgents(); loadProjects(); loadWeek(); loadMonth(); };
+    const boot = () => { loadAgents(); loadProjects(); loadSupervisors(); loadWeek(); loadMonth(); };
     const tokenNow = findToken();
     if (tokenNow) {
       boot();
