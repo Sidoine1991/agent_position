@@ -135,52 +135,52 @@
       <!-- Filtres de rapport -->
       <div class="filters-section">
         <h3>📅 Paramètres du Rapport</h3>
-        <div class="filters-grid" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
-          <div class="filter-group" style="flex: 1 1 180px; min-width: 150px;">
-            <label for="report-type">Type de rapport :</label>
-            <select id="report-type" onchange="updateReportFilters()">
-              <option value="presence">Rapport de Présence</option>
-              <option value="activity">Rapport d'Activité</option>
-              <option value="performance">Rapport de Performance</option>
-              <option value="summary">Résumé Exécutif</option>
+        <div class="filters-grid" style="display: flex; flex-wrap: nowrap; gap: 8px; align-items: flex-end; overflow-x: auto; padding-bottom: 8px;">
+          <div class="filter-group" style="flex: 0 0 140px; min-width: 120px;">
+            <label for="report-type" style="font-size: 12px; margin-bottom: 2px;">Type :</label>
+            <select id="report-type" onchange="updateReportFilters()" style="font-size: 12px; padding: 4px 6px;">
+              <option value="presence">Présence</option>
+              <option value="activity">Activité</option>
+              <option value="performance">Performance</option>
+              <option value="summary">Résumé</option>
             </select>
           </div>
-          <div class="filter-group" style="flex: 1 1 180px; min-width: 150px;">
-            <label for="date-range">Période :</label>
-            <select id="date-range">
+          <div class="filter-group" style="flex: 0 0 120px; min-width: 100px;">
+            <label for="date-range" style="font-size: 12px; margin-bottom: 2px;">Période :</label>
+            <select id="date-range" style="font-size: 12px; padding: 4px 6px;">
               <option value="today">Aujourd'hui</option>
-              <option value="week">Cette semaine</option>
-              <option value="month">Ce mois</option>
-              <option value="quarter">Ce trimestre</option>
-              <option value="year">Cette année</option>
-              <option value="custom">Période personnalisée</option>
+              <option value="week">Semaine</option>
+              <option value="month">Mois</option>
+              <option value="quarter">Trimestre</option>
+              <option value="year">Année</option>
+              <option value="custom">Personnalisé</option>
             </select>
           </div>
-          <div class="filter-group" style="flex: 1 1 180px; min-width: 150px;">
-            <label for="date-filter">Date précise :</label>
-            <input type="date" id="date-filter">
+          <div class="filter-group" style="flex: 0 0 120px; min-width: 100px;">
+            <label for="date-filter" style="font-size: 12px; margin-bottom: 2px;">Date :</label>
+            <input type="date" id="date-filter" style="font-size: 12px; padding: 4px 6px;">
           </div>
-          <div class="filter-group" id="custom-date-group" style="flex: 1 1 180px; min-width: 150px; display: none;">
-            <label for="start-date">Date de début :</label>
-            <input type="date" id="start-date">
+          <div class="filter-group" id="custom-date-group" style="flex: 0 0 120px; min-width: 100px; display: none;">
+            <label for="start-date" style="font-size: 12px; margin-bottom: 2px;">Début :</label>
+            <input type="date" id="start-date" style="font-size: 12px; padding: 4px 6px;">
           </div>
-          <div class="filter-group" id="custom-date-group-end" style="flex: 1 1 180px; min-width: 150px; display: none;">
-            <label for="end-date">Date de fin :</label>
-            <input type="date" id="end-date">
+          <div class="filter-group" id="custom-date-group-end" style="flex: 0 0 120px; min-width: 100px; display: none;">
+            <label for="end-date" style="font-size: 12px; margin-bottom: 2px;">Fin :</label>
+            <input type="date" id="end-date" style="font-size: 12px; padding: 4px 6px;">
           </div>
-          <div class="filter-group" style="flex: 1 1 180px; min-width: 150px;">
-            <label for="agent-filter">Agent :</label>
-            <select id="agent-filter">
-              <option value="all">Tous les agents</option>
-              <option value="1">Admin Principal</option>
-              <option value="2">Superviseur Principal</option>
+          <div class="filter-group" style="flex: 0 0 140px; min-width: 120px;">
+            <label for="agent-filter" style="font-size: 12px; margin-bottom: 2px;">Agent :</label>
+            <select id="agent-filter" style="font-size: 12px; padding: 4px 6px;">
+              <option value="all">Tous</option>
+              <option value="1">Admin</option>
+              <option value="2">Superviseur</option>
               <option value="3">Agent Test</option>
             </select>
           </div>
-          <div class="filter-group" style="flex: 1 1 180px; min-width: 150px;">
-            <label for="project-filter">Projet :</label>
-            <select id="project-filter">
-              <option value="all">Tous les projets</option>
+          <div class="filter-group" style="flex: 0 0 120px; min-width: 100px;">
+            <label for="project-filter" style="font-size: 12px; margin-bottom: 2px;">Projet :</label>
+            <select id="project-filter" style="font-size: 12px; padding: 4px 6px;">
+              <option value="all">Tous</option>
             </select>
           </div>
         </div>
