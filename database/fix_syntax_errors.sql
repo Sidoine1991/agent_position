@@ -269,7 +269,7 @@ BEGIN
     RAISE NOTICE '';
     RAISE NOTICE '🔧 Corrections effectuées:';
     RAISE NOTICE '   • Erreurs de syntaxe JSON corrigees';
-        RAISE NOTICE '   • Blocs DO $$ verifies et corriges';
+    RAISE NOTICE '   • Blocs DO $$ verifies et corriges';
     RAISE NOTICE '   • Tables manquantes creees';
     RAISE NOTICE '   • Extensions verifiees';
     RAISE NOTICE '   • Donnees corrompues nettoyees';
