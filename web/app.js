@@ -13,6 +13,11 @@ let notificationManager = null;
 let gpsTracker = null;
 let messagingSystem = null;
 let emergencySystem = null;
+let enrichedReports = null;
+let smartPlanning = null;
+let agentDashboard = null;
+let integratedHelp = null;
+let analyticsInsights = null;
 
 // Configuration des heures de présence sur le terrain
 const WORK_HOURS = {
@@ -3488,6 +3493,11 @@ async function initializeAdvancedSystems() {
     await loadScript('/gps-tracker.js');
     await loadScript('/messaging-system.js');
     await loadScript('/emergency-system.js');
+    await loadScript('/enriched-reports.js');
+    await loadScript('/smart-planning.js');
+    await loadScript('/agent-dashboard.js');
+    await loadScript('/integrated-help.js');
+    await loadScript('/analytics-insights.js');
     
     // Initialiser les gestionnaires
     if (window.offlineManager) {
@@ -3513,6 +3523,31 @@ async function initializeAdvancedSystems() {
     if (window.emergencySystem) {
       emergencySystem = window.emergencySystem;
       console.log('✅ Système d\'urgence initialisé');
+    }
+    
+    if (window.enrichedReports) {
+      enrichedReports = window.enrichedReports;
+      console.log('✅ Système de rapports enrichis initialisé');
+    }
+    
+    if (window.smartPlanning) {
+      smartPlanning = window.smartPlanning;
+      console.log('✅ Système de planification intelligente initialisé');
+    }
+    
+    if (window.agentDashboard) {
+      agentDashboard = window.agentDashboard;
+      console.log('✅ Tableau de bord agent initialisé');
+    }
+    
+    if (window.integratedHelp) {
+      integratedHelp = window.integratedHelp;
+      console.log('✅ Système d\'aide intégrée initialisé');
+    }
+    
+    if (window.analyticsInsights) {
+      analyticsInsights = window.analyticsInsights;
+      console.log('✅ Système d\'analytics et insights initialisé');
     }
     
     // Configurer les événements

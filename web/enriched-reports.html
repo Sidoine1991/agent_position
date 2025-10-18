@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <title>Rapports Enrichis - Presence CCRB</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="/styles.css?v=2" />
+    <link rel="stylesheet" href="/contrast-fixes.css" />
+    <style>
+      .media-capture-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
+        margin-bottom: 20px;
+      }
+      
+      .capture-buttons {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      
+      .capture-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 15px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 15px;
+        color: white;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        min-width: 120px;
+      }
+      
+      .capture-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateY(-2px);
+        color: white;
+        text-decoration: none;
+      }
+      
+      .capture-btn i {
+        font-size: 24px;
+        margin-bottom: 8px;
+      }
+      
+      .media-files-section {
+        background: #f8f9fa;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+      
+      .media-file-item {
+        background: white;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      
+      .media-preview {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+      
+      .media-info {
+        flex: 1;
+      }
+      
+      .form-section {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      
+      .form-field {
+        margin-bottom: 20px;
+      }
+      
+      .audio-player {
+        width: 200px;
+        height: 40px;
+      }
+      
+      .form-data-preview {
+        margin-top: 10px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 5px;
+        font-size: 12px;
+      }
+      
+      .report-actions {
+        position: sticky;
+        bottom: 20px;
+        background: white;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 -2px 20px rgba(0, 0, 0, 0.1);
+        margin-top: 20px;
+      }
+      
+      .action-buttons {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      
+      .btn-action {
+        min-width: 150px;
+        padding: 12px 20px;
+        border-radius: 25px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      
+      @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+      }
+      
+      .recording {
+        animation: pulse 1s infinite;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <a href="/index.html?stay=true" class="navbar-brand-link" style="display:flex;align-items:center;text-decoration:none;color:inherit">
+          <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
+          <div class="navbar-title">
+            <h1>Presence CCRB</h1>
+            <span class="navbar-subtitle">Rapports Enrichis</span>
+          </div>
+        </a>
+      </div>
+      
+      <div class="navbar-menu">
+        <div class="navbar-user" id="navbar-user">
+          <span class="navbar-user-info" id="user-info">Chargement...</span>
+          <button onclick="logout()" class="navbar-logout">
+            <span class="navbar-icon">🚪</span>
+            <span>Déconnexion</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <h2>📋 Rapports Enrichis</h2>
+        <p>Créez des rapports détaillés avec photos, audio et formulaires</p>
+      </div>
+
+      <div class="container">
+        <!-- Section de capture média -->
+        <div class="media-capture-section">
+          <h4 class="text-center mb-4">📸 Capture Multimédia</h4>
+          <div class="capture-buttons">
+            <button id="capture-photo-btn" class="capture-btn">
+              <i class="bi bi-camera"></i>
+              <span>Photo</span>
+            </button>
+            <button id="record-audio-btn" class="capture-btn">
+              <i class="bi bi-mic"></i>
+              <span>Audio</span>
+            </button>
+            <button id="add-signature-btn" class="capture-btn">
+              <i class="bi bi-pen"></i>
+              <span>Signature</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Section des fichiers média -->
+        <div class="media-files-section">
+          <h4 class="mb-3">📁 Fichiers Capturés</h4>
+          <div id="media-files-container">
+            <div class="text-center text-muted">
+              <i class="bi bi-folder2-open fs-1"></i>
+              <p>Aucun fichier capturé</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section des formulaires dynamiques -->
+        <div class="form-section">
+          <h4 class="mb-3">📝 Formulaire de Rapport</h4>
+          <div id="dynamic-form-container">
+            <!-- Les champs de formulaire seront générés ici -->
+            <div class="text-center text-muted">
+              <i class="bi bi-file-text fs-1"></i>
+              <p>Sélectionnez un type de rapport pour charger le formulaire</p>
+            </div>
+          </div>
+          
+          <!-- Sélection du type de rapport -->
+          <div class="row mt-4">
+            <div class="col-md-6">
+              <label for="report-type-select" class="form-label">Type de rapport :</label>
+              <select id="report-type-select" class="form-select">
+                <option value="">Sélectionnez un type...</option>
+                <option value="mission">Rapport de Mission</option>
+                <option value="inspection">Rapport d'Inspection</option>
+                <option value="incident">Rapport d'Incident</option>
+                <option value="maintenance">Rapport de Maintenance</option>
+                <option value="formation">Rapport de Formation</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="location-input" class="form-label">Localisation :</label>
+              <input type="text" id="location-input" class="form-control" placeholder="Lieu de l'activité">
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions du rapport -->
+        <div class="report-actions">
+          <div class="action-buttons">
+            <button id="save-report-btn" class="btn btn-success btn-action">
+              <i class="bi bi-save"></i> Sauvegarder
+            </button>
+            <button id="clear-report-btn" class="btn btn-warning btn-action">
+              <i class="bi bi-arrow-clockwise"></i> Effacer
+            </button>
+            <button id="preview-report-btn" class="btn btn-info btn-action">
+              <i class="bi bi-eye"></i> Aperçu
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="/app.js"></script>
+    <script src="/enriched-reports.js"></script>
+    <script>
+      // Configuration des formulaires dynamiques
+      const formConfigs = {
+        mission: {
+          fields: [
+            { name: 'mission_title', label: 'Titre de la mission', type: 'text', required: true },
+            { name: 'mission_objective', label: 'Objectif', type: 'textarea', required: true },
+            { name: 'mission_status', label: 'Statut', type: 'select', required: true, options: [
+              { value: 'completed', label: 'Terminée' },
+              { value: 'in_progress', label: 'En cours' },
+              { value: 'cancelled', label: 'Annulée' }
+            ]},
+            { name: 'participants', label: 'Nombre de participants', type: 'number', required: true },
+            { name: 'duration', label: 'Durée (heures)', type: 'number', required: true },
+            { name: 'notes', label: 'Notes additionnelles', type: 'textarea' }
+          ]
+        },
+        inspection: {
+          fields: [
+            { name: 'inspection_type', label: 'Type d\'inspection', type: 'select', required: true, options: [
+              { value: 'safety', label: 'Sécurité' },
+              { value: 'quality', label: 'Qualité' },
+              { value: 'environmental', label: 'Environnemental' },
+              { value: 'equipment', label: 'Équipement' }
+            ]},
+            { name: 'inspection_date', label: 'Date d\'inspection', type: 'text', required: true },
+            { name: 'inspector', label: 'Inspecteur', type: 'text', required: true },
+            { name: 'findings', label: 'Observations', type: 'textarea', required: true },
+            { name: 'recommendations', label: 'Recommandations', type: 'textarea' },
+            { name: 'compliance', label: 'Conformité', type: 'select', required: true, options: [
+              { value: 'compliant', label: 'Conforme' },
+              { value: 'non_compliant', label: 'Non conforme' },
+              { value: 'partial', label: 'Partiellement conforme' }
+            ]}
+          ]
+        },
+        incident: {
+          fields: [
+            { name: 'incident_type', label: 'Type d\'incident', type: 'select', required: true, options: [
+              { value: 'accident', label: 'Accident' },
+              { value: 'near_miss', label: 'Presque accident' },
+              { value: 'equipment_failure', label: 'Panne d\'équipement' },
+              { value: 'security', label: 'Sécurité' }
+            ]},
+            { name: 'severity', label: 'Gravité', type: 'select', required: true, options: [
+              { value: 'low', label: 'Faible' },
+              { value: 'medium', label: 'Moyenne' },
+              { value: 'high', label: 'Élevée' },
+              { value: 'critical', label: 'Critique' }
+            ]},
+            { name: 'description', label: 'Description détaillée', type: 'textarea', required: true },
+            { name: 'injuries', label: 'Blessures', type: 'select', required: true, options: [
+              { value: 'none', label: 'Aucune' },
+              { value: 'minor', label: 'Mineures' },
+              { value: 'serious', label: 'Graves' },
+              { value: 'fatal', label: 'Mortelles' }
+            ]},
+            { name: 'witnesses', label: 'Témoins', type: 'textarea' },
+            { name: 'immediate_actions', label: 'Actions immédiates', type: 'textarea', required: true }
+          ]
+        },
+        maintenance: {
+          fields: [
+            { name: 'equipment_name', label: 'Nom de l\'équipement', type: 'text', required: true },
+            { name: 'maintenance_type', label: 'Type de maintenance', type: 'select', required: true, options: [
+              { value: 'preventive', label: 'Préventive' },
+              { value: 'corrective', label: 'Corrective' },
+              { value: 'predictive', label: 'Prédictive' }
+            ]},
+            { name: 'technician', label: 'Technicien', type: 'text', required: true },
+            { name: 'work_performed', label: 'Travaux effectués', type: 'textarea', required: true },
+            { name: 'parts_used', label: 'Pièces utilisées', type: 'textarea' },
+            { name: 'next_maintenance', label: 'Prochaine maintenance', type: 'text' },
+            { name: 'status', label: 'Statut', type: 'select', required: true, options: [
+              { value: 'completed', label: 'Terminé' },
+              { value: 'in_progress', label: 'En cours' },
+              { value: 'pending_parts', label: 'En attente de pièces' }
+            ]}
+          ]
+        },
+        formation: {
+          fields: [
+            { name: 'training_title', label: 'Titre de la formation', type: 'text', required: true },
+            { name: 'trainer', label: 'Formateur', type: 'text', required: true },
+            { name: 'participants_count', label: 'Nombre de participants', type: 'number', required: true },
+            { name: 'duration', label: 'Durée (heures)', type: 'number', required: true },
+            { name: 'topics_covered', label: 'Sujets abordés', type: 'textarea', required: true },
+            { name: 'participant_feedback', label: 'Retour des participants', type: 'textarea' },
+            { name: 'effectiveness', label: 'Efficacité', type: 'select', required: true, options: [
+              { value: 'excellent', label: 'Excellente' },
+              { value: 'good', label: 'Bonne' },
+              { value: 'average', label: 'Moyenne' },
+              { value: 'poor', label: 'Faible' }
+            ]}
+          ]
+        }
+      };
+
+      // Initialiser la page
+      document.addEventListener('DOMContentLoaded', () => {
+        initializeEnrichedReportsPage();
+      });
+
+      function initializeEnrichedReportsPage() {
+        // Attendre que le système de rapports enrichis soit initialisé
+        if (!window.enrichedReports) {
+          setTimeout(initializeEnrichedReportsPage, 100);
+          return;
+        }
+
+        setupEventListeners();
+        updateLocationDisplay();
+      }
+
+      function setupEventListeners() {
+        // Sélection du type de rapport
+        document.getElementById('report-type-select').addEventListener('change', (e) => {
+          const reportType = e.target.value;
+          if (reportType && formConfigs[reportType]) {
+            window.enrichedReports.createDynamicForm(formConfigs[reportType]);
+          } else {
+            document.getElementById('dynamic-form-container').innerHTML = `
+              <div class="text-center text-muted">
+                <i class="bi bi-file-text fs-1"></i>
+                <p>Sélectionnez un type de rapport pour charger le formulaire</p>
+              </div>
+            `;
+          }
+        });
+
+        // Actions du rapport
+        document.getElementById('save-report-btn').addEventListener('click', () => {
+          window.enrichedReports.saveEnrichedReport();
+        });
+
+        document.getElementById('clear-report-btn').addEventListener('click', () => {
+          if (confirm('Êtes-vous sûr de vouloir effacer tous les éléments du rapport ?')) {
+            window.enrichedReports.clearReport();
+          }
+        });
+
+        document.getElementById('preview-report-btn').addEventListener('click', () => {
+          previewReport();
+        });
+
+        // Mise à jour de la localisation
+        setInterval(updateLocationDisplay, 5000);
+      }
+
+      function updateLocationDisplay() {
+        const locationInput = document.getElementById('location-input');
+        if (window.gpsTracker) {
+          const position = window.gpsTracker.getCurrentPosition();
+          if (position) {
+            locationInput.value = `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}`;
+          }
+        }
+      }
+
+      function previewReport() {
+        const reportData = {
+          mediaFiles: window.enrichedReports.mediaFiles,
+          formData: window.enrichedReports.formData,
+          location: document.getElementById('location-input').value,
+          timestamp: new Date().toLocaleString()
+        };
+
+        // Créer un modal d'aperçu
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.innerHTML = `
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">📋 Aperçu du Rapport</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <div class="report-preview">
+                  <h6>Informations générales</h6>
+                  <p><strong>Date :</strong> ${reportData.timestamp}</p>
+                  <p><strong>Localisation :</strong> ${reportData.location}</p>
+                  
+                  <h6 class="mt-4">Fichiers média (${reportData.mediaFiles.length})</h6>
+                  ${reportData.mediaFiles.map(file => `
+                    <div class="preview-item">
+                      <span class="badge bg-primary">${file.type}</span>
+                      <small class="text-muted">${new Date(file.timestamp).toLocaleString()}</small>
+                    </div>
+                  `).join('')}
+                  
+                  <h6 class="mt-4">Données du formulaire</h6>
+                  <div class="form-data-preview">
+                    ${Object.entries(reportData.formData).map(([key, value]) => 
+                      `<p><strong>${key}:</strong> ${value}</p>`
+                    ).join('')}
+                  </div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-primary" onclick="window.enrichedReports.saveEnrichedReport()">Sauvegarder</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(modal);
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+
+        modal.addEventListener('hidden.bs.modal', () => {
+          document.body.removeChild(modal);
+        });
+      }
+    </script>
+  </body>
+</html>

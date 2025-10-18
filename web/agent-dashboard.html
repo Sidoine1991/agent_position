@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <title>Mon Tableau de Bord - Presence CCRB</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="/styles.css?v=2" />
+    <link rel="stylesheet" href="/contrast-fixes.css" />
+    <style>
+      .dashboard-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px 0;
+        margin-bottom: 30px;
+        border-radius: 0 0 20px 20px;
+      }
+      
+      .agent-avatar {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 32px;
+        font-weight: bold;
+        margin: 0 auto 15px;
+      }
+      
+      .dashboard-section {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      }
+      
+      .section-title {
+        color: #333;
+        font-weight: 600;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      
+      .goal-card {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 15px;
+        border-left: 4px solid #007bff;
+      }
+      
+      .goal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+      }
+      
+      .goal-status {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+      
+      .goal-status.active {
+        background: #e3f2fd;
+        color: #1976d2;
+      }
+      
+      .goal-status.completed {
+        background: #e8f5e8;
+        color: #2e7d32;
+      }
+      
+      .goal-progress {
+        margin-bottom: 15px;
+      }
+      
+      .goal-numbers {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 8px;
+        font-size: 14px;
+        color: #666;
+      }
+      
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+      }
+      
+      .stat-card {
+        text-align: center;
+        padding: 25px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 15px;
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+      }
+      
+      .stat-card:hover {
+        transform: translateY(-5px);
+        border-color: #007bff;
+        box-shadow: 0 8px 25px rgba(0, 123, 255, 0.15);
+      }
+      
+      .stat-icon {
+        font-size: 32px;
+        margin-bottom: 15px;
+      }
+      
+      .stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 8px;
+      }
+      
+      .stat-label {
+        color: #666;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      
+      .badges-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 15px;
+      }
+      
+      .badge-card {
+        text-align: center;
+        padding: 20px;
+        border-radius: 12px;
+        border: 2px solid #dee2e6;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .badge-card.earned {
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+        border-color: #ffc107;
+        transform: scale(1.05);
+      }
+      
+      .badge-card.locked {
+        background: #f8f9fa;
+        opacity: 0.6;
+        filter: grayscale(100%);
+      }
+      
+      .badge-card.earned::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        animation: shine 2s infinite;
+      }
+      
+      @keyframes shine {
+        0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+        100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+      }
+      
+      .badge-icon {
+        font-size: 40px;
+        margin-bottom: 10px;
+      }
+      
+      .badge-name {
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #333;
+      }
+      
+      .badge-description {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 8px;
+      }
+      
+      .badge-date {
+        font-size: 10px;
+        color: #28a745;
+        font-weight: 600;
+      }
+      
+      .achievement-item {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        border-left: 4px solid #28a745;
+      }
+      
+      .achievement-icon {
+        font-size: 24px;
+        width: 40px;
+        text-align: center;
+      }
+      
+      .achievement-content {
+        flex: 1;
+      }
+      
+      .achievement-title {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 4px;
+      }
+      
+      .achievement-description {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 4px;
+      }
+      
+      .achievement-date {
+        font-size: 12px;
+        color: #999;
+      }
+      
+      .leaderboard-item {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        transition: all 0.3s ease;
+      }
+      
+      .leaderboard-item:hover {
+        background: #e9ecef;
+        transform: translateX(5px);
+      }
+      
+      .leaderboard-item.current-agent {
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        border: 2px solid #2196f3;
+        font-weight: 600;
+      }
+      
+      .rank {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #007bff;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 16px;
+      }
+      
+      .leaderboard-item.current-agent .rank {
+        background: #ffc107;
+        color: #333;
+      }
+      
+      .agent-name {
+        flex: 1;
+        font-weight: 600;
+        color: #333;
+      }
+      
+      .agent-score {
+        font-weight: 700;
+        color: #007bff;
+        font-size: 18px;
+      }
+      
+      .agent-details {
+        font-size: 12px;
+        color: #666;
+      }
+      
+      .performance-chart {
+        height: 200px;
+        background: #f8f9fa;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #666;
+        font-style: italic;
+      }
+      
+      .motivation-quote {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
+        text-align: center;
+        margin-bottom: 25px;
+      }
+      
+      .quote-text {
+        font-size: 18px;
+        font-style: italic;
+        margin-bottom: 10px;
+      }
+      
+      .quote-author {
+        font-size: 14px;
+        opacity: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <a href="/index.html?stay=true" class="navbar-brand-link" style="display:flex;align-items:center;text-decoration:none;color:inherit">
+          <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
+          <div class="navbar-title">
+            <h1>Presence CCRB</h1>
+            <span class="navbar-subtitle">Mon Tableau de Bord</span>
+          </div>
+        </a>
+      </div>
+      
+      <div class="navbar-menu">
+        <div class="navbar-user" id="navbar-user">
+          <span class="navbar-user-info" id="user-info">Chargement...</span>
+          <button onclick="logout()" class="navbar-logout">
+            <span class="navbar-icon">🚪</span>
+            <span>Déconnexion</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- En-tête du tableau de bord -->
+      <div class="dashboard-header">
+        <div class="container">
+          <div class="row align-items-center">
+            <div class="col-md-8">
+              <div class="agent-avatar" id="agent-avatar">
+                A
+              </div>
+              <h2 id="agent-name">Agent</h2>
+              <p id="agent-role" class="mb-0">Rôle</p>
+            </div>
+            <div class="col-md-4 text-end">
+              <div class="motivation-quote">
+                <div class="quote-text" id="motivation-quote">
+                  "L'excellence n'est jamais un accident. C'est toujours le résultat d'une intention élevée, d'un effort sincère et d'une exécution intelligente."
+                </div>
+                <div class="quote-author">- Aristote</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="container">
+        <!-- Section des objectifs -->
+        <div class="dashboard-section">
+          <h3 class="section-title">
+            <i class="bi bi-bullseye"></i>
+            Mes Objectifs
+          </h3>
+          <div id="goals-container">
+            <!-- Les objectifs seront chargés ici -->
+          </div>
+        </div>
+
+        <!-- Section des statistiques -->
+        <div class="dashboard-section">
+          <h3 class="section-title">
+            <i class="bi bi-graph-up"></i>
+            Mes Statistiques
+          </h3>
+          <div id="stats-container">
+            <!-- Les statistiques seront chargées ici -->
+          </div>
+        </div>
+
+        <div class="row">
+          <!-- Section des badges -->
+          <div class="col-md-6">
+            <div class="dashboard-section">
+              <h3 class="section-title">
+                <i class="bi bi-award"></i>
+                Mes Badges
+              </h3>
+              <div id="badges-container" class="badges-grid">
+                <!-- Les badges seront chargés ici -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Section des réalisations -->
+          <div class="col-md-6">
+            <div class="dashboard-section">
+              <h3 class="section-title">
+                <i class="bi bi-trophy"></i>
+                Mes Réalisations
+              </h3>
+              <div id="achievements-container">
+                <!-- Les réalisations seront chargées ici -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section du classement -->
+        <div class="dashboard-section">
+          <h3 class="section-title">
+            <i class="bi bi-trophy-fill"></i>
+            Classement de l'Équipe
+          </h3>
+          <div id="leaderboard-container">
+            <!-- Le classement sera chargé ici -->
+          </div>
+        </div>
+
+        <!-- Section des performances -->
+        <div class="dashboard-section">
+          <h3 class="section-title">
+            <i class="bi bi-speedometer2"></i>
+            Mes Performances
+          </h3>
+          <div class="performance-chart">
+            <div>
+              <i class="bi bi-bar-chart fs-1 text-muted"></i>
+              <p class="mt-3">Graphique de performance en cours de développement</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="/app.js"></script>
+    <script src="/agent-dashboard.js"></script>
+    <script>
+      // Citations de motivation
+      const motivationQuotes = [
+        {
+          text: "L'excellence n'est jamais un accident. C'est toujours le résultat d'une intention élevée, d'un effort sincère et d'une exécution intelligente.",
+          author: "Aristote"
+        },
+        {
+          text: "Le succès n'est pas final, l'échec n'est pas fatal : c'est le courage de continuer qui compte.",
+          author: "Winston Churchill"
+        },
+        {
+          text: "La seule façon de faire du bon travail est d'aimer ce que vous faites.",
+          author: "Steve Jobs"
+        },
+        {
+          text: "L'avenir appartient à ceux qui croient en la beauté de leurs rêves.",
+          author: "Eleanor Roosevelt"
+        },
+        {
+          text: "Le succès est la somme de petits efforts répétés jour après jour.",
+          author: "Robert Collier"
+        }
+      ];
+
+      // Initialiser la page du tableau de bord
+      document.addEventListener('DOMContentLoaded', () => {
+        initializeDashboardPage();
+      });
+
+      function initializeDashboardPage() {
+        // Attendre que le tableau de bord agent soit initialisé
+        if (!window.agentDashboard) {
+          setTimeout(initializeDashboardPage, 100);
+          return;
+        }
+
+        loadAgentInfo();
+        renderDashboard();
+        setupEventListeners();
+        startMotivationRotation();
+      }
+
+      function loadAgentInfo() {
+        const agent = window.agentDashboard.getCurrentAgent();
+        if (agent) {
+          // Mettre à jour l'avatar
+          const avatar = document.getElementById('agent-avatar');
+          if (avatar) {
+            const initials = (agent.first_name || '').charAt(0) + (agent.last_name || '').charAt(0);
+            avatar.textContent = initials || agent.name?.charAt(0) || 'A';
+          }
+
+          // Mettre à jour le nom
+          const nameElement = document.getElementById('agent-name');
+          if (nameElement) {
+            const fullName = agent.first_name && agent.last_name 
+              ? `${agent.first_name} ${agent.last_name}`
+              : agent.name || agent.email;
+            nameElement.textContent = fullName;
+          }
+
+          // Mettre à jour le rôle
+          const roleElement = document.getElementById('agent-role');
+          if (roleElement) {
+            const roleNames = {
+              'agent': 'Agent de Terrain',
+              'supervisor': 'Superviseur',
+              'admin': 'Administrateur'
+            };
+            roleElement.textContent = roleNames[agent.role] || agent.role;
+          }
+        }
+      }
+
+      function renderDashboard() {
+        window.agentDashboard.renderDashboard();
+      }
+
+      function setupEventListeners() {
+        // Écouter les mises à jour des statistiques
+        document.addEventListener('agentStatsUpdated', () => {
+          renderDashboard();
+        });
+
+        // Écouter les nouveaux badges
+        document.addEventListener('badgeEarned', (event) => {
+          const badge = event.detail.badge;
+          showBadgeCelebration(badge);
+          renderDashboard();
+        });
+
+        // Écouter les nouvelles réalisations
+        document.addEventListener('achievementAdded', (event) => {
+          const achievement = event.detail.achievement;
+          showAchievementNotification(achievement);
+          renderDashboard();
+        });
+      }
+
+      function showBadgeCelebration(badge) {
+        // Créer une animation de célébration pour le badge
+        const celebration = document.createElement('div');
+        celebration.className = 'badge-celebration';
+        celebration.innerHTML = `
+          <div class="celebration-content">
+            <div class="celebration-icon">${badge.icon}</div>
+            <div class="celebration-text">
+              <h4>🏆 Nouveau Badge!</h4>
+              <p>${badge.name}</p>
+            </div>
+          </div>
+        `;
+
+        // Styles CSS pour l'animation
+        celebration.style.cssText = `
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: linear-gradient(135deg, #ffc107, #ff9800);
+          color: white;
+          padding: 30px;
+          border-radius: 20px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+          z-index: 10000;
+          animation: badgeCelebration 3s ease-in-out;
+        `;
+
+        const style = document.createElement('style');
+        style.textContent = `
+          @keyframes badgeCelebration {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+          }
+          .celebration-content {
+            text-align: center;
+          }
+          .celebration-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+          }
+          .celebration-text h4 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+          }
+          .celebration-text p {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+          }
+        `;
+        document.head.appendChild(style);
+
+        document.body.appendChild(celebration);
+
+        // Supprimer après 3 secondes
+        setTimeout(() => {
+          if (document.body.contains(celebration)) {
+            document.body.removeChild(celebration);
+          }
+        }, 3000);
+      }
+
+      function showAchievementNotification(achievement) {
+        // Afficher une notification pour la nouvelle réalisation
+        if (window.notificationManager) {
+          window.notificationManager.sendNotification('🎉 Nouvelle Réalisation!', {
+            body: achievement.title,
+            tag: 'achievement',
+            requireInteraction: true
+          });
+        }
+      }
+
+      function startMotivationRotation() {
+        const quoteElement = document.getElementById('motivation-quote');
+        if (!quoteElement) return;
+
+        let currentQuoteIndex = 0;
+
+        function updateQuote() {
+          const quote = motivationQuotes[currentQuoteIndex];
+          quoteElement.innerHTML = `
+            <div class="quote-text">"${quote.text}"</div>
+            <div class="quote-author">- ${quote.author}</div>
+          `;
+          currentQuoteIndex = (currentQuoteIndex + 1) % motivationQuotes.length;
+        }
+
+        // Mettre à jour la citation toutes les 30 secondes
+        setInterval(updateQuote, 30000);
+        
+        // Mettre à jour immédiatement
+        updateQuote();
+      }
+
+      // Fonction pour rafraîchir le tableau de bord
+      function refreshDashboard() {
+        window.agentDashboard.loadAgentData().then(() => {
+          renderDashboard();
+        });
+      }
+
+      // Exposer la fonction globalement
+      window.refreshDashboard = refreshDashboard;
+    </script>
+  </body>
+</html>
