@@ -132,10 +132,12 @@
         <p>Générez et consultez les rapports de présence et d'activité</p>
       </div>
 
-      <!-- Filtres de rapport -->
+      <!-- Filtres et Actions de rapport -->
       <div class="filters-section">
         <h3>📅 Paramètres du Rapport</h3>
-        <div class="filters-grid" style="display: flex; flex-wrap: nowrap; gap: 8px; align-items: flex-end; overflow-x: auto; padding-bottom: 8px;">
+        
+        <!-- Filtres horizontaux -->
+        <div class="filters-grid" style="display: flex; flex-wrap: nowrap; gap: 8px; align-items: flex-end; overflow-x: auto; padding-bottom: 8px; margin-bottom: 12px;">
           <div class="filter-group" style="flex: 0 0 140px; min-width: 120px;">
             <label for="report-type" style="font-size: 12px; margin-bottom: 2px;">Type :</label>
             <select id="report-type" onchange="updateReportFilters()" style="font-size: 12px; padding: 4px 6px;">
@@ -184,6 +186,8 @@
             </select>
           </div>
         </div>
+        
+        <!-- Boutons d'action -->
         <div class="filter-actions">
           <button class="btn-primary" id="apply-filters-btn">
             <span class="btn-icon">✅</span>
