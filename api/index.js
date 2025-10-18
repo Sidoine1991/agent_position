@@ -467,6 +467,31 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // Check-ins de l'utilisateur connecté
+    if (path === '/api/checkins' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          let q = supabaseClient
+            .from('checkins')
+            .select('*, missions!inner(agent_id)')
+            .eq('missions.agent_id', req.user.id);
+          
+          const { from, to } = req.query;
+          if (from) q = q.gte('timestamp', from);
+          if (to) q = q.lte('timestamp', to);
+          
+          const { data, error } = await q.order('timestamp', { ascending: false });
+          if (error) throw error;
+          
+          return res.json({ success: true, checkins: data || [] });
+        } catch (e) {
+          console.error('Erreur récupération checkins:', e);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
     // Verify
     if (path === '/api/verify' && method === 'POST') {
       if (!supabaseClient) {
@@ -1263,6 +1288,545 @@ module.exports = async (req, res) => {
           });
         } catch (error) {
           console.error('Erreur suppression agent:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // ===== NOUVELLES FONCTIONNALITÉS AVANCÉES =====
+
+    // Messages - Récupérer les messages
+    if (path === '/api/messages' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: messages, error } = await supabaseClient
+            .from('messages')
+            .select(`
+              *,
+              sender:users!messages_sender_id_fkey(name, email),
+              recipient:users!messages_receiver_id_fkey(name, email)
+            `)
+            .or(`sender_id.eq.${req.user.id},receiver_id.eq.${req.user.id}`)
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+
+          return res.json({ success: true, messages });
+        } catch (error) {
+          console.error('Erreur récupération messages:', error);
+          // Return the actual error message for debugging
+          return res.status(500).json({ error: 'Erreur serveur', details: error.message });
+        }
+      });
+      return;
+    }
+
+    // Messages - Envoyer un message
+    if (path === '/api/messages' && method === 'POST') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { recipient_id, content, message_type = 'text', forum_category_id } = req.body;
+
+          if (!content) {
+            return res.status(400).json({ error: 'Contenu du message requis' });
+          }
+
+          // Determine if it's a direct message or a forum message
+          let messagePayload = {
+            sender_id: req.user.id,
+            content,
+            message_type,
+            status: 'sent'
+          };
+
+          if (message_type === 'forum') {
+            if (!forum_category_id) {
+              return res.status(400).json({ error: 'ID de catégorie de forum requis pour les messages de forum' });
+            }
+            messagePayload.forum_category_id = forum_category_id;
+            messagePayload.receiver_id = null; // Explicitly set to null for forum messages
+          } else { // Default to direct message
+            if (!recipient_id) {
+              return res.status(400).json({ error: 'Destinataire requis pour les messages directs' });
+            }
+            messagePayload.receiver_id = recipient_id;
+          }
+
+          const { data: message, error } = await supabaseClient
+            .from('messages')
+            .insert([messagePayload])
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          return res.json({ success: true, message });
+        } catch (error) {
+          console.error('Erreur envoi message:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Notifications - Récupérer les notifications
+    if (path === '/api/notifications' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: notifications, error } = await supabaseClient
+            .from('notifications')
+            .select('*')
+            .eq('user_id', req.user.id)
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+
+          return res.json({ success: true, notifications });
+        } catch (error) {
+          console.error('Erreur récupération notifications:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Notifications - Marquer comme lu
+    if (path.startsWith('/api/notifications/') && method === 'PUT') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const notificationId = path.split('/').pop();
+
+          const { data: notification, error } = await supabaseClient
+            .from('notifications')
+            .update({ is_read: true, read_at: new Date().toISOString() })
+            .eq('id', notificationId)
+            .eq('user_id', req.user.id)
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          return res.json({ success: true, notification });
+        } catch (error) {
+          console.error('Erreur marquage notification:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Badges - Récupérer les badges de l'utilisateur
+    if (path === '/api/badges' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: userBadges, error } = await supabaseClient
+            .from('user_badges')
+            .select(`
+              *,
+              badge:badges(*)
+            `)
+            .eq('user_id', req.user.id)
+            .order('earned_at', { ascending: false });
+
+          if (error) throw error;
+
+          return res.json({ success: true, badges: userBadges });
+        } catch (error) {
+          console.error('Erreur récupération badges:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Objectifs personnels - Récupérer les objectifs
+    if (path === '/api/goals' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: goals, error } = await supabaseClient
+            .from('personal_goals')
+            .select('*')
+            .eq('user_id', req.user.id)
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+
+          return res.json({ success: true, goals });
+        } catch (error) {
+          console.error('Erreur récupération objectifs:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Objectifs personnels - Créer un objectif
+    if (path === '/api/goals' && method === 'POST') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { title, description, target_value, target_date, category } = req.body;
+
+          if (!title) {
+            return res.status(400).json({ error: 'Titre requis' });
+          }
+
+          const { data: goal, error } = await supabaseClient
+            .from('personal_goals')
+            .insert({
+              user_id: req.user.id,
+              title,
+              description,
+              target_value,
+              target_date,
+              category,
+              status: 'active'
+            })
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          return res.json({ success: true, goal });
+        } catch (error) {
+          console.error('Erreur création objectif:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Rapports enrichis - Récupérer les rapports
+    if (path === '/api/enriched-reports' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: reports, error } = await supabaseClient
+            .from('enriched_reports')
+            .select('*')
+            .eq('user_id', req.user.id)
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+
+          return res.json({ success: true, reports });
+        } catch (error) {
+          console.error('Erreur récupération rapports enrichis:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Tutoriels - Récupérer les tutoriels
+    if (path === '/api/tutorials' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: tutorials, error } = await supabaseClient
+            .from('tutorials')
+            .select('*')
+            .order('order_index', { ascending: true });
+
+          if (error) throw error;
+
+          return res.json({ success: true, tutorials });
+        } catch (error) {
+          console.error('Erreur récupération tutoriels:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Progression des tutoriels - Récupérer la progression
+    if (path === '/api/tutorial-progress' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: progress, error } = await supabaseClient
+            .from('tutorial_progress')
+            .select(`
+              *,
+              tutorial:tutorials(*)
+            `)
+            .eq('user_id', req.user.id);
+
+          if (error) throw error;
+
+          return res.json({ success: true, progress });
+        } catch (error) {
+          console.error('Erreur récupération progression:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Progression des tutoriels - Mettre à jour la progression
+    if (path === '/api/tutorial-progress' && method === 'POST') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { tutorial_id, completed, completion_percentage } = req.body;
+
+          if (!tutorial_id) {
+            return res.status(400).json({ error: 'ID tutoriel requis' });
+          }
+
+          const { data: progress, error } = await supabaseClient
+            .from('tutorial_progress')
+            .upsert({
+              user_id: req.user.id,
+              tutorial_id,
+              completed: completed || false,
+              completion_percentage: completion_percentage || 0,
+              last_accessed_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          return res.json({ success: true, progress });
+        } catch (error) {
+          console.error('Erreur mise à jour progression:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Alertes d'urgence - Récupérer les alertes
+    if (path === '/api/emergency/alerts' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: alerts, error } = await supabaseClient
+            .from('emergency_alerts')
+            .select(`
+              *,
+              user:users(name, email, phone)
+            `)
+            .eq('user_id', req.user.id)
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+
+          return res.json({ success: true, alerts });
+        } catch (error) {
+          console.error('Erreur récupération alertes:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Alertes d'urgence - Créer une alerte
+    if (path === '/api/emergency/alerts' && method === 'POST') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { alert_type, message, location, priority = 'high' } = req.body;
+
+          if (!alert_type || !message) {
+            return res.status(400).json({ error: 'Type et message requis' });
+          }
+
+          const { data: alert, error } = await supabaseClient
+            .from('emergency_alerts')
+            .insert({
+              user_id: req.user.id,
+              alert_type,
+              message,
+              location,
+              priority,
+              status: 'active'
+            })
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          return res.json({ success: true, alert });
+        } catch (error) {
+          console.error('Erreur création alerte:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Contacts d'urgence - Récupérer les contacts
+    if (path === '/api/emergency/contacts' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: contacts, error } = await supabaseClient
+            .from('emergency_contacts')
+            .select('*')
+            .eq('user_id', req.user.id)
+            .order('name');
+
+          if (error) throw error;
+
+          return res.json({ success: true, contacts });
+        } catch (error) {
+          console.error('Erreur récupération contacts:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Prédictions - Récupérer les prédictions
+    if (path === '/api/predictions' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: predictions, error } = await supabaseClient
+            .from('predictions')
+            .select('*')
+            .eq('user_id', req.user.id)
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+
+          return res.json({ success: true, predictions });
+        } catch (error) {
+          console.error('Erreur récupération prédictions:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Synchronisation hors-ligne - Récupérer les données
+    if (path === '/api/offline-sync' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: syncData, error } = await supabaseClient
+            .from('offline_sync')
+            .select('*')
+            .eq('user_id', req.user.id)
+            .order('last_sync', { ascending: false });
+
+          if (error) throw error;
+
+          return res.json({ success: true, syncData });
+        } catch (error) {
+          console.error('Erreur récupération sync:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Types de rapports - Récupérer les types
+    if (path === '/api/report-types' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: reportTypes, error } = await supabaseClient
+            .from('report_types')
+            .select('*')
+            .order('name');
+
+          if (error) throw error;
+
+          return res.json({ success: true, reportTypes });
+        } catch (error) {
+          console.error('Erreur récupération types rapports:', error);
+          return res.status(500).json({ error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Messages - Récupérer les messages du forum
+    if (path.startsWith('/api/messages/forum/') && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const categoryId = path.split('/').pop(); // Extract categoryId from URL
+
+          const { data: messages, error } = await supabaseClient
+            .from('messages')
+            .select(`
+              *,
+              sender:agents!messages_sender_id_fkey(first_name, last_name, email)
+            `)
+            .eq('message_type', 'forum')
+            .eq('forum_category_id', categoryId)
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+
+          return res.json({ success: true, messages });
+        } catch (error) {
+          console.error('Erreur récupération messages du forum:', error);
           return res.status(500).json({ error: 'Erreur serveur' });
         }
       });

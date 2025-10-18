@@ -2557,9 +2557,25 @@ li:last-child {
   border-color: #007bff;
 }
 
-.pagination button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+} 
+
+/* === Navbar Layout Override === */
+/* Ensures the dynamic navbar is always horizontal */
+.navbar .navbar-menu {
+    display: flex;
+    flex-direction: row !important; /* Force horizontal layout */
+    align-items: center;
+    justify-content: space-between; /* Distribute items */
+    flex-wrap: wrap; /* Allow wrapping on small screens */
+}
+
+.navbar .circle-actions {
+    display: flex;
+    flex-direction: row; /* Ensure actions are in a row */
+    gap: 8px; /* Space between buttons */
+    align-items: center;
+}
+
 }
 
 #page-info {

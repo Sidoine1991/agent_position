@@ -161,12 +161,12 @@
     const weekInput = document.getElementById('week-start');
     const applyBtn = document.getElementById('apply-filters-btn');
     const resetBtn = document.getElementById('reset-filters-btn');
+
     if (supervisorSelect) {
       supervisorSelect.addEventListener('change', (e) => {
         selectedSupervisorId = e.target.value;
-        // Filtrer la liste d'agents selon le superviseur
+        // Filtrer la liste d'agents selon le superviseur, mais ne pas recharger les données
         filterAgentsBySupervisor();
-        loadWeek(document.getElementById('week-start').value);
       });
     }
     
@@ -174,7 +174,6 @@
       projectSelect.addEventListener('change', (e) => {
         selectedProjectId = e.target.value;
         console.log('Filtre projet changé:', selectedProjectId);
-        loadWeek(document.getElementById('week-start').value);
       });
     }
     
@@ -182,21 +181,22 @@
       agentSelect.addEventListener('change', (e) => {
         selectedAgentId = e.target.value;
         console.log('Filtre agent changé:', selectedAgentId);
-        loadWeek(document.getElementById('week-start').value);
       });
     }
 
     if (weekInput) {
       weekInput.addEventListener('change', () => {
-        // Recharger avec la période choisie et les filtres courants
-        loadWeek(weekInput.value);
-        scheduleMonthRefresh(200);
+        // Ne fait rien automatiquement, attend le clic sur Appliquer
       });
     }
 
     if (applyBtn) {
       applyBtn.addEventListener('click', () => {
-        // Appliquer explicitement les filtres actuels
+        // Appliquer explicitement les filtres actuels en lisant les valeurs
+        selectedProjectId = projectSelect.value;
+        selectedAgentId = agentSelect.value;
+        selectedSupervisorId = supervisorSelect.value;
+
         loadWeek(weekInput?.value || undefined);
         scheduleMonthRefresh(0);
         loadWeeklySummary();
@@ -532,7 +532,7 @@
     const headers = await authHeaders();
 
     const projectParam = selectedProjectId ? `&project_name=${encodeURIComponent(selectedProjectId)}` : '';
-    const agentParam = selectedAgentId ? `&agent_id=${encodeURIComponent(selectedAgentId)}` : '';
+    const agentParam = selectedAgentId ? `&user_id=${encodeURIComponent(selectedAgentId)}` : '';
     const supervisorParam = selectedSupervisorId ? `&supervisor_id=${encodeURIComponent(selectedSupervisorId)}` : '';
     const checkinsPath = selectedAgentId ? `/checkins?agent_id=${encodeURIComponent(selectedAgentId)}&from=${from}&to=${to}` : `/checkins/mine?from=${from}&to=${to}`;
     const validationsPath = selectedAgentId ? `/validations?agent_id=${encodeURIComponent(selectedAgentId)}&from=${from}&to=${to}` : `/validations/mine?from=${from}&to=${to}`;
@@ -807,7 +807,7 @@
     await loadWeeklySummary();
   }
 
-  // Fonction pour charger le récap hebdomadaire (agrégation côté client)
+  // Fonction pour charger le récap hebdomadaire avec données complètes
   async function loadWeeklySummary() {
     try {
       const headers = await authHeaders();
@@ -844,15 +844,33 @@
         to = toISODate(weekEnd);
       }
       
-      // Récupérer les planifications depuis le backend
-      const res = await fetch(`${apiBase}/planifications?from=${from}&to=${to}${projectParam}${agentParam}${supervisorParam}`, { headers });
-      if (!res.ok) {
+      console.log(`📊 Chargement récap: ${from} à ${to}`);
+      
+      // Récupérer les planifications et les utilisateurs en parallèle
+      const [plansRes, usersRes] = await Promise.all([
+        fetch(`${apiBase}/planifications?from=${from}&to=${to}${projectParam}${agentParam}${supervisorParam}`, { headers }),
+        fetch(`${apiBase}/users`, { headers })
+      ]);
+      
+      if (!plansRes.ok) {
         displayWeeklySummary([]);
         return;
       }
       
-      const result = await res.json();
-      const plans = result.items || [];
+      const plansResult = await plansRes.json();
+      const plans = plansResult.items || [];
+      
+      let usersMap = new Map();
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        usersMap = new Map(usersData.map(user => [user.id, user]));
+        console.log('👥 Utilisateurs chargés:', usersMap.size);
+      }
+      
+      console.log('📋 Planifications récupérées:', plans.length);
+      if (plans.length > 0) {
+        console.log('📋 Exemple de planification:', plans[0]);
+      }
       
       // Agréger les planifications par semaine, agent, et projet
       const summaryMap = new Map();
@@ -864,11 +882,18 @@
         const weekKey = `${toISODate(weekStart)}_${plan.user_id}_${plan.project_name || 'général'}`;
         
         if (!summaryMap.has(weekKey)) {
+          // Récupérer les vraies données utilisateur
+          const userData = usersMap.get(plan.user_id) || { 
+            name: 'Utilisateur inconnu', 
+            email: '', 
+            role: 'agent' 
+          };
+          
           summaryMap.set(weekKey, {
             week_start_date: toISODate(weekStart),
             week_end_date: toISODate(weekEnd),
             user_id: plan.user_id,
-            users: plan.users || { name: 'Agent', email: '' },
+            users: userData,
             project_name: plan.project_name || 'Projet Général',
             total_planned_hours: 0,
             total_planned_days: new Set(),
@@ -890,9 +915,10 @@
         // Compter les jours uniques
         summary.total_planned_days.add(toISODate(planDate));
         
-        // Collecter les activités
-        if (plan.activity && !summary.activities.includes(plan.activity)) {
-          summary.activities.push(plan.activity);
+        // Collecter les activités (vérifier plusieurs champs possibles)
+        const activity = plan.activity || plan.activities || plan.task || plan.description || '';
+        if (activity && activity.trim() && !summary.activities.includes(activity.trim())) {
+          summary.activities.push(activity.trim());
         }
       }
       
@@ -906,6 +932,13 @@
       
       // Trier par date de début de semaine
       weeklySummaries.sort((a, b) => a.week_start_date.localeCompare(b.week_start_date));
+      
+      console.log('📊 Résumés hebdomadaires générés:', weeklySummaries.length);
+      if (weeklySummaries.length > 0) {
+        console.log('📊 Exemple de résumé:', weeklySummaries[0]);
+        console.log('📊 Nom agent:', weeklySummaries[0].users?.name);
+        console.log('📊 Activités:', weeklySummaries[0].activities);
+      }
       
       displayWeeklySummary(weeklySummaries);
     } catch (error) {
@@ -981,9 +1014,26 @@
               </div>
             </td>
             <td>
-              <button class="btn btn-sm btn-outline-primary" onclick="editWeekPlanning('${summary.week_start_date}', '${summary.week_end_date}')">
-                <i class="bi bi-pencil"></i>
+              <div class="btn-group" role="group">
+                <button class="btn btn-sm btn-outline-primary" 
+                        onclick="editWeekPlanning('${summary.week_start_date}', '${summary.user_id}', '${summary.project_name}')" 
+                        title="Modifier la planification"
+                        data-bs-toggle="tooltip">
+                  <i class="bi bi-pencil"></i> Modifier
               </button>
+                <button class="btn btn-sm btn-outline-info" 
+                        onclick="viewWeekDetails('${summary.week_start_date}', '${summary.user_id}', '${summary.project_name}')" 
+                        title="Voir les détails"
+                        data-bs-toggle="tooltip">
+                  <i class="bi bi-eye"></i> Détails
+                </button>
+                <button class="btn btn-sm btn-outline-danger" 
+                        onclick="deleteWeekPlanning('${summary.week_start_date}', '${summary.user_id}', '${summary.project_name}')" 
+                        title="Supprimer la planification"
+                        data-bs-toggle="tooltip">
+                  <i class="bi bi-trash"></i> Supprimer
+                </button>
+              </div>
             </td>
           </tr>
         `).join('')}
@@ -1257,10 +1307,119 @@ async function deleteWeekPlanning(weekStart, weekEnd) {
   }
 }
 
+// Fonction pour voir les détails d'une semaine
+async function viewWeekDetails(weekStart, userId, projectName) {
+  try {
+    const headers = await authHeaders();
+    const weekEnd = addDays(new Date(weekStart), 6);
+    
+    // Récupérer les détails de la planification
+    const response = await fetch(`${apiBase}/planifications?from=${weekStart}&to=${toISODate(weekEnd)}&agent_id=${userId}&project_name=${encodeURIComponent(projectName)}`, { headers });
+    
+    if (!response.ok) {
+      throw new Error('Erreur lors du chargement des détails');
+    }
+    
+    const result = await response.json();
+    const plans = result.items || [];
+    
+    // Créer le modal de détails
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-calendar-week"></i> Détails de la planification
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <strong>Semaine:</strong> ${new Date(weekStart).toLocaleDateString()} - ${weekEnd.toLocaleDateString()}
+              </div>
+              <div class="col-md-6">
+                <strong>Projet:</strong> ${projectName}
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Activité</th>
+                    <th>Heure début</th>
+                    <th>Heure fin</th>
+                    <th>Durée</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${plans.map(plan => `
+                    <tr>
+                      <td>${new Date(plan.date).toLocaleDateString()}</td>
+                      <td>${plan.activity || 'N/A'}</td>
+                      <td>${plan.planned_start_time || 'N/A'}</td>
+                      <td>${plan.planned_end_time || 'N/A'}</td>
+                      <td>
+                        ${plan.planned_start_time && plan.planned_end_time ? 
+                          calculateDuration(plan.planned_start_time, plan.planned_end_time) : 'N/A'
+                        }
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+            <button type="button" class="btn btn-primary" onclick="editWeekPlanning('${weekStart}', '${userId}', '${projectName}')">
+              <i class="bi bi-pencil"></i> Modifier
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+    
+    // Nettoyer le modal après fermeture
+    modal.addEventListener('hidden.bs.modal', () => {
+      document.body.removeChild(modal);
+    });
+    
+  } catch (error) {
+    console.error('Erreur chargement détails:', error);
+    alert('Erreur lors du chargement des détails');
+  }
+}
+
+// Fonction pour calculer la durée
+function calculateDuration(startTime, endTime) {
+  try {
+    const start = hoursToX(startTime);
+    const end = hoursToX(endTime);
+    if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+      const duration = (end - start) / 60;
+      const hours = Math.floor(duration);
+      const minutes = Math.round((duration - hours) * 60);
+      return `${hours}h${minutes.toString().padStart(2, '0')}`;
+    }
+    return 'N/A';
+  } catch {
+    return 'N/A';
+  }
+}
+
 // Exposer les fonctions nécessaires globalement pour l'interface
 window.editWeekPlanning = editWeekPlanning;
 window.saveWeekPlanning = saveWeekPlanning;
 window.deleteWeekPlanning = deleteWeekPlanning;
+window.viewWeekDetails = viewWeekDetails;
 window.loadWeek = loadWeek;
 window.loadMonth = loadMonth;
 

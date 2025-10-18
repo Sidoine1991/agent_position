@@ -76,7 +76,7 @@ class OfflineManager {
     });
     
     window.addEventListener('offline', () => {
-      this.isOnline = false;
+    this.isOnline = false;
       this.updateConnectionStatus();
     });
     
@@ -164,7 +164,7 @@ class OfflineManager {
 
   async syncPendingData() {
     if (this.syncInProgress || !this.isOnline) return;
-    
+
     this.syncInProgress = true;
     console.log('🔄 Début de la synchronisation...');
     
@@ -176,7 +176,7 @@ class OfflineManager {
       await this.processSyncQueue();
       
       console.log('✅ Synchronisation terminée');
-    } catch (error) {
+      } catch (error) {
       console.error('❌ Erreur de synchronisation:', error);
     } finally {
       this.syncInProgress = false;
@@ -212,11 +212,11 @@ class OfflineManager {
       },
       body: JSON.stringify(item)
     });
-    
+
     if (!response.ok) {
       throw new Error(`Erreur API: ${response.status}`);
     }
-    
+
     return response.json();
   }
 
@@ -304,7 +304,7 @@ class OfflineManager {
           item.attempts = (item.attempts || 0) + 1;
           if (item.attempts < 5) { // Max 5 tentatives
             store.put(item);
-          } else {
+    } else {
             store.delete(id); // Supprimer après 5 échecs
           }
         }

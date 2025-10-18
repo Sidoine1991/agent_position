@@ -1,64 +1,57 @@
--- Script pour vérifier la structure de la table users
--- Exécuter ce script pour voir les colonnes disponibles
-
 -- =====================================================
--- VÉRIFICATION DE LA STRUCTURE DE LA TABLE USERS
+-- Script de diagnostic pour vérifier la structure de la table users
 -- =====================================================
 
--- Afficher toutes les colonnes de la table users
+-- Vérifier le type de la colonne id dans la table users
 SELECT 
-    column_name as "Nom de la colonne",
-    data_type as "Type de données",
-    is_nullable as "Nullable",
-    column_default as "Valeur par défaut",
-    character_maximum_length as "Longueur max"
+    column_name,
+    data_type,
+    is_nullable,
+    column_default
 FROM information_schema.columns 
 WHERE table_name = 'users' 
-ORDER BY ordinal_position;
+AND column_name = 'id';
 
--- =====================================================
--- VÉRIFICATION DES CONTRAINTES
--- =====================================================
-
--- Afficher les contraintes de la table users
+-- Vérifier les contraintes de clé primaire
 SELECT 
-    tc.constraint_name as "Nom de la contrainte",
-    tc.constraint_type as "Type",
-    kcu.column_name as "Colonne"
+    tc.constraint_name,
+    tc.table_name,
+    kcu.column_name,
+    tc.constraint_type
 FROM information_schema.table_constraints tc
 JOIN information_schema.key_column_usage kcu 
     ON tc.constraint_name = kcu.constraint_name
-WHERE tc.table_name = 'users'
-ORDER BY tc.constraint_type, kcu.column_name;
+WHERE tc.table_name = 'users' 
+AND tc.constraint_type = 'PRIMARY KEY';
 
--- =====================================================
--- ÉCHANTILLON DES DONNÉES
--- =====================================================
-
--- Afficher un échantillon des données de la table users
+-- Vérifier les contraintes de clé étrangère existantes
 SELECT 
-    id,
-    first_name,
-    last_name,
-    email,
-    phone,
-    status,
-    created_at
-FROM users 
-ORDER BY id
-LIMIT 10;
+    tc.constraint_name,
+    tc.table_name,
+    kcu.column_name,
+    ccu.table_name AS foreign_table_name,
+    ccu.column_name AS foreign_column_name
+FROM information_schema.table_constraints tc
+JOIN information_schema.key_column_usage kcu 
+    ON tc.constraint_name = kcu.constraint_name
+JOIN information_schema.constraint_column_usage ccu 
+    ON ccu.constraint_name = tc.constraint_name
+WHERE tc.constraint_type = 'FOREIGN KEY'
+AND ccu.table_name = 'users';
 
--- =====================================================
--- COMPTAGE DES UTILISATEURS
--- =====================================================
-
--- Compter le nombre total d'utilisateurs
-SELECT COUNT(*) as "Nombre total d'utilisateurs" FROM users;
-
--- Compter par statut
+-- Vérifier si la table users existe et sa structure complète
 SELECT 
-    status as "Statut",
-    COUNT(*) as "Nombre"
-FROM users 
-GROUP BY status
-ORDER BY status;
+    column_name,
+    data_type,
+    character_maximum_length,
+    is_nullable,
+    column_default
+FROM information_schema.columns 
+WHERE table_name = 'users'
+ORDER BY ordinal_position;
+
+-- Vérifier les extensions disponibles
+SELECT * FROM pg_extension WHERE extname = 'uuid-ossp';
+
+-- Vérifier si auth.uid() fonctionne et quel type il retourne
+SELECT auth.uid() as auth_uid_type, pg_typeof(auth.uid()) as auth_uid_pg_type;

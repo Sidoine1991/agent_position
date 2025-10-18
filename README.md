@@ -20,6 +20,13 @@
 - **Ajouter des notes** sur leurs observations
 - **Consulter leur historique** de présence
 
+## ✨ Nouvelles Fonctionnalités (Mise à jour récente)
+
+- **Navigation dynamique par rôle** : La barre de navigation s'adapte désormais automatiquement au rôle de l'utilisateur (Agent, Superviseur, Admin), n'affichant que les liens auxquels il a accès.
+- **Messagerie interne fonctionnelle** : Le système de messagerie a été réparé et permet maintenant de charger les contacts, de visualiser les conversations et d'envoyer des messages.
+- **Tableau de bord agent dynamique** : Le tableau de bord de l'agent récupère désormais les données réelles depuis la base de données pour les objectifs, les statistiques et les indicateurs de performance.
+- **Sécurité renforcée** : L'accès à chaque page est maintenant contrôlé de manière centralisée, empêchant les utilisateurs d'accéder aux sections non autorisées.
+
 ## 👥 Qui peut utiliser le système ?
 
 ### 🔹 Agents de Terrain

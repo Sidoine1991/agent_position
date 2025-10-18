@@ -8,6 +8,7 @@
     <link rel="icon" href="/Media/logo-ccrb.png" />
     <meta name="theme-color" content="#0ea5e9" />
     <title>Presence CCR-B - Agent</title>
+    <script src="/auth.js?v=2" defer></script>
     <!-- Redirection automatique vers la page home -->
     <script>
       // Vérifier si l'utilisateur est déjà connecté et rediriger si nécessaire
@@ -348,35 +349,7 @@
   </head>
   <body>
     <!-- Navigation Bar -->
-    <nav class="navbar">
-      <div class="navbar-brand">
-        <a href="/home.html" class="navbar-brand-link" style="display:flex;align-items:center;text-decoration:none;color:inherit">
-          <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
-          <div class="navbar-title">
-          <h1>Presence CCR-B</h1>
-          <span class="navbar-subtitle">Conseil de Concertation des Riziculteurs du Bénin</span>
-          </div>
-        </a>
-      </div>
-      
-      
-      
-      <div class="navbar-menu">
-        <a href="/" class="navbar-link navbar-link-active" id="home-link">
-          <span class="navbar-icon">🏠</span>
-          <span>Accueil Agent</span>
-        </a>
-        <!-- autres actions déplacées sous forme de cercles sur la page -->
-        
-        <div class="navbar-user" id="navbar-user">
-          <span class="navbar-user-info" id="user-info">Chargement...</span>
-          <button data-action="logout" class="navbar-logout">
-            <span class="navbar-icon">🚪</span>
-            <span>Déconnexion</span>
-          </button>
-        </div>
-      </div>
-    </nav>
+    <div id="navbar-placeholder"></div>
 
     <!-- Main Content -->
     <main class="main-content">
@@ -399,18 +372,29 @@
           </div>
         </div>
 
-        <!-- Actions circulaires stylées -->
+        <!-- Actions circulaires stylées avec logique des rôles -->
         <div class="circle-actions" id="circle-actions" style="margin-top:12px; display:none">
+          <!-- Actions communes à tous les utilisateurs -->
           <a href="/" class="circle-action" id="presence-link"><div class="icon">📍</div><div class="label">Présence</div></a>
           <a href="/planning.html" class="circle-action" id="planning-link"><div class="icon">🗓️</div><div class="label">Planification</div></a>
           <a href="/agent-activity-tracking.html" class="circle-action" id="activity-link"><div class="icon">📋</div><div class="label">Suivi Activité</div></a>
-          <a href="/dashboard.html" class="circle-action" id="dashboard-link"><div class="icon">📊</div><div class="label">Dashboard</div></a>
           <a href="/profile.html" class="circle-action" id="profile-link"><div class="icon">👤</div><div class="label">Profil</div></a>
           <a href="/messages.html" class="circle-action" id="messages-link"><div class="icon">💬</div><div class="label">Messages</div></a>
           <a href="/enriched-reports.html" class="circle-action" id="enriched-reports-link"><div class="icon">📋</div><div class="label">Rapports Enrichis</div></a>
           <a href="/agent-dashboard.html" class="circle-action" id="agent-dashboard-link"><div class="icon">📊</div><div class="label">Mon Tableau de Bord</div></a>
-          <a href="/admin-agents.html" class="circle-action" id="agents-link"><div class="icon">👥</div><div class="label">Agents</div></a>
-          <a href="/reports.html" class="circle-action" id="reports-link"><div class="icon">📈</div><div class="label">Rapports</div></a>
+          
+          <!-- Actions pour les agents -->
+          <a href="/agent-dashboard.html" class="circle-action agent-only" id="agent-dashboard-link"><div class="icon">🎯</div><div class="label">Mes Objectifs</div></a>
+          
+          <!-- Actions pour les superviseurs -->
+          <a href="/dashboard.html" class="circle-action supervisor-only" id="supervisor-dashboard-link"><div class="icon">👨‍💼</div><div class="label">Tableau Superviseur</div></a>
+          <a href="/team-management.html" class="circle-action supervisor-only" id="team-management-link"><div class="icon">👥</div><div class="label">Gestion Équipe</div></a>
+          
+          <!-- Actions pour les administrateurs -->
+          <a href="/admin-dashboard.html" class="circle-action admin-only" id="admin-dashboard-link"><div class="icon">⚙️</div><div class="label">Administration</div></a>
+          <a href="/admin-agents.html" class="circle-action admin-only" id="agents-link"><div class="icon">👥</div><div class="label">Gestion Agents</div></a>
+          <a href="/reports.html" class="circle-action admin-only" id="reports-link"><div class="icon">📈</div><div class="label">Rapports</div></a>
+          <a href="/system-settings.html" class="circle-action admin-only" id="settings-link"><div class="icon">🔧</div><div class="label">Paramètres</div></a>
           <a href="/admin.html" class="circle-action" id="admin-link"><div class="icon">⚙️</div><div class="label">Administration</div></a>
           <a href="/help.html" class="circle-action" id="help-link"><div class="icon">❓</div><div class="label">Aide</div></a>
         </div>

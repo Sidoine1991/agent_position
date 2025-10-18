@@ -828,51 +828,35 @@ app.post('/api/planifications', async (req, res) => {
 });
 
 // Récupérer la planification d'une période
-app.get('/api/planifications', async (req, res) => {
+app.get('/api/planifications', authenticateToken, async (req, res) => {
   try {
-    const authHeader = String(req.headers['authorization'] || '');
-    if (!authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Authorization requise' });
-    }
-    const token = authHeader.slice('Bearer '.length);
-    let userId; try { const d = jwt.verify(token, JWT_SECRET); userId = d.id || d.userId; } catch { return res.status(401).json({ success: false, error: 'Token invalide' }); }
-
-    // Récupérer les informations de l'utilisateur pour vérifier son rôle
-    const { data: userData, error: userError } = await supabaseClient
-      .from('users')
-      .select('role')
-      .eq('id', userId)
-      .single();
+    const { from, to, project_name, agent_id } = req.query;
     
-    if (userError) {
-      console.error('Erreur récupération utilisateur:', userError);
-      return res.status(500).json({ success: false, error: 'Erreur serveur' });
+    let query = supabaseClient
+      .from('planifications')
+      .select('*');
+
+    // Filtrer par agent en utilisant le rôle de l'utilisateur connecté
+    if ((req.user.role === 'admin' || req.user.role === 'superviseur') && agent_id) {
+      query = query.eq('user_id', agent_id);
+    } else if (req.user.role === 'agent') {
+      query = query.eq('user_id', req.user.id);
     }
 
-    const isAdmin = userData.role === 'admin' || userData.role === 'super_admin';
-    const { from, to, agent_id } = req.query;
-    
-    let q = supabaseClient.from('planifications').select('*');
-    
-    // Filtrage par agent selon les permissions
-    if (isAdmin && agent_id) {
-      // Admin peut voir un agent spécifique
-      q = q.eq('agent_id', agent_id);
-    } else if (isAdmin && !agent_id) {
-      // Admin sans filtre voit tous les agents
-      // Pas de filtre agent_id
-    } else {
-      // Agent non-admin voit seulement ses propres données
-      q = q.eq('agent_id', userId);
+    // Filtrer par projet
+    if (project_name) {
+      query = query.eq('project_name', project_name);
     }
+
+    if (from) query = query.gte('date', String(from));
+    if (to) query = query.lte('date', String(to));
     
-    q = q.order('date');
-    if (from) q = q.gte('date', String(from));
-    if (to) q = q.lte('date', String(to));
-    
-    const { data, error } = await q;
+    const { data, error } = await query.order('date', { ascending: false });
+
     if (error) throw error;
+
     return res.json({ success: true, items: data || [] });
+
   } catch (e) {
     console.error('Erreur planifications list:', e);
     return res.status(500).json({ success: false, error: 'Erreur serveur' });
@@ -1998,6 +1982,33 @@ app.get('/api/me/missions', authenticateToken, async (req, res) => {
     if (error) throw error;
 
     let enriched = missions || [];
+
+    // Messages - Récupérer les messages
+    app.get('/api/messages', authenticateToken, async (req, res) => {
+      try {
+        if (!supabaseClient) {
+          return res.status(500).json({ error: 'Supabase non configuré' });
+        }
+
+        const { data: messages, error } = await supabaseClient
+          .from('messages')
+          .select(`
+            *,
+            sender:users!messages_sender_id_fkey(name, email),
+            recipient:users!messages_recipient_id_fkey(name, email)
+          `)
+          .or(`sender_id.eq.${req.user.id},recipient_id.eq.${req.user.id}`)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        return res.json({ success: true, messages });
+      } catch (error) {
+        console.error('Erreur récupération messages:', error);
+        return res.status(500).json({ error: 'Erreur serveur' });
+      }
+    });
+
     try {
       const ids = (enriched || []).map(m => m.id).filter(Boolean);
       if (ids.length) {
@@ -2019,22 +2030,30 @@ app.get('/api/me/missions', authenticateToken, async (req, res) => {
           .limit(2000);
         const lastByMission = new Map();
         (cDesc || []).forEach(c => { if (!lastByMission.has(c.mission_id)) lastByMission.set(c.mission_id, c); });
-        enriched = (enriched || []).map(m => ({
-          ...m,
-          start_lat: firstByMission.get(m.id)?.lat ?? null,
-          start_lon: firstByMission.get(m.id)?.lon ?? null,
-          end_lat: lastByMission.get(m.id)?.lat ?? null,
-          end_lon: lastByMission.get(m.id)?.lon ?? null,
-        }));
+
+        enriched = enriched.map(m => {
+          const firstCheckin = firstByMission.get(m.id);
+          const lastCheckin = lastByMission.get(m.id);
+          let duration = null;
+          if (firstCheckin && lastCheckin) {
+            const start = new Date(firstCheckin.timestamp);
+            const end = new Date(lastCheckin.timestamp);
+            duration = Math.round((end - start) / (1000 * 60)); // Durée en minutes
+          }
+          return { ...m, firstCheckin, lastCheckin, duration_minutes: duration };
+        });
       }
-    } catch (e) { console.warn('Enrichment missions start/end gps failed:', e?.message); }
+    } catch (e) {
+      console.warn('Erreur enrichissement missions:', e);
+    }
 
-    res.json({ success: true, missions: enriched });
-
+    return res.json({
+      success: true,
+      missions: enriched || []
+    });
   } catch (error) {
     console.error('Erreur missions:', error);
-    // Mode tolérant: éviter d'interrompre le frontend si Supabase est indisponible
-    res.json({ success: true, missions: [] });
+    return res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -3936,10 +3955,29 @@ app.get('/', (req, res) => {
 });
 
 // Démarrage du serveur
-app.listen(PORT, () => {
-  console.log(`🚀 Serveur démarré sur le port ${PORT}`);
-  console.log(`📊 Base de données: Supabase uniquement`);
-  console.log(`🏠 Page d'accueil: /home.html`);
+const server = app.listen(PORT, () => {
+  console.log(`Serveur démarré sur http://localhost:${PORT}`);
+});
+
+// WebSocket Server (for real-time features like messaging)
+const WebSocket = require('ws');
+const wss = new WebSocket.Server({ server: server });
+
+wss.on('connection', ws => {
+  console.log('Client connecté via WebSocket');
+
+  ws.on('message', message => {
+    console.log(`Received message via WebSocket: ${message}`);
+    // Handle incoming WebSocket messages (e.g., broadcast to other clients)
+  });
+
+  ws.on('close', () => {
+    console.log('Client disconnected from WebSocket');
+  });
+
+  ws.on('error', error => {
+    console.error('WebSocket error:', error);
+  });
 });
 
 module.exports = app;

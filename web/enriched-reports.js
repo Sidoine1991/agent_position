@@ -41,14 +41,9 @@ class EnrichedReports {
   }
 
   async initializeMediaCapture() {
-    // Vérifier les permissions
-    try {
-      await navigator.mediaDevices.getUserMedia({ video: true });
-      await navigator.mediaDevices.getUserMedia({ audio: true });
-      console.log('✅ Permissions média accordées');
-    } catch (error) {
-      console.warn('⚠️ Permissions média refusées:', error);
-    }
+    // Ne pas demander les permissions automatiquement
+    // Les permissions seront demandées uniquement quand l'utilisateur clique sur les boutons
+    console.log('📱 Système de capture média initialisé - permissions sur demande');
   }
 
   // Capture de photos

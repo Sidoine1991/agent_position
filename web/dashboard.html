@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Dashboard - Presence CCRB</title>
+    <script src="/auth.js?v=2" defer></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="/styles.css?v=4" />
     <link rel="stylesheet" href="/modern-ui.css?v=1" />
@@ -218,59 +219,7 @@
   </head>
   <body>
     <!-- Navigation Bar -->
-    <nav class="navbar">
-      <div class="navbar-brand">
-        <a href="/index.html?stay=true" class="navbar-brand-link" style="display:flex;align-items:center;text-decoration:none;color:inherit">
-          <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
-          <div class="navbar-title">
-            <h1 class="animated-title">Presence CCRB</h1>
-            <span class="navbar-subtitle">Système de Gestion de Présence</span>
-          </div>
-        </a>
-      </div>
-      
-      <div class="navbar-menu">
-        <a href="/?stay=true" class="navbar-link">
-          <span class="navbar-icon">🏠</span>
-          <span data-translate="nav.home">Accueil Agent</span>
-        </a>
-        
-        <a href="/" class="navbar-link" id="presence-link">
-          <span class="navbar-icon">📍</span>
-          <span data-translate="nav.presence">Marquage Présence</span>
-        </a>
-        
-        <!-- Navigation pour tous les utilisateurs connectés -->
-        <a href="/profile.html" class="navbar-link">
-          <span class="navbar-icon">👤</span>
-          <span data-translate="nav.profile">Mon Profil</span>
-        </a>
-        
-        <!-- Navigation pour tous les utilisateurs connectés -->
-        <a href="/dashboard.html" class="navbar-link navbar-link-active">
-          <span class="navbar-icon">📊</span>
-          <span data-translate="nav.dashboard">Dashboard</span>
-        </a>
-        <a href="/admin-agents.html" class="navbar-link">
-          <span class="navbar-icon">👥</span>
-          <span data-translate="nav.agents">Gestion Agents</span>
-        </a>
-        <a href="/reports.html" class="navbar-link">
-          <span class="navbar-icon">📈</span>
-          <span data-translate="nav.reports">Rapports</span>
-        </a>
-        
-        <!-- Lien Administration retiré ici: réservé au super admin et géré par navigation.js si nécessaire -->
-        
-        <div class="navbar-user" id="navbar-user">
-          <span class="navbar-user-info" id="user-info">Chargement...</span>
-          <button onclick="logout()" class="navbar-logout">
-            <span class="navbar-icon">🚪</span>
-            <span data-translate="nav.logout">Déconnexion</span>
-          </button>
-        </div>
-      </div>
-    </nav>
+    <div id="navbar-placeholder"></div>
 
     <!-- Main Content -->
     <main class="main-content">

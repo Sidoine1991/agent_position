@@ -398,14 +398,69 @@ document.addEventListener('click', (ev) => {
 document.addEventListener('DOMContentLoaded', bindNavbarLinks);
 window.addEventListener('load', bindNavbarLinks);
 
-// Gestion centralisée de l'affichage des actions circulaires (index.html)
+// Gestion centralisée de l'affichage des actions circulaires avec logique des rôles
 function updateCircleActionsVisibility() {
   try {
     const token = localStorage.getItem('jwt') || '';
     const actions = document.getElementById('circle-actions');
-    if (actions) actions.style.display = token ? 'grid' : 'none';
-  } catch {}
+    if (!actions) return;
+    
+    if (token) {
+      actions.style.display = 'grid';
+      updateActionsBasedOnRole();
+    } else {
+      actions.style.display = 'none';
+    }
+  } catch (error) {
+    console.error('Erreur mise à jour actions:', error);
+  }
 }
+
+// Mettre à jour les actions selon le rôle de l'utilisateur
+async function updateActionsBasedOnRole() {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return;
+    
+    const role = user.role || 'agent';
+    
+    // Masquer tous les boutons spécifiques aux rôles
+    document.querySelectorAll('.agent-only, .supervisor-only, .admin-only').forEach(btn => {
+      btn.style.display = 'none';
+    });
+    
+    // Afficher les boutons selon le rôle
+    switch (role.toLowerCase()) {
+      case 'admin':
+        document.querySelectorAll('.admin-only').forEach(btn => {
+          btn.style.display = 'flex';
+        });
+        // Les admins voient aussi les actions superviseur
+        document.querySelectorAll('.supervisor-only').forEach(btn => {
+          btn.style.display = 'flex';
+        });
+        break;
+        
+      case 'supervisor':
+        document.querySelectorAll('.supervisor-only').forEach(btn => {
+          btn.style.display = 'flex';
+        });
+        break;
+        
+      case 'agent':
+      default:
+        document.querySelectorAll('.agent-only').forEach(btn => {
+          btn.style.display = 'flex';
+        });
+        break;
+    }
+    
+    console.log(`🔐 Actions mises à jour pour le rôle: ${role}`);
+  } catch (error) {
+    console.error('Erreur mise à jour rôles:', error);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', updateCircleActionsVisibility);
 window.addEventListener('storage', (e) => {
   if (e && e.key === 'jwt') updateCircleActionsVisibility();

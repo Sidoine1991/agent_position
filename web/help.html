@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Aide et Manuel d'utilisation - Presence CCR‑B</title>
+  <script src="/auth.js" defer></script>
   <link rel="stylesheet" href="/styles.css">
   <link rel="icon" href="/Media/logo-ccrb.png">
   <style>
@@ -25,134 +26,96 @@
   </style>
 </head>
 <body>
-  <nav class="navbar">
-    <div class="navbar-brand">
-      <a href="/" class="navbar-brand-link" style="display:flex;align-items:center;text-decoration:none;color:inherit">
-        <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
-        <div class="navbar-title">
-          <h1>Presence CCRB</h1>
-          <span class="navbar-subtitle">Aide</span>
-        </div>
-      </a>
-    </div>
-    <div class="navbar-menu">
-      <div class="circle-actions" id="circle-actions" style="margin-top:12px; display:flex">
-        <a href="/index.html?stay=true" class="circle-action" id="presence-link"><div class="icon">📍</div><div class="label">Présence</div></a>
-        <a href="/planning.html" class="circle-action" id="planning-link"><div class="icon">🗓️</div><div class="label">Planification</div></a>
-        <a href="/agent-activity-tracking.html" class="circle-action" id="activity-link"><div class="icon">📋</div><div class="label">Suivi Activité</div></a>
-        <a href="/dashboard.html" class="circle-action" id="dashboard-link"><div class="icon">📊</div><div class="label">Dashboard</div></a>
-        <a href="/profile.html" class="circle-action" id="profile-link"><div class="icon">👤</div><div class="label">Profil</div></a>
-        <a href="/help.html" class="circle-action circle-action-active" id="help-link"><div class="icon">❓</div><div class="label">Aide</div></a>
-      </div>
-    </div>
-  </nav>
+  <div id="navbar-placeholder"></div>
   <div class="help-container">
     <h1>📖 Aide et Manuel d'utilisation</h1>
-    <p>Ce guide explique comment utiliser l'application Presence CCR‑B selon votre rôle. Seuls les <strong>Agents</strong> marquent leur présence sur le terrain, et les <strong>Superviseurs</strong> suivent et valident. Les <strong>Administrateurs</strong> configurent et exploitent les données.</p>
-
+    
     <div class="section">
-      <h2><span class="tag tag-agent">Agent</span> Utilisation terrain</h2>
-      <h3>1) Connexion</h3>
-      <ul>
-        <li>Ouvrez l'application et connectez‑vous avec votre email et mot de passe.</li>
-        <li>Autorisez la géolocalisation si demandé.</li>
-      </ul>
-      <h3>2) Préparer votre zone</h3>
-      <ul>
-        <li>Renseignez votre zone d'intervention dans <strong>Profil</strong> (département, commune, arrondissement, village).</li>
-        <li>Vérifiez le <strong>rayon de tolérance</strong> du GPS (par défaut 500 m).</li>
-      </ul>
-      <h3>3) Marquer la présence</h3>
-      <ul>
-        <li>Début de mission: cliquez <strong>Débuter la mission</strong>, ajoutez note et photo si nécessaire.</li>
-        <li>Pendant la journée: utilisez <strong>Check‑in</strong> pour ajouter des points avec photo/notes.</li>
-        <li>Fin de mission: cliquez <strong>Finir position</strong> pour clôturer.</li>
-      </ul>
-      <h3>4) Historique</h3>
-      <ul>
-        <li>Consultez le <strong>calendrier</strong> et l'<strong>historique des missions</strong> depuis le Tableau de bord.</li>
-      </ul>
-      <div class="note success">Astuce: si la précision GPS est faible, patientez 10‑20 secondes à l'extérieur, activez le GPS élevé et réessayez.</div>
+        <h2>🎯 Qu'est-ce que Presence CCRB ?</h2>
+        <p><strong>Presence CCRB</strong> est un système de suivi de présence des agents de terrain pour le <strong>Conseil de Concertation des Riziculteurs du Bénin (CCRB)</strong>. Il permet de vérifier que les agents se trouvent bien dans leurs zones d'intervention grâce à la géolocalisation GPS.</p>
+        <p>Le système permet de :</p>
+        <ul>
+            <li>Vérifier la présence réelle des agents sur le terrain</li>
+            <li>Générer des rapports fiables avec preuves GPS</li>
+            <li>Suivre l'activité des agents en temps réel</li>
+            <li>Marquer facilement la présence et prendre des photos comme preuve d'activité</li>
+        </ul>
     </div>
 
     <div class="section">
-      <h2><span class="tag tag-supervisor">Superviseur</span> Suivi et validations</h2>
-      <h3>1) Tableau de bord</h3>
-      <ul>
-        <li>Visualisez les agents sur la carte et filtrez par date.</li>
-        <li>Accédez aux fiches agents (détails, historique, photos, notes).</li>
-      </ul>
-      <h3>2) Gestion</h3>
-      <ul>
-        <li>Créer / modifier des agents, activer/désactiver des comptes.</li>
-        <li>Vérifier la <strong>distance</strong> des check‑ins par rapport à la zone de référence.</li>
-      </ul>
-      <h3>3) Rapports</h3>
-      <ul>
-        <li>Générez des rapports (jour, semaine, mois) et exportez en Excel/PDF.</li>
-      </ul>
-      <div class="note">Rappel: seuls les <strong>agents</strong> et leurs <strong>superviseurs</strong> marquent/valident la présence sur le terrain.</div>
+        <h2>📱 Comment accéder au système ?</h2>
+        <p>Le système est accessible sur mobile et ordinateur via l'adresse suivante :</p>
+        <div class="note success">
+            <a href="https://presence-ccrb-v2.onrender.com" target="_blank">https://presence-ccrb-v2.onrender.com</a>
+        </div>
+        <p>Sur mobile, l'application peut être installée sur votre écran d'accueil pour un accès rapide.</p>
     </div>
 
     <div class="section">
-      <h2><span class="tag tag-admin">Administrateur</span> Configuration et exploitation</h2>
-      <h3>1) Administration</h3>
-      <ul>
-        <li>Configurer les unités administratives (départements, communes, arrondissements, villages).</li>
-        <li>Paramétrer la tolérance GPS, les notifications et les sauvegardes.</li>
-      </ul>
-      <h3>2) Données</h3>
-      <ul>
-        <li>Suivre l'activité, contrôler la qualité des données.</li>
-        <li>Exploiter les rapports consolidés pour le pilotage.</li>
-      </ul>
+        <h2><span class="tag tag-agent">Agent</span> Guide d'utilisation</h2>
+        <h3>1. Marquer la présence</h3>
+        <ul>
+            <li><strong>Début de journée :</strong> Cliquez sur "Marquer présence (début)", ajoutez une photo et une note si nécessaire, puis confirmez.</li>
+            <li><strong>Pendant la journée :</strong> Utilisez "Check-in" pour marquer des points d'activité intermédiaires.</li>
+            <li><strong>Fin de journée :</strong> Cliquez sur "Quitter le terrain (fin)" et ajoutez un résumé de votre journée.</li>
+        </ul>
+        <h3>2. Consulter l'historique</h3>
+        <ul>
+            <li>Allez dans "Profil" pour voir vos statistiques.</li>
+            <li>Consultez le calendrier pour voir vos jours de présence.</li>
+        </ul>
     </div>
 
     <div class="section">
-      <h2>🛠️ Résolution des problèmes</h2>
-      <div class="grid">
-        <div>
-          <h3>Connexion impossible</h3>
-          <ul>
-            <li>Vérifiez email/mot de passe et votre connexion internet.</li>
-            <li>Essayez depuis un autre navigateur (Chrome/Edge/Firefox).</li>
-            <li>Si persistant, demandez une réinitialisation de mot de passe.</li>
-          </ul>
-        </div>
-        <div>
-          <h3>GPS indisponible / imprécis</h3>
-          <ul>
-            <li>Activez la localisation haute précision.</li>
-            <li>Sortez à l'extérieur, attendez 10‑20 s, réessayez.</li>
-            <li>Vérifiez les autorisations de localisation du navigateur.</li>
-          </ul>
-        </div>
-        <div>
-          <h3>Photos non visibles</h3>
-          <ul>
-            <li>Rechargez la page (Ctrl+F5).</li>
-            <li>Vérifiez que la photo a bien été envoyée (débit mobile).</li>
-            <li>Réessayez l'envoi en réseau Wi‑Fi stable.</li>
-          </ul>
-        </div>
-        <div>
-          <h3>Application lente</h3>
-          <ul>
-            <li>Fermez les onglets lourds, vérifiez le réseau.</li>
-            <li>Effacez le cache si besoin (paramètres du navigateur).</li>
-          </ul>
-        </div>
-      </div>
-      <div class="note warning">Si la panne persiste, contactez l'équipe de développement: <strong>syebadokpo@gmail.com</strong> · <strong>+229 0196911346</strong>.</div>
+        <h2><span class="tag tag-supervisor">Superviseur</span> Guide d'utilisation</h2>
+        <h3>1. Suivi des agents</h3>
+        <ul>
+            <li>Accédez au tableau de bord pour voir la position de tous les agents sur la carte.</li>
+            <li>Filtrez par date pour voir l'historique des déplacements.</li>
+        </ul>
+        <h3>2. Gestion et Rapports</h3>
+        <ul>
+            <li>Allez dans "Agents" pour créer, modifier ou supprimer des agents.</li>
+            <li>Allez dans "Rapports" pour générer des rapports de présence et les exporter en Excel ou PDF.</li>
+        </ul>
     </div>
 
     <div class="section">
-      <h2>🔒 Sécurité & Bonnes pratiques</h2>
-      <ul>
-        <li>Ne partagez pas vos identifiants. Utilisez un mot de passe robuste.</li>
-        <li>Déconnectez‑vous des postes partagés.</li>
-        <li>Respectez la vie privée lors des prises de photos sur le terrain.</li>
-      </ul>
+        <h2><span class="tag tag-admin">Administrateur</span> Guide d'utilisation</h2>
+        <ul>
+            <li>Accès à toutes les fonctionnalités des superviseurs.</li>
+            <li>Gestion des unités administratives (départements, communes, etc.) dans la section "Administration".</li>
+            <li>Configuration des paramètres système comme la tolérance GPS et les sauvegardes.</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>🛠️ Résolution des problèmes</h2>
+        <div class="grid">
+            <div>
+                <h3>Connexion impossible</h3>
+                <ul>
+                    <li>Vérifiez votre email/mot de passe et votre connexion internet.</li>
+                    <li>Contactez votre superviseur pour vérifier votre compte.</li>
+                </ul>
+            </div>
+            <div>
+                <h3>Le GPS ne fonctionne pas</h3>
+                <ul>
+                    <li>Autorisez la localisation dans votre navigateur et activez le GPS sur votre téléphone.</li>
+                    <li>Sortez à l'extérieur pour une meilleure réception.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>📞 Support et assistance</h2>
+        <p>En cas de problème persistant, contactez le support :</p>
+        <div class="note warning">
+            <strong>Email :</strong> syebadokpo@gmail.com<br>
+            <strong>Téléphone :</strong> +229 0196911346
+        </div>
     </div>
   </div>
 </body>
