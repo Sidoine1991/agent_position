@@ -1,235 +1,364 @@
-// Offline Manager - Gestion améliorée du mode hors ligne
+/**
+ * Gestionnaire de mode hors-ligne pour l'application CCRB
+ * Gère le cache local, la synchronisation et les actions en attente
+ */
+
 class OfflineManager {
   constructor() {
+    this.dbName = 'CCRB_Offline';
+    this.dbVersion = 1;
+    this.db = null;
     this.isOnline = navigator.onLine;
-    this.queuedActions = [];
+    this.syncQueue = [];
     this.syncInProgress = false;
+    
     this.init();
   }
 
-  init() {
-    // Écouter les changements de statut réseau
-    window.addEventListener('online', () => this.handleOnline());
-    window.addEventListener('offline', () => this.handleOffline());
-    
-    // Vérifier le statut au chargement
-    this.updateOnlineStatus();
-    
-    // Démarrer la synchronisation périodique
-    setInterval(() => this.syncIfOnline(), 30000); // Toutes les 30 secondes
+  async init() {
+    await this.initDB();
+    this.setupEventListeners();
+    this.startPeriodicSync();
   }
 
-  handleOnline() {
-    this.isOnline = true;
-    this.updateOnlineStatus();
-    this.showNotification('Connexion Restaurée', 'Vous êtes de nouveau en ligne. Synchronisation en cours...', 'success');
+  async initDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, this.dbVersion);
+      
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        this.db = request.result;
+        resolve();
+      };
+      
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        
+        // Store pour les données de présence
+        if (!db.objectStoreNames.contains('presence')) {
+          const presenceStore = db.createObjectStore('presence', { keyPath: 'id', autoIncrement: true });
+          presenceStore.createIndex('timestamp', 'timestamp', { unique: false });
+          presenceStore.createIndex('user_id', 'user_id', { unique: false });
+          presenceStore.createIndex('synced', 'synced', { unique: false });
+        }
+        
+        // Store pour les missions
+        if (!db.objectStoreNames.contains('missions')) {
+          const missionsStore = db.createObjectStore('missions', { keyPath: 'id', autoIncrement: true });
+          missionsStore.createIndex('user_id', 'user_id', { unique: false });
+          missionsStore.createIndex('synced', 'synced', { unique: false });
+        }
+        
+        // Store pour les check-ins
+        if (!db.objectStoreNames.contains('checkins')) {
+          const checkinsStore = db.createObjectStore('checkins', { keyPath: 'id', autoIncrement: true });
+          checkinsStore.createIndex('timestamp', 'timestamp', { unique: false });
+          checkinsStore.createIndex('user_id', 'user_id', { unique: false });
+          checkinsStore.createIndex('synced', 'synced', { unique: false });
+        }
+        
+        // Store pour les actions en attente
+        if (!db.objectStoreNames.contains('syncQueue')) {
+          const syncStore = db.createObjectStore('syncQueue', { keyPath: 'id', autoIncrement: true });
+          syncStore.createIndex('timestamp', 'timestamp', { unique: false });
+          syncStore.createIndex('type', 'type', { unique: false });
+        }
+      };
+    });
+  }
+
+  setupEventListeners() {
+    // Écouter les changements de statut de connexion
+    window.addEventListener('online', () => {
+      this.isOnline = true;
+      this.updateConnectionStatus();
+      this.syncPendingData();
+    });
     
-    // Synchroniser les actions en file
-    this.syncQueuedActions();
+    window.addEventListener('offline', () => {
+      this.isOnline = false;
+      this.updateConnectionStatus();
+    });
+    
+    // Écouter les erreurs de réseau
+    window.addEventListener('unhandledrejection', (event) => {
+      if (event.reason && event.reason.name === 'NetworkError') {
+        this.handleNetworkError(event.reason);
+      }
+    });
   }
 
-  handleOffline() {
-    this.isOnline = false;
-    this.updateOnlineStatus();
-    this.showNotification('Mode Hors Ligne', 'Vous êtes hors ligne. Vos actions seront synchronisées dès la reconnexion.', 'warning');
-  }
-
-  updateOnlineStatus() {
-    const statusElement = document.getElementById('online-status');
+  updateConnectionStatus() {
+    const statusElement = document.getElementById('connection-status');
     if (statusElement) {
       if (this.isOnline) {
-        statusElement.innerHTML = '🟢 En ligne';
-        statusElement.className = 'online-status online';
+        statusElement.innerHTML = '<span class="text-success">🟢 En ligne</span>';
+        statusElement.className = 'connection-status online';
       } else {
-        statusElement.innerHTML = '🔴 Hors ligne';
-        statusElement.className = 'online-status offline';
+        statusElement.innerHTML = '<span class="text-warning">🟡 Hors-ligne</span>';
+        statusElement.className = 'connection-status offline';
       }
     }
-
-    // Mettre à jour l'interface
-    this.updateUIForOfflineStatus();
   }
 
-  updateUIForOfflineStatus() {
-    // Masquer/afficher les éléments selon le statut
-    const offlineElements = document.querySelectorAll('.offline-only');
-    const onlineElements = document.querySelectorAll('.online-only');
+  async saveOfflineData(storeName, data) {
+    if (!this.db) await this.initDB();
     
-    offlineElements.forEach(el => {
-      el.style.display = this.isOnline ? 'none' : 'block';
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([storeName], 'readwrite');
+      const store = transaction.objectStore(storeName);
+      
+      const request = store.add({
+        ...data,
+        synced: false,
+        timestamp: Date.now()
+      });
+      
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
     });
+  }
+
+  async getOfflineData(storeName, filters = {}) {
+    if (!this.db) await this.initDB();
     
-    onlineElements.forEach(el => {
-      el.style.display = this.isOnline ? 'block' : 'none';
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([storeName], 'readonly');
+      const store = transaction.objectStore(storeName);
+      const request = store.getAll();
+      
+      request.onsuccess = () => {
+        let data = request.result;
+        
+        // Appliquer les filtres
+        if (filters.user_id) {
+          data = data.filter(item => item.user_id === filters.user_id);
+        }
+        if (filters.synced !== undefined) {
+          data = data.filter(item => item.synced === filters.synced);
+        }
+        
+        resolve(data);
+      };
+      request.onerror = () => reject(request.error);
     });
   }
 
-  // Ajouter une action à la file d'attente
-  queueAction(action) {
-    const actionWithId = {
-      id: Date.now() + Math.random(),
-      timestamp: new Date().toISOString(),
-      ...action
-    };
+  async queueSyncAction(action) {
+    if (!this.db) await this.initDB();
     
-    this.queuedActions.push(actionWithId);
-    this.saveQueuedActions();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['syncQueue'], 'readwrite');
+      const store = transaction.objectStore('syncQueue');
+      
+      const request = store.add({
+        ...action,
+        timestamp: Date.now(),
+        attempts: 0
+      });
+      
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async syncPendingData() {
+    if (this.syncInProgress || !this.isOnline) return;
     
-    this.showNotification(
-      'Action En File', 
-      'Votre action sera synchronisée dès la reconnexion.', 
-      'info'
-    );
-  }
-
-  // Sauvegarder les actions en file
-  saveQueuedActions() {
-    try {
-      localStorage.setItem('queuedActions', JSON.stringify(this.queuedActions));
-    } catch (error) {
-      console.error('Erreur sauvegarde file:', error);
-    }
-  }
-
-  // Charger les actions en file
-  loadQueuedActions() {
-    try {
-      const saved = localStorage.getItem('queuedActions');
-      if (saved) {
-        this.queuedActions = JSON.parse(saved);
-      }
-    } catch (error) {
-      console.error('Erreur chargement file:', error);
-      this.queuedActions = [];
-    }
-  }
-
-  // Synchroniser les actions en file
-  async syncQueuedActions() {
-    if (this.syncInProgress || !this.isOnline || this.queuedActions.length === 0) {
-      return;
-    }
-
     this.syncInProgress = true;
-    this.showNotification('Synchronisation', 'Synchronisation des actions en file...', 'info');
-
-    const actionsToSync = [...this.queuedActions];
-    const successfulActions = [];
-    const failedActions = [];
-
-    for (const action of actionsToSync) {
-      try {
-        await this.executeAction(action);
-        successfulActions.push(action);
-      } catch (error) {
-        console.error('Erreur sync action:', error);
-        failedActions.push(action);
-      }
+    console.log('🔄 Début de la synchronisation...');
+    
+    try {
+      // Synchroniser les données hors-ligne
+      await this.syncOfflineData();
+      
+      // Traiter la queue de synchronisation
+      await this.processSyncQueue();
+      
+      console.log('✅ Synchronisation terminée');
+    } catch (error) {
+      console.error('❌ Erreur de synchronisation:', error);
+    } finally {
+      this.syncInProgress = false;
     }
-
-    // Mettre à jour la file
-    this.queuedActions = failedActions;
-    this.saveQueuedActions();
-
-    if (successfulActions.length > 0) {
-      this.showNotification(
-        'Synchronisation Réussie', 
-        `${successfulActions.length} action(s) synchronisée(s)`, 
-        'success'
-      );
-    }
-
-    this.syncInProgress = false;
   }
 
-  // Exécuter une action
-  async executeAction(action) {
-    const { type, data, url, method = 'POST' } = action;
+  async syncOfflineData() {
+    const stores = ['presence', 'missions', 'checkins'];
     
-    const response = await fetch(url, {
+    for (const storeName of stores) {
+      const unsyncedData = await this.getOfflineData(storeName, { synced: false });
+      
+      for (const item of unsyncedData) {
+        try {
+          await this.syncItem(storeName, item);
+          await this.markAsSynced(storeName, item.id);
+        } catch (error) {
+          console.error(`Erreur sync ${storeName}:`, error);
+        }
+      }
+    }
+  }
+
+  async syncItem(storeName, item) {
+    const apiEndpoint = this.getApiEndpoint(storeName);
+    const method = item.id ? 'PUT' : 'POST';
+    
+    const response = await fetch(apiEndpoint, {
       method,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${localStorage.getItem('jwt')}`
       },
-      body: JSON.stringify(data)
+      body: JSON.stringify(item)
     });
-
+    
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(`Erreur API: ${response.status}`);
     }
-
+    
     return response.json();
   }
 
-  // Vérifier et synchroniser si en ligne
-  async syncIfOnline() {
-    if (this.isOnline && this.queuedActions.length > 0) {
-      await this.syncQueuedActions();
-    }
-  }
-
-  // Obtenir le statut de connexion
-  getConnectionStatus() {
-    return {
-      isOnline: this.isOnline,
-      queuedActions: this.queuedActions.length,
-      syncInProgress: this.syncInProgress
+  getApiEndpoint(storeName) {
+    const endpoints = {
+      'presence': '/api/presence',
+      'missions': '/api/missions',
+      'checkins': '/api/checkins'
     };
+    return endpoints[storeName] || '/api/data';
   }
 
-  // Afficher les notifications
-  showNotification(title, message, type = 'info') {
-    // Utiliser le système de notification GPS si disponible
-    if (window.gpsManager && window.gpsManager.showNotification) {
-      window.gpsManager.showNotification(title, message, type);
-      return;
-    }
+  async markAsSynced(storeName, id) {
+    if (!this.db) return;
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([storeName], 'readwrite');
+      const store = transaction.objectStore(storeName);
+      const request = store.get(id);
+      
+      request.onsuccess = () => {
+        const item = request.result;
+        if (item) {
+          item.synced = true;
+          store.put(item);
+        }
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
 
-    // Fallback vers le système de notification existant
-    if (typeof showNotification === 'function') {
-      showNotification(title, message);
-    } else {
-      console.log(`${title}: ${message}`);
+  async processSyncQueue() {
+    const queueItems = await this.getOfflineData('syncQueue');
+    
+    for (const item of queueItems) {
+      try {
+        await this.executeSyncAction(item);
+        await this.removeSyncQueueItem(item.id);
+      } catch (error) {
+        console.error('Erreur traitement queue:', error);
+        await this.incrementSyncAttempts(item.id);
+      }
     }
   }
 
-  // Forcer la synchronisation
-  async forceSync() {
-    if (!this.isOnline) {
-      this.showNotification('Erreur', 'Impossible de synchroniser hors ligne', 'error');
-      return false;
+  async executeSyncAction(action) {
+    const response = await fetch(action.url, {
+      method: action.method,
+      headers: action.headers,
+      body: action.body
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Erreur sync action: ${response.status}`);
     }
+    
+    return response.json();
+  }
 
-    await this.syncQueuedActions();
-    return true;
+  async removeSyncQueueItem(id) {
+    if (!this.db) return;
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['syncQueue'], 'readwrite');
+      const store = transaction.objectStore('syncQueue');
+      const request = store.delete(id);
+      
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async incrementSyncAttempts(id) {
+    if (!this.db) return;
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction(['syncQueue'], 'readwrite');
+      const store = transaction.objectStore('syncQueue');
+      const request = store.get(id);
+      
+      request.onsuccess = () => {
+        const item = request.result;
+        if (item) {
+          item.attempts = (item.attempts || 0) + 1;
+          if (item.attempts < 5) { // Max 5 tentatives
+            store.put(item);
+          } else {
+            store.delete(id); // Supprimer après 5 échecs
+          }
+        }
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  startPeriodicSync() {
+    // Synchroniser toutes les 30 secondes si en ligne
+    setInterval(() => {
+      if (this.isOnline && !this.syncInProgress) {
+        this.syncPendingData();
+      }
+    }, 30000);
+  }
+
+  handleNetworkError(error) {
+    console.warn('Erreur réseau détectée, passage en mode hors-ligne');
+    this.isOnline = false;
+    this.updateConnectionStatus();
+  }
+
+  // Méthodes utilitaires pour l'application
+  async savePresenceOffline(presenceData) {
+    return this.saveOfflineData('presence', presenceData);
+  }
+
+  async saveMissionOffline(missionData) {
+    return this.saveOfflineData('missions', missionData);
+  }
+
+  async saveCheckinOffline(checkinData) {
+    return this.saveOfflineData('checkins', checkinData);
+  }
+
+  async getOfflinePresence(userId) {
+    return this.getOfflineData('presence', { user_id: userId });
+  }
+
+  async getOfflineMissions(userId) {
+    return this.getOfflineData('missions', { user_id: userId });
+  }
+
+  async getOfflineCheckins(userId) {
+    return this.getOfflineData('checkins', { user_id: userId });
   }
 }
 
-// Instance globale
+// Initialiser le gestionnaire hors-ligne
 window.offlineManager = new OfflineManager();
 
-// Fonction pour ajouter une action à la file
-function queueActionForSync(action) {
-  if (window.offlineManager) {
-    window.offlineManager.queueAction(action);
-  }
+// Exporter pour utilisation dans d'autres modules
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = OfflineManager;
 }
-
-// Fonction pour vérifier le statut
-function getConnectionStatus() {
-  if (window.offlineManager) {
-    return window.offlineManager.getConnectionStatus();
-  }
-  return { isOnline: navigator.onLine, queuedActions: 0, syncInProgress: false };
-}
-
-// Initialiser au chargement
-document.addEventListener('DOMContentLoaded', () => {
-  // Charger les actions en file
-  if (window.offlineManager) {
-    window.offlineManager.loadQueuedActions();
-  }
-});
-
-console.log('✅ Offline Manager chargé');

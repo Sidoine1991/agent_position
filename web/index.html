@@ -164,6 +164,46 @@
         text-shadow: 0 2px 6px rgba(0,0,0,.35);
       }
       
+      /* Indicateurs de statut */
+      .status-indicators {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      
+      .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+      
+      .status-icon {
+        font-size: 16px;
+      }
+      
+      .status-text {
+        color: white;
+      }
+      
+      .emergency-indicator.active {
+        background: linear-gradient(135deg, #ff4757, #ff3838);
+        animation: emergencyPulse 1s infinite;
+      }
+      
+      @keyframes emergencyPulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+      }
+      
       .navbar-menu {
         display: flex;
         align-items: center;
@@ -344,6 +384,21 @@
         <h2>Suivi des Agents</h2>
         <p>Système de géolocalisation et de suivi des missions</p>
         
+        <!-- Indicateurs de statut -->
+        <div class="status-indicators" style="margin-bottom: 15px;">
+          <div id="connection-status" class="status-indicator">
+            <span class="status-icon">🟡</span>
+            <span class="status-text">Connexion...</span>
+          </div>
+          <div id="gps-status" class="status-indicator">
+            <span class="status-icon">📍</span>
+            <span class="status-text">GPS...</span>
+          </div>
+          <div id="emergency-indicator" class="status-indicator emergency-indicator">
+            <!-- Sera rempli par le système d'urgence -->
+          </div>
+        </div>
+
         <!-- Actions circulaires stylées -->
         <div class="circle-actions" id="circle-actions" style="margin-top:12px; display:none">
           <a href="/" class="circle-action" id="presence-link"><div class="icon">📍</div><div class="label">Présence</div></a>
@@ -351,6 +406,7 @@
           <a href="/agent-activity-tracking.html" class="circle-action" id="activity-link"><div class="icon">📋</div><div class="label">Suivi Activité</div></a>
           <a href="/dashboard.html" class="circle-action" id="dashboard-link"><div class="icon">📊</div><div class="label">Dashboard</div></a>
           <a href="/profile.html" class="circle-action" id="profile-link"><div class="icon">👤</div><div class="label">Profil</div></a>
+          <a href="/messages.html" class="circle-action" id="messages-link"><div class="icon">💬</div><div class="label">Messages</div></a>
           <a href="/admin-agents.html" class="circle-action" id="agents-link"><div class="icon">👥</div><div class="label">Agents</div></a>
           <a href="/reports.html" class="circle-action" id="reports-link"><div class="icon">📈</div><div class="label">Rapports</div></a>
           <a href="/admin.html" class="circle-action" id="admin-link"><div class="icon">⚙️</div><div class="label">Administration</div></a>

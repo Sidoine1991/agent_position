@@ -7,6 +7,13 @@ let presenceData = {};
 let appSettings = null;
 let isLoadingProfile = false; // Protection contre les appels répétés
 
+// Initialisation des nouveaux systèmes
+let offlineManager = null;
+let notificationManager = null;
+let gpsTracker = null;
+let messagingSystem = null;
+let emergencySystem = null;
+
 // Configuration des heures de présence sur le terrain
 const WORK_HOURS = {
   start: { hour: 6, minute: 30 }, // 06h30
@@ -3470,6 +3477,161 @@ function getCommuneNameById(departementId, communeId) {
   return c ? c.name : String(communeId || '');
 }
 
+// Initialiser les systèmes avancés
+async function initializeAdvancedSystems() {
+  try {
+    console.log('🔧 Initialisation des systèmes avancés...');
+    
+    // Charger les scripts des nouveaux systèmes
+    await loadScript('/offline-manager.js');
+    await loadScript('/notification-manager.js');
+    await loadScript('/gps-tracker.js');
+    await loadScript('/messaging-system.js');
+    await loadScript('/emergency-system.js');
+    
+    // Initialiser les gestionnaires
+    if (window.offlineManager) {
+      offlineManager = window.offlineManager;
+      console.log('✅ Gestionnaire hors-ligne initialisé');
+    }
+    
+    if (window.notificationManager) {
+      notificationManager = window.notificationManager;
+      console.log('✅ Gestionnaire de notifications initialisé');
+    }
+    
+    if (window.gpsTracker) {
+      gpsTracker = window.gpsTracker;
+      console.log('✅ Tracker GPS initialisé');
+    }
+    
+    if (window.messagingSystem) {
+      messagingSystem = window.messagingSystem;
+      console.log('✅ Système de messagerie initialisé');
+    }
+    
+    if (window.emergencySystem) {
+      emergencySystem = window.emergencySystem;
+      console.log('✅ Système d\'urgence initialisé');
+    }
+    
+    // Configurer les événements
+    setupAdvancedSystemEvents();
+    
+    console.log('🎉 Tous les systèmes avancés initialisés');
+    
+  } catch (error) {
+    console.error('❌ Erreur initialisation systèmes avancés:', error);
+  }
+}
+
+// Charger un script dynamiquement
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+// Configurer les événements des systèmes avancés
+function setupAdvancedSystemEvents() {
+  // Événements GPS
+  document.addEventListener('gpsPositionUpdate', (event) => {
+    const position = event.detail.position;
+    console.log('📍 Position GPS mise à jour:', position);
+    
+    // Mettre à jour l'affichage de la position actuelle
+    updateCurrentLocationDisplay(position);
+  });
+  
+  document.addEventListener('gpsError', (event) => {
+    console.warn('⚠️ Erreur GPS:', event.detail.message);
+    showGPSWarning(event.detail.message);
+  });
+  
+  // Événements de messagerie
+  document.addEventListener('newMessage', (event) => {
+    const message = event.detail.message;
+    console.log('💬 Nouveau message reçu:', message);
+    
+    // Afficher notification
+    if (notificationManager) {
+      notificationManager.sendNotification('💬 Nouveau Message', {
+        body: message.content,
+        tag: 'new-message'
+      });
+    }
+  });
+  
+  // Événements d'urgence
+  document.addEventListener('emergencyActivated', (event) => {
+    console.log('🚨 MODE URGENCE ACTIVÉ');
+    showEmergencyMode(true);
+  });
+  
+  document.addEventListener('emergencyDeactivated', () => {
+    console.log('✅ MODE URGENCE DÉSACTIVÉ');
+    showEmergencyMode(false);
+  });
+  
+  // Événements de connexion
+  document.addEventListener('messagingConnectionChange', (event) => {
+    const isConnected = event.detail.isConnected;
+    updateConnectionStatus(isConnected);
+  });
+}
+
+// Mettre à jour l'affichage de la position actuelle
+function updateCurrentLocationDisplay(position) {
+  const locationElement = document.getElementById('current-location');
+  if (locationElement && position) {
+    locationElement.textContent = `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}`;
+  }
+}
+
+// Afficher un avertissement GPS
+function showGPSWarning(message) {
+  const warningElement = document.getElementById('gps-warning');
+  if (warningElement) {
+    warningElement.textContent = message;
+    warningElement.style.display = 'block';
+    
+    // Masquer après 5 secondes
+    setTimeout(() => {
+      warningElement.style.display = 'none';
+    }, 5000);
+  }
+}
+
+// Afficher le mode urgence
+function showEmergencyMode(isActive) {
+  const emergencyIndicator = document.getElementById('emergency-indicator');
+  if (emergencyIndicator) {
+    if (isActive) {
+      emergencyIndicator.innerHTML = '🚨 URGENCE';
+      emergencyIndicator.className = 'emergency-indicator active';
+    } else {
+      emergencyIndicator.innerHTML = '';
+      emergencyIndicator.className = 'emergency-indicator';
+    }
+  }
+}
+
+// Mettre à jour le statut de connexion
+function updateConnectionStatus(isConnected) {
+  const statusElement = document.getElementById('connection-status');
+  if (statusElement) {
+    if (isConnected) {
+      statusElement.innerHTML = '<span class="text-success">🟢 Connecté</span>';
+    } else {
+      statusElement.innerHTML = '<span class="text-warning">🟡 Hors-ligne</span>';
+    }
+  }
+}
+
 // Initialiser la saisie manuelle au chargement
 document.addEventListener('DOMContentLoaded', async () => {
   // Ne pas effacer la console sur Vercel pour éviter les boucles
@@ -3479,6 +3641,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   } else {
     console.log('🚀 Application chargée sur Vercel');
   }
+  
+  // Initialiser les nouveaux systèmes
+  await initializeAdvancedSystems();
   
   // Vérifier le token au chargement
   const jwt = localStorage.getItem('jwt');
