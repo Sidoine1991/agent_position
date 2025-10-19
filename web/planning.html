@@ -135,25 +135,25 @@
     <div class="modal fade" id="planningModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="modalTitle">Nouveau planning</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-          </div>
           <form id="planningForm">
+            <div class="modal-header">
+              <h5 class="modal-title" id="modalTitle">Nouveau planning</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
             <div class="modal-body">
               <input type="hidden" id="planningId">
               <div class="mb-3">
-                <label class="form-label">Titre</label>
+                <label for="planningTitle" class="form-label">Titre</label>
                 <input type="text" class="form-control" id="planningTitle" required>
               </div>
               <div class="row">
                 <div class="col-md-6 mb-3">
-                  <label class="form-label">Date</label>
+                  <label for="planningDate" class="form-label">Date</label>
                   <input type="date" class="form-control" id="planningDate" required>
                 </div>
                 <div class="col-md-6 mb-3">
-                  <label class="form-label">Statut</label>
-                  <select class="form-select" id="planningStatus">
+                  <label for="planningStatus" class="form-label">Statut</label>
+                  <select class="form-select" id="planningStatus" required>
                     <option value="planned">Planifié</option>
                     <option value="in_progress">En cours</option>
                     <option value="completed">Terminé</option>
@@ -163,29 +163,29 @@
               </div>
               <div class="row">
                 <div class="col-md-6 mb-3">
-                  <label class="form-label">Heure de début</label>
+                  <label for="startTime" class="form-label">Heure de début</label>
                   <input type="time" class="form-control" id="startTime">
                 </div>
                 <div class="col-md-6 mb-3">
-                  <label class="form-label">Heure de fin</label>
+                  <label for="endTime" class="form-label">Heure de fin</label>
                   <input type="time" class="form-control" id="endTime">
                 </div>
               </div>
               <div class="mb-3">
-                <label class="form-label">Description</label>
+                <label for="description" class="form-label">Description</label>
                 <textarea class="form-control" id="description" rows="3"></textarea>
               </div>
               <div class="mb-3">
-                <label class="form-label">Projet</label>
+                <label for="projectSelect" class="form-label">Projet</label>
                 <select class="form-select" id="projectSelect">
                   <option value="">Sélectionner un projet</option>
                 </select>
               </div>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="cancelBtn">Annuler</button>
+              <button type="button" class="btn btn-danger me-auto d-none" id="deleteBtn">Supprimer</button>
               <button type="submit" class="btn btn-primary">Enregistrer</button>
-              <button type="button" id="deleteBtn" class="btn btn-danger me-auto d-none">Supprimer</button>
             </div>
           </form>
         </div>
@@ -238,8 +238,27 @@
   <script src="/translations.js"></script>
   
   <script>
+    // Variable globale pour la modale
+    let planningModal = null;
+
     // Initialisation du calendrier
     document.addEventListener('DOMContentLoaded', function() {
+      // Initialisation de la modale
+      planningModal = new bootstrap.Modal(document.getElementById('planningModal'), {
+        backdrop: true,
+        keyboard: true
+      });
+
+      // Gestionnaire d'événements pour le bouton Annuler
+      document.getElementById('cancelBtn').addEventListener('click', function() {
+        planningModal.hide();
+      });
+
+      // Réinitialiser le formulaire quand la modale est fermée
+      document.getElementById('planningModal').addEventListener('hidden.bs.modal', function() {
+        document.getElementById('planningForm').reset();
+      });
+
       // Initialisation du calendrier FullCalendar
       const calendarEl = document.getElementById('calendar');
       const calendar = new FullCalendar.Calendar(calendarEl, {
@@ -272,30 +291,30 @@
             });
         }
       });
-      
+
       calendar.render();
-      
+
       // Gestionnaire d'événements pour les boutons de navigation
       document.getElementById('today-btn').addEventListener('click', function() {
         calendar.today();
       });
-      
+
       document.getElementById('month-view-btn').addEventListener('click', function() {
         calendar.changeView('dayGridMonth');
       });
-      
+
       document.getElementById('week-view-btn').addEventListener('click', function() {
         calendar.changeView('timeGridWeek');
       });
-      
+
       document.getElementById('day-view-btn').addEventListener('click', function() {
         calendar.changeView('timeGridDay');
       });
-      
+
       // Charger les projets
       loadProjects();
     });
-    
+
     // Charger les plannings depuis l'API
     async function loadPlannings(start, end) {
       try {
@@ -307,7 +326,7 @@
             to: end.toISOString().split('T')[0]
           }
         });
-        
+
         if (response.data && response.data.items) {
           return response.data.items.map(item => ({
             id: item.id,
@@ -329,7 +348,7 @@
         return [];
       }
     }
-    
+
     // Charger la liste des projets
     async function loadProjects() {
       try {
@@ -337,10 +356,10 @@
         const response = await axios.get('/api/projects', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        
+
         const select = document.getElementById('projectSelect');
         select.innerHTML = '<option value="">Sélectionner un projet</option>';
-        
+
         if (response.data && Array.isArray(response.data.items)) {
           response.data.items.forEach(project => {
             const option = document.createElement('option');
@@ -353,28 +372,27 @@
         console.error('Erreur lors du chargement des projets:', error);
       }
     }
-    
+
     // Afficher le modal pour un nouveau planning
     function showNewPlanningModal(date) {
-      const modal = new bootstrap.Modal(document.getElementById('planningModal'));
       const form = document.getElementById('planningForm');
       form.reset();
-      
+
       document.getElementById('modalTitle').textContent = 'Nouveau planning';
       document.getElementById('planningId').value = '';
       document.getElementById('planningDate').value = date || new Date().toISOString().split('T')[0];
       document.getElementById('planningStatus').value = 'planned';
       document.getElementById('deleteBtn').classList.add('d-none');
-      
-      modal.show();
+
+      // Afficher la modale
+      planningModal.show();
     }
-    
+
     // Afficher le modal pour modifier un planning
     function showEditPlanningModal(event) {
-      const modal = new bootstrap.Modal(document.getElementById('planningModal'));
       const form = document.getElementById('planningForm');
       form.reset();
-      
+
       document.getElementById('modalTitle').textContent = 'Modifier le planning';
       document.getElementById('planningId').value = event.id;
       document.getElementById('planningTitle').value = event.title;
@@ -382,25 +400,27 @@
       document.getElementById('planningStatus').value = event.extendedProps.status || 'planned';
       document.getElementById('description').value = event.extendedProps.description || '';
       document.getElementById('projectSelect').value = event.extendedProps.project_id || '';
-      
+
       if (event.start) {
         const startTime = event.start.toTimeString().substring(0, 5);
         document.getElementById('startTime').value = startTime;
       }
-      
+
       if (event.end) {
         const endTime = event.end.toTimeString().substring(0, 5);
         document.getElementById('endTime').value = endTime;
       }
-      
+
       document.getElementById('deleteBtn').classList.remove('d-none');
-      modal.show();
+
+      // Afficher la modale
+      planningModal.show();
     }
-    
+
     // Gérer la soumission du formulaire
     document.getElementById('planningForm').addEventListener('submit', async function(e) {
       e.preventDefault();
-      
+
       const formData = {
         date: document.getElementById('planningDate').value,
         planned_start_time: document.getElementById('startTime').value || null,
@@ -409,14 +429,14 @@
         project_id: document.getElementById('projectSelect').value || null,
         status: document.getElementById('planningStatus').value
       };
-      
+
       const planningId = document.getElementById('planningId').value;
       const isEdit = !!planningId;
-      
+
       try {
         const token = localStorage.getItem('token');
         let response;
-        
+
         if (isEdit) {
           response = await axios.put(`/api/planifications/${planningId}`, formData, {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -426,47 +446,47 @@
             headers: { 'Authorization': `Bearer ${token}` }
           });
         }
-        
+
         if (response.data && response.data.success) {
           showAlert('success', `Planning ${isEdit ? 'mis à jour' : 'créé'} avec succès`);
           const calendarEl = document.getElementById('calendar');
           const calendar = FullCalendar.getCalendar(calendarEl);
-          calendar.refetchEvents();
-          bootstrap.Modal.getInstance(document.getElementById('planningModal')).hide();
+          await calendar.refetchEvents();
+          planningModal.hide();
         }
       } catch (error) {
         console.error('Erreur lors de la sauvegarde du planning:', error);
-        showAlert('danger', 'Erreur lors de la sauvegarde du planning');
+        showAlert('danger', 'Erreur lors de la sauvegarde du planning: ' + (error.response?.data?.message || error.message));
       }
     });
-    
+
     // Gérer la suppression d'un planning
     document.getElementById('deleteBtn').addEventListener('click', async function() {
       if (!confirm('Êtes-vous sûr de vouloir supprimer ce planning ?')) {
         return;
       }
-      
+
       const planningId = document.getElementById('planningId').value;
-      
+
       try {
         const token = localStorage.getItem('token');
         const response = await axios.delete(`/api/planifications/${planningId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        
+
         if (response.data && response.data.success) {
           showAlert('success', 'Planning supprimé avec succès');
           const calendarEl = document.getElementById('calendar');
           const calendar = FullCalendar.getCalendar(calendarEl);
-          calendar.refetchEvents();
-          bootstrap.Modal.getInstance(document.getElementById('planningModal')).hide();
+          await calendar.refetchEvents();
+          planningModal.hide();
         }
       } catch (error) {
         console.error('Erreur lors de la suppression du planning:', error);
-        showAlert('danger', 'Erreur lors de la suppression du planning');
+        showAlert('danger', 'Erreur lors de la suppression du planning: ' + (error.response?.data?.message || error.message));
       }
     });
-    
+
     // Fonction utilitaire pour obtenir la couleur en fonction du statut
     function getEventColor(status) {
       switch (status) {
