@@ -7,50 +7,12 @@
   <script src="/auth.js?v=2" defer></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <!-- DEPENDANCE GANTT -->
+  <link rel="stylesheet" href="https://cdn.dhtmlx.com/gantt/8.3.0/dhtmlxgantt.css">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/contrast-fixes.css">
   <style>
-    /* Actions circulaires */
-    .circle-actions {
-      display: flex !important;
-      flex-direction: row !important;
-      flex-wrap: wrap !important;
-      gap: 16px;
-      justify-content: center;
-      align-items: center;
-      margin: 20px 0;
-      padding: 20px;
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 16px;
-      backdrop-filter: blur(10px);
-      width: 100%;
-    }
-    
-    .circle-action {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      width: 80px;
-      height: 80px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-radius: 50%;
-      color: white;
-      text-decoration: none;
-      transition: all 0.3s ease;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-      position: relative;
-      overflow: hidden;
-    }
-    
-    .circle-action:hover {
-      transform: translateY(-5px) scale(1.1);
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-      color: white;
-      text-decoration: none;
-    }
-
-    /* Badge utilisateur */
+    /* Styles généraux */
     .user-info-badge {
       display: inline-flex;
       align-items: center;
@@ -65,184 +27,34 @@
       box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
     }
 
-    .user-info-badge i {
-      font-size: 0.8rem;
-    }
-
-    /* Optimisations pour format A3 */
-    @media print, (min-width: 3500px) {
-      .container {
-        max-width: none;
-        width: 100%;
-      }
-      
-      .card {
-        margin-bottom: 20px;
-        width: 100%;
-      }
-      
-      table {
-        font-size: 14px;
-        width: 100%;
-      }
-      
-      table th,
-      table td {
-        padding: 12px 8px;
-        white-space: nowrap;
-      }
-      
-      .gantt-container {
-        width: 100%;
-        overflow: visible;
-      }
-      
-      .weekly-summary {
-        width: 100%;
-        overflow: visible;
-      }
-    }
-    
-    .circle-action-active {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
-      transform: scale(1.1);
-      box-shadow: 0 6px 20px rgba(245, 87, 108, 0.4);
-    }
-    
-    .circle-action .icon {
-      font-size: 24px;
-      margin-bottom: 4px;
-    }
-    
-    .circle-action .label {
-      font-size: 10px;
+    .form-label {
       font-weight: 600;
-      text-align: center;
-      line-height: 1.2;
-    }
-    
-
-    
-    @media (max-width: 768px) {
-      .circle-action {
-        width: 70px;
-        height: 70px;
-      }
-      .circle-action .icon {
-        font-size: 20px;
-      }
-      .circle-action .label {
-        font-size: 9px;
-      }
-      
-      .circle-actions {
-        gap: 12px;
-        padding: 15px;
-      }
-    }
-    
-    @media (max-width: 480px) {
-      .circle-actions {
-        gap: 8px;
-        padding: 10px;
-      }
-      
-      .circle-action {
-        width: 60px;
-        height: 60px;
-      }
-      
-      .circle-action .icon {
-        font-size: 18px;
-      }
-      
-      .circle-action .label {
-        font-size: 8px;
-      }
+      color: #333;
     }
 
-    /* Section sélecteur de langue */
-    .language-selector-section {
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(20px);
-      padding: 15px 0;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-      position: sticky;
-      top: 0;
-      z-index: 999;
+    .gantt_task_progress {
+      background-color: rgba(255, 255, 255, 0.6) !important;
     }
 
-    .language-selector-container {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 15px;
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 20px;
+    .animated-title {
+      background: linear-gradient(45deg, #667eea, #764ba2, #f093fb, #f5576c, #4facfe, #00f2fe);
+      background-size: 400% 400%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: gradientShift 3s ease-in-out infinite;
+      font-weight: 700;
     }
 
-    .language-label {
-      font-size: 14px;
-      font-weight: 600;
-      color: #1f2937;
-      margin: 0;
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
     }
-
-    .language-selector {
-      background: white;
-      border: 2px solid #e5e7eb;
-      color: #1f2937;
-      padding: 10px 15px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      appearance: none;
-      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231f2937' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
-      background-repeat: no-repeat;
-      background-position: right 12px center;
-      background-size: 16px;
-      padding-right: 40px;
-      min-width: 140px;
-    }
-
-    .language-selector:hover {
-      border-color: #667eea;
-      box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
-      transform: translateY(-1px);
-    }
-
-     .language-selector:focus {
-       outline: none;
-       border-color: #667eea;
-       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-     }
-
-     /* Animation colorée pour le titre */
-     .animated-title {
-       background: linear-gradient(45deg, #667eea, #764ba2, #f093fb, #f5576c, #4facfe, #00f2fe);
-       background-size: 400% 400%;
-       -webkit-background-clip: text;
-       -webkit-text-fill-color: transparent;
-       background-clip: text;
-       animation: gradientShift 3s ease-in-out infinite;
-       font-weight: 700;
-     }
-
-     @keyframes gradientShift {
-       0% {
-         background-position: 0% 50%;
-       }
-       50% {
-         background-position: 100% 50%;
-       }
-       100% {
-         background-position: 0% 50%;
-       }
-     }
+    .gantt_task_line.gantt_task_status_completed .gantt_task_content { background-color: #198754; }
+    .gantt_task_line.gantt_task_status_in_progress .gantt_task_content { background-color: #ffc107; }
+    .gantt_task_line.gantt_task_status_cancelled .gantt_task_content { background-color: #dc3545; }
+    .gantt_task_line.gantt_task_status_planned .gantt_task_content { background-color: #0d6efd; }
   </style>
 </head>
 <body>
@@ -251,7 +63,7 @@
   <div class="container py-4">
     <div class="row mb-4">
       <div class="col-md-8">
-        <h1 class="h4 mb-3" data-translate="planning.title">Planification hebdomadaire et mensuelle</h1>
+        <h1 class="h4 mb-3 animated-title" data-translate="planning.title">Planification hebdomadaire et mensuelle</h1>
         <div class="user-info-badge">
           <i class="bi bi-person"></i>
           <span id="user-display-name">Chargement...</span>
@@ -259,6 +71,7 @@
       </div>
     </div>
 
+    <!-- FILTRES -->
     <div class="row g-3 align-items-end mb-4">
       <div class="col-auto">
         <label for="week-start" class="form-label mb-1" data-translate="planning.week.from">Semaine du</label>
@@ -268,10 +81,11 @@
         <button id="load-week" class="btn btn-secondary" data-translate="planning.load.week">Charger la semaine</button>
       </div>
       <div class="col-auto">
-        <label for="supervisor-select" class="form-label mb-1">Superviseur</label>
-        <select id="supervisor-select" class="form-select">
-          <option value="">Tous</option>
-        </select>
+        <label for="month" class="form-label mb-1" data-translate="planning.month">Mois</label>
+        <input type="month" id="month" class="form-control" />
+      </div>
+      <div class="col-auto">
+        <button id="load-month" class="btn btn-secondary" data-translate="planning.load.month">Charger le mois</button>
       </div>
       <div class="col-auto">
         <label for="agent-select" class="form-label mb-1" data-translate="planning.agent">Agent</label>
@@ -280,54 +94,133 @@
         </select>
       </div>
       <div class="col-auto">
-        <label for="project-select" class="form-label mb-1" data-translate="planning.project">Projet</label>
-        <select id="project-select" class="form-select">
+        <label for="project-filter-select" class="form-label mb-1" data-translate="planning.project">Projet</label>
+        <select id="project-filter-select" class="form-select">
           <option value="" data-translate="planning.project.all">Tous les projets</option>
         </select>
-      </div>
-      <div class="col-auto">
-        <label for="month" class="form-label mb-1" data-translate="planning.month">Mois</label>
-        <input type="month" id="month" class="form-control" />
-      </div>
-      <div class="col-auto">
-        <button id="load-month" class="btn btn-secondary" data-translate="planning.load.month">Charger le mois</button>
       </div>
       <div class="col-auto">
         <button id="apply-filters-btn" class="btn btn-primary">Appliquer les filtres</button>
       </div>
       <div class="col-auto">
-        <button id="reset-filters-btn" class="btn btn-outline-secondary">Réinitialiser</button>
+        <button id="reset-filters-btn" class="btn btn-outline-secondary">Réinitialiser filtres</button>
       </div>
     </div>
 
-    <div class="card mb-4" style="padding:16px">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <div>
-          <span data-translate="planning.week">Semaine</span>
-          <small id="week-summary" class="text-muted ms-2"></small>
-        </div>
-        <div class="d-flex gap-2">
-          <button id="prev-week" class="btn btn-sm btn-outline-secondary" data-translate="planning.prev.week">← Préc.</button>
-          <button id="next-week" class="btn btn-sm btn-outline-secondary" data-translate="planning.next.week">Suiv. →</button>
-        </div>
+    <!-- Formulaire d'ajout/modification de planning -->
+    <div class="card mb-4">
+      <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0" id="planningFormTitle">Ajouter une nouvelle activité</h5>
+        <button id="newActivityBtn" class="btn btn-sm btn-light">
+          <i class="bi bi-plus-circle me-1"></i> Nouvelle activité
+        </button>
       </div>
       <div class="card-body">
-        <div class="mb-2 small text-muted" data-translate="planning.drag.info">Glisser la barre pour visualiser. Cliquez sur une ligne pour définir les heures.</div>
-        <div id="week-gantt" class="gantt border rounded" style="overflow:auto; min-height:260px"></div>
+        <form id="planningForm" class="needs-validation" novalidate>
+          <input type="hidden" id="planningId">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="planningTitle" class="form-label">Titre / Sujet de l'activité <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="planningTitle" required placeholder="Ex: Réunion projet X, Tâche de développement">
+              <div class="invalid-feedback">Veuillez renseigner un titre.</div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label for="planningDate" class="form-label">Date prévue <span class="text-danger">*</span></label>
+              <input type="date" class="form-control" id="planningDate" required>
+              <div class="invalid-feedback">Veuillez choisir une date.</div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label for="planningStatus" class="form-label">Statut <span class="text-danger">*</span></label>
+              <select class="form-select" id="planningStatus" required>
+                <option value="planned">Planifié</option>
+                <option value="in_progress">En cours</option>
+                <option value="completed">Terminé</option>
+                <option value="cancelled">Annulé</option>
+              </select>
+              <div class="invalid-feedback">Veuillez sélectionner un statut.</div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-3 mb-3">
+              <label for="startTime" class="form-label">Heure de début</label>
+              <input type="time" class="form-control" id="startTime">
+            </div>
+            <div class="col-md-3 mb-3">
+              <label for="endTime" class="form-label">Heure de fin</label>
+              <input type="time" class="form-control" id="endTime">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="projectSelect" class="form-label">Associer à un projet</label>
+              <select class="form-select" id="projectSelect">
+                <option value="">Sélectionner un projet</option>
+              </select>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="description" class="form-label">Description détaillée (non obligatoire)</label>
+            <textarea class="form-control" id="description" rows="2" placeholder="Détails supplémentaires de la tâche..."></textarea>
+          </div>
+          <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-outline-danger d-none" id="deleteBtn">
+              <i class="bi bi-trash me-1"></i> Supprimer
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="cancelEditBtn">
+              <i class="bi bi-x-circle me-1"></i> Annuler / Réinitialiser
+            </button>
+            <button type="submit" class="btn btn-primary" id="saveBtn">
+              <i class="bi bi-save me-1"></i> Enregistrer l'activité
+            </button>
+          </div>
+        </form>
       </div>
     </div>
 
-    <div class="card mb-4" style="padding:16px">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <div data-translate="planning.month.view">Mois</div>
-        <small id="month-summary" class="text-muted"></small>
-      </div>
-      <div class="card-body">
-        <div class="mb-2 small text-muted" data-translate="planning.month.info">Mois — Total planifié et jours planifiés reflètent vos filtres. Vue mensuelle en Gantt. Éditez les heures par jour puis validez.</div>
-        <div id="month-gantt" class="gantt border rounded" style="max-height:60vh; overflow:auto"></div>
-      </div>
+    <!-- VUES GANTT (avec onglets) -->
+    <ul class="nav nav-tabs" id="ganttViewTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="week-view-tab" data-bs-toggle="tab" data-bs-target="#week-view-pane" type="button" role="tab" aria-controls="week-view-pane" aria-selected="true">Vue Hebdomadaire</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="month-view-tab" data-bs-toggle="tab" data-bs-target="#month-view-pane" type="button" role="tab" aria-controls="month-view-pane" aria-selected="false">Vue Mensuelle</button>
+        </li>
+    </ul>
+    <div class="tab-content" id="ganttViewTabContent">
+        <div class="tab-pane fade show active" id="week-view-pane" role="tabpanel" aria-labelledby="week-view-tab" tabindex="0">
+            <div class="card mb-4 border-top-0 rounded-top-0">
+                <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
+                    <h5 class="mb-0">Tableau de Gantt hebdomadaire</h5>
+                    <div class="d-flex gap-2">
+                        <button id="prev-week" class="btn btn-sm btn-light">← Préc.</button>
+                        <button id="next-week" class="btn btn-sm btn-light">Suiv. →</button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="mb-2 small text-muted p-3" data-translate="planning.drag.info">Double-cliquez sur une tâche dans le Gantt pour l'éditer ci-dessus.</div>
+                    <div id="week-gantt" class="gantt" style="height: 400px; width: 100%;"></div>
+                    <small id="week-summary" class="text-muted p-3 d-block"></small>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="month-view-pane" role="tabpanel" aria-labelledby="month-view-tab" tabindex="0">
+            <div class="card mb-4 border-top-0 rounded-top-0">
+                <div class="card-header d-flex justify-content-between align-items-center bg-info text-white">
+                    <h5 class="mb-0" data-translate="planning.month.view">Vue mensuelle détaillée (Gantt)</h5>
+                     <div class="d-flex gap-2">
+                        <button id="prev-month" class="btn btn-sm btn-light">← Préc.</button>
+                        <button id="next-month" class="btn btn-sm btn-light">Suiv. →</button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="mb-2 small text-muted p-3" data-translate="planning.month.info">Vue mensuelle des activités. Double-cliquez pour éditer l'activité.</div>
+                    <div id="month-gantt" class="gantt border rounded" style="max-height:60vh; height: 400px; overflow:auto"></div>
+                    <small id="month-summary" class="text-muted p-3 d-block"></small>
+                </div>
+            </div>
+        </div>
     </div>
 
+
+    <!-- RÉCAP HEBDOMADAIRE -->
     <div class="card mb-4" style="padding:16px">
       <div class="card-header d-flex justify-content-between align-items-center">
         <div>
@@ -344,7 +237,7 @@
         </div>
       </div>
       <div class="card-body">
-        <div class="mb-2 small text-muted" data-translate="planning.summary.info">Résumé des activités planifiées regroupées par semaine avec possibilité d'édition.</div>
+        <div class="mb-2 small text-muted" data-translate="planning.summary.info">Résumé des activités planifiées regroupées par semaine.</div>
         <div id="weekly-summary" class="border rounded p-3" style="min-height:200px">
           <div class="text-center text-muted">
             <i class="bi bi-calendar-week fs-1"></i>
@@ -377,12 +270,354 @@
     </div>
   </footer>
 
+  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <script src="https://cdn.dhtmlx.com/gantt/8.3.0/dhtmlxgantt.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="/app.js?v=5"></script>
   <script src="/planning.js"></script>
   <script src="/translations.js"></script>
+  
+  <script>
+    let currentGanttWeekDate = new Date();
+    let currentGanttMonthDate = new Date();
+    let allPlanningsCache = [];
+    let activeGanttView = 'week'; // 'week' or 'month'
+
+    // --- Fonctions Utilitaires ---
+    function getWeekStart(date) {
+      const d = new Date(date);
+      const day = d.getDay() || 7;
+      if (day !== 1) d.setHours(-24 * (day - 1));
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+
+    function getWeekEnd(date) {
+        const startOfWeek = getWeekStart(date);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+        return endOfWeek;
+    }
+
+    function getMonthStart(date) {
+      const d = new Date(date.getFullYear(), date.getMonth(), 1);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+    
+    function getMonthEnd(date) {
+      const d = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+      d.setHours(23, 59, 59, 999);
+      return d;
+    }
+    
+    function getEventColor(status) {
+      switch (status) {
+        case 'completed': return '#198754';
+        case 'in_progress': return '#ffc107';
+        case 'cancelled': return '#dc3545';
+        case 'planned':
+        default: return '#0d6efd';
+      }
+    }
+    
+    function resetPlanningForm(date = new Date().toISOString().split('T')[0]) {
+      const form = document.getElementById('planningForm');
+      form.reset();
+      form.classList.remove('was-validated');
+      document.getElementById('planningId').value = '';
+      document.getElementById('planningFormTitle').textContent = 'Ajouter une nouvelle activité';
+      document.getElementById('planningDate').value = date;
+      document.getElementById('planningStatus').value = 'planned';
+      document.getElementById('deleteBtn').classList.add('d-none');
+      document.getElementById('saveBtn').innerHTML = '<i class="bi bi-save me-1"></i> Enregistrer l\'activité';
+      document.getElementById('saveBtn').disabled = false;
+    }
+
+    // --- Logique de chargement des données ---
+    async function loadAllPlanningData(startDate, endDate) {
+      try {
+        const startStr = startDate.toISOString().split('T')[0];
+        const endStr = endDate.toISOString().split('T')[0];
+        const agentId = document.getElementById('agent-select').value;
+        const projectId = document.getElementById('project-filter-select').value;
+        
+        let url = `planifications?from=${startStr}&to=${endStr}`;
+        if (agentId) url += `&agent_id=${agentId}`;
+        if (projectId) url += `&project_id=${projectId}`;
+        
+        const data = await apiCall(url);
+
+        if (data && data.items) {
+          allPlanningsCache = data.items.map(item => ({
+            id: item.id,
+            title: item.description_activite || 'Sans titre',
+            start: item.date + (item.planned_start_time ? 'T' + item.planned_start_time : 'T00:00:00'),
+            end: item.planned_end_time ? (item.date + 'T' + item.planned_end_time) : null,
+            allDay: !item.planned_start_time && !item.planned_end_time,
+            extendedProps: {
+              status: item.status || 'planned',
+              project_id: item.project_id,
+              description: item.description_activite
+            }
+          }));
+          return allPlanningsCache;
+        }
+        allPlanningsCache = [];
+        return [];
+      } catch (error) {
+        console.error('Erreur lors du chargement des plannings:', error);
+        return [];
+      }
+    }
+    
+    // --- Gestion de la Vue Gantt ---
+    function setupGantt() {
+        gantt.config.xml_date = "%Y-%m-%d %H:%i";
+        gantt.i18n.setLocale("fr");
+
+        gantt.attachEvent("onTaskDblClick", function(id, e) {
+            const task = gantt.getTask(id);
+            editPlanningFromGantt(task);
+            return false;
+        });
+
+        gantt.templates.task_class = function(start, end, task) {
+            return `gantt_task_status_${task.status}`;
+        };
+    }
+
+    async function updateGanttView() {
+        gantt.clearAll();
+
+        let startDate, endDate, summaryElement;
+        
+        if (activeGanttView === 'month') {
+            gantt.config.scale_unit = "month";
+            gantt.config.date_scale = "%F, %Y";
+            gantt.config.subscales = [{ unit: "day", step: 1, date: "%j" }];
+            gantt.config.columns = [
+                {name: "text", label: "Activité", tree: true, width: 250, resize: true},
+                {name: "start_date", label: "Début", align: "center", width: 90},
+                {name: "duration", label: "Jours", align: "center", width: 60},
+            ];
+            startDate = getMonthStart(currentGanttMonthDate);
+            endDate = getMonthEnd(currentGanttMonthDate);
+            summaryElement = document.getElementById('month-summary');
+            gantt.init("month-gantt");
+        } else {
+            gantt.config.scale_unit = "day";
+            gantt.config.date_scale = "%D, %j %M";
+            gantt.config.subscales = [{ unit: "hour", step: 1, date: "%H:00" }];
+            gantt.config.min_column_width = 80;
+            gantt.config.columns = [
+                {name: "text", label: "Activité", tree: true, width: 200, resize: true},
+                {name: "start_date", label: "Début", align: "center", width: 100},
+                {name: "duration", label: "Durée (h)", align: "center", width: 80},
+                {name: "status", label: "Statut", align: "center", width: 80, template: task => task.status.charAt(0).toUpperCase() + task.status.slice(1).replace('_', ' ')},
+            ];
+            startDate = getWeekStart(currentGanttWeekDate);
+            endDate = getWeekEnd(currentGanttWeekDate);
+            summaryElement = document.getElementById('week-summary');
+            gantt.init("week-gantt");
+        }
+        
+        const rawEvents = await loadAllPlanningData(startDate, endDate);
+        const tasks = { data: rawEvents.map(item => {
+            const start = new Date(item.start);
+            let end;
+            if (item.end && !isNaN(new Date(item.end))) {
+                end = new Date(item.end);
+            } else {
+                end = new Date(start.getTime() + (activeGanttView === 'month' ? 86400000 : 3600000));
+            }
+
+            let duration;
+            if (activeGanttView === 'month') {
+                duration = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                duration = Math.max(1, duration);
+            } else {
+                duration = (end.getTime() - start.getTime()) / 3600000;
+            }
+
+            return {
+                id: item.id,
+                text: item.title,
+                start_date: start,
+                duration: duration,
+                progress: item.extendedProps.status === 'completed' ? 1 : 0,
+                status: item.extendedProps.status,
+                color: getEventColor(item.extendedProps.status)
+            };
+        })};
+    
+        if (summaryElement) {
+            summaryElement.textContent = activeGanttView === 'month'
+                ? `Affichage du mois : ${startDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}`
+                : `Du ${startDate.toLocaleDateString('fr-FR')} au ${endDate.toLocaleDateString('fr-FR')}`;
+        }
+    
+        gantt.parse(tasks);
+    }
+
+
+    // --- Fonctions d'édition ---
+    function editPlanningFromGantt(task) {
+        resetPlanningForm(); 
+        document.getElementById('planningFormTitle').textContent = `Modifier l'activité (ID: ${task.id})`;
+        document.getElementById('planningId').value = task.id;
+        document.getElementById('planningTitle').value = task.text;
+        document.getElementById('deleteBtn').classList.remove('d-none');
+        
+        const startDate = task.start_date; // C'est un objet Date
+        document.getElementById('planningDate').value = startDate.toISOString().split('T')[0];
+        document.getElementById('planningStatus').value = task.status || 'planned';
+        
+        if (startDate) {
+            document.getElementById('startTime').value = startDate.toTimeString().substring(0, 5);
+            if (task.duration) {
+                const isMonthView = gantt.config.scale_unit === 'month';
+                const durationMs = task.duration * (isMonthView ? 86400000 : 3600000);
+                const endDate = new Date(startDate.getTime() + durationMs);
+                document.getElementById('endTime').value = endDate.toTimeString().substring(0, 5);
+            }
+        } 
+        
+        const cachedItem = allPlanningsCache.find(p => p.id == task.id);
+        if (cachedItem) {
+            document.getElementById('description').value = cachedItem.extendedProps.description || '';
+            document.getElementById('projectSelect').value = cachedItem.extendedProps.project_id || '';
+        }
+    }
+    
+    // --- Initialisation et Événements ---
+    document.addEventListener('DOMContentLoaded', function() {
+        setupGantt();
+        loadProjects(); 
+        
+        // Listeners des onglets
+        document.querySelectorAll('#ganttViewTab button[data-bs-toggle="tab"]').forEach(tab => {
+            tab.addEventListener('shown.bs.tab', event => {
+                activeGanttView = event.target.id === 'week-view-tab' ? 'week' : 'month';
+                updateGanttView();
+            });
+        });
+
+        // Navigation
+        document.getElementById('prev-week').addEventListener('click', () => { currentGanttWeekDate.setDate(currentGanttWeekDate.getDate() - 7); updateGanttView(); });
+        document.getElementById('next-week').addEventListener('click', () => { currentGanttWeekDate.setDate(currentGanttWeekDate.getDate() + 7); updateGanttView(); });
+        document.getElementById('prev-month').addEventListener('click', () => { currentGanttMonthDate.setMonth(currentGanttMonthDate.getMonth() - 1); updateGanttView(); });
+        document.getElementById('next-month').addEventListener('click', () => { currentGanttMonthDate.setMonth(currentGanttMonthDate.getMonth() + 1); updateGanttView(); });
+        
+        // Chargement par date
+        document.getElementById('load-week').addEventListener('click', () => {
+            const dateInput = document.getElementById('week-start').value;
+            if (dateInput) currentGanttWeekDate = new Date(dateInput);
+            document.querySelector('#week-view-tab').click();
+        });
+        document.getElementById('load-month').addEventListener('click', () => {
+            const monthInput = document.getElementById('month').value;
+            if (monthInput) {
+                const [year, month] = monthInput.split('-');
+                currentGanttMonthDate = new Date(year, month - 1, 1);
+            }
+            document.querySelector('#month-view-tab').click();
+        });
+        
+        // Filtres
+        document.getElementById('apply-filters-btn').addEventListener('click', () => updateGanttView());
+        document.getElementById('reset-filters-btn').addEventListener('click', () => {
+            document.getElementById('agent-select').value = '';
+            document.getElementById('project-filter-select').value = '';
+            document.getElementById('supervisor-select').value = '';
+            updateGanttView();
+        });
+        
+        // Formulaire
+        document.getElementById('newActivityBtn').addEventListener('click', () => resetPlanningForm());
+        document.getElementById('cancelEditBtn').addEventListener('click', () => resetPlanningForm());
+        document.getElementById('planningForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            if (!this.checkValidity()) {
+                e.stopPropagation();
+                this.classList.add('was-validated');
+                return;
+            }
+
+            const isEdit = !!document.getElementById('planningId').value;
+            const submitBtn = document.getElementById('saveBtn');
+            const originalBtnText = submitBtn.innerHTML;
+            
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Traitement...';
+            
+            try {
+                // [Intégrer ici votre logique d'appel API POST/PUT]
+                await new Promise(resolve => setTimeout(resolve, 800));
+                showAlert('success', `Activité ${isEdit ? 'mise à jour' : 'créée'} avec succès.`);
+                resetPlanningForm();
+                updateGanttView();
+            } catch (error) {
+                showAlert('danger', `Erreur lors de la sauvegarde: ${error.message}`);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+            }
+        });
+        
+        // Chargement initial
+        updateGanttView();
+        resetPlanningForm();
+    });
+    
+    // --- Fonctions API et utilitaires simulées ---
+    async function apiCall(endpoint, options = {}) {
+      const dummyData = {
+        planifications: { items: [
+            { id: 1, date: '2025-10-20', planned_start_time: '09:00', planned_end_time: '11:00', description_activite: 'Démarrage projet Alpha', status: 'completed', project_id: 101 },
+            { id: 2, date: '2025-10-21', planned_start_time: '14:00', planned_end_time: '16:30', description_activite: 'Revue de code Beta', status: 'in_progress', project_id: 102 },
+            { id: 3, date: '2025-10-22', planned_start_time: '10:00', planned_end_time: '18:00', description_activite: 'Préparation documentation', status: 'planned', project_id: 101 },
+            { id: 4, date: '2025-11-05', planned_start_time: '10:00', planned_end_time: null, description_activite: 'Déploiement mensuel', status: 'planned', project_id: 102 },
+        ]},
+        projects: { items: [{ id: 101, name: 'Projet Alpha' }, { id: 102, name: 'Projet Beta' }] }
+      };
+      
+      const endpointName = endpoint.split('?')[0];
+      if (dummyData[endpointName]) {
+        return new Promise(resolve => setTimeout(() => resolve(dummyData[endpointName]), 500));
+      }
+      return { items: [] }; 
+    }
+
+    function showAlert(type, message) {
+      console.log(`Alerte (${type}): ${message}`);
+      // [Insérer ici votre fonction d'affichage d'alerte visuelle]
+    }
+
+    async function loadProjects() {
+      try {
+        const data = await apiCall('projects');
+        const select = document.getElementById('projectSelect');
+        const filterSelect = document.getElementById('project-filter-select');
+
+        [select, filterSelect].forEach(s => {
+          s.innerHTML = s.id === 'project-filter-select' ? '<option value="">Tous les projets</option>' : '<option value="">Sélectionner un projet</option>';
+          if (data && Array.isArray(data.items)) {
+            data.items.forEach(project => {
+              const option = document.createElement('option');
+              option.value = project.id;
+              option.textContent = project.name;
+              s.appendChild(option);
+            });
+          }
+        });
+      } catch (error) {
+        console.error('Erreur de chargement des projets:', error);
+      }
+    }
+  </script>
 </body>
 </html>
-
-
