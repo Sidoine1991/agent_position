@@ -12,6 +12,79 @@
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/contrast-fixes.css">
   <style>
+    /* Styles pour la barre de navigation circulaire */
+    .nav-link-circle {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-decoration: none;
+      color: #4a5568;
+      transition: all 0.3s ease;
+      padding: 0.5rem;
+      border-radius: 50%;
+      position: relative;
+    }
+
+    .nav-link-circle:hover {
+      color: #2d3748;
+      transform: translateY(-3px);
+    }
+
+    .nav-link-circle.active {
+      color: #4f46e5;
+    }
+
+    .nav-link-circle.active .nav-circle {
+      background-color: #eef2ff;
+      border-color: #c7d2fe;
+    }
+
+    .nav-circle {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      background-color: #f8fafc;
+      border: 2px solid #e2e8f0;
+      margin-bottom: 0.25rem;
+      transition: all 0.3s ease;
+    }
+
+    .nav-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 1200px) {
+      .nav-circle {
+        width: 40px;
+        height: 40px;
+        font-size: 1.25rem;
+      }
+      .nav-label {
+        font-size: 0.65rem;
+      }
+    }
+
+    @media (max-width: 992px) {
+      .nav-link-circle {
+        padding: 0.25rem;
+      }
+      .nav-circle {
+        width: 36px;
+        height: 36px;
+        font-size: 1.1rem;
+      }
+      .nav-label {
+        display: none;
+      }
+    }
+
     /* Styles généraux existants */
     .user-info-badge {
       display: inline-flex;
@@ -163,6 +236,98 @@
 </head>
 <body>
   <div id="navbar-placeholder"></div>
+
+  <!-- Barre de navigation personnalisée avec boutons circulaires -->
+  <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
+    <div class="container">
+      <div class="d-flex justify-content-between w-100">
+        <div class="d-flex">
+          <a href="/index.html" class="nav-link-circle mx-2" title="Présence">
+            <div class="nav-circle">📍</div>
+            <span class="nav-label">Présence</span>
+          </a>
+          <a href="/messages.html" class="nav-link-circle mx-2" title="Messages">
+            <div class="nav-circle">💬</div>
+            <span class="nav-label">Messages</span>
+          </a>
+          <a href="/dashboard.html" class="nav-link-circle mx-2" title="Mon Tableau de Bord">
+            <div class="nav-circle">📊</div>
+            <span class="nav-label">Tableau de Bord</span>
+          </a>
+          <a href="/planning.html" class="nav-link-circle mx-2 active" title="Planification">
+            <div class="nav-circle">🗓️</div>
+            <span class="nav-label">Planification</span>
+          </a>
+        </div>
+        <div class="d-flex">
+          <a href="/profile.html" class="nav-link-circle mx-2" title="Profil">
+            <div class="nav-circle">👤</div>
+            <span class="nav-label">Profil</span>
+          </a>
+          <a href="/supervisor-dashboard.html" class="nav-link-circle mx-2" title="Dashboard Superviseur">
+            <div class="nav-circle">📈</div>
+            <span class="nav-label">Superviseur</span>
+          </a>
+          <a href="/agent-management.html" class="nav-link-circle mx-2" title="Gestion Agents">
+            <div class="nav-circle">👥</div>
+            <span class="nav-label">Agents</span>
+          </a>
+          <a href="/reports.html" class="nav-link-circle mx-2" title="Rapports">
+            <div class="nav-circle">📄</div>
+            <span class="nav-label">Rapports</span>
+          </a>
+          <a href="/help.html" class="nav-link-circle mx-2" title="Aide">
+            <div class="nav-circle">❓</div>
+            <span class="nav-label">Aide</span>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="container">
+      <div class="d-flex justify-content-between w-100">
+        <div class="d-flex">
+          <a href="/index.html" class="nav-link-circle mx-2" title="Présence">
+            <div class="nav-circle">📍</div>
+            <span class="nav-label">Présence</span>
+          </a>
+          <a href="/messages.html" class="nav-link-circle mx-2" title="Messages">
+            <div class="nav-circle">💬</div>
+            <span class="nav-label">Messages</span>
+          </a>
+          <a href="/dashboard.html" class="nav-link-circle mx-2" title="Mon Tableau de Bord">
+            <div class="nav-circle">📊</div>
+            <span class="nav-label">Tableau de Bord</span>
+          </a>
+          <a href="/planning.html" class="nav-link-circle mx-2 active" title="Planification">
+            <div class="nav-circle">🗓️</div>
+            <span class="nav-label">Planification</span>
+          </a>
+        </div>
+        <div class="d-flex">
+          <a href="/profile.html" class="nav-link-circle mx-2" title="Profil">
+            <div class="nav-circle">👤</div>
+            <span class="nav-label">Profil</span>
+          </a>
+          <a href="/supervisor-dashboard.html" class="nav-link-circle mx-2" title="Dashboard Superviseur">
+            <div class="nav-circle">📈</div>
+            <span class="nav-label">Superviseur</span>
+          </a>
+          <a href="/agent-management.html" class="nav-link-circle mx-2" title="Gestion Agents">
+            <div class="nav-circle">👥</div>
+            <span class="nav-label">Agents</span>
+          </a>
+          <a href="/reports.html" class="nav-link-circle mx-2" title="Rapports">
+            <div class="nav-circle">📄</div>
+            <span class="nav-label">Rapports</span>
+          </a>
+          <a href="/help.html" class="nav-link-circle mx-2" title="Aide">
+            <div class="nav-circle">❓</div>
+            <span class="nav-label">Aide</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </nav>
 
   <div class="container py-4">
     <!-- ... (le reste de votre contenu HTML reste inchangé) ... -->
