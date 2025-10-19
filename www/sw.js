@@ -1,4 +1,4 @@
-const CACHE_NAME = 'presence-ccrb-v2';
+const CACHE_NAME = 'presence-ccrb-v3';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -10,7 +10,6 @@ const urlsToCache = [
   '/planning.html',
   '/admin.html',
   '/register.html',
-  '/login.html',
   '/manifest.webmanifest',
   '/Media/logo-ccrb.png',
   '/css/style.css',

@@ -7,21 +7,441 @@
   <link rel="stylesheet" href="/styles.css">
   <link rel="icon" href="/Media/logo-ccrb.png">
   <style>
-    .help-container{max-width:980px;margin:32px auto;padding:0 16px}
-    .section{background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin:16px 0;padding:20px}
-    .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;margin-right:8px}
-    .tag-agent{background:#ecfeff;color:#0369a1;border:1px solid #7dd3fc}
-    .tag-supervisor{background:#fef9c3;color:#854d0e;border:1px solid #fde68a}
-    .tag-admin{background:#e9d5ff;color:#6b21a8;border:1px solid #d8b4fe}
-    h1{font-size:28px;margin:12px 0}
-    h2{font-size:20px;margin:10px 0}
-    h3{font-size:16px;margin:8px 0}
-    ul{margin:6px 0 6px 18px}
-    .note{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:12px;margin-top:12px}
-    .warning{background:#fff7ed;border:1px solid #fed7aa}
-    .success{background:#ecfdf5;border:1px solid #bbf7d0}
-    .grid{display:grid;grid-template-columns:1fr;gap:12px}
-    @media(min-width:900px){.grid{grid-template-columns:1fr 1fr}}
+    :root {
+      --primary: #2c3e50;
+      --secondary: #3498db;
+      --success: #27ae60;
+      --warning: #f39c12;
+      --danger: #e74c3c;
+      --light: #f8f9fa;
+      --dark: #343a40;
+      --gray: #6c757d;
+      --light-gray: #e9ecef;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background-color: #f5f7fa;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    
+    .help-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px 40px;
+    }
+    
+    .section {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      margin: 20px 0;
+      padding: 25px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .section:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      transform: translateY(-2px);
+    }
+    
+    h1 {
+      font-size: 2.2rem;
+      color: var(--primary);
+      margin: 0 0 1.5rem;
+      font-weight: 700;
+    }
+    
+    h2 {
+      font-size: 1.8rem;
+      color: var(--primary);
+      margin: 1.5rem 0 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid #eee;
+      font-weight: 600;
+    }
+    
+    h3 {
+      font-size: 1.4rem;
+      color: var(--primary);
+      margin: 1.5rem 0 1rem;
+      font-weight: 600;
+    }
+    
+    h4 {
+      font-size: 1.1rem;
+      color: var(--dark);
+      margin: 1.2rem 0 0.8rem;
+      font-weight: 500;
+    }
+    
+    p {
+      margin-bottom: 1rem;
+      line-height: 1.6;
+    }
+    
+    ul, ol {
+      margin: 0.5rem 0 1rem 1.5rem;
+      padding-left: 1rem;
+    }
+    
+    li {
+      margin-bottom: 0.5rem;
+    }
+    
+    a {
+      color: var(--secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    
+    a:hover {
+      color: #2980b9;
+      text-decoration: underline;
+    }
+    
+    /* Tags */
+    .tag {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-right: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    
+    .tag-agent {
+      background: #e3f2fd;
+      color: #1565c0;
+      border: 1px solid #90caf9;
+    }
+    
+    .tag-supervisor {
+      background: #fff8e1;
+      color: #ff8f00;
+      border: 1px solid #ffe082;
+    }
+    
+    .tag-admin {
+      background: #f3e5f5;
+      color: #7b1fa2;
+      border: 1px solid #ce93d8;
+    }
+    
+    /* Notes */
+    .note {
+      background: #f8f9fa;
+      border-left: 4px solid var(--secondary);
+      border-radius: 6px;
+      padding: 1rem;
+      margin: 1.5rem 0;
+      font-size: 0.95rem;
+    }
+    
+    .note.warning {
+      background: #fff8e1;
+      border-left-color: #ffc107;
+    }
+    
+    .note.success {
+      background: #e8f5e9;
+      border-left-color: #4caf50;
+    }
+    
+    .note.danger {
+      background: #ffebee;
+      border-left-color: #f44336;
+    }
+    
+    /* Grid and Cards */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      margin: 1.5rem 0;
+    }
+    
+    @media (min-width: 768px) {
+      .grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    
+    .feature-card {
+      background: #fff;
+      border: 1px solid #e9ecef;
+      border-radius: 10px;
+      padding: 1.5rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+      height: 100%;
+    }
+    
+    .feature-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Contact Section */
+    .contact-method {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    .contact-icon {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      color: var(--secondary);
+    }
+    
+    .contact-detail {
+      color: var(--gray);
+      margin-bottom: 0.5rem;
+    }
+    
+    .contact-link {
+      color: var(--secondary);
+      font-weight: 500;
+      text-decoration: none;
+    }
+    
+    .contact-link:hover {
+      text-decoration: underline;
+    }
+    
+    /* Buttons */
+    button {
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 500;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 6px;
+      transition: all 0.2s;
+      margin-top: 0.5rem;
+    }
+    
+    .copy-btn {
+      background-color: #e9ecef;
+      color: #495057;
+    }
+    
+    .copy-btn:hover {
+      background-color: #dee2e6;
+    }
+    
+    .chat-btn {
+      background-color: var(--secondary);
+      color: white;
+    }
+    
+    .chat-btn:hover {
+      background-color: #2980b9;
+    }
+    
+    .submit-btn {
+      background-color: var(--success);
+      color: white;
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    
+    .submit-btn:hover {
+      background-color: #219653;
+    }
+    
+    /* Form */
+    .contact-form-container {
+      max-width: 800px;
+      margin: 2rem auto 0;
+    }
+    
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      color: var(--dark);
+    }
+    
+    input[type="text"],
+    input[type="email"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #ced4da;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 1rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    
+    input[type="text"]:focus,
+    input[type="email"]:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--secondary);
+      box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+    }
+    
+    textarea {
+      resize: vertical;
+      min-height: 120px;
+    }
+    
+    .form-actions {
+      text-align: center;
+      margin-top: 2rem;
+    }
+    
+    /* FAQ */
+    .faq-item {
+      margin-bottom: 1.5rem;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    
+    .faq-item h4 {
+      background-color: #f8f9fa;
+      padding: 1rem 1.5rem;
+      margin: 0;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background-color 0.2s;
+    }
+    
+    .faq-item h4:hover {
+      background-color: #f1f3f5;
+    }
+    
+    .faq-item h4::after {
+      content: '➕';
+      font-size: 1.2rem;
+      transition: transform 0.3s;
+    }
+    
+    .faq-item.active h4::after {
+      content: '➖';
+    }
+    
+    .faq-answer {
+      padding: 0 1.5rem;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out, padding 0.3s ease;
+    }
+    
+    .faq-item.active .faq-answer {
+      padding: 1rem 1.5rem 1.5rem;
+      max-height: 1000px;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .help-container {
+        padding: 0 15px;
+      }
+      
+      .section {
+        padding: 20px 15px;
+      }
+      
+      h1 {
+        font-size: 1.8rem;
+      }
+      
+      h2 {
+        font-size: 1.5rem;
+      }
+      
+      h3 {
+        font-size: 1.3rem;
+      }
+    }
+    
+    /* Animation */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .section {
+      animation: fadeIn 0.5s ease-out forwards;
+    }
+    
+    /* Notification */
+    .notification {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #27ae60;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: transform 0.3s, opacity 0.3s;
+      z-index: 1000;
+    }
+    
+    .notification.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    
+    /* Tabs */
+    .tabs {
+      display: flex;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid #e9ecef;
+      padding-bottom: 1px;
+    }
+    
+    .tab-btn {
+      padding: 0.75rem 1.5rem;
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      font-weight: 600;
+      color: var(--gray);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .tab-btn.active {
+      color: var(--secondary);
+      border-bottom-color: var(--secondary);
+    }
+    
+    .tab-btn:hover:not(.active) {
+      color: var(--dark);
+      border-bottom-color: #dee2e6;
+    }
   </style>
 </head>
 <body>
@@ -29,75 +449,451 @@
     <h1>📖 Aide et Manuel d'utilisation</h1>
     <p>Ce guide explique comment utiliser l'application Presence CCR‑B selon votre rôle. Seuls les <strong>Agents</strong> marquent leur présence sur le terrain, et les <strong>Superviseurs</strong> suivent et valident. Les <strong>Administrateurs</strong> configurent et exploitent les données.</p>
 
-    <div class="section">
-      <h2><span class="tag tag-agent">Agent</span> Utilisation terrain</h2>
-      <h3>1) Connexion</h3>
-      <ul>
-        <li>Ouvrez l'application et connectez‑vous avec votre email et mot de passe.</li>
-        <li>Autorisez la géolocalisation si demandé.</li>
-      </ul>
-      <h3>2) Préparer votre zone</h3>
-      <ul>
-        <li>Renseignez votre zone d'intervention dans <strong>Profil</strong> (département, commune, arrondissement, village).</li>
-        <li>Vérifiez le <strong>rayon de tolérance</strong> du GPS (par défaut 500 m).</li>
-      </ul>
-      <h3>3) Marquer la présence</h3>
-      <ul>
-        <li>Début de mission: cliquez <strong>Débuter la mission</strong>, ajoutez note et photo si nécessaire.</li>
-        <li>Pendant la journée: utilisez <strong>Check‑in</strong> pour ajouter des points avec photo/notes.</li>
-        <li>Fin de mission: cliquez <strong>Finir position</strong> pour clôturer.</li>
-      </ul>
-      <h3>4) Historique</h3>
-      <ul>
-        <li>Consultez le <strong>calendrier</strong> et l'<strong>historique des missions</strong> depuis le Tableau de bord.</li>
-      </ul>
-      <div class="note success">Astuce: si la précision GPS est faible, patientez 10‑20 secondes à l'extérieur, activez le GPS élevé et réessayez.</div>
-    </div>
-
-    <div class="section">
-      <h2><span class="tag tag-supervisor">Superviseur</span> Suivi et validations</h2>
-      <h3>1) Tableau de bord</h3>
-      <ul>
-        <li>Visualisez les agents sur la carte et filtrez par date.</li>
-        <li>Accédez aux fiches agents (détails, historique, photos, notes).</li>
-      </ul>
-      <h3>2) Gestion</h3>
-      <ul>
-        <li>Créer / modifier des agents, activer/désactiver des comptes.</li>
-        <li>Vérifier la <strong>distance</strong> des check‑ins par rapport à la zone de référence.</li>
-      </ul>
-      <h3>3) Rapports</h3>
-      <ul>
-        <li>Générez des rapports (jour, semaine, mois) et exportez en Excel/PDF.</li>
-      </ul>
-      <div class="note">Rappel: seuls les <strong>agents</strong> et leurs <strong>superviseurs</strong> marquent/valident la présence sur le terrain.</div>
-    </div>
-
-    <div class="section">
-      <h2><span class="tag tag-admin">Administrateur</span> Configuration et exploitation</h2>
-      <h3>1) Administration</h3>
-      <ul>
-        <li>Configurer les unités administratives (départements, communes, arrondissements, villages).</li>
-        <li>Paramétrer la tolérance GPS, les notifications et les sauvegardes.</li>
-      </ul>
-      <h3>2) Données</h3>
-      <ul>
-        <li>Suivre l'activité, contrôler la qualité des données.</li>
-        <li>Exploiter les rapports consolidés pour le pilotage.</li>
-      </ul>
-    </div>
-
-    <div class="section">
-      <h2>🛠️ Résolution des problèmes</h2>
+    <div id="agent-section" class="section">
+      <h2><span class="tag tag-agent">Agent</span> Guide Complet</h2>
+      
+      <div class="note success">
+        <strong>Nouveauté :</strong> Découvrez notre <a href="#" style="color: var(--success); text-decoration: underline;">tutoriel vidéo</a> pour une prise en main rapide de l'application.
+      </div>
+      
+      <div class="step">
+        <h3>🎯 1. Premiers Pas</h3>
+        <div class="grid">
+          <div class="feature-card">
+            <h4>📱 Installation</h4>
+            <p>Installez l'application sur votre appareil pour une expérience optimale :</p>
+            <ol>
+              <li>Ouvrez Chrome/Edge sur votre mobile</li>
+              <li>Allez sur l'URL de l'application</li>
+              <li>Appuyez sur "Installer" ou "Ajouter à l'écran d'accueil"</li>
+            </ol>
+          </div>
+          
+          <div class="feature-card">
+            <h4>🔐 Connexion sécurisée</h4>
+            <ul>
+              <li>Utilisez vos identifiants fournis par l'administration</li>
+              <li>Activez la géolocalisation pour le suivi en temps réel</li>
+              <li>Vérifiez que l'heure de votre appareil est à jour</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      
+      <h3>🎯 1. Premiers Pas</h3>
       <div class="grid">
-        <div>
-          <h3>Connexion impossible</h3>
+        <div class="feature-card">
+          <h4>📱 Installation</h4>
+          <p>Installez l'application sur votre appareil pour une expérience optimale :</p>
+          <ol>
+            <li>Ouvrez Chrome/Edge sur votre mobile</li>
+            <li>Allez sur l'URL de l'application</li>
+            <li>Appuyez sur "Installer" ou "Ajouter à l'écran d'accueil"</li>
+          </ol>
+        </div>
+        
+        <div class="feature-card">
+          <h4>🔐 Connexion sécurisée</h4>
           <ul>
-            <li>Vérifiez email/mot de passe et votre connexion internet.</li>
-            <li>Essayez depuis un autre navigateur (Chrome/Edge/Firefox).</li>
-            <li>Si persistant, demandez une réinitialisation de mot de passe.</li>
+            <li>Utilisez vos identifiants fournis par l'administration</li>
+            <li>Activez la géolocalisation pour le suivi en temps réel</li>
+            <li>Vérifiez que l'heure de votre appareil est à jour</li>
           </ul>
         </div>
+      </div>
+      
+      <h3>📍 2. Marquage de Présence</h3>
+      <p>Le marquage de présence se fait en 3 étapes clés :</p>
+      <div class="grid">
+        <div class="feature-card">
+          <h4>📝 Configuration initiale</h4>
+          <ul>
+            <li>Complétez votre <strong>profil utilisateur</strong> avec vos informations personnelles</li>
+            <li>Définissez votre <strong>zone d'intervention principale</strong> (département, commune, arrondissement, village)</li>
+            <li>Vérifiez le <strong>rayon de tolérance GPS</strong> (par défaut 500m)</li>
+            <li>Ajoutez une photo de profil pour faciliter l'identification</li>
+          </ul>
+        </div>
+        
+        <div class="feature-card">
+          <h4>⚙️ Paramètres recommandés</h4>
+          <ul>
+            <li>Activer le mode GPS haute précision</li>
+            <li>Activer les notifications push</li>
+            <li>Configurer le mode hors ligne</li>
+            <li>Définir les préférences de langue</li>
+          </ul>
+        </div>
+      </div>
+      <h3>📍 3. Marquage de Présence</h3>
+      <div class="grid">
+        <div class="feature-card">
+          <h4>🚀 Début de mission</h4>
+          <ol>
+            <li>Ouvrez l'application et connectez-vous</li>
+            <li>Appuyez sur <strong>Débuter la mission</strong></li>
+            <li>Vérifiez votre position sur la carte</li>
+            <li>Ajoutez une note sur vos activités prévues</li>
+            <li>Prenez une photo de l'emplacement (optionnel mais recommandé)</li>
+            <li>Validez pour enregistrer le point de départ</li>
+          </ol>
+        </div>
+        
+        <div class="feature-card">
+          <h4>⏱️ Pendant la journée</h4>
+          <ul>
+            <li>Utilisez le bouton <strong>Check-in</strong> pour marquer des points de passage</li>
+            <li>Ajoutez des photos et notes à chaque point important</li>
+            <li>Consultez l'historique de votre journée en temps réel</li>
+            <li>Vérifiez que votre position est correctement enregistrée</li>
+          </ul>
+        </div>
+        
+        <div class="feature-card">
+          <h4>🏁 Fin de mission</h4>
+          <ol>
+            <li>Appuyez sur <strong>Terminer la mission</strong></li>
+            <li>Ajoutez un résumé de votre journée</li>
+            <li>Prenez une photo de fin de mission (optionnel)</li>
+            <li>Validez pour enregistrer la fin de mission</li>
+          </ol>
+        </div>
+        
+        <div class="feature-card">
+          <h4>📊 Vérification</h4>
+          <ul>
+            <li>Consultez le récapitulif de votre journée</li>
+            <li>Vérifiez que tous les points ont été enregistrés</li>
+            <li>Ajoutez des commentaires si nécessaire</li>
+            <li>Exportez votre rapport journalier (PDF/Excel)</li>
+          </ul>
+        </div>
+      </div>
+      <h3>📅 4. Suivi et Historique</h3>
+      <div class="grid">
+        <div class="feature-card">
+          <h4>📆 Calendrier des missions</h4>
+          <ul>
+            <li>Visualisez vos missions passées et à venir</li>
+            <li>Filtrez par date, statut ou type de mission</li>
+            <li>Accédez rapidement aux détails d'une journée</li>
+            <li>Exportez votre planning au format iCal</li>
+          </ul>
+        </div>
+        
+        <div class="feature-card">
+          <h4>📊 Tableau de bord personnel</h4>
+          <ul>
+            <li>Statistiques de présence mensuelles</li>
+            <li>Pourcentage de missions complétées</li>
+            <li>Moyenne de points de contrôle par jour</li>
+            <li>Objectifs et indicateurs personnels</li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="note success">
+        <strong>Astuce GPS :</strong> Pour une meilleure précision, assurez-vous que :
+        <ul>
+          <li>Le GPS de votre appareil est activé en mode haute précision</li>
+          <li>Vous êtes à l'extérieur avec une vue dégagée du ciel</li>
+          <li>Vous patientez 10-20 secondes pour une localisation optimale</li>
+          <li>L'application a les autorisations nécessaires</li>
+        </ul>
+      </div>
+      
+      <div class="note warning">
+        <strong>Important :</strong> En cas de problème de connexion, l'application fonctionne en mode hors ligne. 
+        Vos données seront synchronisées dès que la connexion sera rétablie.
+      </div>
+    </div>
+
+    <div id="supervisor-section" class="section" style="display: none;">
+      <h2><span class="tag tag-supervisor">Superviseur</span> Tableau de Bord et Suivi</h2>
+      
+      <div class="note">
+        <strong>Rôle du Superviseur :</strong> Vous gérez une équipe d'agents, suivez leurs déplacements, et validez leurs présences.
+      </div>
+      
+      <h3>👁️ Tableau de Bord</h3>
+      <div class="grid">
+        <div class="feature-card">
+          <h4>🌍 Vue Carte</h4>
+          <ul>
+            <li>Visualisation en temps réel des positions des agents</li>
+            <li>Filtrage par date, équipe ou zone géographique</li>
+            <li>Historique des déplacements sur la carte</li>
+            <li>Points d'intérêt et zones d'intervention</li>
+          </ul>
+        </div>
+        
+        <div class="feature-card">
+          <h4>📊 Tableau des Présences</h4>
+          <ul>
+            <li>Statut actuel de chaque agent (en mission, en pause, hors ligne)</li>
+            <li>Dernier point de contrôle enregistré</li>
+            <li>Indicateurs de conformité</li>
+            <li>Alertes et notifications</li>
+          </ul>
+        </div>
+      </div>
+      
+      <h3>👥 Gestion des Équipes</h3>
+      <div class="grid">
+        <div class="feature-card">
+          <h4>Gestion des Agents</h4>
+          <ul>
+            <li>Création et édition des profils agents</li>
+            <li>Affectation des zones d'intervention</li>
+            <li>Définition des plannings et tournées</li>
+            <li>Activation/désactivation des comptes</li>
+          </ul>
+        </div>
+        
+        <div class="feature-card">
+          <h4>Validation des Présences</h4>
+          <ul>
+            <li>Vérification des preuves de présence</li>
+            <li>Validation/refus des points litigieux</li>
+            <li>Ajout de commentaires et retours</li>
+            <li>Historique des validations</li>
+          </ul>
+        </div>
+      </div>
+      
+      <h3>📈 Rapports et Analyses</h3>
+      <div class="grid">
+        <div class="feature-card">
+          <h4>Génération de Rapports</h4>
+          <ul>
+            <li>Journaliers, hebdomadaires, mensuels</li>
+            <li>Par agent, équipe ou zone géographique</li>
+            <li>Indicateurs clés de performance</li>
+            <li>Export en PDF, Excel, ou CSV</li>
+          </ul>
+        </div>
+        
+        <div class="feature-card">
+          <h4>Tableaux de Bord</h4>
+          <ul>
+            <li>Tableau de bord personnalisable</li>
+            <li>Widgets et indicateurs clés</li>
+            <li>Comparaisons périodiques</li>
+            <li>Suivi des objectifs</li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="note warning">
+        <strong>Important :</strong> En tant que superviseur, vous êtes responsable de la validation des présences de votre équipe. 
+        Vérifiez régulièrement les alertes et les points litigieux.
+      </div>
+    </div>
+
+    <div id="admin-section" class="section" style="display: none;">
+      <h2><span class="tag tag-admin">Administrateur</span> Configuration et Administration</h2>
+      
+      <div class="note warning">
+        <strong>Accès restreint :</strong> Cette section est uniquement accessible aux administrateurs système.
+      </div>
+      
+      <h3>⚙️ Configuration du Système</h3>
+      <div class="grid">
+        <div class="feature-card">
+          <h4>Paramètres Généraux</h4>
+          <ul>
+            <li>Configuration de l'application</li>
+            <li>Paramètres de géolocalisation</li>
+            <li>Seuils et tolérances</li>
+            <li>Personnalisation de l'interface</li>
+          </ul>
+        </div>
+        
+        <div class="feature-card">
+          <h4>Sécurité et Accès</h4>
+          <ul>
+            <li>Gestion des utilisateurs et rôles</li>
+            <li>Politiques de mot de passe</li>
+            <li>Audit des connexions</li>
+            <li>Contrôle d'accès basé sur les rôles</li>
+          </ul>
+        </div>
+      </div>
+      
+      <h3>📊 Gestion des Données</h3>
+      <div class="grid">
+        <div class="feature-card">
+          <h4>Données de Référence</h4>
+          <ul>
+            <li>Unités administratives</li>
+            <li>Zones d'intervention</li>
+            <li>Points d'intérêt</li>
+            <li>Modèles de rapports</li>
+          </ul>
+        </div>
+        
+        <div class="feature-card">
+          <h4>Maintenance</h4>
+          <ul>
+            <li>Sauvegardes et restaurations</li>
+            <li>Nettoyage des données</li>
+            <li>Journalisation et logs</li>
+            <li>Maintenance du système</li>
+          </ul>
+        </div>
+      </div>
+      
+      <h3>📈 Analyse et Reporting</h3>
+      <div class="grid">
+        <div class="feature-card">
+          <h4>Rapports Avancés</h4>
+          <ul>
+            <li>Tableaux de bord personnalisés</li>
+            <li>Analyse des tendances</li>
+            <li>Indicateurs de performance</li>
+            <li>Export de données brutes</li>
+          </ul>
+        </div>
+        
+        <div class="feature-card">
+          <h4>Intégrations</h4>
+          <ul>
+            <li>API et webhooks</li>
+            <li>Export vers Excel/PDF</li>
+            <li>Connecteurs métiers</li>
+            <li>Synchronisation des données</li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="note">
+        <strong>Documentation technique :</strong> Consultez la documentation technique pour les configurations avancées et l'API.
+      </div>
+    </div>
+    
+    <div id="faq-section" class="section">
+      <h2>❓ Foire Aux Questions</h2>
+      
+      <div class="faq-item">
+        <h4>Comment installer l'application sur mon téléphone ?</h4>
+        <div class="faq-answer">
+          <p>Pour installer l'application sur votre téléphone :</p>
+          <ol>
+            <li>Ouvrez Chrome ou Safari</li>
+            <li>Allez sur l'URL de l'application</li>
+            <li>Appuyez sur le menu (trois points en haut à droite)</li>
+            <li>Sélectionnez "Ajouter à l'écran d'accueil"</li>
+            <li>Suivez les instructions à l'écran</li>
+          </ol>
+        </div>
+      </div>
+      
+      <div class="faq-item">
+        <h4>Que faire si je n'ai pas de connexion Internet ?</h4>
+        <div class="faq-answer">
+          <p>L'application fonctionne en mode hors-ligne :</p>
+          <ul>
+            <li>Les données sont enregistrées localement</li>
+            <li>La synchronisation se fera automatiquement dès reconnexion</li>
+            <li>Vous pouvez continuer à marquer votre présence normalement</li>
+          </ul>
+        </div>
+      </div>
+      
+      <h3>🔍 Questions Générales</h3>
+      <div class="faq-item">
+        <h4>Comment installer l'application sur mon téléphone ?</h4>
+        <p>Ouvrez l'application dans Chrome/Edge, appuyez sur le menu et sélectionnez "Ajouter à l'écran d'accueil".</p>
+      </div>
+      
+      <div class="faq-item">
+        <h4>Que faire si je n'ai pas de connexion internet ?</h4>
+        <p>L'application fonctionne en mode hors ligne. Les données seront synchronisées dès que la connexion sera rétablie.</p>
+      </div>
+      
+      <h3>📍 Problèmes de Géolocalisation</h3>
+      <div class="faq-item">
+        <h4>Pourquoi ma position n'est-elle pas précise ?</h4>
+        <p>Vérifiez que le GPS est activé en mode haute précision et que vous êtes à l'extérieur avec une vue dégagée du ciel.</p>
+      </div>
+      
+      <div class="faq-item">
+        <h4>Que faire si je suis dans une zone sans couverture GPS ?</h4>
+        <p>L'application utilise d'autres méthodes de localisation en complément du GPS. Si la précision est insuffisante, vous pourrez ajouter une note manuelle.</p>
+      </div>
+      
+      <h3>🔐 Sécurité et Confidentialité</h3>
+      <div class="faq-item">
+        <h4>Quelles données sont collectées ?</h4>
+        <p>Seules les données nécessaires au suivi des présences sont collectées, conformément à notre politique de confidentialité.</p>
+      </div>
+      
+      <div class="faq-item">
+        <h4>Comment sont protégées mes données ?</h4>
+        <p>Les données sont chiffrées en transit et au repos, et ne sont accessibles qu'aux personnes autorisées.</p>
+      </div>
+      
+      <div class="note">
+        <strong>Vous ne trouvez pas de réponse à votre question ?</strong> Contactez le support technique à l'adresse support@ccrb.bj
+      </div>
+    </div>
+
+    <div id="troubleshooting-section" class="section">
+      <h2>🛠️ Dépannage et Support</h2>
+      
+      <div class="grid">
+        <div class="feature-card">
+          <h4>🔑 Problèmes de Connexion</h4>
+          <ul>
+            <li>Vérifiez vos identifiants (respect de la casse)</li>
+            <li>Assurez-vous d'être connecté à Internet</li>
+            <li>Videz le cache du navigateur</li>
+            <li>Essayez avec un autre navigateur (Chrome recommandé)</li>
+            <li>Si le problème persiste, utilisez la réinitialisation de mot de passe</li>
+          </ul>
+        </div>
+        
+        <div class="feature-card">
+          <h4>📍 Problèmes de Géolocalisation</h4>
+          <ul>
+            <li>Activez le GPS en mode haute précision</li>
+            <li>Vérifiez les autorisations de l'application</li>
+            <li>Redémarrez l'application et/ou l'appareil</li>
+            <li>Assurez-vous d'être à l'extérieur avec une vue dégagée</li>
+          </ul>
+        </div>
+        
+        <div class="feature-card">
+          <h4>📱 Problèmes d'Application</h4>
+          <ul>
+            <li>Mettez à jour l'application vers la dernière version</li>
+            <li>Videz le cache de l'application</li>
+            <li>Vérifiez votre connexion Internet</li>
+            <li>Redémarrez votre appareil</li>
+          </ul>
+        </div>
+        
+        <div class="feature-card">
+          <h4>📞 Support Technique</h4>
+          <p>En cas de problème persistant :</p>
+          <ul>
+            <li>Email : support@ccrb.bj</li>
+            <li>Téléphone : +229 XX XX XX XX</li>
+            <li>Heures d'ouverture : Lun-Ven, 8h-17h</li>
+          </ul>
+          <p>Préparez ces informations :</p>
+          <ul>
+            <li>Modèle de votre appareil</li>
+            <li>Version de l'application</li>
+            <li>Description détaillée du problème</li>
+            <li>Copie d'écran si possible</li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="note warning">
+        <strong>Urgence :</strong> En cas de problème critique empêchant le bon fonctionnement du service, contactez immédiatement le support technique.
+      </div>
         <div>
           <h3>GPS indisponible / imprécis</h3>
           <ul>
@@ -133,6 +929,373 @@
         <li>Respectez la vie privée lors des prises de photos sur le terrain.</li>
       </ul>
     </div>
+    
+    <div id="contact-section" class="section">
+      <h2>📞 Contact et Support</h2>
+      
+      <div class="grid">
+        <div class="feature-card">
+          <h4>📧 Email de support</h4>
+          <p><a href="mailto:support@ccrb.bj">support@ccrb.bj</a></p>
+          <p>Réponse sous 24h ouvrées</p>
+        </div>
+        
+        <div class="feature-card">
+          <h4>📱 Support téléphonique</h4>
+          <p>+229 XX XX XX XX</p>
+          <p>Lun-Ven : 8h-17h (GMT+1)</p>
+        </div>
+        
+        <div class="feature-card">
+          <h4>💬 Chat en direct</h4>
+          <p>Disponible dans l'application</p>
+          <p>Lun-Ven : 9h-16h</p>
+        </div>
+      </div>
+      
+      <div class="note" style="text-align: center; margin-top: 1.5rem;">
+        <p>Consultez notre <a href="#" style="color: var(--success);">base de connaissances</a> pour plus de ressources et de guides détaillés.</p>
+      </div>
+    </div>
+    
+    <!-- Section Contact -->
+    <div id="contact-section" class="section">
+      <h2>📞 Contact et Support</h2>
+      
+      <div class="grid">
+        <div class="feature-card contact-method">
+          <div class="contact-icon">📧</div>
+          <h4>Email de support</h4>
+          <p><a href="mailto:support@ccrb.bj" class="contact-link">support@ccrb.bj</a></p>
+          <p class="contact-detail">Réponse sous 24h ouvrées</p>
+          <button class="copy-btn" data-text="support@ccrb.bj">Copier</button>
+        </div>
+        
+        <div class="feature-card contact-method">
+          <div class="contact-icon">📱</div>
+          <h4>Support téléphonique</h4>
+          <p class="contact-detail">+229 XX XX XX XX</p>
+          <p class="contact-detail">Lun-Ven : 8h-17h (GMT+1)</p>
+          <button class="copy-btn" data-text="+229XXXXXXXX">Copier</button>
+        </div>
+        
+        <div class="feature-card contact-method">
+          <div class="contact-icon">💬</div>
+          <h4>Chat en direct</h4>
+          <p class="contact-detail">Disponible dans l'application</p>
+          <p class="contact-detail">Lun-Ven : 9h-16h</p>
+          <button class="chat-btn" onclick="openChat()">Ouvrir le chat</button>
+        </div>
+      </div>
+      
+      <div class="contact-form-container">
+        <h3>✉️ Envoyer un message</h3>
+        <form id="contactForm" class="contact-form">
+          <div class="form-group">
+            <label for="name">Nom complet</label>
+            <input type="text" id="name" name="name" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="subject">Sujet</label>
+            <select id="subject" name="subject" required>
+              <option value="">Sélectionnez un sujet</option>
+              <option value="support">Support technique</option>
+              <option value="bug">Signaler un bug</option>
+              <option value="suggestion">Suggestion d'amélioration</option>
+              <option value="other">Autre</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="message">Message</label>
+            <textarea id="message" name="message" rows="5" required></textarea>
+          </div>
+          
+          <div class="form-actions">
+            <button type="submit" class="submit-btn">Envoyer le message</button>
+          </div>
+        </form>
+      </div>
+      
+      <div class="note" style="text-align: center; margin-top: 2rem;">
+        <p>Consultez notre <a href="#faq-section" style="color: var(--success); font-weight: 500;">FAQ</a> pour des réponses rapides aux questions courantes.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>🔒 Sécurité & Bonnes Pratiques</h2>
+      
+      <div class="grid">
+        <div class="feature-card">
+          <h4>🔐 Protection du Compte</h4>
+          <ul>
+            <li>Utilisez un mot de passe complexe et unique</li>
+            <li>Activez l'authentification à deux facteurs si disponible</li>
+            <li>Ne partagez jamais vos identifiants</li>
+            <li>Changez votre mot de passe régulièrement</li>
+          </ul>
+        </div>
+        
+        <div class="feature-card">
+          <h4>📱 Sécurité Mobile</h4>
+          <ul>
+            <li>Verrouillez toujours votre appareil</li>
+            <li>Installez les mises à jour de sécurité</li>
+            <li>Évitez les réseaux WiFi publics non sécurisés</li>
+            <li>Utilisez un VPN en déplacement</li>
+          </ul>
+        </div>
+        
+        <div class="feature-card">
+          <h4>🛡️ Protection des Données</h4>
+          <ul>
+            <li>Ne partagez pas d'informations sensibles via l'application</li>
+            <li>Signalez immédiatement la perte ou le vol de votre appareil</li>
+            <li>Déconnectez-vous des appareils partagés</li>
+            <li>Soyez vigilant face aux tentatives d'hameçonnage</li>
+          </ul>
+        </div>
+        
+        <div class="feature-card">
+          <h4>📝 Bonnes Pratiques</h4>
+          <ul>
+            <li>Vérifiez régulièrement votre activité de connexion</li>
+            <li>Signalez tout comportement suspect</li>
+            <li>Consultez régulièrement les mises à jour de sécurité</li>
+            <li>Partagez vos préoccupations avec l'équipe de sécurité</li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="note warning">
+        <strong>Important :</strong> Toute tentative d'accès non autorisé ou d'utilisation abusive du système fera l'objet de poursuites conformément à la politique de sécurité de l'organisation.
+      </div>
+    </div>
+    
+    <script>
+      // Gestion des onglets
+      function showTab(tabId) {
+        // Masquer toutes les sections
+        document.querySelectorAll('.tab-content').forEach(section => {
+          section.style.display = 'none';
+        });
+        
+        // Désactiver tous les boutons d'onglet
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        
+        // Afficher la section sélectionnée
+        document.getElementById(tabId + '-section').style.display = 'block';
+        
+        // Activer le bouton d'onglet sélectionné
+        const activeBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+        if (activeBtn) {
+          activeBtn.classList.add('active');
+        }
+        
+        // Faire défiler vers le haut de la section
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      
+      // Gestion des FAQ
+      function toggleFaq(question) {
+        const answer = question.nextElementSibling;
+        const isExpanded = question.getAttribute('aria-expanded') === 'true';
+        
+        // Fermer toutes les autres réponses si on clique sur une question
+        if (!isExpanded) {
+          document.querySelectorAll('.faq-item h4[aria-expanded="true"]').forEach(item => {
+            if (item !== question) {
+              item.setAttribute('aria-expanded', 'false');
+              item.nextElementSibling.style.maxHeight = '0';
+              item.classList.remove('active');
+            }
+          });
+        }
+        
+        // Basculer l'état de la question actuelle
+        const newState = !isExpanded;
+        question.setAttribute('aria-expanded', newState);
+        question.classList.toggle('active', newState);
+        
+        // Animer l'ouverture/fermeture de la réponse
+        if (newState) {
+          answer.style.maxHeight = answer.scrollHeight + 'px';
+        } else {
+          answer.style.maxHeight = '0';
+        }
+      }
+      
+      // Fonction de recherche
+      function performSearch(term) {
+        const normalizedTerm = term.toLowerCase().trim();
+        
+        if (normalizedTerm.length < 2) {
+          // Afficher tous les éléments si la recherche est trop courte
+          document.querySelectorAll('.faq-item, .feature-card, .step').forEach(el => {
+            el.style.display = '';
+          });
+          return;
+        }
+        
+        // Rechercher dans les titres et le contenu
+        document.querySelectorAll('.faq-item, .feature-card, .step').forEach(el => {
+          const text = el.textContent.toLowerCase();
+          el.style.display = text.includes(normalizedTerm) ? '' : 'none';
+        });
+      }
+      
+      // Gestionnaire d'événements pour la recherche en temps réel
+      function setupSearch() {
+        const searchInput = document.querySelector('.search-bar input');
+        if (searchInput) {
+          let searchTimeout;
+          
+          searchInput.addEventListener('input', function(e) {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+              performSearch(e.target.value);
+            }, 300); // Délai de 300ms pour éviter les recherches trop fréquentes
+          });
+          
+          // Gestion du bouton de recherche
+          const searchButton = searchInput.nextElementSibling;
+          if (searchButton && searchButton.tagName === 'BUTTON') {
+            searchButton.addEventListener('click', () => {
+              performSearch(searchInput.value);
+            });
+          }
+        }
+      }
+      
+      // Initialisation au chargement du document
+      document.addEventListener('DOMContentLoaded', function() {
+        // Gestion des onglets via l'URL (hash)
+        const hash = window.location.hash.replace('#', '');
+        const defaultTab = ['agent', 'supervisor', 'admin', 'faq'].includes(hash) ? hash : 'agent';
+        showTab(defaultTab);
+        
+        // Configurer les écouteurs d'événements pour les onglets
+        document.querySelectorAll('.tab').forEach(tab => {
+          tab.addEventListener('click', function(e) {
+            const tabId = this.getAttribute('data-tab');
+            if (tabId) showTab(tabId, e);
+          });
+        });
+        
+        // Configurer les écouteurs d'événements pour les FAQ
+        document.querySelectorAll('.faq-item h4').forEach(question => {
+          question.setAttribute('role', 'button');
+          question.setAttribute('aria-expanded', 'false');
+          question.setAttribute('tabindex', '0');
+          
+          question.addEventListener('click', () => toggleFaq(question));
+          
+          // Ajouter la navigation au clavier
+          question.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              toggleFaq(question);
+            }
+          });
+        });
+        
+        // Configurer la recherche
+        setupSearch();
+        
+        // Ajouter un écouteur d'événements pour le bouton de retour
+        window.addEventListener('popstate', function() {
+          const hash = window.location.hash.replace('#', '');
+          if (hash) showTab(hash);
+        });
+      });
+      
+      // Fonction pour afficher un message de confirmation
+      function showConfirmation(message) {
+        const notification = document.createElement('div');
+        notification.className = 'notification';
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        // Ajouter la classe pour l'animation
+        setTimeout(() => {
+          notification.classList.add('show');
+        }, 10);
+        
+        // Supprimer la notification après 3 secondes
+        setTimeout(() => {
+          notification.classList.remove('show');
+          setTimeout(() => {
+            notification.remove();
+          }, 300);
+        }, 3000);
+      }
+      
+      // Fonction pour copier le texte dans le presse-papiers
+      function copyToClipboard(text, message) {
+        navigator.clipboard.writeText(text).then(() => {
+          showConfirmation(message || 'Copié dans le presse-papiers !');
+        }).catch(err => {
+          console.error('Erreur lors de la copie : ', err);
+        });
+      }
+      
+      // Ajouter des écouteurs d'événements pour les boutons de copie
+      document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('[data-copy]').forEach(button => {
+          button.addEventListener('click', function() {
+            const textToCopy = this.getAttribute('data-copy');
+            const successMessage = this.getAttribute('data-message') || 'Copié !';
+            copyToClipboard(textToCopy, successMessage);
+          });
+        });
+      });
+    </script>
+    
+    <style>
+      /* Styles pour les notifications */
+      .notification {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background-color: #333;
+        color: white;
+        padding: 15px 25px;
+        border-radius: 5px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transform: translateY(100px);
+        opacity: 0;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+        z-index: 1000;
+      }
+      
+      .notification.show {
+        transform: translateY(0);
+        opacity: 1;
+      }
+      
+      /* Amélioration de l'accessibilité */
+      [role="button"] {
+        cursor: pointer;
+      }
+      
+      [role="button"]:focus {
+        outline: 2px solid var(--secondary);
+        outline-offset: 2px;
+      }
+      
+      /* Styles pour les éléments masqués */
+      [hidden] {
+        display: none !important;
+      }
+    </style>
   </div>
 </body>
 </html>

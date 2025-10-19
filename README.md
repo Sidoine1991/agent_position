@@ -1,64 +1,129 @@
-# 📍 Presence CCRB - Manuel d'Utilisation
+# 📍 Presence CCRB - Solution de Gestion de Présence
 
-## 🎯 Qu'est-ce que Presence CCRB ?
+## 🎯 Présentation
 
-**Presence CCRB** est un système de suivi de présence des agents de terrain pour le **Conseil de Concertation des Riziculteurs du Bénin (CCRB)**. Il permet de vérifier que les agents se trouvent bien dans leurs zones d'intervention grâce à la géolocalisation GPS.
+**Presence CCRB** est une solution complète de gestion de présence géolocalisée développée pour le **Conseil de Concertation des Riziculteurs du Bénin (CCRB)**. Cette application web progressive (PWA) permet un suivi précis et fiable des déplacements des agents sur le terrain.
+
+### 🎯 Objectifs
+- Assurer le suivi en temps réel des agents sur le terrain
+- Vérifier la présence effective dans les zones d'intervention
+- Générer des rapports détaillés avec preuves géolocalisées
+- Faciliter la communication entre les différents acteurs
+- Optimiser la gestion des ressources humaines
+
+### 🌍 Contexte
+Développée pour répondre aux besoins spécifiques du secteur agricole béninois, l'application s'adapte aux contraintes de connectivité des zones rurales tout en offrant une expérience utilisateur moderne et intuitive.
 
 ![Page d'accueil de l'application](Media/screenshot_app/page_acceuil.png)
 
-## 🚀 À quoi sert ce système ?
+## 🚀 Fonctionnalités Clés
 
-### Pour le CCRB
-- **Vérifier la présence réelle** des agents sur le terrain
-- **Générer des rapports fiables** avec preuves GPS
-- **Suivre l'activité** des agents en temps réel
-- **Exporter les données** pour les rapports officiels
+### 🎯 Gestion des Présences
+- **Marquage de présence** géolocalisé avec preuves photo
+- **Suivi en temps réel** des déplacements
+- **Validation des présences** par les superviseurs
+- **Historique complet** avec horodatage et localisation
 
-### Pour les Agents
-- **Marquer facilement** leur présence sur le terrain
-- **Prendre des photos** comme preuve d'activité
-- **Ajouter des notes** sur leurs observations
-- **Consulter leur historique** de présence
+### 📊 Tableaux de Bord
+- **Vue d'ensemble** des activités en cours
+- **Statistiques** de présence et de productivité
+- **Cartographie** des interventions
+- **Alertes** en temps réel
 
-## ✨ Nouvelles Fonctionnalités (Mise à jour récente)
+### 🔄 Synchronisation
+- **Mode hors-ligne** avec synchronisation automatique
+- **Multi-appareils** (mobile et web)
+- **Export des données** (PDF, Excel, CSV)
+- **API** pour intégration avec d'autres systèmes
 
-### 💬 Messagerie Interne Complète
-- **Conversations directes** entre agents, superviseurs et administrateurs
-- **Liste de contacts** avec statut en ligne/hors ligne
-- **Historique des messages** sauvegardé dans la base de données
-- **Envoi de messages en temps réel** avec confirmation de livraison
-- **Interface moderne** inspirée des applications de messagerie populaires
-- **Recherche de contacts** pour trouver rapidement un collègue
+## 🛠️ Installation et Configuration
 
-![Messagerie interne](Media/screenshot_app/messagerie.png)
+### Prérequis
+- Node.js 16+ et npm
+- Compte Supabase
+- Accès administrateur au serveur
 
-### 🔐 Sécurité et Navigation
-- **Navigation dynamique par rôle** : La barre de navigation s'adapte automatiquement au rôle de l'utilisateur (Agent, Superviseur, Admin)
-- **Contrôle d'accès centralisé** : Protection de toutes les pages selon les permissions
-- **Authentification JWT** : Tokens sécurisés pour toutes les requêtes API
+### Configuration
+1. **Cloner le dépôt**
+   ```bash
+   git clone https://github.com/votre-utilisateur/presence-ccrb.git
+   cd presence-ccrb
+   ```
 
-### 📊 Tableau de Bord Amélioré
-- **Données en temps réel** depuis la base de données Supabase
-- **Statistiques personnalisées** par agent
-- **Indicateurs de performance** dynamiques
-- **Objectifs mensuels** avec suivi de progression
+2. **Installer les dépendances**
+   ```bash
+   npm install
+   ```
 
-## 👥 Qui peut utiliser le système ?
+3. **Configurer les variables d'environnement**
+   Créez un fichier `.env` à la racine du projet :
+   ```env
+   SUPABASE_URL=votre_url_supabase
+   SUPABASE_ANON_KEY=votre_cle_anonyme
+   JWT_SECRET=votre_secret_jwt
+   NODE_ENV=development
+   ```
+
+4. **Lancer l'application**
+   ```bash
+   npm start
+   ```
+
+## 🔧 Déploiement
+
+### Sur Vercel
+[![Déployer avec Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvotre-utilisateur%2Fpresence-ccrb)
+
+### Manuellement
+1. Construisez l'application :
+   ```bash
+   npm run build
+   ```
+2. Déployez le contenu du dossier `dist` sur votre serveur web.
+
+## 👥 Rôles et Permissions
 
 ### 🔹 Agents de Terrain
-- Marquage de présence quotidien
-- Prise de photos et notes
-- Consultation de leur calendrier
+- **Marquage de présence** avec géolocalisation
+- **Gestion des missions** quotidiennes
+- **Saisie de rapports** et observations
+- **Consultation** de l'historique et du planning
 
 ### 🔹 Superviseurs
-- Suivi des agents en temps réel
-- Gestion des agents (création, modification)
-- Génération de rapports
+- **Suivi en temps réel** des équipes
+- **Validation** des présences
+- **Gestion des plannings**
+- **Génération de rapports** d'activité
 
 ### 🔹 Administrateurs
-- Accès complet au système
-- Configuration des paramètres
-- Gestion des unités administratives
+- **Configuration** du système
+- **Gestion des utilisateurs** et des droits
+- **Supervision** des données
+- **Maintenance** de l'application
+
+## 📚 Documentation Technique
+
+### Architecture
+- **Frontend** : React.js avec Material-UI
+- **Backend** : Node.js avec Express
+- **Base de données** : PostgreSQL via Supabase
+- **Authentification** : JWT
+
+### API REST
+Les endpoints principaux sont :
+- `POST /api/auth/login` - Authentification
+- `GET /api/presence` - Récupérer les présences
+- `POST /api/presence` - Enregistrer une présence
+- `GET /api/reports` - Générer des rapports
+
+### Variables d'environnement
+| Variable | Description |
+|----------|-------------|
+| `PORT` | Port d'écoute du serveur |
+| `NODE_ENV` | Environnement (development/production) |
+| `SUPABASE_URL` | URL de l'API Supabase |
+| `SUPABASE_ANON_KEY` | Clé d'API publique Supabase |
+| `JWT_SECRET` | Secret pour la signature des tokens JWT |
 
 ## 📱 Comment accéder au système ?
 
@@ -72,32 +137,80 @@
 2. Allez à l'adresse : `https://presence-ccrb-v2.onrender.com`
 3. Utilisez l'interface web complète
 
-## 🔧 Configuration Email (Nouveau)
+## 📧 Configuration des Emails
 
-**Problème résolu** : Les codes de vérification sont maintenant envoyés par email.
-
-### Configuration requise
-Pour que les emails de vérification fonctionnent, configurez ces variables d'environnement :
+### Paramètres SMTP
+Configurez ces variables pour activer les notifications par email :
 
 ```env
-EMAIL_USER=votre-email@gmail.com
-EMAIL_PASS=votre-mot-de-passe-application-gmail
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=votre-email@ccrb.bj
+SMTP_PASS=votre-mot-de-passe
+EMAIL_FROM=ne-pas-repondre@ccrb.bj
 ```
 
-### Configuration Gmail
-1. Activez la validation en 2 étapes sur votre compte Google
-2. Générez un "App Password" dans les paramètres de sécurité
-3. Utilisez ce mot de passe (16 caractères) dans `EMAIL_PASS`
+### Types d'emails envoyés
+- **Inscription** : Bienvenue et activation du compte
+- **Réinitialisation de mot de passe**
+- **Notifications importantes**
+- **Rapports hebdomadaires**
 
-📖 **Guide détaillé** : Voir [EMAIL_SETUP.md](EMAIL_SETUP.md)
+### Dépannage
+Si les emails ne sont pas reçus :
+1. Vérifiez le dossier spam
+2. Vérifiez les logs du serveur
+3. Testez la configuration avec un outil comme [Mailtrap](https://mailtrap.io/)
 
-## 🔐 Connexion au système
+## 🔐 Sécurité
 
-### Comptes par défaut
+### Authentification
+- Connexion sécurisée avec JWT
+- Expiration des sessions
+- Protection contre les attaques par force brute
+- Validation des entrées utilisateur
 
-#### Compte de Test
-Demander accès par email à **syebadokpo@gmail.com**
-### Première connexion
+### Protection des données
+- Chiffrement des données sensibles
+- Sauvegardes automatiques
+- Journalisation des accès
+- Conformité RGPD
+
+### Bonnes pratiques
+- Utilisez des mots de passe complexes
+- Activez l'authentification à deux facteurs
+- Ne partagez pas vos identifiants
+- Signalez toute activité suspecte
+
+## 🤝 Contribution
+
+### Développement
+1. Forkez le dépôt
+2. Créez une branche pour votre fonctionnalité
+3. Soumettez une pull request
+
+### Signalement de bugs
+Ouvrez une issue sur GitHub avec :
+- Description du problème
+- Étapes pour reproduire
+- Comportement attendu
+- Captures d'écran si possible
+
+## 📄 Licence
+
+Ce projet est sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
+
+## 🙋 Support
+
+Pour toute question ou assistance :
+- Email : support@ccrb.bj
+- Téléphone : +229 XX XX XX XX
+- Heures d'ouverture : Lun-Ven, 8h-17h (GMT+1)
+
+## 🌐 Liens utiles
+- [Documentation technique](https://docs.ccrb.bj/presence)
+- [Portail d'assistance](https://support.ccrb.bj)
+- [Télécharger l'APK](https://ccrb.bj/downloads/presence-ccrb.apk)
 1. Cliquez sur "Se connecter"
 2. Entrez votre email et mot de passe
 3. Cliquez sur "Connexion"
