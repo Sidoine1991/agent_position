@@ -30,7 +30,6 @@ const PAGE_ACCESS = {
   // Pages publiques
   '/index.html': 'public',
   '/help.html': 'public',
-  '/login.html': 'public',
   '/register.html': 'public'
 };
 
@@ -65,7 +64,7 @@ function protectPage() {
 
   // Si l'utilisateur n'est pas connecté, le rediriger vers la page de connexion
   if (!userRole) {
-    window.location.href = '/login.html';
+    window.location.href = '/index.html';
     return;
   }
 
