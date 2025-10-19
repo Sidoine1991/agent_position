@@ -10,6 +10,7 @@ class AdvancedMessaging {
     this.currentForumCategory = null;
     this.contacts = [];
     this.conversations = new Map();
+    this.lastMessages = new Map(); // Stocker les derniers messages par contact
     this.forumCategories = [];
     this.isConnected = false;
     this.encryptionKey = null;
@@ -35,8 +36,16 @@ class AdvancedMessaging {
       });
       
       if (response.ok) {
-        this.currentUser = await response.json();
-        console.log('👤 Utilisateur chargé:', this.currentUser);
+        const userData = await response.json();
+        if (userData.success && userData.user) {
+          // Use auth_uuid as the primary ID for messaging
+          this.currentUser = { ...userData.user, id: userData.user.auth_uuid };
+          console.log('👤 Utilisateur chargé:', this.currentUser);
+        } else {
+          console.error('Erreur chargement utilisateur: Données utilisateur invalides', userData);
+        }
+      } else {
+        console.error('Erreur chargement utilisateur: Réponse non OK', response.status);
       }
     } catch (error) {
       console.error('Erreur chargement utilisateur:', error);
@@ -75,15 +84,20 @@ class AdvancedMessaging {
         const users = responseData.data || [];
         // Filtrer l'utilisateur actuel et enrichir les données
         this.contacts = users
-          .filter(user => user.id !== this.currentUser?.id)
+          .filter(user => user.auth_uuid && user.auth_uuid !== this.currentUser?.id) // Filter by auth_uuid
           .map(user => ({
             ...user,
+            id: user.auth_uuid, // Use auth_uuid as the primary ID for contact
+            numeric_id: user.id, // Garder l'ID numérique pour les requêtes API
             isOnline: Math.random() > 0.3, // Simulation du statut en ligne
             lastSeen: new Date(Date.now() - Math.random() * 86400000), // Dernière connexion
             status: this.getUserStatus(user.role),
             avatar: this.generateAvatar(user.name),
-            unreadCount: this.getUnreadCount(user.id)
+            unreadCount: 0 // Sera mis à jour après chargement des messages
           }));
+        
+        // Charger les derniers messages pour chaque contact
+        await this.loadLastMessages();
         
         this.renderContacts();
         console.log('👥 Contacts chargés:', this.contacts.length);
@@ -326,29 +340,88 @@ class AdvancedMessaging {
     return `il y a ${days}j`;
   }
 
-  selectContact(contact) {
+  async selectContact(contact) {
     this.currentContact = contact;
     this.currentForumCategory = null;
-    
+
     // Mettre à jour l'interface
     this.updateChatHeader(contact);
-    this.loadConversation(contact.id);
-    this.showChatInput();
-    this.updateContactSelection();
-    
-    // Marquer comme lu
-    this.markConversationAsRead(contact.id);
+
+    try {
+      // Get or create conversation_id for direct chat
+      const response = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('jwt')}`
+        },
+        body: JSON.stringify({
+          type: 'direct',
+          user2_id: contact.numeric_id || contact.id // Utiliser l'ID numérique pour l'API
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la récupération/création de la conversation');
+      }
+
+      const data = await response.json();
+      if (data.success && data.conversation) {
+        this.currentConversationId = data.conversation.id;
+        this.loadConversation(this.currentConversationId);
+        this.showChatInput();
+        this.updateContactSelection();
+        this.markConversationAsRead(this.currentConversationId);
+      } else {
+        console.error('Erreur: Impossible de récupérer/créer la conversation', data);
+        // Handle error, e.g., show a message to the user
+      }
+    } catch (error) {
+      console.error('Erreur selectContact:', error);
+      // Handle error
+    }
   }
 
-  selectForumCategory(category) {
+  async selectForumCategory(category) {
     this.currentForumCategory = category;
     this.currentContact = null;
-    
+
     // Mettre à jour l'interface
     this.updateChatHeader(category);
-    this.loadForumMessages(category.id);
-    this.showChatInput();
-    this.updateContactSelection();
+
+    try {
+      // Get or create conversation_id for forum chat
+      const response = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('jwt')}`
+        },
+        body: JSON.stringify({
+          type: 'forum',
+          forum_category_id: category.id
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la récupération/création de la conversation du forum');
+      }
+
+      const data = await response.json();
+      if (data.success && data.conversation) {
+        this.currentConversationId = data.conversation.id;
+        this.loadForumMessages(category.id, this.currentConversationId);
+        this.showChatInput();
+        this.updateContactSelection();
+        this.markConversationAsRead(this.currentConversationId);
+      } else {
+        console.error('Erreur: Impossible de récupérer/créer la conversation du forum', data);
+        // Handle error
+      }
+    } catch (error) {
+      console.error('Erreur selectForumCategory:', error);
+      // Handle error
+    }
   }
 
   updateChatHeader(contactOrCategory) {
@@ -375,9 +448,9 @@ class AdvancedMessaging {
     }
   }
 
-  async loadConversation(contactId) {
+  async loadConversation(conversationId) {
     try {
-      const response = await fetch(`/api/messages`, {
+      const response = await fetch(`/api/messages?conversation_id=${conversationId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('jwt')}`
         }
@@ -387,12 +460,7 @@ class AdvancedMessaging {
       if (response.ok) {
         const apiResponse = await response.json();
         if (apiResponse.success) {
-            const allMessages = apiResponse.messages || [];
-            const currentUserId = this.currentUser?.id;
-            messages = allMessages.filter(m => 
-                (m.sender_id === currentUserId && m.recipient_id === contactId) ||
-                (m.sender_id === contactId && m.recipient_id === currentUserId)
-            );
+            messages = apiResponse.messages || [];
         }
       }
 
@@ -403,9 +471,9 @@ class AdvancedMessaging {
     }
   }
 
-  async loadForumMessages(categoryId) {
+  async loadForumMessages(categoryId, conversationId) {
     try {
-      const response = await fetch(`/api/messages/forum/${categoryId}`, {
+      const response = await fetch(`/api/messages/forum/${categoryId}?conversation_id=${conversationId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('jwt')}`
         }
@@ -413,8 +481,10 @@ class AdvancedMessaging {
 
       let messages = [];
       if (response.ok) {
-        const encryptedMessages = await response.json();
-        messages = await this.decryptMessages(encryptedMessages);
+        const apiResponse = await response.json();
+        if (apiResponse.success) {
+            messages = apiResponse.messages || [];
+        }
       }
 
       this.renderMessages(messages, true);
@@ -453,6 +523,7 @@ class AdvancedMessaging {
 
   createMessageElement(message, isForum = false) {
     const div = document.createElement('div');
+    // Use message.sender_id (which is auth_uuid) for comparison
     const isSent = message.sender_id === this.currentUser?.id;
     div.className = `message ${isSent ? 'sent' : 'received'}`;
     div.dataset.messageId = message.id; // Important for status updates
@@ -474,9 +545,16 @@ class AdvancedMessaging {
       content = `<div class="sticker-message" style="font-size: 3rem; text-align: center; padding: 10px;">${message.content}</div>`;
     }
 
+    // Display sender name for forum messages
+    let senderName = '';
+    if (isForum && message.sender && message.sender.name) {
+      senderName = `<div class="message-sender-name">${message.sender.name}</div>`;
+    }
+
     div.innerHTML = `
       <div class="message-content">
         <div class="message-bubble">
+          ${senderName}
           <div>${content}</div>
         </div>
         <div class="message-time">${time}</div>
@@ -489,23 +567,23 @@ class AdvancedMessaging {
 
   async sendMessage(content, type = 'text') {
     if (!content.trim()) return;
+    if (!this.currentConversationId) {
+      console.warn('Aucune conversation sélectionnée pour envoyer le message.');
+      return;
+    }
 
     let payload = {
+      conversation_id: this.currentConversationId,
       content: content.trim(),
       message_type: type,
-      sender_id: this.currentUser.id,
+      sender_id: this.currentUser.id, // this.currentUser.id is auth_uuid
+      user_id: this.currentUser.id, // Include the numeric user ID as well
       status: 'sending' // Temporary status for UI
     };
 
-    if (this.currentContact) {
-      payload.recipient_id = this.currentContact.id;
-    } else if (this.currentForumCategory) {
-      payload.recipient_id = null; // Forum messages don't have a direct recipient
+    if (this.currentForumCategory) {
       payload.message_type = 'forum'; // Explicitly mark as forum message
       payload.forum_category_id = this.currentForumCategory.id; // Add forum category ID
-    } else {
-      console.warn('Aucun contact ou catégorie de forum sélectionné pour envoyer le message.');
-      return;
     }
 
     const tempId = Date.now();
@@ -528,6 +606,12 @@ class AdvancedMessaging {
       if (response.ok) {
         const savedMessage = await response.json();
         this.updateMessageStatus(tempId, 'sent');
+        // Reload messages after sending to ensure consistency
+        if (this.currentContact) {
+          this.loadConversation(this.currentConversationId);
+        } else if (this.currentForumCategory) {
+          this.loadForumMessages(this.currentForumCategory.id, this.currentConversationId);
+        }
       } else {
         this.updateMessageStatus(tempId, 'failed');
       }
@@ -582,6 +666,7 @@ class AdvancedMessaging {
   }
 
   showChatInput() {
+    console.log('Showing chat input area...'); // Add log
     const messageInputArea = document.getElementById('message-input-area');
     if (messageInputArea) {
       messageInputArea.style.display = 'block';
@@ -619,16 +704,38 @@ class AdvancedMessaging {
     return Math.floor(Math.random() * 5);
   }
 
+  async loadLastMessages() {
+    // Charger les derniers messages pour tous les contacts
+    try {
+      const response = await fetch('/api/conversations/last-messages', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('jwt')}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.lastMessages) {
+          // Stocker les derniers messages dans la Map
+          data.lastMessages.forEach(msg => {
+            this.lastMessages.set(msg.contact_id, msg);
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Erreur chargement derniers messages:', error);
+    }
+  }
+
   getLastMessage(contactId) {
-    // Retourner le dernier message
-    const messages = [
-      'Salut, comment ça va ?',
-      'Merci pour l\'info',
-      'À bientôt',
-      'Ok, compris',
-      'Parfait !'
-    ];
-    return messages[Math.floor(Math.random() * messages.length)];
+    // Retourner le dernier message depuis la Map
+    const lastMsg = this.lastMessages.get(contactId);
+    if (lastMsg) {
+      // Tronquer le message s'il est trop long
+      const content = lastMsg.content || '';
+      return content.length > 40 ? content.substring(0, 40) + '...' : content;
+    }
+    return 'Aucun message';
   }
 
   formatTime(date) {

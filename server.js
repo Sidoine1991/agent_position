@@ -540,6 +540,8 @@ function authenticateSupervisorOrAdmin(req, res, next) {
 }
 
 // Routes API
+// const apiHandler = require('./api');
+// app.use('/api', apiHandler);
 
 // Health check
 app.get('/api/test-server', (req, res) => {
@@ -1010,6 +1012,7 @@ app.post('/api/login', async (req, res) => {
     const token = jwt.sign(
       { 
         id: user.id, 
+        auth_uuid: user.auth_uuid, // Ajouter auth_uuid au token
         email: user.email, 
         role: user.role,
         name: user.name 
@@ -1781,32 +1784,75 @@ app.get('/api/test-auth', async (req, res) => {
 
 app.get('/api/profile', authenticateToken, async (req, res) => {
   try {
-    const { data: user, error } = await supabaseClient
+    if (!req.user?.id) {
+      console.error('❌ ID utilisateur manquant dans le token');
+      return res.status(400).json({ 
+        error: 'Identifiant utilisateur manquant',
+        code: 'MISSING_USER_ID'
+      });
+    }
+
+    console.log(`🔍 Récupération du profil pour l'utilisateur: ${req.user.id}`);
+    
+    // Récupération des informations utilisateur
+    const { data: user, error: userError } = await supabaseClient
       .from('users')
       .select('*')
       .eq('id', req.user.id)
       .single();
 
-    if (error) throw error;
-    if (!user) {
-      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    if (userError) {
+      console.error('❌ Erreur récupération utilisateur:', userError.message, userError);
+      return res.status(500).json({ 
+        error: 'Erreur lors de la récupération de l\'utilisateur',
+        details: userError.message,
+        code: 'USER_FETCH_ERROR'
+      });
     }
 
+    if (!user) {
+      console.error('❌ Utilisateur non trouvé:', req.user.id);
+      return res.status(404).json({ 
+        error: 'Utilisateur non trouvé',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+
+    // Récupération du profil
     let profile = null;
     try {
-      const { data: p } = await supabaseClient
+      const { data: p, error: profileError } = await supabaseClient
         .from('profiles')
         .select('*')
         .eq('user_id', user.id)
         .single();
+        
+      if (profileError && profileError.code !== 'PGRST116') { // PGRST116 = pas de lignes
+        console.error('⚠️ Erreur récupération profil:', profileError.message);
+      }
+      
       profile = p || null;
-    } catch {}
+      console.log(`✅ Profil récupéré:`, profile ? 'Oui' : 'Non');
+    } catch (profileErr) {
+      console.error('⚠️ Exception lors de la récupération du profil:', profileErr.message);
+    }
 
-    res.json({ success: true, user: { ...user, profile } });
+    // Réponse avec les données de l'utilisateur et du profil
+    return res.json({ 
+      success: true, 
+      user: { 
+        ...user, 
+        profile 
+      } 
+    });
 
   } catch (error) {
-    console.error('Erreur profile:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error('❌ Erreur critique dans /api/profile:', error.message, error);
+    return res.status(500).json({ 
+      error: 'Erreur serveur',
+      code: 'SERVER_ERROR',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -1982,78 +2028,284 @@ app.get('/api/me/missions', authenticateToken, async (req, res) => {
     if (error) throw error;
 
     let enriched = missions || [];
+    res.json({ success: true, missions: enriched });
 
-    // Messages - Récupérer les messages
-    app.get('/api/messages', authenticateToken, async (req, res) => {
-      try {
-        if (!supabaseClient) {
-          return res.status(500).json({ error: 'Supabase non configuré' });
-        }
-
-        const { data: messages, error } = await supabaseClient
-          .from('messages')
-          .select(`
-            *,
-            sender:users!messages_sender_id_fkey(name, email),
-            recipient:users!messages_recipient_id_fkey(name, email)
-          `)
-          .or(`sender_id.eq.${req.user.id},recipient_id.eq.${req.user.id}`)
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-
-        return res.json({ success: true, messages });
-      } catch (error) {
-        console.error('Erreur récupération messages:', error);
-        return res.status(500).json({ error: 'Erreur serveur' });
-      }
-    });
-
-    try {
-      const ids = (enriched || []).map(m => m.id).filter(Boolean);
-      if (ids.length) {
-        // Earliest checkins per mission
-        const { data: cAsc } = await supabaseClient
-          .from('checkins')
-          .select('mission_id, lat, lon, timestamp')
-          .in('mission_id', ids)
-          .order('timestamp', { ascending: true })
-          .limit(2000);
-        const firstByMission = new Map();
-        (cAsc || []).forEach(c => { if (!firstByMission.has(c.mission_id)) firstByMission.set(c.mission_id, c); });
-        // Latest checkins per mission
-        const { data: cDesc } = await supabaseClient
-          .from('checkins')
-          .select('mission_id, lat, lon, timestamp')
-          .in('mission_id', ids)
-          .order('timestamp', { ascending: false })
-          .limit(2000);
-        const lastByMission = new Map();
-        (cDesc || []).forEach(c => { if (!lastByMission.has(c.mission_id)) lastByMission.set(c.mission_id, c); });
-
-        enriched = enriched.map(m => {
-          const firstCheckin = firstByMission.get(m.id);
-          const lastCheckin = lastByMission.get(m.id);
-          let duration = null;
-          if (firstCheckin && lastCheckin) {
-            const start = new Date(firstCheckin.timestamp);
-            const end = new Date(lastCheckin.timestamp);
-            duration = Math.round((end - start) / (1000 * 60)); // Durée en minutes
-          }
-          return { ...m, firstCheckin, lastCheckin, duration_minutes: duration };
-        });
-      }
-    } catch (e) {
-      console.warn('Erreur enrichissement missions:', e);
-    }
-
-    return res.json({
-      success: true,
-      missions: enriched || []
-    });
   } catch (error) {
     console.error('Erreur missions:', error);
-    return res.status(500).json({ error: 'Erreur serveur' });
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Conversations - Trouver ou créer une conversation
+app.post('/api/conversations', authenticateToken, async (req, res) => {
+  try {
+    if (!supabaseClient) {
+      return res.status(500).json({ error: 'Supabase non configuré' });
+    }
+
+    const { type, user2_id, forum_category_id } = req.body;
+    // Debug: afficher le body complet
+    console.log('📥 Body reçu:', JSON.stringify(req.body));
+    console.log('🔍 user2_id brut:', user2_id, 'Type:', typeof user2_id);
+    
+    // Utiliser l'ID numérique de l'utilisateur (pas UUID)
+    const user1_id = Number(req.user.id);
+    const user2_id_num = user2_id ? Number(user2_id) : null;
+    
+    console.log('🔢 Après conversion - User1:', user1_id, 'User2:', user2_id_num);
+
+    if (!user1_id) {
+      console.error('❌ ID utilisateur manquant dans le token');
+      return res.status(400).json({ error: 'Identifiant utilisateur manquant' });
+    }
+
+    if (!type) {
+      return res.status(400).json({ error: 'Type de conversation requis (direct ou forum)' });
+    }
+
+    console.log(`📨 Création/récupération conversation - Type: ${type}, User1 ID: ${user1_id}, User2 ID: ${user2_id_num}`);
+
+    let conversation;
+    let error;
+
+    if (type === 'direct') {
+      if (!user2_id_num || isNaN(user2_id_num)) {
+        console.error('❌ user2_id invalide:', { user2_id, user2_id_num, isNaN: isNaN(user2_id_num) });
+        return res.status(400).json({ 
+          error: 'ID du second utilisateur requis et doit être un nombre valide',
+          details: `Reçu: ${user2_id} (type: ${typeof user2_id})`,
+          debug: { user2_id, user2_id_num }
+        });
+      }
+      
+      // Vérifier que l'utilisateur cible existe
+      const { data: targetUser, error: userCheckError } = await supabaseClient
+        .from('users')
+        .select('id')
+        .eq('id', user2_id_num)
+        .single();
+      
+      if (userCheckError || !targetUser) {
+        console.error('❌ Utilisateur cible non trouvé:', user2_id_num);
+        return res.status(404).json({ error: 'Utilisateur destinataire non trouvé' });
+      }
+      
+      // Ensure consistent order for unique constraint
+      const [p1, p2] = [user1_id, user2_id_num].sort((a, b) => a - b);
+
+      console.log(`🔍 Recherche conversation entre ${p1} et ${p2}`);
+
+      // Try to find existing direct conversation - utiliser user1_id et user2_id
+      ({ data: conversation, error } = await supabaseClient
+        .from('conversations')
+        .select('*')
+        .eq('type', 'direct')
+        .eq('user1_id', p1)
+        .eq('user2_id', p2)
+        .single());
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 means 'no rows found'
+        console.error('❌ Erreur recherche conversation:', error);
+        throw error;
+      }
+
+      // If not found, create new direct conversation
+      if (!conversation) {
+        console.log(`➕ Création nouvelle conversation entre ${p1} et ${p2}`);
+        ({ data: conversation, error } = await supabaseClient
+          .from('conversations')
+          .insert({ type: 'direct', user1_id: p1, user2_id: p2, created_at: new Date().toISOString() })
+          .select('*')
+          .single());
+        if (error) {
+          console.error('❌ Erreur création conversation:', error);
+          throw error;
+        }
+        console.log('✅ Conversation créée:', conversation.id);
+      } else {
+        console.log('✅ Conversation existante trouvée:', conversation.id);
+      }
+    } else if (type === 'forum') {
+      if (!forum_category_id) {
+        return res.status(400).json({ error: 'ID de catégorie de forum requis pour conversation de forum' });
+      }
+      // Try to find existing forum conversation
+      ({ data: conversation, error } = await supabaseClient
+        .from('conversations')
+        .select('*')
+        .eq('type', 'forum')
+        .eq('forum_category_id', forum_category_id)
+        .single());
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 means 'no rows found'
+        throw error;
+      }
+
+      // If not found, create new forum conversation
+      if (!conversation) {
+        ({ data: conversation, error } = await supabaseClient
+          .from('conversations')
+          .insert({ type: 'forum', forum_category_id: forum_category_id })
+          .select('*')
+          .single());
+        if (error) throw error;
+      }
+    } else {
+      return res.status(400).json({ error: 'Type de conversation invalide' });
+    }
+
+    return res.json({ success: true, conversation });
+  } catch (error) {
+    console.error('Erreur trouver/créer conversation:', error);
+    return res.status(500).json({ error: 'Erreur serveur', details: error.message });
+  }
+});
+
+// Récupérer les derniers messages de toutes les conversations
+app.get('/api/conversations/last-messages', authenticateToken, async (req, res) => {
+  try {
+    if (!supabaseClient) {
+      return res.status(500).json({ error: 'Supabase non configuré' });
+    }
+
+    const userId = Number(req.user.id);
+
+    // Récupérer toutes les conversations de l'utilisateur
+    const { data: conversations, error: convError } = await supabaseClient
+      .from('conversations')
+      .select('id, user1_id, user2_id')
+      .eq('type', 'direct')
+      .or(`user1_id.eq.${userId},user2_id.eq.${userId}`);
+
+    if (convError) {
+      console.error('❌ Erreur récupération conversations:', convError);
+      return res.status(500).json({ error: 'Erreur récupération conversations' });
+    }
+
+    if (!conversations || conversations.length === 0) {
+      return res.json({ success: true, lastMessages: [] });
+    }
+
+    // Pour chaque conversation, récupérer le dernier message
+    const lastMessages = [];
+    
+    for (const conv of conversations) {
+      const { data: messages, error: msgError } = await supabaseClient
+        .from('messages')
+        .select('id, content, created_at, sender_user_id')
+        .eq('conversation_id', conv.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!msgError && messages && messages.length > 0) {
+        const lastMsg = messages[0];
+        // Déterminer l'ID du contact (l'autre personne dans la conversation)
+        const contactId = conv.user1_id === userId ? conv.user2_id : conv.user1_id;
+        
+        lastMessages.push({
+          contact_id: contactId,
+          content: lastMsg.content,
+          created_at: lastMsg.created_at,
+          is_from_me: lastMsg.sender_user_id === userId
+        });
+      }
+    }
+
+    return res.json({ success: true, lastMessages });
+  } catch (error) {
+    console.error('Erreur récupération derniers messages:', error);
+    return res.status(500).json({ error: 'Erreur serveur', details: error.message });
+  }
+});
+
+// Envoyer un message
+app.post('/api/messages', authenticateToken, async (req, res) => {
+  try {
+    if (!supabaseClient) {
+      return res.status(500).json({ error: 'Supabase non configuré' });
+    }
+
+    const { conversation_id, content, message_type = 'text' } = req.body;
+    const userId = Number(req.user.id);
+    const userUuid = req.user.auth_uuid;
+
+    if (!conversation_id) {
+      return res.status(400).json({ error: 'ID de conversation requis' });
+    }
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Contenu du message requis' });
+    }
+
+    console.log(`📤 Envoi message - Conversation: ${conversation_id}, User: ${userId}, Type: ${message_type}`);
+
+    // Insérer le message dans la base de données
+    const { data: message, error } = await supabaseClient
+      .from('messages')
+      .insert({
+        conversation_id,
+        content: content.trim(),
+        message_type,
+        sender_id: userUuid,
+        sender_user_id: userId,
+        created_at: new Date().toISOString()
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('❌ Erreur insertion message:', error);
+      throw error;
+    }
+
+    console.log('✅ Message envoyé:', message.id);
+
+    // Mettre à jour la date de dernière activité de la conversation
+    await supabaseClient
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', conversation_id);
+
+    return res.json({ success: true, message });
+  } catch (error) {
+    console.error('Erreur envoi message:', error);
+    return res.status(500).json({ error: 'Erreur serveur', details: error.message });
+  }
+});
+
+// Récupérer les messages d'une conversation
+app.get('/api/messages', authenticateToken, async (req, res) => {
+  try {
+    if (!supabaseClient) {
+      return res.status(500).json({ error: 'Supabase non configuré' });
+    }
+
+    const { conversation_id } = req.query;
+
+    if (!conversation_id) {
+      return res.status(400).json({ error: 'ID de conversation requis' });
+    }
+
+    console.log(`📬 Récupération messages - Conversation: ${conversation_id}`);
+
+    // Récupérer tous les messages de la conversation
+    const { data: messages, error } = await supabaseClient
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversation_id)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('❌ Erreur récupération messages:', error);
+      throw error;
+    }
+
+    console.log(`✅ ${messages?.length || 0} messages récupérés`);
+
+    return res.json({ success: true, messages: messages || [] });
+  } catch (error) {
+    console.error('Erreur récupération messages:', error);
+    return res.status(500).json({ error: 'Erreur serveur', details: error.message });
   }
 });
 

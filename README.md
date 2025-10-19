@@ -22,10 +22,26 @@
 
 ## ✨ Nouvelles Fonctionnalités (Mise à jour récente)
 
-- **Navigation dynamique par rôle** : La barre de navigation s'adapte désormais automatiquement au rôle de l'utilisateur (Agent, Superviseur, Admin), n'affichant que les liens auxquels il a accès.
-- **Messagerie interne fonctionnelle** : Le système de messagerie a été réparé et permet maintenant de charger les contacts, de visualiser les conversations et d'envoyer des messages.
-- **Tableau de bord agent dynamique** : Le tableau de bord de l'agent récupère désormais les données réelles depuis la base de données pour les objectifs, les statistiques et les indicateurs de performance.
-- **Sécurité renforcée** : L'accès à chaque page est maintenant contrôlé de manière centralisée, empêchant les utilisateurs d'accéder aux sections non autorisées.
+### 💬 Messagerie Interne Complète
+- **Conversations directes** entre agents, superviseurs et administrateurs
+- **Liste de contacts** avec statut en ligne/hors ligne
+- **Historique des messages** sauvegardé dans la base de données
+- **Envoi de messages en temps réel** avec confirmation de livraison
+- **Interface moderne** inspirée des applications de messagerie populaires
+- **Recherche de contacts** pour trouver rapidement un collègue
+
+![Messagerie interne](Media/screenshot_app/messagerie.png)
+
+### 🔐 Sécurité et Navigation
+- **Navigation dynamique par rôle** : La barre de navigation s'adapte automatiquement au rôle de l'utilisateur (Agent, Superviseur, Admin)
+- **Contrôle d'accès centralisé** : Protection de toutes les pages selon les permissions
+- **Authentification JWT** : Tokens sécurisés pour toutes les requêtes API
+
+### 📊 Tableau de Bord Amélioré
+- **Données en temps réel** depuis la base de données Supabase
+- **Statistiques personnalisées** par agent
+- **Indicateurs de performance** dynamiques
+- **Objectifs mensuels** avec suivi de progression
 
 ## 👥 Qui peut utiliser le système ?
 
@@ -97,13 +113,20 @@ Demander accès par email à **syebadokpo@gmail.com**
 - Utilisez vos identifiants fournis par votre superviseur
 - L'application se souvient de votre connexion
 
-#### 2. Choisir votre zone d'intervention
+#### 2. Communiquer avec l'équipe
+- Allez dans **"Messages"** pour accéder à la messagerie
+- **Sélectionnez un contact** dans la liste pour démarrer une conversation
+- **Envoyez des messages** pour coordonner vos activités
+- **Consultez l'historique** de vos conversations
+- Recevez des **notifications** pour les nouveaux messages
+
+#### 3. Choisir votre zone d'intervention
 - **Département** : Sélectionnez votre département
 - **Commune** : Choisissez votre commune
 - **Arrondissement** : Sélectionnez l'arrondissement
 - **Village** : Choisissez le village où vous travaillez
 
-#### 3. Marquer votre présence
+#### 4. Marquer votre présence
 
 ##### Début de journée
 1. Cliquez sur **"Marquer présence (début)"**
@@ -124,7 +147,7 @@ Demander accès par email à **syebadokpo@gmail.com**
 3. Ajoutez un résumé de votre journée
 4. Cliquez sur **"Confirmer"**
 
-#### 4. Consulter votre historique
+#### 5. Consulter votre historique
 - Allez dans **"Profil"** pour voir vos statistiques
 - Consultez le **calendrier** pour voir vos jours de présence
 - Vérifiez vos **missions** dans l'historique
@@ -139,7 +162,13 @@ Demander accès par email à **syebadokpo@gmail.com**
 
 ![Tableau de bord superviseur](Media/screenshot_app/tabmleau_bord.png)
 
-#### 2. Gérer les agents
+#### 2. Communiquer avec les agents
+- Utilisez la **messagerie interne** pour contacter vos agents
+- **Envoyez des instructions** ou demandez des rapports
+- **Suivez les conversations** avec chaque agent
+- **Coordonnez les activités** de terrain en temps réel
+
+#### 3. Gérer les agents
 - Allez dans **"Agents"**
 - **Créer un agent** : Cliquez sur "Nouvel Agent"
 - **Modifier un agent** : Cliquez sur l'icône crayon
@@ -148,12 +177,12 @@ Demander accès par email à **syebadokpo@gmail.com**
 
 <!-- Illustration planification retirée pour rester à 3 screenshots -->
 
-#### 3. Suivre les agents en temps réel
+#### 4. Suivre les agents en temps réel
 - La **carte** montre les positions des agents
 - Les **marqueurs colorés** indiquent les différents agents
 - **Filtrez par date** pour voir l'historique
 
-#### 4. Générer des rapports
+#### 5. Générer des rapports
 - Allez dans **"Rapports"**
 - Choisissez la **période** (aujourd'hui, cette semaine, ce mois)
 - Sélectionnez un **agent** ou tous les agents
@@ -166,6 +195,7 @@ Demander accès par email à **syebadokpo@gmail.com**
 
 #### 1. Administration complète
 - Accès à toutes les fonctionnalités superviseur
+- **Messagerie avec tous les utilisateurs** (agents, superviseurs)
 - Gestion des **unités administratives**
 - Configuration des **paramètres système**
 
