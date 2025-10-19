@@ -947,9 +947,14 @@
       
       let usersMap = new Map();
       if (usersRes.ok) {
-        const usersData = await usersRes.json();
+        const usersResponse = await usersRes.json();
+        // Vérifier si la réponse contient une propriété 'items' (cas de l'API) ou est directement un tableau
+        const usersData = Array.isArray(usersResponse) ? usersResponse : (usersResponse.items || []);
         usersMap = new Map(usersData.map(user => [user.id, user]));
         console.log('👥 Utilisateurs chargés:', usersMap.size);
+        if (usersData.length > 0) {
+          console.log('👤 Exemple utilisateur:', usersData[0]);
+        }
       }
       
       console.log('📋 Planifications récupérées:', plans.length);
