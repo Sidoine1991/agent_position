@@ -288,12 +288,69 @@ Demander accès par email à **syebadokpo@gmail.com**
 - Vous pouvez **désactiver** le suivi à tout moment
 - Vos données ne sont **jamais partagées** avec des tiers
 
+## 📖 Guide d'utilisation détaillé
+
+### 👉 [Consultez le guide complet d'utilisation](web/aide.html)
+
+Une page d'aide complète est disponible dans l'application avec :
+- 📍 Instructions pas à pas pour marquer votre présence
+- 📱 Configuration GPS et précision requise
+- 📊 Gestion des distances et limites tolérables
+- ✅ Procédure de début et fin de mission
+- 📅 Planification et évaluation des activités
+- 🚫 Gestion des absences et permissions
+
+### ⚠️ Points cruciaux à retenir
+
+#### 1. Planification (WEEK-END uniquement)
+- 📅 Planifiez vos activités **pendant le weekend**
+- ❌ Vous ne pouvez pas planifier un jour déjà passé
+- ✅ Vous planifiez toujours le **futur**
+
+#### 2. GPS et Précision
+- 📱 Installez **GPS Status** sur votre tablette
+- 🎯 Précision requise : **2-10 mètres** (idéal)
+- ❌ Précision > 100 m : Reconfigurer GPS Status
+- 🔄 Refaire GPS Status si déplacement > 20-30 km
+
+#### 3. Connexion Internet
+- ✅ Nécessaire **uniquement** au début et à la fin de mission
+- 🚫 Pas besoin de connexion permanente
+- 📴 Vous pouvez éteindre/mettre en veille pendant la journée
+
+#### 4. Procédure de présence
+
+**Début de mission :**
+1. Remplir : Département, Commune, Arrondissement, Village
+2. Définir les heures de début et fin
+3. Appuyer sur **"Début mission"**
+4. Vérifier : **"Mission démarrée avec succès"** + coordonnées GPS
+5. Calendrier passe au **vert** = Présence validée
+
+**Fin de mission :**
+1. Appuyer sur **"Finir position"**
+2. Vérifier : **"Mission Complète"** (Completed)
+3. Évaluer les activités dans **"Suivi activité"**
+
+#### 5. Distances et Zones
+- 📍 La présence est **JOURNALIÈRE**, pas par CEP
+- 🔵 Un seul marquage par jour suffit
+- 📍 Distance tolérable = 80% de la distance moyenne indiquée
+- ✅ Vous restez "présent" dans tout votre rayon de couverture
+
+#### 6. Absences et Permissions
+- 📧 Avertir le superviseur ET le CCRB
+- 📝 Obtenir une permission officielle écrite
+- 📂 Conserver la permission pour justification mensuelle
+- ❌ Sans permission = Absence non justifiée
+
 ## 📞 Support et assistance
 
 ### En cas de problème
-1. **Consultez ce manuel** en premier
+1. **Consultez la page d'aide** dans l'application
 2. **Contactez votre superviseur** direct
-3. **Appelez le support technique** : +229 0196911346
+3. **Envoyez un message WhatsApp** (privilégié)
+4. **Appelez si urgent** : +229 0196911346
 
 ### Contacts utiles
 - **Développeur de l'application**
