@@ -772,6 +772,73 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script>
+      // Fonction pour obtenir les en-têtes d'authentification
+      async function authHeaders() {
+        const token = localStorage.getItem('jwt');
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+      }
+
+      // Mettre à jour l'état en ligne des utilisateurs
+      async function updateOnlineStatus() {
+        try {
+          const response = await fetch('/api/users/online', {
+            headers: await authHeaders()
+          });
+          
+          if (response.ok) {
+            const onlineUsers = await response.json();
+            
+            // Mettre à jour les indicateurs de présence
+            document.querySelectorAll('.contact-item').forEach(contact => {
+              const userId = contact.dataset.userId;
+              const onlineIndicator = contact.querySelector('.online-indicator');
+              
+              if (onlineIndicator) {
+                const isOnline = onlineUsers.includes(userId);
+                onlineIndicator.className = `online-indicator ${isOnline ? 'online' : 'offline'}`;
+                onlineIndicator.title = isOnline ? 'En ligne' : 'Hors ligne';
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Erreur lors de la mise à jour du statut en ligne:', error);
+        }
+      }
+
+      // Fonction pour afficher des alertes
+      function showAlert(message, type = 'info') {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.role = 'alert';
+        alertDiv.innerHTML = `
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        
+        const container = document.querySelector('.main-content') || document.body;
+        container.prepend(alertDiv);
+        
+        // Supprimer l'alerte après 5 secondes
+        setTimeout(() => {
+          alertDiv.remove();
+        }, 5000);
+      }
+
+      // Mettre à jour l'état en ligne toutes les 30 secondes
+      setInterval(updateOnlineStatus, 30000);
+
+      // Appeler une première fois au chargement
+      document.addEventListener('DOMContentLoaded', () => {
+        updateOnlineStatus();
+        
+        // Initialiser les tooltips Bootstrap
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+          return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+      });
+    </script>
     <!-- <script src="/app.js"></script> -->
     <script src="/advanced-messaging.js"></script>
     <script>

@@ -464,6 +464,91 @@
 
   // Fonction pour sauvegarder la planification de la semaine
   async function saveWeekPlanning(weekStart, weekEnd) {
+  try {
+    const modal = document.getElementById('week-edit-modal');
+    if (!modal) {
+      console.error('Modal non trouvée');
+      return;
+    }
+
+    const form = modal.querySelector('form');
+    if (!form) {
+      console.error('Formulaire non trouvé dans la modal');
+      return;
+    }
+
+    const formData = new FormData(form);
+    const planningData = {
+      agentId: formData.get('agentId'),
+      projectId: formData.get('projectId'),
+      weekStart: weekStart,
+      weekEnd: weekEnd,
+      days: []
+    };
+
+    // Récupérer les données de chaque jour
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    days.forEach(day => {
+      const startTime = formData.get(`${day}-start`);
+      const endTime = formData.get(`${day}-end`);
+      
+      if (startTime && endTime) {
+        planningData.days.push({
+          day: day,
+          startTime: startTime,
+          endTime: endTime,
+          notes: formData.get(`${day}-notes`) || ''
+        });
+      }
+    });
+
+    // Afficher un indicateur de chargement
+    const submitButton = form.querySelector('button[type="submit"]');
+    const originalButtonText = submitButton ? submitButton.innerHTML : '';
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enregistrement...';
+    }
+
+    // Envoyer les données au serveur
+    const response = await fetch('/api/planning', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(await authHeaders())
+      },
+      body: JSON.stringify(planningData)
+    });
+
+    // Réinitialiser le bouton
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.innerHTML = originalButtonText;
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || 'Erreur lors de la sauvegarde du planning');
+    }
+
+    // Recharger la vue après sauvegarde
+    await loadWeek(weekStart);
+    
+    // Fermer la modal
+    const modalInstance = bootstrap.Modal.getInstance(modal);
+    if (modalInstance) {
+      modalInstance.hide();
+    }
+
+    // Afficher un message de succès
+    showAlert('Planning enregistré avec succès', 'success');
+    
+    return true;
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde du planning:', error);
+    showAlert(`Erreur: ${error.message}`, 'danger');
+    return false;
+  }
     try {
       const start = new Date(weekStart);
       const end = new Date(weekEnd);

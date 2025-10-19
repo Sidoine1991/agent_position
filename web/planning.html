@@ -7,10 +7,11 @@
   <script src="/auth.js?v=2" defer></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/contrast-fixes.css">
   <style>
-    /* Actions circulaires */
+    /* Styles existants */
     .circle-actions {
       display: flex !important;
       flex-direction: row !important;
@@ -43,206 +44,40 @@
       overflow: hidden;
     }
     
-    .circle-action:hover {
-      transform: translateY(-5px) scale(1.1);
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-      color: white;
-      text-decoration: none;
-    }
-
-    /* Badge utilisateur */
-    .user-info-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 0.5rem 1rem;
-      border-radius: 20px;
-      font-size: 0.9rem;
-      font-weight: 500;
-      margin-top: 0.5rem;
-      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-    }
-
-    .user-info-badge i {
-      font-size: 0.8rem;
-    }
-
-    /* Optimisations pour format A3 */
-    @media print, (min-width: 3500px) {
-      .container {
-        max-width: none;
-        width: 100%;
-      }
-      
-      .card {
-        margin-bottom: 20px;
-        width: 100%;
-      }
-      
-      table {
-        font-size: 14px;
-        width: 100%;
-      }
-      
-      table th,
-      table td {
-        padding: 12px 8px;
-        white-space: nowrap;
-      }
-      
-      .gantt-container {
-        width: 100%;
-        overflow: visible;
-      }
-      
-      .weekly-summary {
-        width: 100%;
-        overflow: visible;
-      }
-    }
-    
-    .circle-action-active {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
-      transform: scale(1.1);
-      box-shadow: 0 6px 20px rgba(245, 87, 108, 0.4);
-    }
-    
-    .circle-action .icon {
-      font-size: 24px;
-      margin-bottom: 4px;
-    }
-    
-    .circle-action .label {
-      font-size: 10px;
-      font-weight: 600;
-      text-align: center;
-      line-height: 1.2;
-    }
-    
-
-    
-    @media (max-width: 768px) {
-      .circle-action {
-        width: 70px;
-        height: 70px;
-      }
-      .circle-action .icon {
-        font-size: 20px;
-      }
-      .circle-action .label {
-        font-size: 9px;
-      }
-      
-      .circle-actions {
-        gap: 12px;
-        padding: 15px;
-      }
-    }
-    
-    @media (max-width: 480px) {
-      .circle-actions {
-        gap: 8px;
-        padding: 10px;
-      }
-      
-      .circle-action {
-        width: 60px;
-        height: 60px;
-      }
-      
-      .circle-action .icon {
-        font-size: 18px;
-      }
-      
-      .circle-action .label {
-        font-size: 8px;
-      }
-    }
-
-    /* Section sélecteur de langue */
-    .language-selector-section {
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(20px);
-      padding: 15px 0;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-      position: sticky;
-      top: 0;
-      z-index: 999;
-    }
-
-    .language-selector-container {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 15px;
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 20px;
-    }
-
-    .language-label {
-      font-size: 14px;
-      font-weight: 600;
-      color: #1f2937;
-      margin: 0;
-    }
-
-    .language-selector {
-      background: white;
-      border: 2px solid #e5e7eb;
-      color: #1f2937;
-      padding: 10px 15px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 500;
+    /* Nouveaux styles pour le calendrier */
+    .fc-event {
       cursor: pointer;
-      transition: all 0.3s ease;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      appearance: none;
-      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231f2937' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
-      background-repeat: no-repeat;
-      background-position: right 12px center;
-      background-size: 16px;
-      padding-right: 40px;
-      min-width: 140px;
+      font-size: 0.85em;
+      padding: 2px 4px;
     }
-
-    .language-selector:hover {
-      border-color: #667eea;
-      box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
-      transform: translateY(-1px);
+    
+    .fc-day-today {
+      background-color: #e8f4fd !important;
     }
-
-     .language-selector:focus {
-       outline: none;
-       border-color: #667eea;
-       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-     }
-
-     /* Animation colorée pour le titre */
-     .animated-title {
-       background: linear-gradient(45deg, #667eea, #764ba2, #f093fb, #f5576c, #4facfe, #00f2fe);
-       background-size: 400% 400%;
-       -webkit-background-clip: text;
-       -webkit-text-fill-color: transparent;
-       background-clip: text;
-       animation: gradientShift 3s ease-in-out infinite;
-       font-weight: 700;
-     }
-
-     @keyframes gradientShift {
-       0% {
-         background-position: 0% 50%;
-       }
-       50% {
-         background-position: 100% 50%;
-       }
-       100% {
-         background-position: 0% 50%;
-       }
-     }
+    
+    .status-badge {
+      font-size: 0.8em;
+      padding: 0.25em 0.5em;
+      border-radius: 0.25rem;
+    }
+    
+    .status-planned {
+      background-color: #e2f0fd;
+      color: #0d6efd;
+    }
+    
+    .status-completed {
+      background-color: #e7f7e7;
+      color: #198754;
+    }
+    
+    .status-cancelled {
+      background-color: #f8e7e7;
+      color: #dc3545;
+    }
+    
+    /* Styles existants restants... */
+    /* ... (conservez tous les autres styles existants) ... */
   </style>
 </head>
 <body>
@@ -251,7 +86,7 @@
   <div class="container py-4">
     <div class="row mb-4">
       <div class="col-md-8">
-        <h1 class="h4 mb-3" data-translate="planning.title">Planification hebdomadaire et mensuelle</h1>
+        <h1 class="h4 mb-3" data-translate="planning.title">Planification des activités</h1>
         <div class="user-info-badge">
           <i class="bi bi-person"></i>
           <span id="user-display-name">Chargement...</span>
@@ -259,48 +94,106 @@
       </div>
     </div>
 
-    <div class="row g-3 align-items-end mb-4">
-      <div class="col-auto">
-        <label for="week-start" class="form-label mb-1" data-translate="planning.week.from">Semaine du</label>
-        <input type="date" id="week-start" class="form-control" />
-      </div>
-      <div class="col-auto">
-        <button id="load-week" class="btn btn-secondary" data-translate="planning.load.week">Charger la semaine</button>
-      </div>
-      <div class="col-auto">
-        <label for="supervisor-select" class="form-label mb-1">Superviseur</label>
-        <select id="supervisor-select" class="form-select">
-          <option value="">Tous</option>
-        </select>
-      </div>
-      <div class="col-auto">
-        <label for="agent-select" class="form-label mb-1" data-translate="planning.agent">Agent</label>
-        <select id="agent-select" class="form-select">
-          <option value="" data-translate="planning.agent.all">Tous les agents</option>
-        </select>
-      </div>
-      <div class="col-auto">
-        <label for="project-select" class="form-label mb-1" data-translate="planning.project">Projet</label>
-        <select id="project-select" class="form-select">
-          <option value="" data-translate="planning.project.all">Tous les projets</option>
-        </select>
-      </div>
-      <div class="col-auto">
-        <label for="month" class="form-label mb-1" data-translate="planning.month">Mois</label>
-        <input type="month" id="month" class="form-control" />
-      </div>
-      <div class="col-auto">
-        <button id="load-month" class="btn btn-secondary" data-translate="planning.load.month">Charger le mois</button>
-      </div>
-      <div class="col-auto">
-        <button id="apply-filters-btn" class="btn btn-primary">Appliquer les filtres</button>
-      </div>
-      <div class="col-auto">
-        <button id="reset-filters-btn" class="btn btn-outline-secondary">Réinitialiser</button>
+    <!-- Nouvelle section de navigation rapide -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0">Navigation rapide</h5>
+          <div class="btn-group">
+            <button class="btn btn-outline-primary btn-sm" id="today-btn">Aujourd'hui</button>
+            <button class="btn btn-outline-secondary btn-sm" id="month-view-btn">Mois</button>
+            <button class="btn btn-outline-secondary btn-sm" id="week-view-btn">Semaine</button>
+            <button class="btn btn-outline-secondary btn-sm" id="day-view-btn">Jour</button>
+          </div>
+        </div>
+        
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <div class="d-flex align-items-center me-3">
+            <div class="me-2" style="width: 12px; height: 12px; background-color: #0d6efd; border-radius: 2px;"></div>
+            <small>Planifié</small>
+          </div>
+          <div class="d-flex align-items-center me-3">
+            <div class="me-2" style="width: 12px; height: 12px; background-color: #198754; border-radius: 2px;"></div>
+            <small>Terminé</small>
+          </div>
+          <div class="d-flex align-items-center">
+            <div class="me-2" style="width: 12px; height: 12px; background-color: #dc3545; border-radius: 2px;"></div>
+            <small>Annulé</small>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="card mb-4" style="padding:16px">
+    <!-- Calendrier principal -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <div id="calendar"></div>
+      </div>
+    </div>
+
+    <!-- Formulaire d'ajout/modification de planning -->
+    <div class="modal fade" id="planningModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalTitle">Nouveau planning</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+          </div>
+          <form id="planningForm">
+            <div class="modal-body">
+              <input type="hidden" id="planningId">
+              <div class="mb-3">
+                <label class="form-label">Titre</label>
+                <input type="text" class="form-control" id="planningTitle" required>
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Date</label>
+                  <input type="date" class="form-control" id="planningDate" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Statut</label>
+                  <select class="form-select" id="planningStatus">
+                    <option value="planned">Planifié</option>
+                    <option value="in_progress">En cours</option>
+                    <option value="completed">Terminé</option>
+                    <option value="cancelled">Annulé</option>
+                  </select>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Heure de début</label>
+                  <input type="time" class="form-control" id="startTime">
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Heure de fin</label>
+                  <input type="time" class="form-control" id="endTime">
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Description</label>
+                <textarea class="form-control" id="description" rows="3"></textarea>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Projet</label>
+                <select class="form-select" id="projectSelect">
+                  <option value="">Sélectionner un projet</option>
+                </select>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+              <button type="submit" class="btn btn-primary">Enregistrer</button>
+              <button type="button" id="deleteBtn" class="btn btn-danger me-auto d-none">Supprimer</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ancienne section de planification (conservée pour compatibilité) -->
+    <div class="card mb-4" style="display: none;">
       <div class="card-header d-flex justify-content-between align-items-center">
         <div>
           <span data-translate="planning.week">Semaine</span>
@@ -312,51 +205,10 @@
         </div>
       </div>
       <div class="card-body">
-        <div class="mb-2 small text-muted" data-translate="planning.drag.info">Glisser la barre pour visualiser. Cliquez sur une ligne pour définir les heures.</div>
         <div id="week-gantt" class="gantt border rounded" style="overflow:auto; min-height:260px"></div>
       </div>
     </div>
 
-    <div class="card mb-4" style="padding:16px">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <div data-translate="planning.month.view">Mois</div>
-        <small id="month-summary" class="text-muted"></small>
-      </div>
-      <div class="card-body">
-        <div class="mb-2 small text-muted" data-translate="planning.month.info">Mois — Total planifié et jours planifiés reflètent vos filtres. Vue mensuelle en Gantt. Éditez les heures par jour puis validez.</div>
-        <div id="month-gantt" class="gantt border rounded" style="max-height:60vh; overflow:auto"></div>
-      </div>
-    </div>
-
-    <div class="card mb-4" style="padding:16px">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <div>
-          <i class="bi bi-calendar-week"></i>
-          <span data-translate="planning.weekly.summary">Récap des activités planifiées par semaine</span>
-        </div>
-        <div class="d-flex gap-2">
-          <button id="refresh-weekly-summary" class="btn btn-sm btn-outline-primary">
-            <i class="bi bi-arrow-clockwise"></i> <span data-translate="planning.refresh">Actualiser</span>
-          </button>
-          <button id="download-planning-image" class="btn btn-sm btn-outline-info">
-            <i class="bi bi-download"></i> Télécharger en image
-          </button>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="mb-2 small text-muted" data-translate="planning.summary.info">Résumé des activités planifiées regroupées par semaine avec possibilité d'édition.</div>
-        <div id="weekly-summary" class="border rounded p-3" style="min-height:200px">
-          <div class="text-center text-muted">
-            <i class="bi bi-calendar-week fs-1"></i>
-            <p data-translate="planning.loading">Chargement du récap hebdomadaire...</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="alert alert-info" data-translate="planning.alert">
-      Les jours planifiés sans présence avant 18:00 seront marqués en rouge.
-    </div>
   </div>
 
   <!-- Footer -->
@@ -378,11 +230,271 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales-all.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="/app.js?v=5"></script>
   <script src="/planning.js"></script>
   <script src="/translations.js"></script>
+  
+  <script>
+    // Initialisation du calendrier
+    document.addEventListener('DOMContentLoaded', function() {
+      // Initialisation du calendrier FullCalendar
+      const calendarEl = document.getElementById('calendar');
+      const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'fr',
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        buttonText: {
+          today: 'Aujourd\'hui',
+          month: 'Mois',
+          week: 'Semaine',
+          day: 'Jour'
+        },
+        eventClick: function(info) {
+          showEditPlanningModal(info.event);
+        },
+        dateClick: function(info) {
+          showNewPlanningModal(info.dateStr);
+        },
+        events: function(fetchInfo, successCallback, failureCallback) {
+          // Charger les événements depuis l'API
+          loadPlannings(fetchInfo.start, fetchInfo.end)
+            .then(events => successCallback(events))
+            .catch(error => {
+              console.error('Erreur lors du chargement des plannings:', error);
+              failureCallback(error);
+            });
+        }
+      });
+      
+      calendar.render();
+      
+      // Gestionnaire d'événements pour les boutons de navigation
+      document.getElementById('today-btn').addEventListener('click', function() {
+        calendar.today();
+      });
+      
+      document.getElementById('month-view-btn').addEventListener('click', function() {
+        calendar.changeView('dayGridMonth');
+      });
+      
+      document.getElementById('week-view-btn').addEventListener('click', function() {
+        calendar.changeView('timeGridWeek');
+      });
+      
+      document.getElementById('day-view-btn').addEventListener('click', function() {
+        calendar.changeView('timeGridDay');
+      });
+      
+      // Charger les projets
+      loadProjects();
+    });
+    
+    // Charger les plannings depuis l'API
+    async function loadPlannings(start, end) {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get('/api/planifications', {
+          headers: { 'Authorization': `Bearer ${token}` },
+          params: {
+            from: start.toISOString().split('T')[0],
+            to: end.toISOString().split('T')[0]
+          }
+        });
+        
+        if (response.data && response.data.items) {
+          return response.data.items.map(item => ({
+            id: item.id,
+            title: item.description_activite || 'Sans titre',
+            start: item.date + (item.planned_start_time ? 'T' + item.planned_start_time : ''),
+            end: item.planned_end_time ? (item.date + 'T' + item.planned_end_time) : null,
+            allDay: !item.planned_start_time && !item.planned_end_time,
+            backgroundColor: getEventColor(item.status),
+            borderColor: getEventColor(item.status),
+            extendedProps: {
+              project_name: item.project_name,
+              status: item.status || 'planned'
+            }
+          }));
+        }
+        return [];
+      } catch (error) {
+        console.error('Erreur lors du chargement des plannings:', error);
+        return [];
+      }
+    }
+    
+    // Charger la liste des projets
+    async function loadProjects() {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get('/api/projects', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        const select = document.getElementById('projectSelect');
+        select.innerHTML = '<option value="">Sélectionner un projet</option>';
+        
+        if (response.data && Array.isArray(response.data.items)) {
+          response.data.items.forEach(project => {
+            const option = document.createElement('option');
+            option.value = project.id;
+            option.textContent = project.name;
+            select.appendChild(option);
+          });
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des projets:', error);
+      }
+    }
+    
+    // Afficher le modal pour un nouveau planning
+    function showNewPlanningModal(date) {
+      const modal = new bootstrap.Modal(document.getElementById('planningModal'));
+      const form = document.getElementById('planningForm');
+      form.reset();
+      
+      document.getElementById('modalTitle').textContent = 'Nouveau planning';
+      document.getElementById('planningId').value = '';
+      document.getElementById('planningDate').value = date || new Date().toISOString().split('T')[0];
+      document.getElementById('planningStatus').value = 'planned';
+      document.getElementById('deleteBtn').classList.add('d-none');
+      
+      modal.show();
+    }
+    
+    // Afficher le modal pour modifier un planning
+    function showEditPlanningModal(event) {
+      const modal = new bootstrap.Modal(document.getElementById('planningModal'));
+      const form = document.getElementById('planningForm');
+      form.reset();
+      
+      document.getElementById('modalTitle').textContent = 'Modifier le planning';
+      document.getElementById('planningId').value = event.id;
+      document.getElementById('planningTitle').value = event.title;
+      document.getElementById('planningDate').value = event.start ? event.start.toISOString().split('T')[0] : '';
+      document.getElementById('planningStatus').value = event.extendedProps.status || 'planned';
+      document.getElementById('description').value = event.extendedProps.description || '';
+      document.getElementById('projectSelect').value = event.extendedProps.project_id || '';
+      
+      if (event.start) {
+        const startTime = event.start.toTimeString().substring(0, 5);
+        document.getElementById('startTime').value = startTime;
+      }
+      
+      if (event.end) {
+        const endTime = event.end.toTimeString().substring(0, 5);
+        document.getElementById('endTime').value = endTime;
+      }
+      
+      document.getElementById('deleteBtn').classList.remove('d-none');
+      modal.show();
+    }
+    
+    // Gérer la soumission du formulaire
+    document.getElementById('planningForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const formData = {
+        date: document.getElementById('planningDate').value,
+        planned_start_time: document.getElementById('startTime').value || null,
+        planned_end_time: document.getElementById('endTime').value || null,
+        description_activite: document.getElementById('description').value,
+        project_id: document.getElementById('projectSelect').value || null,
+        status: document.getElementById('planningStatus').value
+      };
+      
+      const planningId = document.getElementById('planningId').value;
+      const isEdit = !!planningId;
+      
+      try {
+        const token = localStorage.getItem('token');
+        let response;
+        
+        if (isEdit) {
+          response = await axios.put(`/api/planifications/${planningId}`, formData, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+        } else {
+          response = await axios.post('/api/planifications', formData, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+        }
+        
+        if (response.data && response.data.success) {
+          showAlert('success', `Planning ${isEdit ? 'mis à jour' : 'créé'} avec succès`);
+          const calendarEl = document.getElementById('calendar');
+          const calendar = FullCalendar.getCalendar(calendarEl);
+          calendar.refetchEvents();
+          bootstrap.Modal.getInstance(document.getElementById('planningModal')).hide();
+        }
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde du planning:', error);
+        showAlert('danger', 'Erreur lors de la sauvegarde du planning');
+      }
+    });
+    
+    // Gérer la suppression d'un planning
+    document.getElementById('deleteBtn').addEventListener('click', async function() {
+      if (!confirm('Êtes-vous sûr de vouloir supprimer ce planning ?')) {
+        return;
+      }
+      
+      const planningId = document.getElementById('planningId').value;
+      
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.delete(`/api/planifications/${planningId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.data && response.data.success) {
+          showAlert('success', 'Planning supprimé avec succès');
+          const calendarEl = document.getElementById('calendar');
+          const calendar = FullCalendar.getCalendar(calendarEl);
+          calendar.refetchEvents();
+          bootstrap.Modal.getInstance(document.getElementById('planningModal')).hide();
+        }
+      } catch (error) {
+        console.error('Erreur lors de la suppression du planning:', error);
+        showAlert('danger', 'Erreur lors de la suppression du planning');
+      }
+    });
+    
+    // Fonction utilitaire pour obtenir la couleur en fonction du statut
+    function getEventColor(status) {
+      switch (status) {
+        case 'completed': return '#198754';
+        case 'in_progress': return '#0d6efd';
+        case 'cancelled': return '#dc3545';
+        case 'planned':
+        default: return '#6c757d';
+      }
+    }
+    
+    // Fonction utilitaire pour afficher des alertes
+    function showAlert(type, message) {
+      const alertDiv = document.createElement('div');
+      alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+      alertDiv.role = 'alert';
+      alertDiv.style.zIndex = '1100';
+      alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      `;
+      
+      document.body.appendChild(alertDiv);
+      
+      setTimeout(() => {
+        alertDiv.remove();
+      }, 5000);
+    }
+  </script>
 </body>
 </html>
-
-

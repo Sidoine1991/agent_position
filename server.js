@@ -74,6 +74,59 @@ app.use(cors({
   credentials: true
 }));
 
+// Middleware de suivi de présence
+app.use(async (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (token) {
+    try {
+      const user = jwt.verify(token, JWT_SECRET);
+      if (user && user.id) {
+        const now = new Date().toISOString();
+        // Mise à jour ou création de l'entrée de présence
+        const { error } = await supabaseClient
+          .from('user_presence')
+          .upsert(
+            { 
+              user_id: user.id, 
+              last_seen: now,
+              status: 'online'
+            },
+            { onConflict: 'user_id' }
+          );
+          
+        if (error) {
+          console.error('Erreur de suivi de présence:', error);
+        }
+      }
+    } catch (e) {
+      // Le token est invalide ou expiré, on ne fait rien
+      console.error('Erreur de vérification du token de présence:', e.message);
+    }
+  }
+  next();
+});
+
+// Tâche planifiée pour marquer les utilisateurs inactifs comme hors ligne
+setInterval(async () => {
+  try {
+    const inactiveTime = new Date(Date.now() - 5 * 60 * 1000).toISOString(); // 5 minutes d'inactivité
+    
+    const { error } = await supabaseClient
+      .from('user_presence')
+      .update({ status: 'offline' })
+      .lt('last_seen', inactiveTime)
+      .eq('status', 'online');
+      
+    if (error) {
+      console.error('Erreur lors de la mise à jour des utilisateurs inactifs:', error);
+    }
+  } catch (e) {
+    console.error('Erreur dans la tâche planifiée de présence:', e);
+  }
+}, 60000); // Toutes les minutes
+
 // Sécurité
 if (process.env.NODE_ENV !== 'test') {
   app.use(helmet({

@@ -33,9 +33,27 @@ const PAGE_ACCESS = {
   '/register.html': 'public'
 };
 
+function isTokenValid(token) {
+  if (!token) return false;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    // Vérifier si le token est expiré
+    if (payload.exp && Date.now() >= payload.exp * 1000) {
+      return false;
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 function getUserRole() {
   const token = localStorage.getItem('jwt');
-  if (!token) return null;
+  if (!isTokenValid(token)) {
+    // Si le token est invalide, on le supprime
+    localStorage.removeItem('jwt');
+    return null;
+  }
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
     return payload.role || null;
@@ -55,6 +73,17 @@ function checkAccess(page, role) {
 
 function protectPage() {
   const currentPage = window.location.pathname;
+  
+  // Vérifier d'abord si on a un token dans l'URL (pour les liens de connexion par email)
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlToken = urlParams.get('token');
+  
+  if (urlToken && urlToken.length > 20) {
+    localStorage.setItem('jwt', urlToken);
+    // Nettoyer l'URL pour éviter de laisser le token dans l'historique
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+  
   const userRole = getUserRole();
 
   // Si la page est publique, ne rien faire
