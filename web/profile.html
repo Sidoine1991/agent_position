@@ -79,12 +79,228 @@
         }
       }
     </style>
+    <!-- Font Awesome pour les icônes -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="/modern-ui.css?v=1" />
     <link rel="stylesheet" href="/styles-theme.css">
+    <style>
+      /* Styles pour la barre de navigation */
+      .navbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        color: white;
+        position: relative;
+        z-index: 1000;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      }
+      
+      .navbar-brand {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      
+      .navbar-logo {
+        width: 48px;
+        height: 48px;
+        object-fit: contain;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 4px;
+      }
+      
+      .navbar-title h1 {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 700;
+        line-height: 1.2;
+        color: white;
+      }
+      
+      .navbar-subtitle {
+        font-size: 18px;
+        opacity: 1;
+        font-weight: 600;
+        color: #ffffff;
+        text-shadow: 0 2px 6px rgba(0,0,0,.35);
+      }
+      
+      .navbar-menu {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      
+      .navbar-link {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 50%;
+        color: white;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        text-align: center;
+        padding: 10px;
+      }
+      
+      .navbar-link i {
+        font-size: 24px;
+        margin-bottom: 4px;
+      }
+      
+      .navbar-link span {
+        font-size: 10px;
+        font-weight: 600;
+        display: block;
+        line-height: 1.2;
+      }
+      
+      .navbar-link:hover {
+        transform: translateY(-5px) scale(1.1);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        color: white;
+        text-decoration: none;
+      }
+      
+      .navbar-nav {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      
+      .carousel-btn {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 2px solid rgba(255, 255, 255, 0.5);
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 18px;
+        outline: none;
+        font-weight: bold;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      }
+      
+      .carousel-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: scale(1.1);
+      }
+      
+      .carousel-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+      
+      /* Styles responsifs */
+      @media (max-width: 1024px) {
+        .navbar-link {
+          width: 70px;
+          height: 70px;
+        }
+        
+        .navbar-link i {
+          font-size: 20px;
+        }
+        
+        .navbar-link span {
+          font-size: 9px;
+        }
+      }
+      
+      @media (max-width: 768px) {
+        .navbar {
+          flex-wrap: wrap;
+          padding: 10px;
+        }
+        
+        .navbar-title h1 {
+          font-size: 20px;
+        }
+        
+        .navbar-subtitle {
+          font-size: 14px;
+        }
+        
+        .navbar-menu {
+          order: 3;
+          width: 100%;
+          justify-content: center;
+          margin-top: 10px;
+        }
+        
+        .navbar-nav {
+          margin-left: auto;
+        }
+      }
+      
+      @media (max-width: 480px) {
+        .navbar-link {
+          width: 60px;
+          height: 60px;
+          padding: 8px;
+        }
+        
+        .navbar-link i {
+          font-size: 18px;
+          margin-bottom: 2px;
+        }
+        
+        .navbar-link span {
+          font-size: 8px;
+        }
+      }
+    </style>
   </head>
   <body>
-    <!-- Navigation Bar -->
-    <div id="navbar-placeholder"></div>
+    <!-- Barre de navigation -->
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <a href="/" class="navbar-logo-link">
+          <img src="/Media/logo-ccrb.png" alt="Logo CCR-B" class="navbar-logo">
+        </a>
+        <div class="navbar-title">
+          <h1>Présence CCR-B</h1>
+          <div class="navbar-subtitle">Mon Profil</div>
+        </div>
+      </div>
+      <div class="navbar-menu">
+        <a href="/" class="navbar-link" title="Accueil">
+          <i class="fas fa-home"></i>
+          <span>Accueil</span>
+        </a>
+        <a href="/planning.html" class="navbar-link" title="Planning">
+          <i class="fas fa-calendar-alt"></i>
+          <span>Planning</span>
+        </a>
+        <a href="/agent-activity-tracking.html" class="navbar-link" title="Suivi des agents">
+          <i class="fas fa-user-check"></i>
+          <span>Suivi</span>
+        </a>
+        <a href="/agent-dashboard.html" class="navbar-link" title="Mes objectifs">
+          <i class="fas fa-bullseye"></i>
+          <span>Objectifs</span>
+        </a>
+      </div>
+      <div class="navbar-nav">
+        <button class="carousel-btn" id="prevBtn" title="Image précédente">&#10094;</button>
+        <button class="carousel-btn" id="nextBtn" title="Image suivante">&#10095;</button>
+      </div>
+    </nav>
 
     <!-- Main Content -->
     <main class="main-content">

@@ -101,53 +101,71 @@
         <p>Générez et consultez les rapports de présence et d'activité</p>
       </div>
 
-      <!-- Filtres horizontaux en haut -->
-      <div class="filters-section" style="margin-bottom: 20px;">
-        <!-- Filtres horizontaux -->
-        <div class="filters-grid" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 12px;">
+      <!-- Section des filtres -->
+      <div class="filters-section" style="margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+        <h4 style="margin-top: 0; margin-bottom: 15px; color: #333; font-size: 16px; font-weight: 600;">Filtres de rapport</h4>
+        
+        <!-- Première ligne de filtres -->
+        <div class="filters-row" style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 12px; align-items: flex-end;">
+          <!-- Type de rapport -->
           <div class="filter-group" style="flex: 1 1 200px; min-width: 180px;">
-            <label for="report-type" style="font-size: 13px; margin-bottom: 4px;">Type de rapport :</label>
-            <select id="report-type" onchange="updateReportFilters()" style="font-size: 13px; padding: 6px 8px;">
+            <label for="report-type" style="display: block; font-size: 13px; margin-bottom: 5px; color: #555; font-weight: 500;">Type de rapport</label>
+            <select id="report-type" onchange="updateReportFilters()" class="form-select form-select-sm">
               <option value="presence">Rapport de Présence</option>
               <option value="activity">Rapport d'Activité</option>
               <option value="performance">Rapport de Performance</option>
               <option value="summary">Résumé Exécutif</option>
             </select>
           </div>
+          
+          <!-- Période -->
           <div class="filter-group" style="flex: 1 1 180px; min-width: 160px;">
-            <label for="date-range" style="font-size: 13px; margin-bottom: 4px;">Période :</label>
-            <select id="date-range" style="font-size: 13px; padding: 6px 8px;">
+            <label for="date-range" style="display: block; font-size: 13px; margin-bottom: 5px; color: #555; font-weight: 500;">Période</label>
+            <select id="date-range" class="form-select form-select-sm">
               <option value="today">Aujourd'hui</option>
               <option value="week">Cette semaine</option>
-              <option value="month">Ce mois</option>
+              <option value="month" selected>Ce mois</option>
               <option value="quarter">Ce trimestre</option>
               <option value="year">Cette année</option>
               <option value="custom">Période personnalisée</option>
             </select>
           </div>
+          
+          <!-- Date précise -->
           <div class="filter-group" style="flex: 1 1 160px; min-width: 140px;">
-            <label for="date-filter" style="font-size: 13px; margin-bottom: 4px;">Date précise :</label>
-            <input type="date" id="date-filter" style="font-size: 13px; padding: 6px 8px;">
+            <label for="date-filter" style="display: block; font-size: 13px; margin-bottom: 5px; color: #555; font-weight: 500;">Date précise</label>
+            <input type="date" id="date-filter" class="form-control form-control-sm">
           </div>
+          
+          <!-- Période personnalisée (début) -->
           <div class="filter-group" id="custom-date-group" style="flex: 1 1 160px; min-width: 140px; display: none;">
-            <label for="start-date" style="font-size: 13px; margin-bottom: 4px;">Date de début :</label>
-            <input type="date" id="start-date" style="font-size: 13px; padding: 6px 8px;">
+            <label for="start-date" style="display: block; font-size: 13px; margin-bottom: 5px; color: #555; font-weight: 500;">Du</label>
+            <input type="date" id="start-date" class="form-control form-control-sm">
           </div>
+          
+          <!-- Période personnalisée (fin) -->
           <div class="filter-group" id="custom-date-group-end" style="flex: 1 1 160px; min-width: 140px; display: none;">
-            <label for="end-date" style="font-size: 13px; margin-bottom: 4px;">Date de fin :</label>
-            <input type="date" id="end-date" style="font-size: 13px; padding: 6px 8px;">
+            <label for="end-date" style="display: block; font-size: 13px; margin-bottom: 5px; color: #555; font-weight: 500;">Au</label>
+            <input type="date" id="end-date" class="form-control form-select-sm">
           </div>
-          <div class="filter-group" style="flex: 1 1 180px; min-width: 160px;">
-            <label for="agent-filter" style="font-size: 13px; margin-bottom: 4px;">Agent :</label>
-            <select id="agent-filter" style="font-size: 13px; padding: 6px 8px;">
+        </div>
+        
+        <!-- Deuxième ligne de filtres -->
+        <div class="filters-row" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
+          <!-- Filtre par agent -->
+          <div class="filter-group" style="flex: 1 1 200px; min-width: 180px;">
+            <label for="agent-filter" style="display: block; font-size: 13px; margin-bottom: 5px; color: #555; font-weight: 500;">Agent</label>
+            <select id="agent-filter" class="form-select form-select-sm">
               <option value="all">Tous les agents</option>
               <option value="1">Admin Principal</option>
               <option value="2">Superviseur Principal</option>
               <option value="3">Agent Test</option>
             </select>
           </div>
-          <div class="filter-group" style="flex: 1 1 160px; min-width: 140px;">
-            <label for="project-filter" style="font-size: 13px; margin-bottom: 4px;">Projet :</label>
+          
+          <!-- Filtre par projet -->
+          <div class="filter-group" style="flex: 1 1 200px; min-width: 180px;">
+            <label for="project-filter" style="display: block; font-size: 13px; margin-bottom: 5px; color: #555; font-weight: 500;">Projet</label>
             <select id="project-filter" style="font-size: 13px; padding: 6px 8px;">
               <option value="all">Tous les projets</option>
             </select>
@@ -155,25 +173,25 @@
         </div>
         
         <!-- Boutons d'action -->
-        <div class="filter-actions">
-          <button class="btn-primary" id="apply-filters-btn">
-            <span class="btn-icon">✅</span>
+        <div class="filter-actions" style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+          <button class="btn btn-primary btn-sm" id="apply-filters-btn" style="display: inline-flex; align-items: center; gap: 5px;">
+            <i class="bi bi-funnel-fill"></i>
             Appliquer les filtres
           </button>
-          <button class="btn-secondary" id="reset-filters-btn">
-            <span class="btn-icon">♻️</span>
+          <button class="btn btn-outline-secondary btn-sm" id="reset-filters-btn" style="display: inline-flex; align-items: center; gap: 5px;">
+            <i class="bi bi-arrow-counterclockwise"></i>
             Réinitialiser
           </button>
-          <button class="btn-primary" id="generate-btn">
-            <span class="btn-icon">📊</span>
-            Générer le Rapport
+          <button class="btn btn-success btn-sm" id="generate-btn" style="display: inline-flex; align-items: center; gap: 5px;">
+            <i class="bi bi-file-earmark-bar-graph"></i>
+            Générer le rapport
           </button>
-          <button class="btn-secondary" id="export-btn">
-            <span class="btn-icon">📤</span>
+          <button class="btn btn-outline-primary btn-sm" id="export-btn" style="display: inline-flex; align-items: center; gap: 5px;">
+            <i class="bi bi-download"></i>
             Exporter
           </button>
-          <button class="btn-secondary" id="print-btn">
-            <span class="btn-icon">🖨️</span>
+          <button class="btn btn-outline-secondary btn-sm" id="print-btn" style="display: inline-flex; align-items: center; gap: 5px;">
+            <i class="bi bi-printer"></i>
             Imprimer / PDF
           </button>
         </div>

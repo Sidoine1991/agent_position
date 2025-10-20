@@ -39,6 +39,12 @@ class CircularNav extends HTMLElement {
         roles: ['AGENT', 'SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
       },
       { 
+        name: 'Rapports', 
+        href: '/reports.html', 
+        icon: '📈',
+        roles: ['SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
+      },
+      { 
         name: 'Équipe', 
         href: '/team-management.html', 
         icon: '👥',
@@ -188,22 +194,30 @@ class CircularNav extends HTMLElement {
 
   async getUserRole() {
     try {
-      const token = localStorage.getItem('jwt');
-      if (!token) return null;
-      
-      const response = await fetch('/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      // Essayer de récupérer depuis localStorage
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        if (user && user.role) {
+          return user.role.toUpperCase();
         }
-      });
+      }
       
-      if (!response.ok) return null;
+      // Si pas trouvé, essayer sessionStorage
+      const sessionData = sessionStorage.getItem('user');
+      if (sessionData) {
+        const user = JSON.parse(sessionData);
+        if (user && user.role) {
+          return user.role.toUpperCase();
+        }
+      }
       
-      const data = await response.json();
-      return data.role || null;
+      // Si toujours pas trouvé, utiliser une valeur par défaut
+      console.warn('Rôle utilisateur non trouvé, utilisation du rôle par défaut (AGENT)');
+      return 'AGENT';
     } catch (error) {
-      console.error('Error fetching user role:', error);
-      return null;
+      console.error('Erreur lors de la récupération du rôle utilisateur:', error);
+      return 'AGENT'; // Retourner 'AGENT' comme valeur par défaut en cas d'erreur
     }
   }
 }

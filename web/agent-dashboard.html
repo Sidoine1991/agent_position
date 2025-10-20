@@ -386,14 +386,46 @@
           </div>
         </div>
 
+        <!-- Section de présence journalière -->
+        <div class="dashboard-section">
+          <h3 class="section-title">
+            <i class="bi bi-calendar-check"></i>
+            Ma Présence
+          </h3>
+          <div class="mb-3">
+            <label for="date-select" class="form-label">Sélectionner une date :</label>
+            <input type="date" id="date-select" class="form-control" style="max-width: 250px;">
+          </div>
+          <div id="presence-details">
+            <div class="text-center py-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Chargement...</span>
+              </div>
+              <p class="mt-2">Chargement de vos informations de présence...</p>
+            </div>
+          </div>
+        </div>
+
         <!-- Section des statistiques -->
         <div class="dashboard-section">
           <h3 class="section-title">
             <i class="bi bi-graph-up"></i>
-            Mes Statistiques
+            Évolution de ma présence
           </h3>
-          <div id="stats-container">
-            <!-- Les statistiques seront chargées ici -->
+          <div class="mb-3">
+            <label for="period-select" class="form-label">Période :</label>
+            <select id="period-select" class="form-select" style="max-width: 200px;">
+              <option value="7">7 derniers jours</option>
+              <option value="14">14 derniers jours</option>
+              <option value="30" selected>30 derniers jours</option>
+            </select>
+          </div>
+          <div class="chart-container" style="position: relative; height:300px;">
+            <canvas id="presenceChart"></canvas>
+          </div>
+          
+          <div class="mt-4" id="stats-container">
+            <!-- Les autres statistiques seront chargées ici -->
           </div>
         </div>
 
@@ -741,5 +773,389 @@
       // Exposer la fonction globalement
       window.refreshDashboard = refreshDashboard;
     </script>
-  </body>
+    <!-- Script pour gérer les présences -->
+    <script>
+      // Fonction pour formater une date au format JJ/MM/AAAA
+      function formatDate(date) {
+        const d = new Date(date);
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}/${month}/${year}`;
+      }
+
+      // Fonction pour formater une heure au format HH:MM
+      function formatTime(date) {
+        if (!date) return '--:--';
+        const d = new Date(date);
+        return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      }
+
+      // Fonction pour calculer la durée entre deux dates
+      function calculateDuration(start, end) {
+        if (!start || !end) return '--:--';
+        
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+        const diffMs = endDate - startDate;
+        
+        // Convertir en heures et minutes
+        const diffMins = Math.floor((diffMs / 1000) / 60);
+        const hours = Math.floor(diffMins / 60);
+        const minutes = diffMins % 60;
+        
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+      }
+
+      // Fonction pour récupérer les présences de l'agent
+      async function fetchAgentPresence(selectedDate) {
+        try {
+          // Récupérer l'utilisateur connecté
+          const { data: { user }, error: userError } = await supabase.auth.getUser();
+          
+          if (userError || !user) {
+            console.error('Erreur d\'authentification:', userError);
+            return [];
+          }
+
+          // Convertir la date sélectionnée en format YYYY-MM-DD
+          const dateStr = selectedDate.toISOString().split('T')[0];
+          
+          // Calculer le début et la fin de la journée sélectionnée
+          const startDate = new Date(selectedDate);
+          startDate.setHours(0, 0, 0, 0);
+          
+          const endDate = new Date(selectedDate);
+          endDate.setHours(23, 59, 59, 999);
+          
+          // Récupérer les présences de l'agent pour la journée sélectionnée
+          const { data: presences, error } = await supabase
+            .from('presences')
+            .select('*')
+            .eq('user_id', user.id)
+            .gte('date_entree', startDate.toISOString())
+            .lte('date_entree', endDate.toISOString())
+            .order('date_entree', { ascending: true });
+          
+          if (error) throw error;
+          
+          return presences || [];
+          
+        } catch (error) {
+          console.error('Erreur lors de la récupération des présences:', error);
+          showError('Erreur lors du chargement des données de présence');
+          return [];
+        }
+      }
+
+      // Fonction pour afficher les détails de présence
+      async function displayPresenceDetails(date) {
+        const container = document.getElementById('presence-details');
+        if (!container) return;
+        
+        // Afficher le chargement
+        container.innerHTML = `
+          <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Chargement...</span>
+            </div>
+            <p class="mt-2">Chargement de vos informations de présence...</p>
+          </div>
+        `;
+        
+        try {
+          const presences = await fetchAgentPresence(date);
+          
+          if (presences.length === 0) {
+            container.innerHTML = `
+              <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                Aucune présence enregistrée pour le ${formatDate(date)}.
+              </div>
+            `;
+            return;
+          }
+          
+          // Calculer le temps total de présence
+          let totalMinutes = 0;
+          const presenceItems = presences.map(presence => {
+            const entryTime = new Date(presence.date_entree);
+            const exitTime = presence.date_sortie ? new Date(presence.date_sortie) : null;
+            const duration = exitTime ? Math.floor((exitTime - entryTime) / (1000 * 60)) : 0; // en minutes
+            totalMinutes += duration;
+            
+            return `
+              <div class="card mb-3">
+                <div class="card-body">
+                  <div class="row">
+                    <div class="col-md-4">
+                      <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-box-arrow-in-right me-2 text-success"></i>
+                        <div>
+                          <div class="text-muted small">Entrée</div>
+                          <div>${formatTime(entryTime)}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-box-arrow-right me-2 text-danger"></i>
+                        <div>
+                          <div class="text-muted small">Sortie</div>
+                          <div>${formatTime(exitTime)}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <div class="d-flex align-items-center">
+                        <i class="bi bi-clock-history me-2 text-primary"></i>
+                        <div>
+                          <div class="text-muted small">Durée</div>
+                          <div>${Math.floor(duration / 60)}h${String(duration % 60).padStart(2, '0')}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  ${presence.notes ? `
+                    <div class="mt-2">
+                      <div class="text-muted small">Notes :</div>
+                      <div>${presence.notes}</div>
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            `;
+          }).join('');
+          
+          const totalHours = Math.floor(totalMinutes / 60);
+          const remainingMinutes = totalMinutes % 60;
+          
+          container.innerHTML = `
+            <div class="mb-4">
+              <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Résumé du ${formatDate(date)}</h5>
+                <div class="badge bg-primary">
+                  <i class="bi bi-clock me-1"></i>
+                  Total : ${totalHours}h${String(remainingMinutes).padStart(2, '0')}
+                </div>
+              </div>
+              <hr class="mt-2">
+            </div>
+            ${presenceItems}
+          `;
+          
+        } catch (error) {
+          console.error('Erreur lors de l\'affichage des présences:', error);
+          container.innerHTML = `
+            <div class="alert alert-danger">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              Une erreur est survenue lors du chargement des données de présence.
+            </div>
+          `;
+        }
+      }
+
+      // Fonction pour afficher un message d'erreur
+      function showError(message) {
+        const container = document.getElementById('presence-details');
+        if (container) {
+          container.innerHTML = `
+            <div class="alert alert-danger">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              ${message}
+            </div>
+          `;
+        }
+      }
+
+      // Variables globales pour le graphique
+      let presenceChart = null;
+
+      // Fonction pour formater une date au format JJ/MM
+      function formatShortDate(date) {
+        const d = new Date(date);
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        return `${day}/${month}`;
+      }
+
+      // Fonction pour calculer la durée en heures entre deux dates
+      function calculateHours(start, end) {
+        if (!start || !end) return 0;
+        const diffMs = new Date(end) - new Date(start);
+        return (diffMs / (1000 * 60 * 60)).toFixed(2);
+      }
+
+      // Fonction pour récupérer les données de présence sur une période
+      async function fetchPresenceData(days) {
+        try {
+          // Récupérer l'utilisateur connecté
+          const { data: { user }, error: userError } = await supabase.auth.getUser();
+          
+          if (userError || !user) {
+            throw new Error('Utilisateur non connecté');
+          }
+
+          // Calculer la date de début (il y a X jours)
+          const endDate = new Date();
+          const startDate = new Date();
+          startDate.setDate(endDate.getDate() - days);
+          
+          // Formater les dates pour la requête
+          const startDateStr = startDate.toISOString().split('T')[0];
+          const endDateStr = endDate.toISOString().split('T')[0];
+          
+          // Récupérer les présences de l'agent pour la période
+          const { data: presences, error } = await supabase
+            .from('presences')
+            .select('*')
+            .eq('user_id', user.id)
+            .gte('date_entree', `${startDateStr}T00:00:00.000Z`)
+            .lte('date_entree', `${endDateStr}T23:59:59.999Z`)
+            .order('date_entree', { ascending: true });
+          
+          if (error) throw error;
+          
+          // Grouper les présences par jour et calculer la durée totale par jour
+          const dailyData = {};
+          
+          // Initialiser les jours avec 0 heure
+          for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            const dateKey = formatShortDate(d);
+            dailyData[dateKey] = 0;
+          }
+          
+          // Calculer les heures par jour
+          presences.forEach(presence => {
+            const date = new Date(presence.date_entree);
+            const dateKey = formatShortDate(date);
+            const hours = calculateHours(presence.date_entree, presence.date_sortie || new Date());
+            dailyData[dateKey] = (parseFloat(dailyData[dateKey] || 0) + parseFloat(hours)).toFixed(2);
+          });
+          
+          // Convertir en tableaux pour le graphique
+          const labels = Object.keys(dailyData);
+          const data = Object.values(dailyData);
+          
+          return { labels, data };
+          
+        } catch (error) {
+          console.error('Erreur lors de la récupération des données de présence:', error);
+          return { labels: [], data: [] };
+        }
+      }
+
+      // Fonction pour initialiser le graphique
+      async function initPresenceChart() {
+        const periodSelect = document.getElementById('period-select');
+        const days = parseInt(periodSelect.value, 10);
+        
+        // Afficher un indicateur de chargement
+        const chartContainer = document.querySelector('.chart-container');
+        chartContainer.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Chargement...</span></div><p class="mt-2">Chargement des données de présence...</p></div>';
+        
+        // Récupérer les données
+        const { labels, data } = await fetchPresenceData(days);
+        
+        // Créer le canvas pour le graphique
+        chartContainer.innerHTML = '<canvas id="presenceChart"></canvas>';
+        const ctx = document.getElementById('presenceChart').getContext('2d');
+        
+        // Détruire l'instance précédente du graphique si elle existe
+        if (presenceChart) {
+          presenceChart.destroy();
+        }
+        
+        // Créer le graphique
+        presenceChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Heures de présence',
+              data: data,
+              backgroundColor: 'rgba(102, 126, 234, 0.2)',
+              borderColor: 'rgba(102, 126, 234, 1)',
+              borderWidth: 2,
+              tension: 0.3,
+              fill: true,
+              pointBackgroundColor: 'rgba(255, 255, 255, 1)',
+              pointBorderColor: 'rgba(102, 126, 234, 1)',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return `${context.parsed.y} heures`;
+                  }
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: {
+                  display: true,
+                  text: 'Heures de présence',
+                  font: {
+                    weight: 'bold'
+                  }
+                },
+                ticks: {
+                  stepSize: 1,
+                  callback: function(value) {
+                    return value + 'h';
+                  }
+                }
+              },
+              x: {
+                title: {
+                  display: true,
+                  text: 'Date',
+                  font: {
+                    weight: 'bold'
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // Initialiser la page
+      document.addEventListener('DOMContentLoaded', async () => {
+        // Définir la date d'aujourd'hui par défaut
+        const dateInput = document.getElementById('date-select');
+        const today = new Date();
+        dateInput.valueAsDate = today;
+        
+        // Charger les données de présence pour aujourd'hui
+        displayPresenceDetails(today);
+        
+        // Mettre à jour les données lorsque la date change
+        dateInput.addEventListener('change', (e) => {
+          const selectedDate = new Date(e.target.value);
+          displayPresenceDetails(selectedDate);
+        });
+        
+        // Initialiser le graphique
+        await initPresenceChart();
+        
+        // Mettre à jour le graphique lorsque la période change
+        document.getElementById('period-select').addEventListener('change', initPresenceChart);
+      });
+    </script>
+    
+    </body>
 </html>

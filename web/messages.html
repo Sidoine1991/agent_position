@@ -14,6 +14,42 @@
     <link rel="stylesheet" href="/styles-shared.css" />
     <link rel="stylesheet" href="/contrast-fixes.css" />
     <style>
+      /* Styles pour l'indicateur de chargement */
+      .loading-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.8);
+        z-index: 1000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+      }
+      
+      .loading-spinner {
+        width: 3rem;
+        height: 3rem;
+        border: 5px solid #f3f3f3;
+        border-top: 5px solid #0d6efd;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 1rem;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      .loading-text {
+        color: #0d6efd;
+        font-weight: 500;
+      }
+      
       /* Interface moderne de messagerie */
       .messaging-container {
         height: calc(100vh - 120px);
@@ -668,37 +704,27 @@
 
           <!-- Forum de discussion -->
           <div class="forum-section" id="forum-section">
-            <div class="forum-categories">
-              <div class="forum-category" data-category="general">
-                <div class="forum-category-header">
-                  <h6 class="forum-category-title">💬 Discussion Générale</h6>
-                  <span class="forum-category-count">12</span>
+            <!-- En-tête avec bouton de rafraîchissement -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0">Forums de discussion</h5>
+              <button id="refresh-forums-btn" class="btn btn-sm btn-outline-secondary" title="Rafraîchir">
+                <i class="bi bi-arrow-clockwise"></i>
+              </button>
+            </div>
+            
+            <!-- Indicateur de chargement -->
+            <div id="forum-loading" class="loading-overlay" style="display: none;">
+              <div class="loading-spinner"></div>
+              <div class="loading-text">Chargement des forums...</div>
+            </div>
+            
+            <!-- Conteneur des catégories -->
+            <div class="forum-categories" id="forum-categories">
+              <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Chargement des forums...</span>
                 </div>
-                <p class="forum-category-description">Discussions générales entre agents</p>
-              </div>
-              
-              <div class="forum-category" data-category="technical">
-                <div class="forum-category-header">
-                  <h6 class="forum-category-title">🔧 Support Technique</h6>
-                  <span class="forum-category-count">8</span>
-                </div>
-                <p class="forum-category-description">Aide technique et résolution de problèmes</p>
-              </div>
-              
-              <div class="forum-category" data-category="field">
-                <div class="forum-category-header">
-                  <h6 class="forum-category-title">🌍 Expériences Terrain</h6>
-                  <span class="forum-category-count">15</span>
-                </div>
-                <p class="forum-category-description">Partage d'expériences sur le terrain</p>
-              </div>
-              
-              <div class="forum-category" data-category="emergency">
-                <div class="forum-category-header">
-                  <h6 class="forum-category-title">🚨 Urgences</h6>
-                  <span class="forum-category-count">3</span>
-                </div>
-                <p class="forum-category-description">Signalements d'urgences et alertes</p>
+                <p class="mt-2 text-muted">Chargement des forums en cours...</p>
               </div>
             </div>
           </div>
@@ -776,10 +802,38 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <script>
+      // Variables de cache pour les forums
+      let forumCategoriesCache = null;
+      let lastFetchTime = 0;
+      const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
       // Fonction pour obtenir les en-têtes d'authentification
       function authHeaders() {
         const token = localStorage.getItem('jwt');
         return token ? { 'Authorization': `Bearer ${token}` } : {};
+      }
+      
+      // Vérification de l'authentification
+      async function checkAuth() {
+        const token = localStorage.getItem('jwt');
+        if (!token) {
+          window.location.href = '/login.html';
+          return false;
+        }
+        return true;
+      }
+
+      // Mise à jour du statut en ligne
+      async function updateOnlineStatus() {
+        try {
+          const response = await fetch('/api/users/online', {
+            method: 'POST',
+            headers: authHeaders()
+          });
+          if (!response.ok) throw new Error('Erreur de mise à jour du statut');
+        } catch (error) {
+          console.error('Erreur mise à jour statut en ligne:', error);
+        }
       }
       
       // Fonction pour afficher une alerte
@@ -981,6 +1035,243 @@
 
       // Fonction pour gérer les nouveaux messages
       function handleNewMessage(event) {
+        const message = event.detail;
+        if (!message) return;
+        
+        // Vérifier si le message est pour la conversation actuelle
+        const currentChatId = document.querySelector('.chat-area.active')?.dataset.chatId;
+        if (currentChatId && message.chat_id === currentChatId) {
+          // Ajouter le message à la conversation
+          const messagesContainer = document.getElementById('messages-container');
+          if (messagesContainer) {
+            displayMessages([message]);
+          }
+        }
+        
+        // Mettre à jour le badge de notification
+        updateUnreadCount();
+      }
+      
+      // Fonction pour charger les catégories de forum depuis Supabase avec cache
+      async function loadForumCategories(forceRefresh = false) {
+        const now = Date.now();
+        const isCacheValid = forumCategoriesCache && (now - lastFetchTime < CACHE_DURATION);
+        
+        // Utiliser le cache si disponible et pas de forçage du rafraîchissement
+        if (isCacheValid && !forceRefresh) {
+          displayForumCategories(forumCategoriesCache);
+          return;
+        }
+
+        // Afficher l'indicateur de chargement
+        const loadingIndicator = document.getElementById('forum-loading');
+        const forumContainer = document.getElementById('forum-categories');
+        
+        if (loadingIndicator) loadingIndicator.style.display = 'block';
+        if (forumContainer) forumContainer.style.opacity = '0.6';
+
+        try {
+          const response = await fetch('/api/forum/categories', {
+            headers: authHeaders(),
+            cache: forceRefresh ? 'reload' : 'default'
+          });
+          
+          if (!response.ok) {
+            throw new Error('Erreur lors du chargement des catégories');
+          }
+          
+          const data = await response.json();
+          if (data.success && Array.isArray(data.categories)) {
+            // Mettre à jour le cache
+            forumCategoriesCache = data.categories;
+            lastFetchTime = now;
+            
+            // Afficher les catégories
+            displayForumCategories(data.categories);
+          } else {
+            throw new Error('Format de réponse invalide');
+          }
+        } catch (error) {
+          console.error('Erreur lors du chargement des catégories de forum:', error);
+          
+          // Afficher un message d'erreur dans l'interface
+          if (forumContainer) {
+            forumContainer.innerHTML = `
+              <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                Impossible de charger les catégories de forum. 
+                <button class="btn btn-sm btn-outline-warning ms-2" onclick="loadForumCategories(true)">
+                  <i class="bi bi-arrow-clockwise"></i> Réessayer
+                </button>
+              </div>
+            `;
+          }
+          
+          // Si on a des données en cache, on les affiche malgré l'erreur
+          if (forumCategoriesCache) {
+            displayForumCategories(forumCategoriesCache);
+          }
+        } finally {
+          // Masquer l'indicateur de chargement
+          if (loadingIndicator) loadingIndicator.style.display = 'none';
+          if (forumContainer) forumContainer.style.opacity = '1';
+        }
+      }
+      
+      // Fonction pour afficher les catégories de forum
+      function displayForumCategories(categories) {
+        const forumContainer = document.getElementById('forum-categories');
+        if (!forumContainer) return;
+        
+        if (!categories || categories.length === 0) {
+          forumContainer.innerHTML = `
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle"></i>
+              Aucune catégorie de forum disponible pour le moment.
+            </div>
+          `;
+          return;
+        }
+        
+        // Créer les éléments HTML pour chaque catégorie
+        const categoriesHtml = categories.map(category => `
+          <div class="forum-category" data-category="${category.id}" onclick="openForumCategory('${category.id}')">
+            <div class="forum-category-header">
+              <h6 class="forum-category-title">${category.icon || '💬'} ${category.name}</h6>
+              <span class="forum-category-count">${category.thread_count || 0}</span>
+            </div>
+            <p class="forum-category-description">${category.description || ''}</p>
+          </div>
+        `).join('');
+        
+        forumContainer.innerHTML = categoriesHtml;
+      }
+      
+      // Fonction pour ouvrir une catégorie de forum
+      function openForumCategory(categoryId) {
+        // Implémentez la logique pour afficher les discussions de la catégorie sélectionnée
+        console.log('Ouverture de la catégorie:', categoryId);
+        // Vous pouvez ajouter ici le code pour charger les discussions de cette catégorie
+      }
+
+      // Fonction pour charger les messages depuis l'API
+      async function loadMessages() {
+        try {
+          const response = await fetch('/api/messages', {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('jwt')}`
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error('Erreur lors du chargement des messages');
+          }
+          
+          const data = await response.json();
+          if (data.success) {
+            displayMessages(data.messages);
+          }
+        } catch (error) {
+          console.error('Erreur chargement messages:', error);
+          showNotification('Erreur', 'Impossible de charger les messages');
+        }
+      }
+
+      // Fonction pour envoyer un message
+      async function sendMessage(content, recipientId) {
+        try {
+          const response = await fetch('/api/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('jwt')}`
+            },
+            body: JSON.stringify({
+              recipient_id: recipientId,
+              content: content,
+              message_type: 'text'
+            })
+          });
+          
+          if (!response.ok) {
+            throw new Error('Erreur lors de l\'envoi du message');
+          }
+          
+          const data = await response.json();
+          if (data.success) {
+            // Recharger les messages après envoi
+            await loadMessages();
+            return data.message;
+          }
+        } catch (error) {
+          console.error('Erreur envoi message:', error);
+          showNotification('Erreur', 'Impossible d\'envoyer le message');
+        }
+      }
+
+      // Fonction pour afficher les messages
+      function displayMessages(messages) {
+        const messagesContainer = document.getElementById('messages-container');
+        if (!messagesContainer || !Array.isArray(messages)) return;
+        
+        messagesContainer.innerHTML = '';
+        
+        messages.forEach(message => {
+          try {
+            const messageElement = document.createElement('div');
+            const isCurrentUser = message.sender_id === getCurrentUserId();
+            messageElement.className = 'message ' + (isCurrentUser ? 'sent' : 'received');
+            
+            const messageTime = message.created_at 
+              ? new Date(message.created_at).toLocaleTimeString() 
+              : 'Maintenant';
+              
+            messageElement.innerHTML = [
+              '<div class="message-content">',
+              '  <div class="message-text">' + (message.content || '') + '</div>',
+              '  <div class="message-time">' + messageTime + '</div>',
+              '</div>'
+            ].join('');
+            
+            messagesContainer.appendChild(messageElement);
+          } catch (error) {
+            console.error('Erreur affichage message:', error, message);
+          }
+        });
+        
+        // Scroll vers le bas
+        if (messagesContainer.scrollHeight > 0) {
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+      }
+
+      // Fonction pour obtenir l'ID de l'utilisateur actuel
+      function getCurrentUserId() {
+        const token = localStorage.getItem('jwt');
+        if (!token) return null;
+        
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          return payload.id;
+        } catch (error) {
+          console.error('Erreur décodage token:', error);
+          return null;
+        }
+      }
+
+      // Fonction pour afficher les notifications
+      function showNotification(title, body, icon = '/Media/logo-ccrb.png') {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(title, {
+            body: body,
+            icon: icon,
+            tag: 'ccrb-messaging'
+          });
+        }
+      }
+
+      // Fonction pour gérer les nouveaux messages
+      function handleNewMessage(event) {
         try {
           const message = event.detail && event.detail.message;
           if (!message) return;
@@ -997,13 +1288,71 @@
         }
       }
 
+      // Configuration du rechargement automatique
+      let forumRefreshInterval = null;
+      const FORUM_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+      
+      // Gestionnaire d'événements pour le bouton de rafraîchissement
+      function setupRefreshButton() {
+        const refreshBtn = document.getElementById('refresh-forums-btn');
+        if (refreshBtn) {
+          refreshBtn.addEventListener('click', () => {
+            // Ajouter une animation de rotation au bouton
+            refreshBtn.querySelector('i').classList.add('fa-spin');
+            
+            // Forcer le rechargement des forums
+            loadForumCategories(true).finally(() => {
+              // Arrêter l'animation après un court délai
+              setTimeout(() => {
+                refreshBtn.querySelector('i').classList.remove('fa-spin');
+              }, 500);
+            });
+          });
+        }
+      }
+      
+      // Démarrer le rechargement automatique
+      function startAutoRefresh() {
+        // Arrêter tout intervalle existant
+        stopAutoRefresh();
+        
+        // Démarrer un nouvel intervalle
+        forumRefreshInterval = setInterval(() => {
+          if (!document.hidden) {
+            loadForumCategories();
+          }
+        }, FORUM_REFRESH_INTERVAL);
+      }
+      
+      // Arrêter le rechargement automatique
+      function stopAutoRefresh() {
+        if (forumRefreshInterval) {
+          clearInterval(forumRefreshInterval);
+          forumRefreshInterval = null;
+        }
+      }
+      
       // Initialisation de la page
       function initializePage() {
-        // Charger les messages
-        loadMessages();
+        // Vérifier l'état de connexion
+        checkAuth();
         
-        // Mettre à jour le statut en ligne
+        // Mettre à jour l'état en ligne
         updateOnlineStatus();
+        
+        // Configurer les gestionnaires d'événements
+        setupEventListeners();
+        setupRefreshButton();
+        
+        // Démarrer le rechargement automatique
+        startAutoRefresh();
+        
+        // Charger les données initiales
+        loadMessages();
+        loadForumCategories();
+        
+        // Initialiser la messagerie moderne
+        initializeModernMessaging();
         
         // Initialiser les tooltips Bootstrap
         const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
@@ -1017,20 +1366,36 @@
       // Gestion de la visibilité de la page
       function handleVisibilityChange() {
         if (document.hidden) {
-          // Page cachée - réduire la fréquence des mises à jour
           console.log('📱 Page cachée - mode économie');
+          // Arrêter le rechargement automatique pour économiser les ressources
+          stopAutoRefresh();
         } else {
-          // Page visible - reprendre les mises à jour normales
           console.log('📱 Page visible - reprise normale');
+          // Mettre à jour le statut en ligne
           updateOnlineStatus();
-          loadMessages();
+          
+          // Recharger les données si nécessaire
+          const now = Date.now();
+          if (!lastFetchTime || (now - lastFetchTime) > (FORUM_REFRESH_INTERVAL / 2)) {
+            loadForumCategories(true); // Forcer le rechargement si les données ont plus de 2,5 minutes
+          } else {
+            // Sinon, simplement redémarrer le rechargement automatique
+            startAutoRefresh();
+          }
         }
+      }
+
+      // Gestionnaire pour le déchargement de la page
+      function handleBeforeUnload() {
+        // Nettoyer les ressources
+        stopAutoRefresh();
       }
 
       // Ajouter les écouteurs d'événements
       document.addEventListener('DOMContentLoaded', initializePage);
       document.addEventListener('visibilitychange', handleVisibilityChange);
       document.addEventListener('newMessage', handleNewMessage);
+      window.addEventListener('beforeunload', handleBeforeUnload);
     </script>
   </body>
 </html>

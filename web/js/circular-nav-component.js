@@ -22,18 +22,21 @@ class CircularNav extends HTMLElement {
 
   getNavigationItems() {
     return [
+      // Accueil et présence
+      { 
+        href: '/index.html', 
+        icon: '🏠', 
+        label: 'Accueil',
+        roles: ['AGENT', 'SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
+      },
       { 
         href: '/index.html', 
         icon: '📍', 
         label: 'Présence',
         roles: ['AGENT', 'SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
       },
-      { 
-        href: '/messages.html', 
-        icon: '💬', 
-        label: 'Messages',
-        roles: ['AGENT', 'SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
-      },
+      
+      // Tableaux de bord
       { 
         href: '/agent-dashboard.html', 
         icon: '📊', 
@@ -44,12 +47,14 @@ class CircularNav extends HTMLElement {
         href: '/dashboard.html', 
         icon: '📈', 
         label: 'Tableau de Bord',
-        roles: ['SUPERVISEUR', 'ADMIN']
+        roles: ['SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
       },
+      
+      // Planification et suivi
       { 
         href: '/planning.html', 
         icon: '🗓️', 
-        label: 'Planification',
+        label: 'Planning',
         roles: ['AGENT', 'SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
       },
       { 
@@ -58,29 +63,27 @@ class CircularNav extends HTMLElement {
         label: 'Suivi Activité',
         roles: ['AGENT', 'SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
       },
+      
+      // Gestion et administration
       { 
         href: '/agents.html', 
         icon: '👥', 
-        label: 'Gestion Agents',
-        roles: ['ADMIN', 'SUPERADMIN']
+        label: 'Équipe',
+        roles: ['SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
       },
       { 
         href: '/reports.html', 
-        icon: '📄', 
+        icon: '📑', 
         label: 'Rapports',
+        roles: ['SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
+      },
+      
+      // Administration avancée
+      { 
+        href: '/admin.html', 
+        icon: '⚙️', 
+        label: 'Admin',
         roles: ['ADMIN', 'SUPERADMIN']
-      },
-      { 
-        href: '/agent-dashboard.html', 
-        icon: '🎯', 
-        label: 'Mes Objectifs',
-        roles: ['AGENT', 'SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
-      },
-      { 
-        href: '/help.html', 
-        icon: '❓', 
-        label: 'Aide',
-        roles: ['AGENT', 'SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
       },
       { 
         href: '/admin/dashboard.html', 
@@ -88,19 +91,58 @@ class CircularNav extends HTMLElement {
         label: 'Super Admin',
         roles: ['SUPERADMIN']
       },
+      
+      // Communication et aide
       { 
-        href: '/admin.html', 
-        icon: '⚙️', 
-        label: 'Admin',
-        roles: ['ADMIN']
+        href: '/messages.html', 
+        icon: '💬', 
+        label: 'Messages',
+        roles: ['AGENT', 'SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
+      },
+      { 
+        href: '/help.html', 
+        icon: '❓', 
+        label: 'Aide',
+        roles: ['AGENT', 'SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
       }
     ];
   }
 
   async getUserRole() {
-    // Cette fonction devrait être implémentée pour récupérer le rôle de l'utilisateur connecté
-    // Pour l'instant, on retourne un rôle par défaut
-    return 'AGENT';
+    try {
+      // Essayer de récupérer le JWT depuis le stockage local
+      const token = localStorage.getItem('jwt');
+      if (token) {
+        try {
+          // Décoder le token JWT pour obtenir le payload
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          if (payload && payload.role) {
+            return payload.role.toUpperCase();
+          }
+        } catch (e) {
+          console.error('Erreur lors du décodage du token:', e);
+        }
+      }
+      
+      // Essayer de récupérer depuis l'ancien format (pour rétrocompatibilité)
+      const userData = localStorage.getItem('user') || sessionStorage.getItem('user');
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          if (user && user.role) {
+            return user.role.toUpperCase();
+          }
+        } catch (e) {
+          console.error('Erreur lors du parsing des données utilisateur:', e);
+        }
+      }
+      
+      console.warn('Rôle utilisateur non trouvé, utilisation du rôle par défaut (AGENT)');
+      return 'AGENT';
+    } catch (error) {
+      console.error('Erreur lors de la récupération du rôle utilisateur:', error);
+      return 'AGENT'; // Retourner 'AGENT' comme valeur par défaut en cas d'erreur
+    }
   }
 
   async render() {

@@ -654,24 +654,20 @@ body::after {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 40px;
+  padding: 15px 40px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
   color: white;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   position: relative;
-  overflow: visible;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
   z-index: 1000;
-  animation: slideInLeft var(--animation-duration) var(--animation-easing);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 0 0 20px 20px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
   margin-bottom: 20px;
 }
 
 .navbar-brand {
   display: flex;
   align-items: center;
+  gap: 15px;
   gap: 16px;
 }
 
