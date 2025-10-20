@@ -400,6 +400,33 @@
         margin-top: 15px;
       }
       
+      /* Style pour le conteneur des boutons du carrousel */
+      .carousel-buttons-container {
+        display: flex;
+        gap: 5px;
+        margin-left: 15px;
+      }
+      
+      /* Style pour les boutons du carrousel */
+      .carousel-btn {
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 18px;
+        transition: background-color 0.3s;
+      }
+      
+      .carousel-btn:hover {
+        background: rgba(0, 0, 0, 0.8);
+      }
+      
       .carousel-error button:hover {
         background: #1565c0;
       }
@@ -993,6 +1020,10 @@
           <div class="navbar-subtitle">Suivi des agents en temps réel</div>
         </div>
       </div>
+      
+      <!-- Barre de navigation dynamique -->
+      <div id="navbar-placeholder"></div>
+      
       <div class="navbar-menu">
         <a href="/" class="navbar-link" title="Accueil">
           <i class="fas fa-home"></i>
@@ -1011,9 +1042,13 @@
           <span>Objectifs</span>
         </a>
       </div>
+      
       <div class="navbar-nav">
-        <button class="carousel-btn" id="prevBtn" title="Image précédente">&#10094;</button>
-        <button class="carousel-btn" id="nextBtn" title="Image suivante">&#10095;</button>
+        <!-- Conteneur pour les boutons du carrousel -->
+        <div class="carousel-buttons-container">
+          <button class="carousel-btn" id="prevBtn" title="Image précédente">&#10094;</button>
+          <button class="carousel-btn" id="nextBtn" title="Image suivante">&#10095;</button>
+        </div>
       </div>
     </nav>
     

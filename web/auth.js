@@ -188,9 +188,10 @@ async function renderNavbar() {
   const currentPage = window.location.pathname;
 
   const allLinks = [
-    // Liens principaux conservés
-    { name: 'Administration', href: '/admin.html', icon: '⚙️', roles: [ROLES.SUPERADMIN] },
-    { name: 'Aide', href: '/help.html', icon: '❓', roles: 'public' }
+    // Liens principaux
+    { name: 'Objectifs', href: '/agent-dashboard.html', icon: '🎯', roles: [ROLES.AGENT, ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN] },
+    { name: 'Aide', href: '/help.html', icon: '❓', roles: 'public' },
+    { name: 'Administration', href: '/admin.html', icon: '⚙️', roles: [ROLES.SUPERADMIN] }
   ];
 
   // Filtrer les liens en fonction du rôle de l'utilisateur
@@ -260,17 +261,12 @@ async function renderNavbar() {
   `;
 
   if (userRole) {
-    // Utilisateur connecté
+    // Utilisateur connecté - Afficher uniquement le bouton de déconnexion
     navbarHtml += `
-      <div class="dropdown">
-        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown">
-          <i class="bi bi-person-circle me-1"></i> Mon compte
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end">
-          <li><a class="dropdown-item" href="/profile.html"><i class="bi bi-person me-2"></i>Profil</a></li>
-          <li><hr class="dropdown-divider"></li>
-          <li><a class="dropdown-item text-danger" href="#" id="logoutBtn"><i class="bi bi-box-arrow-right me-2"></i>Déconnexion</a></li>
-        </ul>
+      <div class="d-flex align-items-center">
+        <a href="#" class="btn btn-outline-danger" id="logoutBtn">
+          <i class="bi bi-box-arrow-right me-1"></i> Déconnexion
+        </a>
       </div>
     `;
   } else {
