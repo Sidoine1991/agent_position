@@ -30,7 +30,10 @@ const PAGE_ACCESS = {
   // Pages publiques
   '/index.html': 'public',
   '/help.html': 'public',
-  '/register.html': 'public'
+  '/register.html': 'public',
+  
+  // Redirection après connexion
+  '/presence.html': [ROLES.AGENT, ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN]
 };
 
 // Durée de validité du token (24 heures)
@@ -129,9 +132,10 @@ async function protectPage() {
   if (PAGE_ACCESS[currentPage] === 'public') {
     // Vérifier si l'utilisateur est déjà connecté
     const token = localStorage.getItem('jwt');
-    if (token && await isTokenValid(token)) {
-      // Rediriger vers le tableau de bord si déjà connecté
-      window.location.href = '/dashboard.html';
+    if (token && await isTokenValid(token) && (currentPage === '/index.html' || currentPage === '/')) {
+      // Ne pas rediriger depuis la page d'accueil si déjà connecté
+      // pour permettre l'accès à la page de connexion/d'inscription
+      return;
     }
     return;
   }
@@ -184,14 +188,7 @@ async function renderNavbar() {
   const currentPage = window.location.pathname;
 
   const allLinks = [
-    { name: 'Présence', href: '/index.html', icon: '📍', roles: [ROLES.AGENT, ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN] },
-    { name: 'Messages', href: '/messages.html', icon: '💬', roles: [ROLES.AGENT, ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN] },
-    { name: 'Mon Tableau de Bord', href: '/agent-dashboard.html', icon: '📊', roles: [ROLES.AGENT, ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN] },
-    { name: 'Planification', href: '/planning.html', icon: '🗓️', roles: [ROLES.AGENT, ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN] },
-    { name: 'Profil', href: '/profile.html', icon: '👤', roles: [ROLES.AGENT, ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN] },
-    { name: 'Dashboard Superviseur', href: '/dashboard.html', icon: '📈', roles: [ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN] },
-    { name: 'Gestion Agents', href: '/admin-agents.html', icon: '👥', roles: [ROLES.ADMIN, ROLES.SUPERADMIN] },
-    { name: 'Rapports', href: '/reports.html', icon: '📄', roles: [ROLES.ADMIN, ROLES.SUPERADMIN] },
+    // Liens principaux conservés
     { name: 'Administration', href: '/admin.html', icon: '⚙️', roles: [ROLES.SUPERADMIN] },
     { name: 'Aide', href: '/help.html', icon: '❓', roles: 'public' }
   ];
@@ -204,27 +201,52 @@ async function renderNavbar() {
 
   // Créer la barre de navigation
   let navbarHtml = `
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4 py-2">
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-2">
       <div class="container">
         <a class="navbar-brand" href="/">
           <img src="/Media/PP CCRB.png" alt="Logo" height="40" class="d-inline-block align-text-top">
         </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        
+        <!-- Menu déroulant pour les petits écrans -->
+        <button class="navbar-toggler d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
           <span class="navbar-toggler-icon"></span>
         </button>
+        
         <div class="collapse navbar-collapse" id="navbarNav">
-          <ul class="navbar-nav me-auto">
+          <!-- Barre de navigation circulaire pour les grands écrans -->
+          <div class="d-none d-lg-flex align-items-center justify-content-center w-100">
   `;
 
-  // Ajouter les liens de navigation
+  // Ajouter les boutons de navigation circulaires
   accessibleLinks.forEach(link => {
-    if (link.roles !== 'public' || !userRole) { // Ne pas afficher les liens publics si l'utilisateur est connecté
+    if (link.roles !== 'public' || !userRole) {
+      const isActive = currentPage === link.href || 
+                      (currentPage === '/' && link.href === '/index.html');
+      navbarHtml += `
+        <a href="${link.href}" class="nav-circle-container ${isActive ? 'active' : ''}" title="${link.name}">
+          <div class="nav-circle">${link.icon}</div>
+          <span class="nav-label">${link.name.split(' ').pop()}</span>
+        </a>
+      `;
+    }
+  });
+
+  navbarHtml += `
+          </div>
+          
+          <!-- Menu déroulant pour les petits écrans -->
+          <ul class="navbar-nav d-lg-none">
+  `;
+
+  // Ajouter les liens de navigation pour mobile
+  accessibleLinks.forEach(link => {
+    if (link.roles !== 'public' || !userRole) {
       const isActive = currentPage === link.href || 
                       (currentPage === '/' && link.href === '/index.html');
       navbarHtml += `
         <li class="nav-item">
           <a class="nav-link ${isActive ? 'active' : ''}" href="${link.href}">
-            <span class="me-1">${link.icon}</span> ${link.name}
+            <span class="me-2">${link.icon}</span> ${link.name}
           </a>
         </li>
       `;

@@ -549,35 +549,16 @@
   </style>
 </head>
 <body>
-  <nav class="navbar">
-    <div class="navbar-brand">
-      <a href="/" class="navbar-brand-link" style="display:flex;align-items:center;text-decoration:none;color:inherit">
-        <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
-        <div class="navbar-title">
-          <h1>Presence CCRB</h1>
-          <span class="navbar-subtitle">Suivi d'Activité</span>
-        </div>
-      </a>
-    </div>
-    <div class="navbar-menu">
-      <!-- Actions circulaires stylées -->
-      <div class="circle-actions" id="circle-actions" style="margin-top:12px; display:flex">
-        <a href="/index.html?stay=true" class="circle-action" id="presence-link"><div class="icon">📍</div><div class="label">Présence</div></a>
-        <a href="/planning.html" class="circle-action" id="planning-link"><div class="icon">🗓️</div><div class="label">Planification</div></a>
-        <a href="/agent-activity-tracking.html" class="circle-action circle-action-active" id="activity-link"><div class="icon">📋</div><div class="label">Suivi Activité</div></a>
-        <a href="/dashboard.html" class="circle-action" id="dashboard-link"><div class="icon">📊</div><div class="label">Dashboard</div></a>
-        <a href="/profile.html" class="circle-action" id="profile-link"><div class="icon">👤</div><div class="label">Profil</div></a>
-        <a href="/admin-agents.html" class="circle-action" id="agents-link"><div class="icon">👥</div><div class="label">Agents</div></a>
-        <a href="/reports.html" class="circle-action" id="reports-link"><div class="icon">📈</div><div class="label">Rapports</div></a>
-        <a href="/project-summary.html" class="circle-action" id="project-link"><div class="icon">📋</div><div class="label">Synthèse Projets</div></a>
-        <a href="/admin.html" class="circle-action" id="admin-link"><div class="icon">⚙️</div><div class="label">Administration</div></a>
-        <a href="/help.html" class="circle-action" id="help-link"><div class="icon">❓</div><div class="label">Aide</div></a>
-      </div>
-      <div class="navbar-user" id="navbar-user">
-        <span class="navbar-user-info" id="user-info">Chargement...</span>
-        <button type="button" class="navbar-logout" onclick="logout()">
-          <span class="navbar-icon">🚪</span>
-          <span>Déconnexion</span>
+  <!-- Barre de navigation circulaire -->
+  <script src="/js/circular-nav-component.js"></script>
+  <circular-nav></circular-nav>
+  <div class="navbar-user" id="navbar-user">
+    <span class="navbar-user-info" id="user-info">Chargement...</span>
+    <button type="button" class="navbar-logout" onclick="logout()">
+      <span class="navbar-icon">🚪</span>
+      <span>Déconnexion</span>
+    </button>
+  </div>
         </button>
       </div>
     </div>

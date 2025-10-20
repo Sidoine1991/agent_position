@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title data-translate="planning.title">Planification - Presence CCR-B</title>
   <script src="/auth.js?v=2" defer></script>
+  <script src="/components/circular-nav.js" type="module"></script>
+  <link rel="stylesheet" href="/styles-shared.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
   <!-- DEPENDANCE GANTT -->
@@ -12,76 +14,100 @@
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/contrast-fixes.css">
   <style>
-    /* Styles pour la barre de navigation circulaire */
-    .nav-link-circle {
+    /* Styles pour les boutons circulaires de navigation */
+    .circle-actions {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: wrap !important;
+      gap: 16px;
+      justify-content: center;
+      align-items: center;
+      margin: 20px 0;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      backdrop-filter: blur(10px);
+      width: 100%;
+    }
+    
+    .circle-action {
       display: flex;
       flex-direction: column;
       align-items: center;
-      text-decoration: none;
-      color: #4a5568;
-      transition: all 0.3s ease;
-      padding: 0.5rem;
-      border-radius: 50%;
-      position: relative;
-    }
-
-    .nav-link-circle:hover {
-      color: #2d3748;
-      transform: translateY(-3px);
-    }
-
-    .nav-link-circle.active {
-      color: #4f46e5;
-    }
-
-    .nav-link-circle.active .nav-circle {
-      background-color: #eef2ff;
-      border-color: #c7d2fe;
-    }
-
-    .nav-circle {
-      width: 50px;
-      height: 50px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
       justify-content: center;
-      font-size: 1.5rem;
-      background-color: #f8fafc;
-      border: 2px solid #e2e8f0;
-      margin-bottom: 0.25rem;
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 50%;
+      color: white;
+      text-decoration: none;
       transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      position: relative;
+      overflow: hidden;
     }
-
-    .nav-label {
-      font-size: 0.75rem;
-      font-weight: 500;
+    
+    .circle-action:hover {
+      transform: translateY(-5px) scale(1.1);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+      color: white;
+      text-decoration: none;
+    }
+    
+    .circle-action-active {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+      transform: scale(1.1);
+      box-shadow: 0 6px 20px rgba(245, 87, 108, 0.4);
+    }
+    
+    .circle-action .icon {
+      font-size: 24px;
+      margin-bottom: 4px;
+    }
+    
+    .circle-action .label {
+      font-size: 10px;
+      font-weight: 600;
       text-align: center;
-      white-space: nowrap;
+      line-height: 1.2;
     }
-
-    @media (max-width: 1200px) {
-      .nav-circle {
-        width: 40px;
-        height: 40px;
-        font-size: 1.25rem;
+    
+    @media (max-width: 768px) {
+      .circle-action {
+        width: 70px;
+        height: 70px;
       }
-      .nav-label {
-        font-size: 0.65rem;
+      .circle-action .icon {
+        font-size: 20px;
+      }
+      .circle-action .label {
+        font-size: 9px;
+      }
+      
+      .circle-actions {
+        gap: 12px;
+        padding: 15px;
       }
     }
-
-    @media (max-width: 992px) {
-      .nav-link-circle {
-        padding: 0.25rem;
+    
+    @media (max-width: 480px) {
+      .circle-actions {
+        gap: 8px;
+        padding: 10px;
       }
-      .nav-circle {
-        width: 36px;
-        height: 36px;
-        font-size: 1.1rem;
+      
+      .circle-action {
+        width: 60px;
+        height: 60px;
       }
-      .nav-label {
-        display: none;
+      
+      .circle-action .icon {
+        font-size: 18px;
+        margin-bottom: 2px;
+      }
+      
+      .circle-action .label {
+        font-size: 8px;
       }
     }
 
@@ -235,57 +261,11 @@
   </style>
 </head>
 <body>
-  <div id="navbar-placeholder"></div>
-
-  <!-- Barre de navigation personnalisée avec boutons circulaires -->
-  <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4 py-2">
-    <div class="container">
-      <div class="d-flex justify-content-between w-100">
-        <div class="d-flex">
-          <a href="/index.html" class="nav-link-circle mx-1" title="Présence">
-            <div class="nav-circle">📍</div>
-            <span class="nav-label">Présence</span>
-          </a>
-          <a href="/messages.html" class="nav-link-circle mx-1" title="Messages">
-            <div class="nav-circle">💬</div>
-            <span class="nav-label">Messages</span>
-          </a>
-          <a href="/dashboard.html" class="nav-link-circle mx-1" title="Tableau de Bord">
-            <div class="nav-circle">📊</div>
-            <span class="nav-label">Tableau de Bord</span>
-          </a>
-          <a href="/planning.html" class="nav-link-circle mx-1 active" title="Planification">
-            <div class="nav-circle">🗓️</div>
-            <span class="nav-label">Planification</span>
-          </a>
-        </div>
-        <div class="d-flex">
-          <a href="/profile.html" class="nav-link-circle mx-1" title="Profil">
-            <div class="nav-circle">👤</div>
-            <span class="nav-label">Profil</span>
-          </a>
-          <a href="/supervisor-dashboard.html" class="nav-link-circle mx-1" title="Superviseur">
-            <div class="nav-circle">📈</div>
-            <span class="nav-label">Superviseur</span>
-          </a>
-          <a href="/agent-management.html" class="nav-link-circle mx-1" title="Gestion Agents">
-            <div class="nav-circle">👥</div>
-            <span class="nav-label">Agents</span>
-          </a>
-          <a href="/reports.html" class="nav-link-circle mx-1" title="Rapports">
-            <div class="nav-circle">📄</div>
-            <span class="nav-label">Rapports</span>
-          </a>
-          <a href="/help.html" class="nav-link-circle mx-1" title="Aide">
-            <div class="nav-circle">❓</div>
-            <span class="nav-label">Aide</span>
-          </a>
-        </div>
-      </div>
-    </div>
-  </nav>
-
-  <div class="container py-4">
+  <!-- Barre de navigation circulaire -->
+  <script src="/js/circular-nav-component.js"></script>
+  <circular-nav></circular-nav>
+  
+  <div class="container">
     <!-- ... (le reste de votre contenu HTML reste inchangé) ... -->
     <div class="row mb-4">
       <div class="col-md-8">

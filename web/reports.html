@@ -90,8 +90,9 @@
     <link rel="stylesheet" href="/modern-ui.css?v=1" />
   </head>
   <body>
-    <!-- Navigation Bar -->
-    <div id="navbar-placeholder"></div>
+    <!-- Barre de navigation circulaire -->
+    <script src="/js/circular-nav-component.js"></script>
+    <circular-nav></circular-nav>
 
     <!-- Main Content -->
     <main class="main-content">
@@ -188,35 +189,12 @@
               <span id="report-generated">Généré le: <span id="generated-date"></span></span>
             </div>
           </div>
-          
-          <!-- Métriques principales -->
-          <div class="report-metrics">
-            <div class="metric-card">
-              <div class="metric-icon">👥</div>
-              <div class="metric-content">
-                <div class="metric-value" id="total-agents">0</div>
-                <div class="metric-label">Agents concernés</div>
-              </div>
+          <div class="metric-card">
+            <div class="metric-icon">📊</div>
+            <div class="metric-content">
+              <div class="metric-value" id="attendance-rate">0%</div>
+              <div class="metric-label">Taux de présence</div>
             </div>
-            <div class="metric-card">
-              <div class="metric-icon">✅</div>
-              <div class="metric-content">
-                <div class="metric-value" id="present-agents">0</div>
-                <div class="metric-label">Présents</div>
-              </div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-icon">❌</div>
-              <div class="metric-content">
-                <div class="metric-value" id="absent-agents">0</div>
-                <div class="metric-label">Absents</div>
-              </div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-icon">📊</div>
-              <div class="metric-content">
-                <div class="metric-value" id="attendance-rate">0%</div>
-                <div class="metric-label">Taux de présence</div>
               </div>
             </div>
           </div>
