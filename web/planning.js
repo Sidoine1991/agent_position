@@ -1,7 +1,6 @@
 // =============================================
 // Planning App - Code principal (version complète et propre)
 // =============================================
-
 // IIFE pour éviter la pollution de l'espace global
 (() => {
   'use strict';
@@ -33,7 +32,6 @@
   // ----------------------------
   // 3. UTILITAIRES (HELPERS)
   // ----------------------------
-
   /**
    * Récupère un élément DOM par son ID.
    * @param {string} id - ID de l'élément
@@ -157,7 +155,6 @@
   // ----------------------------
   // 4. GESTION DE L'INTERFACE
   // ----------------------------
-
   /**
    * Affiche une bannière d'authentification.
    * @param {string} message
@@ -212,7 +209,6 @@
   // ----------------------------
   // 5. CHARGEMENT DES DONNÉES
   // ----------------------------
-
   /**
    * Charge la liste des agents.
    */
@@ -454,7 +450,6 @@
   // ----------------------------
   // 6. GESTION DE LA PLANIFICATION
   // ----------------------------
-
   /**
    * Charge la planification pour une semaine.
    * @param {string} dateStr
@@ -465,7 +460,6 @@
     const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
     const from = toISODate(days[0]);
     const to = toISODate(days[6]);
-
     try {
       const headers = await authHeaders();
       const projectParam = state.selectedProjectId ? `&project_name=${encodeURIComponent(state.selectedProjectId)}` : '';
@@ -477,13 +471,11 @@
       const validationsPath = state.selectedAgentId
         ? `/validations?agent_id=${encodeURIComponent(state.selectedAgentId)}&from=${from}&to=${to}`
         : `/validations/mine?from=${from}&to=${to}`;
-
       const [plansRes, checkinsRes, validationsRes] = await Promise.all([
         fetch(`${API_BASE}/planifications?from=${from}&to=${to}${projectParam}${agentParam}${supervisorParam}`, { headers }),
         fetch(`${API_BASE}${checkinsPath}`, { headers }),
         fetch(`${API_BASE}${validationsPath}`, { headers }),
       ]);
-
       if ([plansRes.status, checkinsRes.status, validationsRes.status].includes(401)) {
         showAuthBanner('🔒 Session requise pour charger la planification. Connectez-vous depuis la page d\'accueil, puis revenez ici.');
         const tryRetry = () => {
@@ -504,20 +496,15 @@
         }
         return;
       }
-
       const plans = (await plansRes.json()).items || [];
       const checkins = (await checkinsRes.json()).items || [];
       const validations = (await validationsRes.json()).items || [];
-
       hideAuthBanner();
-
       const plansByDate = new Map(plans.map(plan => [plan.date.slice(0, 10), plan]));
       const checkinDates = new Set(checkins.map(c => (c.timestamp || '').slice(0, 10)));
       const validatedDates = new Set(validations.filter(v => v.valid).map(v => toISODate(new Date(v.created_at))));
-
       const gantt = $('week-gantt');
       const todayIso = toISODate(new Date());
-
       gantt.innerHTML = '';
       const header = document.createElement('div');
       header.className = 'gantt-header d-flex border-bottom';
@@ -527,9 +514,7 @@
           ${Array.from({ length: 24 }, (_, h) => `<div class="gantt-col text-center small" style="width:60px">${String(h).padStart(2, '0')}h</div>`).join('')}
         </div>`;
       gantt.appendChild(header);
-
       let weeklyMinutes = 0;
-
       days.forEach((d, idx) => {
         const iso = toISODate(d);
         const plan = plansByDate.get(iso);
@@ -541,7 +526,6 @@
         const hasPresence = checkinDates.has(iso);
         const isValidated = validatedDates.has(iso);
         const isPast = iso < todayIso;
-
         const row = document.createElement('div');
         row.className = 'gantt-row d-flex align-items-center border-bottom py-2';
         row.innerHTML = `
@@ -564,9 +548,7 @@
               <input type="text" class="form-control form-control-sm" id="desc-${iso}" placeholder="Description de l'activité (2 lignes max)" value="${plan?.description_activite || ''}" style="width:300px" ${isPast ? 'disabled' : ''}>
             </div>
           </div>`;
-
         gantt.appendChild(row);
-
         if (plan?.description_activite) {
           const descRow = document.createElement('div');
           descRow.className = 'gantt-row border-bottom py-2';
@@ -578,7 +560,6 @@
           `;
           gantt.appendChild(descRow);
         }
-
         try {
           const startInput = $(`gs-${iso}`);
           const endInput = $(`ge-${iso}`);
@@ -588,9 +569,7 @@
           console.error('Erreur ajout event listener:', e);
         }
       });
-
       $('week-summary').textContent = `Total planifié: ${Math.round(weeklyMinutes / 60)}h${String(weeklyMinutes % 60).padStart(2, '0')}`;
-
       gantt.querySelectorAll('button[data-date]').forEach((btn) => {
         btn.addEventListener('click', async () => {
           const date = btn.getAttribute('data-date');
@@ -646,7 +625,6 @@
           }
         });
       });
-
     } catch (error) {
       console.error('Erreur chargement semaine:', error);
     }
@@ -657,31 +635,31 @@
    * @param {string} monthStr
    */
   const loadMonth = async (monthStr) => {
-    const base = monthStr ? new Date(monthStr + '-01') : new Date();
-    $('month').value = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`;
-    const year = base.getFullYear();
-    const month = base.getMonth();
-    const days = daysInMonth(year, month);
-    const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const to = `${year}-${String(month + 1).padStart(2, '0')}-${String(days).padStart(2, '0')}`;
-
     try {
+      const base = monthStr ? new Date(monthStr + '-01') : new Date();
+      const monthInput = $('month');
+      if (monthInput) {
+        const monthValue = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`;
+        monthInput.value = monthValue;
+      }
+      const year = base.getFullYear();
+      const month = base.getMonth();
+      const days = daysInMonth(year, month);
+      const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+      const to = `${year}-${String(month + 1).padStart(2, '0')}-${String(days).padStart(2, '0')}`;
       const headers = await authHeaders();
       const gantt = $('month-gantt');
       if (gantt) gantt.innerHTML = '<div class="text-muted">Chargement du récap mensuel…</div>';
-
       const projectParam = state.selectedProjectId ? `&project_name=${encodeURIComponent(state.selectedProjectId)}` : '';
       const agentParam = state.selectedAgentId ? `&agent_id=${encodeURIComponent(state.selectedAgentId)}` : '';
       const supervisorParam = state.selectedSupervisorId ? `&supervisor_id=${encodeURIComponent(state.selectedSupervisorId)}` : '';
       const checkinsPathM = state.selectedAgentId
         ? `/checkins?agent_id=${encodeURIComponent(state.selectedAgentId)}&from=${from}&to=${to}`
         : `/checkins/mine?from=${from}&to=${to}`;
-
       const [plansRes, checkinsRes] = await Promise.all([
         fetch(`${API_BASE}/planifications?from=${from}&to=${to}${projectParam}${agentParam}${supervisorParam}`, { headers }),
         fetch(`${API_BASE}${checkinsPathM}`, { headers })
       ]);
-
       if (plansRes.status === 401 || checkinsRes.status === 401) {
         if (gantt) gantt.innerHTML = '<div class="text-muted">Connexion requise pour afficher le récap mensuel.</div>';
         showAuthBanner('🔒 Session requise pour charger la planification mensuelle. Connectez-vous puis revenez.');
@@ -703,12 +681,9 @@
         }
         return;
       }
-
       const plans = (await plansRes.json()).items || [];
       const checkins = (await checkinsRes.json()).items || [];
-
       hideAuthBanner();
-
       const plansNorm = (plans || [])
         .map(p => ({
           date: String(p.date).slice(0, 10),
@@ -716,14 +691,12 @@
           e: hoursToMinutes(p.planned_end_time)
         }))
         .filter(p => (Number.isFinite(p.s) || Number.isFinite(p.e)) && ((p.e || 0) >= (p.s || 0)));
-
       const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
       const lastDay = `${year}-${String(month + 1).padStart(2, '0')}-${String(days).padStart(2, '0')}`;
       const firstDate = new Date(firstDay + 'T00:00:00');
       const lastDate = new Date(lastDay + 'T23:59:59');
       const expandedStart = startOfWeek(firstDate);
       const expandedEnd = addDays(startOfWeek(lastDate), 6);
-
       const weekAgg = new Map();
       for (const p of plansNorm) {
         const d = new Date(p.date + 'T00:00:00');
@@ -737,7 +710,6 @@
         bucket.minutes += duration;
         bucket.daysSet.add(toISODate(d));
       }
-
       const weeks = [];
       let cursor = new Date(firstDay + 'T00:00:00');
       while (cursor.getMonth() === month) {
@@ -750,7 +722,6 @@
         weeks.push({ from: agg.from, to: agg.to, daysPlanned, hours: Math.round(minutes / 60), minutes: minutes % 60 });
         cursor = addDays(we, 1);
       }
-
       const table = document.createElement('table');
       table.className = 'table table-striped';
       table.innerHTML = `
@@ -782,20 +753,22 @@
             </tr>
           `).join('')}
         </tbody>`;
-
       if (gantt) {
         gantt.innerHTML = '';
         gantt.appendChild(table);
       }
-
       const totalMinutes = (weeks || []).reduce((acc, w) => acc + (w.hours * 60 + w.minutes), 0);
       const totalDaysPlanned = (weeks || []).reduce((acc, w) => acc + w.daysPlanned, 0);
       $('month-summary').textContent = `Total planifié: ${Math.round(totalMinutes / 60)}h${String(totalMinutes % 60).padStart(2, '0')} • Jours planifiés: ${totalDaysPlanned}`;
-
       await loadWeeklySummary();
-
     } catch (error) {
-      console.error('Erreur chargement mois:', error);
+      console.error('Erreur lors du chargement du mois:', error);
+      const errorContainer = document.getElementById('error-message');
+      if (errorContainer) {
+        errorContainer.textContent = 'Erreur lors du chargement des données du mois. Veuillez réessayer.';
+        errorContainer.style.display = 'block';
+        setTimeout(() => { errorContainer.style.display = 'none'; }, 5000);
+      }
       const gantt = $('month-gantt');
       if (gantt) gantt.innerHTML = '<div class="alert alert-danger">Erreur lors du chargement du récapitulatif mensuel.</div>';
     }
@@ -833,7 +806,6 @@
   const loadWeeklySummary = async () => {
     const summaryContainer = $('weekly-summary');
     if (!summaryContainer) return;
-
     summaryContainer.innerHTML = `
       <div class="text-center py-5">
         <div class="spinner-border text-primary" role="status">
@@ -841,7 +813,6 @@
         </div>
         <p class="mt-2 text-muted">Chargement du récapitulatif en cours...</p>
       </div>`;
-
     try {
       const headers = await authHeaders();
       const projectParam = state.selectedProjectId ? `&project_name=${encodeURIComponent(state.selectedProjectId)}` : '';
@@ -852,40 +823,91 @@
       const endDate = addDays(today, 42);
       const from = toISODate(startDate);
       const to = toISODate(endDate);
-
       const [plansRes, usersRes] = await Promise.all([
         fetch(`${API_BASE}/planifications?from=${from}&to=${to}${projectParam}${agentParam}${supervisorParam}`, { headers }),
-        fetch(`${API_BASE}/users`, { headers })
+        fetch(`${API_BASE}/users`, { 
+          headers,
+          credentials: 'include' // S'assurer que les cookies d'authentification sont inclus
+        })
       ]);
-
+      
       if (!plansRes.ok) {
+        console.error('Erreur lors du chargement des plannings:', await plansRes.text());
         displayWeeklySummary([]);
         return;
       }
-
+      
       const plansResult = await plansRes.json();
       const plans = plansResult.items || [];
+      
+      // Chargement des utilisateurs
       let usersMap = new Map();
-
       if (usersRes.ok) {
-        const usersResponse = await usersRes.json();
-        const usersData = Array.isArray(usersResponse) ? usersResponse : (usersResponse.items || []);
-        usersMap = new Map(usersData.map(user => [user.id, user]));
+        try {
+          const usersResponse = await usersRes.json();
+          const usersData = Array.isArray(usersResponse) ? usersResponse : (usersResponse?.items || []);
+          
+          // Créer un mappage des utilisateurs par leur ID
+          usersData.forEach(user => {
+            if (user && user.id) {
+              usersMap.set(user.id, {
+                name: user.full_name || user.name || user.email || `Utilisateur ${user.id}`,
+                email: user.email || '',
+                role: user.role || 'agent'
+              });
+            }
+          });
+          
+          console.log('Utilisateurs chargés:', usersMap.size);
+        } catch (error) {
+          console.error('Erreur lors du traitement des données utilisateurs:', error);
+        }
+      } else {
+        console.error('Erreur lors du chargement des utilisateurs:', await usersRes.text());
       }
-
       const summaryMap = new Map();
       for (const plan of plans) {
         const planDate = new Date(plan.date);
         const weekStart = startOfWeek(planDate);
         const weekEnd = addDays(weekStart, 6);
         const weekKey = `${toISODate(weekStart)}_${plan.user_id}_${plan.project_name || 'général'}`;
-
         if (!summaryMap.has(weekKey)) {
-          const userData = usersMap.get(plan.user_id) || {
-            name: 'Utilisateur inconnu',
-            email: '',
-            role: 'agent'
-          };
+          let userData = usersMap.get(plan.user_id);
+          
+          // Si l'utilisateur n'est pas trouvé, essayer de le charger
+          if (!userData) {
+            try {
+              const userRes = await fetch(`${API_BASE}/users/${plan.user_id}`, { 
+                headers: await authHeaders(),
+                credentials: 'include'
+              });
+              
+              if (userRes.ok) {
+                const user = await userRes.json();
+                userData = {
+                  name: user.full_name || user.name || user.email || `Utilisateur ${plan.user_id}`,
+                  email: user.email || '',
+                  role: user.role || 'agent'
+                };
+                // Mettre à jour le cache des utilisateurs
+                usersMap.set(plan.user_id, userData);
+              } else {
+                console.warn(`Utilisateur ${plan.user_id} non trouvé`);
+                userData = {
+                  name: `Utilisateur ${plan.user_id}`,
+                  email: '',
+                  role: 'agent'
+                };
+              }
+            } catch (error) {
+              console.error(`Erreur lors du chargement de l'utilisateur ${plan.user_id}:`, error);
+              userData = {
+                name: `Utilisateur ${plan.user_id}`,
+                email: '',
+                role: 'agent'
+              };
+            }
+          }
           summaryMap.set(weekKey, {
             week_start_date: toISODate(weekStart),
             week_end_date: toISODate(weekEnd),
@@ -897,7 +919,6 @@
             activities: []
           });
         }
-
         const summary = summaryMap.get(weekKey);
         if (plan.planned_start_time && plan.planned_end_time) {
           const startMinutes = hoursToMinutes(plan.planned_start_time);
@@ -912,17 +933,14 @@
           summary.activities.push(activity.trim());
         }
       }
-
       const weeklySummaries = Array.from(summaryMap.values()).map(summary => ({
         ...summary,
         total_planned_hours: Math.round(summary.total_planned_hours * 10) / 10,
         total_planned_days: summary.total_planned_days.size,
         activities_summary: summary.activities.join(' | ') || 'Aucune activité'
       }));
-
       weeklySummaries.sort((a, b) => a.week_start_date.localeCompare(b.week_start_date));
       displayWeeklySummary(weeklySummaries);
-
     } catch (error) {
       console.error('Erreur chargement récap hebdomadaire:', error);
       displayWeeklySummary([]);
@@ -936,7 +954,6 @@
   const displayWeeklySummary = (summaries) => {
     const container = $('weekly-summary');
     if (!container) return;
-
     if (!summaries || summaries.length === 0) {
       container.innerHTML = `
         <div class="alert alert-info">
@@ -951,7 +968,6 @@
       `;
       return;
     }
-
     try {
       const weeksMap = new Map();
       summaries.forEach(summary => {
@@ -967,43 +983,34 @@
         }
         weeksMap.get(weekKey).items.push(summary);
       });
-
       const sortedWeeks = Array.from(weeksMap.values()).sort((a, b) => new Date(b.weekStart) - new Date(a.weekStart));
       const mainDiv = document.createElement('div');
       mainDiv.className = 'weekly-summary-container';
-
       const tabsContainer = document.createElement('div');
       tabsContainer.className = 'week-tabs d-flex overflow-auto mb-3';
-
       const contentContainer = document.createElement('div');
       contentContainer.className = 'week-contents';
-
       sortedWeeks.forEach((week, index) => {
         const tab = document.createElement('button');
         tab.className = `week-tab btn btn-outline-primary me-2 ${index === 0 ? 'active' : ''}`;
         tab.textContent = `Semaine du ${formatDate(week.weekStart, 'dd/MM')}`;
         tab.onclick = () => switchWeekTab(week.weekStart);
-
         const content = document.createElement('div');
         content.className = `week-content ${index === 0 ? 'active' : 'd-none'}`;
         content.id = `week-${week.weekStart}`;
         const table = generateWeekTable(week);
         content.appendChild(table);
-
         tabsContainer.appendChild(tab);
         contentContainer.appendChild(content);
       });
-
       mainDiv.appendChild(tabsContainer);
       mainDiv.appendChild(contentContainer);
       container.innerHTML = '';
       container.appendChild(mainDiv);
-
       const tooltipTriggerList = [].slice.call(container.querySelectorAll('[data-bs-toggle="tooltip"]'));
       tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
       });
-
     } catch (error) {
       console.error('Erreur affichage récapitulatif:', error);
       container.innerHTML = `
@@ -1036,7 +1043,6 @@
       </tr>
     `;
     const tbody = document.createElement('tbody');
-
     week.items.forEach(item => {
       const row = document.createElement('tr');
       row.innerHTML = `
@@ -1080,7 +1086,6 @@
       `;
       tbody.appendChild(row);
     });
-
     table.appendChild(thead);
     table.appendChild(tbody);
     return table;
@@ -1138,7 +1143,6 @@
   const showWeekEditModal = (weekStart, weekEnd, weekPlans) => {
     const existingModal = $('weekEditModal');
     if (existingModal) existingModal.remove();
-
     const modal = document.createElement('div');
     modal.className = 'modal fade';
     modal.id = 'weekEditModal';
@@ -1162,7 +1166,6 @@
         </div>
       </div>
     `;
-
     document.body.appendChild(modal);
     if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
       const bsModal = new bootstrap.Modal(modal);
@@ -1186,13 +1189,11 @@
     const days = [];
     const todayIso = toISODate(new Date());
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) days.push(new Date(d));
-
     return days.map(day => {
       const iso = toISODate(day);
       const plan = weekPlans.find(p => p.date === iso);
       const dayName = day.toLocaleDateString('fr-FR', { weekday: 'long' });
       const isPast = iso < todayIso;
-
       return `
         <div class="row mb-3 border-bottom pb-3">
           <div class="col-12 d-flex align-items-center gap-2">
@@ -1235,7 +1236,6 @@
       const days = [];
       const todayIso = toISODate(new Date());
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) days.push(new Date(d));
-
       const headers = await authHeaders();
       const promises = days.map(async (day) => {
         const iso = toISODate(day);
@@ -1257,10 +1257,8 @@
         });
         return response.ok;
       });
-
       const results = await Promise.all(promises);
       const successCount = results.filter(r => r).length;
-
       if (successCount === days.length) {
         alert('Planification de la semaine sauvegardée avec succès !');
         const modal = bootstrap.Modal.getInstance($('weekEditModal'));
@@ -1284,14 +1282,12 @@
    */
   const deleteWeekPlanning = async (weekStart, weekEnd) => {
     if (!confirm(`Êtes-vous sûr de vouloir effacer toutes les planifications de la semaine du ${new Date(weekStart).toLocaleDateString()} au ${new Date(weekEnd).toLocaleDateString()} ?`)) return;
-
     try {
       const headers = await authHeaders();
       const response = await fetch(`${API_BASE}/planifications?from=${weekStart}&to=${weekEnd}`, {
         method: 'DELETE',
         headers
       });
-
       if (response.ok) {
         alert('Planification de la semaine effacée avec succès');
         const modal = $('weekEditModal');
@@ -1321,11 +1317,9 @@
       const headers = await authHeaders();
       const weekEnd = addDays(new Date(weekStart), 6);
       const response = await fetch(`${API_BASE}/planifications?from=${weekStart}&to=${toISODate(weekEnd)}&agent_id=${userId}&project_name=${encodeURIComponent(projectName)}`, { headers });
-
       if (!response.ok) throw new Error('Erreur lors du chargement des détails');
       const result = await response.json();
       const plans = result.items || [];
-
       const modal = document.createElement('div');
       modal.className = 'modal fade';
       modal.innerHTML = `
@@ -1384,14 +1378,12 @@
           </div>
         </div>
       `;
-
       document.body.appendChild(modal);
       const bsModal = new bootstrap.Modal(modal);
       bsModal.show();
       modal.addEventListener('hidden.bs.modal', () => {
         document.body.removeChild(modal);
       });
-
     } catch (error) {
       console.error('Erreur chargement détails:', error);
       alert('Erreur lors du chargement des détails');
@@ -1459,7 +1451,6 @@
   // ----------------------------
   // 7. INITIALISATION
   // ----------------------------
-
   /**
    * Initialise l'application au chargement de la page.
    */
@@ -1469,7 +1460,6 @@
     loadAgents();
     loadProjects();
     loadSupervisors();
-
     const projectSelect = $('project-filter-select');
     const agentSelect = $('agent-select');
     const supervisorSelect = $('supervisor-select');
@@ -1478,14 +1468,12 @@
     const weekInput = $('week-start');
     const applyBtn = $('apply-filters-btn');
     const resetBtn = $('reset-filters-btn');
-
     if (supervisorSelect) {
       supervisorSelect.addEventListener('change', (e) => {
         state.selectedSupervisorId = e.target.value;
         filterAgentsBySupervisor();
       });
     }
-
     if (departmentSelect) {
       departmentSelect.addEventListener('change', async (e) => {
         state.selectedDepartmentId = e.target.value;
@@ -1493,25 +1481,21 @@
         await loadCommunes(state.selectedDepartmentId);
       });
     }
-
     if (communeSelect) {
       communeSelect.addEventListener('change', (e) => {
         state.selectedCommuneId = e.target.value;
       });
     }
-
     if (projectSelect) {
       projectSelect.addEventListener('change', (e) => {
         state.selectedProjectId = e.target.value;
       });
     }
-
     if (agentSelect) {
       agentSelect.addEventListener('change', (e) => {
         state.selectedAgentId = e.target.value;
       });
     }
-
     if (applyBtn) {
       applyBtn.addEventListener('click', () => {
         state.selectedProjectId = projectSelect?.value || '';
@@ -1524,7 +1508,6 @@
         loadWeeklySummary();
       });
     }
-
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
         if (agentSelect) agentSelect.value = '';
@@ -1551,7 +1534,6 @@
         loadWeeklySummary();
       });
     }
-
     $('load-week')?.addEventListener('click', () => loadWeek($('week-start').value));
     $('load-month')?.addEventListener('click', () => loadMonth($('month').value));
     $('refresh-weekly-summary')?.addEventListener('click', () => loadWeeklySummary());
@@ -1565,7 +1547,6 @@
       d.setDate(d.getDate() + 7);
       loadWeek(toISODate(d));
     });
-
     const boot = () => {
       loadAgents();
       loadProjects();
@@ -1573,7 +1554,6 @@
       loadWeek();
       loadMonth();
     };
-
     const token = findToken();
     if (token) boot();
     else {
