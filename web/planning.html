@@ -13,6 +13,8 @@
   <link rel="stylesheet" href="https://cdn.dhtmlx.com/gantt/8.3.0/dhtmlxgantt.css">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/contrast-fixes.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/js/supabase-config.js"></script>
   <style>
     /* Styles pour les boutons circulaires de navigation */
     .circle-actions {
@@ -277,17 +279,18 @@
       </div>
     </div>
 
-    <!-- FILTRES -->
+    <!-- FILTRES SIMPLIFIÉS -->
     <div class="filter-section">
       <h5 class="mb-3 fw-bold text-primary"><i class="bi bi-funnel me-2"></i>Filtres</h5>
       <div class="filter-group">
+        <!-- Filtre par semaine -->
         <div class="filter-item">
-          <label for="week-start" class="form-label" data-translate="planning.week.from">
+          <label for="week-start" class="form-label">
             <i class="bi bi-calendar-week me-1"></i>Semaine du
           </label>
           <div class="input-group">
             <input type="date" id="week-start" class="form-control" />
-            <button id="load-week" class="btn btn-outline-primary btn-filter" data-translate="planning.load.week" 
+            <button id="load-week" class="btn btn-outline-primary btn-filter"
                     data-bs-toggle="tooltip" title="Charger la semaine">
               <i class="bi bi-arrow-clockwise"></i>
               <span class="d-none d-md-inline">Charger</span>
@@ -295,38 +298,37 @@
           </div>
         </div>
         
-        <div class="filter-item">
-          <label for="month" class="form-label">
-            <i class="bi bi-calendar-month me-1"></i>Mois
-          </label>
-          <div class="input-group">
-            <input type="month" id="month" class="form-control" />
-            <button id="load-month" class="btn btn-outline-primary btn-filter" data-translate="planning.load.month"
-                    data-bs-toggle="tooltip" title="Charger le mois">
-              <i class="bi bi-arrow-clockwise"></i>
-              <span class="d-none d-md-inline">Charger</span>
-            </button>
-          </div>
-        </div>
-        
+        <!-- Filtre par agent -->
         <div class="filter-item">
           <label for="agent-select" class="form-label">
             <i class="bi bi-people me-1"></i>Agent
           </label>
           <select id="agent-select" class="form-select">
-            <option value="" data-translate="planning.agent.all">Tous les agents</option>
+            <option value="">Tous les agents</option>
           </select>
         </div>
         
+        <!-- Filtre par superviseur -->
+        <div class="filter-item" id="supervisor-filter-container">
+          <label for="supervisor-filter-select" class="form-label">
+            <i class="bi bi-person-badge me-1"></i>Superviseur
+          </label>
+          <select id="supervisor-filter-select" class="form-select">
+            <option value="">Tous les superviseurs</option>
+          </select>
+        </div>
+        
+        <!-- Filtre par projet -->
         <div class="filter-item">
           <label for="project-filter-select" class="form-label">
-            <i class="bi bi-kanban me-1"></i>Projet
+            <i class="bi bi-folder me-1"></i>Projet
           </label>
           <select id="project-filter-select" class="form-select">
-            <option value="" data-translate="planning.project.all">Tous les projets</option>
+            <option value="">Tous les projets</option>
           </select>
         </div>
         
+        <!-- Filtre par département -->
         <div class="filter-item">
           <label for="department-filter-select" class="form-label">
             <i class="bi bi-geo-alt me-1"></i>Département
@@ -336,12 +338,27 @@
           </select>
         </div>
         
+        <!-- Filtre par commune -->
         <div class="filter-item">
           <label for="commune-filter-select" class="form-label">
             <i class="bi bi-geo me-1"></i>Commune
           </label>
           <select id="commune-filter-select" class="form-select" disabled>
             <option value="">Sélectionnez d'abord un département</option>
+          </select>
+        </div>
+        
+        <!-- Filtre par statut -->
+        <div class="filter-item">
+          <label for="status-filter-select" class="form-label">
+            <i class="bi bi-info-circle me-1"></i>Statut
+          </label>
+          <select id="status-filter-select" class="form-select">
+            <option value="">Tous les statuts</option>
+            <option value="planned">Planifié</option>
+            <option value="in_progress">En cours</option>
+            <option value="completed">Terminé</option>
+            <option value="cancelled">Annulé</option>
           </select>
         </div>
       </div>
@@ -371,7 +388,7 @@
                 </div>
                 <div class="card-body p-0">
                     <div class="mb-2 small text-muted p-3" data-translate="planning.drag.info">Double-cliquez sur une tâche dans le Gantt pour l'éditer ci-dessus.</div>
-                    <div id="week-gantt" class="gantt" style="height: 400px; width: 100%;"></div>
+                    <div id="week-gantt" class="gantt" style="height: 600px; width: 100%;"></div>
                     <small id="week-summary" class="text-muted p-3 d-block"></small>
                 </div>
             </div>
@@ -418,7 +435,7 @@
     </div>
 
     <div class="alert alert-info mt-4" data-translate="planning.alert">
-      Les jours planifiés sans présence avant 18:00 seront marqués en rouge.
+      Les jours planifiés sans présence avant 18:30 seront marqués en rouge.
     </div>
   </div>
 
@@ -517,10 +534,11 @@
     
     // --- NOUVELLES FONCTIONS POUR LE RÉCAPITULATIF HEBDOMADAIRE ---
 
-    async function loadWeeklySummary() {
+    async function loadWeeklySummary(filters = {}) {
       const summaryBody = document.getElementById('weekly-summary-body');
       if (!summaryBody) return;
 
+      // Afficher le chargement
       summaryBody.innerHTML = `
         <tr>
           <td colspan="6" class="text-center py-4">
@@ -528,14 +546,25 @@
             <p class="mt-2 mb-0">Chargement des données hebdomadaires...</p>
           </td>
         </tr>`;
+        
+      // Préparer les paramètres de requête
+      const params = new URLSearchParams();
+      const today = new Date();
+      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1); // 2 mois en arrière
+      const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Fin du mois prochain
+      
+      // Ajouter les paramètres de date
+      params.append('startDate', toISODate(firstDayOfMonth));
+      params.append('endDate', toISODate(lastDayOfMonth));
+      
+      // Ajouter le filtre superviseur s'il est défini
+      if (filters.supervisorId) {
+        params.append('supervisorId', filters.supervisorId);
+      }
 
       try {
-        const today = new Date();
-        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1); // 2 mois en arrière
-        const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Fin du mois prochain
-        
-        // Utilisation de la fonction apiCall simulée existante
-        const data = await apiCall(`planifications`);
+        // Utilisation de la fonction apiCall avec les paramètres construits
+        const data = await apiCall(`planifications?${params.toString()}`);
         const plans = (data && data.items) || [];
         
         // Ajout du log pour débogage
@@ -687,7 +716,7 @@
         planifications: { items: [
             { id: 1, date: toISODate(new Date()), planned_start_time: '09:00', planned_end_time: '11:00', description_activite: 'Démarrage projet Alpha', status: 'completed', project_id: 101, project_name: 'Projet Alpha' },
             { id: 2, date: toISODate(new Date()), planned_start_time: '14:00', planned_end_time: '16:30', description_activite: 'Revue de code Beta', status: 'in_progress', project_id: 102, project_name: 'Projet Beta' },
-            { id: 3, date: toISODate(addDays(new Date(), 1)), planned_start_time: '10:00', planned_end_time: '18:00', description_activite: 'Préparation documentation', status: 'planned', project_id: 101, project_name: 'Projet Alpha' },
+            { id: 3, date: toISODate(addDays(new Date(), 1)), planned_start_time: '10:00', planned_end_time: '18:30', description_activite: 'Préparation documentation', status: 'planned', project_id: 101, project_name: 'Projet Alpha' },
             { id: 4, date: toISODate(addDays(new Date(), -7)), planned_start_time: '10:00', planned_end_time: '12:00', description_activite: 'Atelier de formation', status: 'completed', project_id: 102, project_name: 'Projet Beta' },
             { id: 5, date: toISODate(addDays(new Date(), -14)), planned_start_time: '09:00', planned_end_time: '17:00', description_activite: 'Réunion d\'équipe', status: 'completed', project_id: 101, project_name: 'Projet Alpha' },
             { id: 6, date: toISODate(addDays(new Date(), -21)), planned_start_time: '13:00', planned_end_time: '15:00', description_activite: 'Formation avancée', status: 'completed', project_id: 102, project_name: 'Projet Beta' },
@@ -711,13 +740,102 @@
     // --- Le reste de votre logique JavaScript (Gantt, formulaires, etc.) reste ici ---
     // ...
 
-    // --- Initialisation et Événements ---
-    document.addEventListener('DOMContentLoaded', function() {
-        // Initialisation des tooltips
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
+    // Fonction pour charger les superviseurs depuis Supabase
+    async function loadSupervisors() {
+      console.log('🔍 Début du chargement des superviseurs...');
+      console.log('Supabase client:', typeof supabase !== 'undefined' ? 'Initialisé' : 'Non initialisé');
+      
+      try {
+        // Vérifier si Supabase est initialisé
+        if (typeof supabase === 'undefined') {
+          console.error('❌ Erreur: Supabase n\'est pas initialisé');
+          return [];
+        }
+        
+        console.log('🔎 Requête Supabase en cours...');
+        const { data: supervisors, error } = await supabase
+          .from('users')
+          .select('id, nom, prenom, email, role')
+          .or('role.eq.superviseur,role.eq.admin')
+          .order('nom', { ascending: true });
+        
+        if (error) {
+          console.error('❌ Erreur Supabase:', error);
+          throw new Error('Erreur lors du chargement des superviseurs: ' + error.message);
+        }
+        
+        console.log('✅ Superviseurs chargés:', supervisors);
+        
+        const select = document.getElementById('supervisor-filter-select');
+        if (!select) {
+          console.error('❌ Sélecteur de superviseur non trouvé');
+          return [];
+        }
+        
+        // Sauvegarder les superviseurs pour une utilisation ultérieure
+        window.supervisors = Array.isArray(supervisors) ? supervisors : [];
+        
+        // Vider et réinitialiser le sélecteur
+        select.innerHTML = '<option value="">Tous les superviseurs</option>';
+        
+        // Ajouter chaque superviseur au sélecteur
+        window.supervisors.forEach(supervisor => {
+          const option = document.createElement('option');
+          option.value = supervisor.id;
+          const displayName = `${supervisor.nom || ''} ${supervisor.prenom || ''}`.trim() || supervisor.email;
+          console.log(`Ajout du superviseur: ${displayName} (ID: ${supervisor.id})`);
+          option.textContent = displayName;
+          select.appendChild(option);
         });
+        
+        return window.supervisors;
+      } catch (error) {
+        console.error('❌ Erreur lors du chargement des superviseurs:', error);
+        return [];
+      }
+    }
+    
+    // Fonction pour vérifier si l'utilisateur est un superviseur
+    function checkIfUserIsSupervisor() {
+      const userRole = localStorage.getItem('userRole') || '';
+      return userRole.toLowerCase() === 'superviseur' || userRole.toLowerCase() === 'admin';
+    }
+    
+    // --- Initialisation et Événements ---
+    document.addEventListener('DOMContentLoaded', async function() {
+        console.log('🚀 DOM chargé, initialisation en cours...');
+        
+        // Initialisation des tooltips
+        try {
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+            console.log('✅ Tooltips initialisés');
+        } catch (error) {
+            console.error('❌ Erreur lors de l\'initialisation des tooltips:', error);
+        }
+        
+        try {
+            // Charger les superviseurs
+            console.log('🔄 Chargement des superviseurs...');
+            const supervisors = await loadSupervisors();
+            console.log(`✅ ${supervisors.length} superviseurs chargés`);
+            
+            // Afficher/masquer le filtre superviseur
+            const supervisorContainer = document.getElementById('supervisor-filter-container');
+            const supervisorSelect = document.getElementById('supervisor-filter-select');
+            
+            if (supervisorSelect && supervisorSelect.options.length > 1) {
+                console.log('👥 Filtre superviseur activé');
+                if (supervisorContainer) supervisorContainer.style.display = 'block';
+            } else {
+                console.log('ℹ️ Aucun superviseur trouvé ou sélecteur non disponible');
+                if (supervisorContainer) supervisorContainer.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('❌ Erreur lors de l\'initialisation des superviseurs:', error);
+        }
         
         // --- CHARGEMENT INITIAL ---
         
@@ -730,13 +848,138 @@
         // Rafraîchir le récapitulatif hebdomadaire
         document.getElementById('refresh-weekly-summary').addEventListener('click', loadWeeklySummary);
         
-        // Le reste de vos écouteurs d'événements
-        // ...
+        // Appliquer les filtres lors du clic sur le bouton
+        document.getElementById('apply-filters-btn').addEventListener('click', applyFilters);
+        
+        // Appliquer les filtres automatiquement lors du changement des sélecteurs
+        document.getElementById('agent-select').addEventListener('change', applyFilters);
+        document.getElementById('supervisor-filter-select').addEventListener('change', applyFilters);
+        document.getElementById('project-filter-select').addEventListener('change', applyFilters);
+        document.getElementById('department-filter-select').addEventListener('change', applyFilters);
+        document.getElementById('commune-filter-select').addEventListener('change', applyFilters);
+        document.getElementById('status-filter-select').addEventListener('change', applyFilters);
         
         resetPlanningForm();
     });
+    
+    // Fonction pour appliquer les filtres
+    function applyFilters() {
+      const supervisorId = document.getElementById('supervisor-filter-select').value;
+      const filters = {};
+      
+      // Ajouter le filtre superviseur si sélectionné
+      if (supervisorId) {
+        filters.supervisorId = supervisorId;
+        console.log('Filtre par superviseur appliqué:', supervisorId);
+      } else {
+        console.log('Aucun filtre de superviseur appliqué');
+      }
+      
+      // Recharger les données avec les filtres
+      loadWeeklySummary(filters);
+      updateGanttView(filters);
+      
+      // Ajuster la hauteur après le chargement des données
+      setTimeout(adjustGanttHeight, 500);
+    }
 
-    // ... (toutes vos autres fonctions comme setupGantt, updateGanttView, editPlanningFromGantt, etc.)
+    // Fonction pour mettre à jour la vue Gantt avec filtres
+    function updateGanttView(filters = {}) {
+      console.log('Mise à jour de la vue Gantt avec les filtres:', filters);
+      
+      // Vérifier si un filtre de superviseur est appliqué
+      if (filters.supervisorId) {
+        console.log('Application du filtre superviseur au Gantt:', filters.supervisorId);
+        // Implémentez ici la logique pour filtrer les données du Gantt
+        // par exemple :
+        // if (window.gantt) {
+        //   window.gantt.clearAll();
+        //   const filteredTasks = originalTasks.filter(task => task.supervisorId === filters.supervisorId);
+        //   window.gantt.parse({data: filteredTasks});
+        // }
+      } else {
+        // Réinitialiser le filtre si aucun superviseur n'est sélectionné
+        // if (window.gantt) {
+        //   window.gantt.clearAll();
+        //   window.gantt.parse({data: originalTasks});
+        // }
+      }
+      
+      // Mettre à jour l'affichage du Gantt
+      // if (window.gantt) {
+      //   window.gantt.render();
+      // }
+    }
+    
+    // Fonction pour initialiser le Gantt
+    function setupGantt() {
+      // Initialisation du Gantt
+      console.log('Initialisation du Gantt');
+      
+      // Configuration pour n'afficher que les jours de la semaine (lundi à vendredi)
+      gantt.config.work_time = true;
+      gantt.config.work_week = true;
+      
+      // Définir les heures de travail (lundi à vendredi, 8h-18h)
+      gantt.config.work_time = true;
+      gantt.templates.timeline_cell_class = function(task, date) {
+        if (date.getDay() === 0 || date.getDay() === 6) {
+          return "weekend";
+        }
+        return "";
+      };
+      
+      // Masquer les week-ends
+      gantt.config.skip_off_time = true;
+      
+      // Définir la plage horaire de travail (8h-18h)
+      gantt.config.scale_unit = "day";
+      gantt.config.date_scale = "%d %M";
+      gantt.config.subscales = [
+        {unit: "hour", step: 2, date: "%H:%i"}
+      ];
+      
+      // Configurer les jours de travail (lundi à vendredi)
+      gantt.config.work_week = [1, 1, 1, 1, 1, 0, 0];
+      
+      // Ajuster la hauteur automatiquement en fonction du contenu
+      gantt.config.row_height = 40;
+      gantt.config.bar_height = 30;
+      
+      // Initialiser le Gantt
+      gantt.init("week-gantt");
+      
+      // Initialiser le Gantt mensuel avec la même configuration
+      gantt.init("month-gantt");
+      
+      // Stocker une référence au Gantt
+      window.gantt = gantt;
+      
+      // Ajuster dynamiquement la hauteur du conteneur
+      adjustGanttHeight();
+      
+      console.log('Gantt initialisé avec affichage des jours de la semaine uniquement (lundi à vendredi)');
+    }
+    
+    // Fonction pour ajuster la hauteur du Gantt
+    function adjustGanttHeight() {
+      const ganttContainer = document.getElementById('week-gantt');
+      if (ganttContainer) {
+        const headerHeight = document.querySelector('.card-header').offsetHeight;
+        const padding = 20; // Marge supplémentaire
+        const windowHeight = window.innerHeight;
+        const calculatedHeight = windowHeight - headerHeight - padding * 2;
+        ganttContainer.style.height = Math.max(600, calculatedHeight) + 'px';
+        
+        // Redessiner le Gantt après le redimensionnement
+        if (window.gantt) {
+          window.gantt.render();
+        }
+      }
+    }
+    
+    // Écouter le redimensionnement de la fenêtre
+    window.addEventListener('resize', adjustGanttHeight);
 
   </script>
 </body>

@@ -735,6 +735,38 @@ router.put('/admin/settings', requireAuth, requireRole(['admin']), async (req, r
   }
 });
 
+// ===== GESTION DES PROJETS =====
+
+// Obtenir la liste des projets uniques depuis la table users
+router.get('/admin/users/projects', requireAuth, requireRole(['admin', 'supervisor']), async (req, res) => {
+  try {
+    // Récupérer les projets uniques et non vides
+    const result = await db.query(`
+      SELECT DISTINCT project_name 
+      FROM users 
+      WHERE project_name IS NOT NULL 
+        AND project_name != '' 
+        AND project_name != 'null'
+      ORDER BY project_name
+    `);
+
+    // Extraire les noms de projets
+    const projects = result.rows.map(row => row.project_name).filter(Boolean);
+
+    res.json({
+      success: true,
+      projects: projects
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des projets:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erreur lors de la récupération des projets',
+      details: error.message
+    });
+  }
+});
+
 // ===== DONNÉES GÉOGRAPHIQUES =====
 
 // Obtenir les départements

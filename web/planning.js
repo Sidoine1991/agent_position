@@ -20,18 +20,150 @@
     projects: [],
     selectedProjectId: '',
     agents: [],
-    selectedAgentId: '',
     supervisors: [],
+    selectedAgentId: '',
     selectedSupervisorId: '',
+    projectList: [],
+    selectedProjectFilter: '',
     departments: [],
     communes: [],
     selectedDepartmentId: '',
     selectedCommuneId: '',
   };
 
+  // Données géographiques intégrées
+  const geoData = {
+    "departements": [
+      { "id": 1, "name": "Atlantique" },
+      { "id": 2, "name": "Borgou" },
+      { "id": 3, "name": "Collines" },
+      { "id": 4, "name": "Couffo" },
+      { "id": 5, "name": "Donga" },
+      { "id": 6, "name": "Littoral" },
+      { "id": 7, "name": "Mono" },
+      { "id": 8, "name": "Ouémé" },
+      { "id": 9, "name": "Plateau" },
+      { "id": 10, "name": "Zou" }
+    ],
+    "communes": {
+      "1": [
+        { "id": 1, "name": "Abomey-Calavi" },
+        { "id": 2, "name": "Allada" },
+        { "id": 3, "name": "Kpomassè" },
+        { "id": 4, "name": "Ouidah" },
+        { "id": 5, "name": "Sô-Ava" },
+        { "id": 6, "name": "Toffo" },
+        { "id": 7, "name": "Tori-Bossito" },
+        { "id": 8, "name": "Zè" }
+      ],
+      "2": [
+        { "id": 9, "name": "Bembèrèkè" },
+        { "id": 10, "name": "Kalalé" },
+        { "id": 11, "name": "N'Dali" },
+        { "id": 12, "name": "Nikki" },
+        { "id": 13, "name": "Parakou" },
+        { "id": 14, "name": "Pèrèrè" },
+        { "id": 15, "name": "Sinendé" },
+        { "id": 16, "name": "Tchaourou" }
+      ],
+      "3": [
+        { "id": 17, "name": "Bantè" },
+        { "id": 18, "name": "Dassa-Zoumè" },
+        { "id": 19, "name": "Glazoué" },
+        { "id": 20, "name": "Ouèssè" },
+        { "id": 21, "name": "Savalou" },
+        { "id": 22, "name": "Savé" }
+      ],
+      "4": [
+        { "id": 23, "name": "Aplahoué" },
+        { "id": 24, "name": "Djakotomey" },
+        { "id": 25, "name": "Klouékanmè" },
+        { "id": 26, "name": "Lalo" },
+        { "id": 27, "name": "Toviklin" }
+      ],
+      "5": [
+        { "id": 28, "name": "Bassila" },
+        { "id": 29, "name": "Copargo" },
+        { "id": 30, "name": "Djougou" },
+        { "id": 31, "name": "Ouaké" }
+      ],
+      "6": [
+        { "id": 32, "name": "Cotonou" },
+        { "id": 33, "name": "Porto-Novo" }
+      ],
+      "7": [
+        { "id": 34, "name": "Athiémè" },
+        { "id": 35, "name": "Bopa" },
+        { "id": 36, "name": "Comè" },
+        { "id": 37, "name": "Grand-Popo" },
+        { "id": 38, "name": "Houéyogbé" },
+        { "id": 39, "name": "Lokossa" }
+      ],
+      "8": [
+        { "id": 40, "name": "Adjarra" },
+        { "id": 41, "name": "Adjohoun" },
+        { "id": 42, "name": "Aguégués" },
+        { "id": 43, "name": "Akpro-Missérété" },
+        { "id": 44, "name": "Avrankou" },
+        { "id": 45, "name": "Bonou" },
+        { "id": 46, "name": "Dangbo" },
+        { "id": 47, "name": "Porto-Novo" },
+        { "id": 48, "name": "Sèmè-Kpodji" }
+      ],
+      "9": [
+        { "id": 49, "name": "Ifangni" },
+        { "id": 50, "name": "Adja-Ouèrè" },
+        { "id": 51, "name": "Kétou" },
+        { "id": 52, "name": "Pobè" },
+        { "id": 53, "name": "Sakété" }
+      ],
+      "10": [
+        { "id": 54, "name": "Abomey" },
+        { "id": 55, "name": "Agbangnizoun" },
+        { "id": 56, "name": "Bohicon" },
+        { "id": 57, "name": "Covè" },
+        { "id": 58, "name": "Djidja" },
+        { "id": 59, "name": "Ouinhi" },
+        { "id": 60, "name": "Za-Kpota" },
+        { "id": 61, "name": "Zangnanado" },
+        { "id": 62, "name": "Zogbodomey" }
+      ]
+    }
+  };
+
   // ----------------------------
   // 3. UTILITAIRES (HELPERS)
   // ----------------------------
+  
+  /**
+   * Applique les filtres côté client aux planifications
+   * @param {Array} plans - Les planifications à filtrer
+   * @returns {Array} - Les planifications filtrées
+   */
+  const applyClientSideFilters = (plans) => {
+    let filteredPlans = [...plans];
+    
+    // Filtre par superviseur (si un superviseur est sélectionné)
+    if (state.selectedSupervisorId) {
+      console.log(`Application du filtre superviseur côté client: ${state.selectedSupervisorId}`);
+      // Pour l'instant, on ne peut pas filtrer par superviseur car l'API ne retourne pas cette info
+      // Il faudrait modifier l'API pour inclure les données utilisateur enrichies
+    }
+    
+    // Filtre par département (si un département est sélectionné)
+    if (state.selectedDepartmentId) {
+      console.log(`Application du filtre département côté client: ${state.selectedDepartmentId}`);
+      // Pour l'instant, on ne peut pas filtrer par département car l'API ne retourne pas cette info
+    }
+    
+    // Filtre par commune (si une commune est sélectionnée)
+    if (state.selectedCommuneId) {
+      console.log(`Application du filtre commune côté client: ${state.selectedCommuneId}`);
+      // Pour l'instant, on ne peut pas filtrer par commune car l'API ne retourne pas cette info
+    }
+    
+    return filteredPlans;
+  };
   /**
    * Récupère un élément DOM par son ID.
    * @param {string} id - ID de l'élément
@@ -100,8 +232,8 @@
   const startOfWeek = (date) => {
     const d = new Date(date);
     const day = d.getDay();
-    const diff = (day === 0 ? -6 : 1) - day;
-    return addDays(d, diff);
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(d.setDate(diff));
   };
 
   /**
@@ -210,67 +342,140 @@
   // 5. CHARGEMENT DES DONNÉES
   // ----------------------------
   /**
-   * Charge la liste des agents.
+   * Charge la liste des utilisateurs (agents et superviseurs)
    */
-  const loadAgents = async () => {
+  const loadUsers = async () => {
     try {
       const headers = await authHeaders();
       const response = await fetch(`${API_BASE}/admin/agents`, { headers });
-      if (response.ok) {
-        const result = await response.json();
-        const users = result.agents || result.data || result || [];
-        if (!Array.isArray(users)) return;
-        state.agents = users.filter(user => user.role === 'agent');
-        updateAgentSelect();
+
+      if (!response.ok) {
+        throw new Error(`Erreur HTTP ${response.status} lors du chargement des utilisateurs`);
       }
+
+      const result = await response.json();
+      const users = result.agents || result.data || [];
+
+      if (!Array.isArray(users)) {
+        console.error('Format de données inattendu pour les utilisateurs:', result);
+        return;
+      }
+
+      // S'assurer que chaque utilisateur a un nom valide
+      const processedUsers = users.map(user => {
+        // Utiliser le nom complet (name) s'il existe, sinon concaténer first_name et last_name
+        if (!user.name || user.name.trim() === '') {
+          const firstName = user.first_name || '';
+          const lastName = user.last_name || '';
+          const fullName = `${firstName} ${lastName}`.trim();
+          user.name = fullName || user.email || `Agent ${user.id}`;
+        }
+        
+        // S'assurer que le nom n'est pas vide
+        if (!user.name || user.name.trim() === '') {
+          user.name = user.email || `Agent ${user.id}`;
+        }
+        
+        return user;
+      });
+
+      // Filtrer les agents et les superviseurs
+      state.agents = processedUsers.filter(user => user && user.role === 'agent');
+      // Les superviseurs sont tous les utilisateurs sauf les agents
+      state.supervisors = processedUsers.filter(u =>
+        u && u.role && u.role !== 'agent'
+      );
+
+      console.log(`${state.agents.length} agents et ${state.supervisors.length} superviseurs chargés`);
+      console.log('Rôles uniques trouvés:', [...new Set(processedUsers.map(u => u.role))]);
+      console.log('Superviseurs chargés:', state.supervisors.map(s => ({ name: s.name, role: s.role, id: s.id })));
+
+      // Mettre à jour les sélecteurs
+      updateAgentSelect();
+      updateSupervisorSelect();
+
+      // Si un agent est déjà sélectionné, s'assurer qu'il est toujours valide
+      if (state.selectedAgentId) {
+        const agentExists = state.agents.some(a => String(a.id) === String(state.selectedAgentId));
+        if (!agentExists) {
+          state.selectedAgentId = '';
+          if ($('agent-select')) $('agent-select').value = '';
+        }
+      }
+
     } catch (error) {
-      console.error('Erreur chargement agents:', error);
+      console.error('Erreur chargement utilisateurs:', error);
+      // Afficher un message d'erreur à l'utilisateur
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'alert alert-danger';
+      errorDiv.textContent = 'Erreur lors du chargement de la liste des agents. Veuillez rafraîchir la page.';
+      const container = $('agent-select')?.parentNode;
+      if (container) {
+        container.insertBefore(errorDiv, $('agent-select'));
+      }
     }
   };
 
   /**
-   * Charge la liste des superviseurs.
-   */
-  const loadSupervisors = async () => {
-    try {
-      const headers = await authHeaders();
-      const response = await fetch(`${API_BASE}/admin/agents`, { headers });
-      if (response.ok) {
-        const result = await response.json();
-        const users = result.agents || result.data || result || [];
-        if (!Array.isArray(users)) return;
-        state.supervisors = users.filter(u =>
-          ['supervisor', 'superviseur'].includes(String(u.role || '').toLowerCase())
-        );
-        updateSupervisorSelect();
-      }
-    } catch (error) {
-      console.error('Erreur chargement superviseurs:', error);
-    }
-  };
-
-  /**
-   * Charge la liste des projets.
+   * Charge la liste des projets uniques depuis la colonne project_name de la table users
    */
   const loadProjects = async () => {
     try {
       const headers = await authHeaders();
-      const response = await fetch(`${API_BASE}/admin/agents`, { headers });
+      
+      // Essayer d'abord l'endpoint dédié aux projets
+      let response = await fetch(`${API_BASE}/users/projects`, { 
+        headers,
+        credentials: 'include',
+        method: 'GET'
+      });
+      
       if (response.ok) {
-        const result = await response.json();
-        const users = result.agents || result.data || result || [];
-        if (!Array.isArray(users)) return;
-        const projectsSet = new Set();
-        users.forEach(user => {
-          if (user.project_name?.trim()) {
-            projectsSet.add(user.project_name.trim());
-          }
+        const projects = await response.json();
+        if (Array.isArray(projects)) {
+          state.projectList = projects.filter(project => project && project.trim() !== '').sort();
+          state.projects = state.projectList;
+          console.log(`${state.projectList.length} projets chargés depuis l'endpoint dédié:`, state.projectList);
+        } else {
+          throw new Error('Format de réponse inattendu pour les projets');
+        }
+      } else {
+        // Fallback: récupérer tous les utilisateurs pour extraire les projets uniques
+        console.warn('Endpoint projets non disponible, fallback vers les utilisateurs');
+        response = await fetch(`${API_BASE}/admin/agents`, { 
+          headers,
+          credentials: 'include',
+          method: 'GET'
         });
-        state.projects = Array.from(projectsSet).sort();
-        updateProjectSelect();
+        
+        if (response.ok) {
+          const result = await response.json();
+          const users = result.agents || result.data || [];
+          
+          // Extraire les projets uniques depuis la colonne project_name
+          const projects = users
+            .map(user => user.project_name)
+            .filter(project => project && project.trim() !== '')
+            .map(project => project.trim());
+          
+          // Supprimer les doublons et trier
+          state.projectList = [...new Set(projects)].sort();
+          state.projects = state.projectList;
+          
+          console.log(`${state.projectList.length} projets chargés depuis les utilisateurs:`, state.projectList);
+        } else {
+          throw new Error(`Erreur HTTP ${response.status} lors du chargement des projets`);
+        }
       }
+      
+      // Mettre à jour les sélecteurs de projet
+      updateProjectSelect();
+      updateProjectFilterSelect();
+      
     } catch (error) {
-      console.error('Erreur chargement projets:', error);
+      console.error('Erreur lors du chargement des projets:', error);
+      state.projectList = [];
+      state.projects = [];
     }
   };
 
@@ -281,13 +486,25 @@
     try {
       const headers = await authHeaders();
       const response = await fetch(`${API_BASE}/departments`, { headers });
+      
       if (response.ok) {
         const data = await response.json();
-        state.departments = data.items || [];
-        updateDepartmentSelect();
+        state.departments = data.items || data || [];
+        console.log(`${state.departments.length} départements chargés depuis Supabase`);
+      } else {
+        console.warn('Erreur lors du chargement des départements depuis Supabase, utilisation des données intégrées');
+        // Fallback vers les données intégrées
+        state.departments = geoData.departements || [];
+        console.log(`${state.departments.length} départements chargés depuis les données intégrées`);
       }
+      
+      updateDepartmentSelect();
     } catch (error) {
       console.error('Erreur chargement départements:', error);
+      // Fallback vers les données intégrées
+      state.departments = geoData.departements || [];
+      console.log(`${state.departments.length} départements chargés depuis les données intégrées (fallback)`);
+      updateDepartmentSelect();
     }
   };
 
@@ -304,13 +521,25 @@
     try {
       const headers = await authHeaders();
       const response = await fetch(`${API_BASE}/communes?department_id=eq.${departmentId}`, { headers });
+      
       if (response.ok) {
         const data = await response.json();
-        state.communes = data.items || [];
-        updateCommuneSelect();
+        state.communes = data.items || data || [];
+        console.log(`${state.communes.length} communes chargées depuis Supabase pour le département ${departmentId}`);
+      } else {
+        console.warn('Erreur lors du chargement des communes depuis Supabase, utilisation des données intégrées');
+        // Fallback vers les données intégrées
+        state.communes = geoData.communes[departmentId] || [];
+        console.log(`${state.communes.length} communes chargées depuis les données intégrées pour le département ${departmentId}`);
       }
+      
+      updateCommuneSelect();
     } catch (error) {
       console.error('Erreur chargement communes:', error);
+      // Fallback vers les données intégrées
+      state.communes = geoData.communes[departmentId] || [];
+      console.log(`${state.communes.length} communes chargées depuis les données intégrées (fallback) pour le département ${departmentId}`);
+      updateCommuneSelect();
     }
   };
 
@@ -320,6 +549,7 @@
   const updateAgentSelect = () => {
     const select = $('agent-select');
     if (!select) return;
+    const prevValue = select.value;
     select.innerHTML = '<option value="">Tous les agents</option>';
     state.agents.forEach(agent => {
       const option = document.createElement('option');
@@ -328,24 +558,39 @@
       option.textContent = `${name} (${agent.email})`;
       select.appendChild(option);
     });
+    if (prevValue) select.value = prevValue;
   };
 
   /**
    * Met à jour la liste déroulante des superviseurs.
    */
   const updateSupervisorSelect = () => {
-    const select = $('supervisor-select');
-    if (!select) return;
+    const select = $('supervisor-filter-select');
+    if (!select) {
+      console.error('Sélecteur de superviseur non trouvé: supervisor-filter-select');
+      return;
+    }
+    
     const prevValue = select.value;
-    select.innerHTML = '<option value="">Tous</option>';
+    select.innerHTML = '<option value="">Tous les superviseurs</option>';
+    
+    console.log(`Mise à jour du sélecteur de superviseurs avec ${state.supervisors.length} superviseurs`);
+    
     state.supervisors.forEach(supervisor => {
       const option = document.createElement('option');
       option.value = String(supervisor.id || supervisor.email || '');
       const name = supervisor.name || `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() || supervisor.email;
       option.textContent = name;
       select.appendChild(option);
+      console.log(`Ajout du superviseur: ${name} (ID: ${supervisor.id})`);
     });
+    
     if (prevValue) select.value = prevValue;
+    
+    // Déclencher un événement de changement si la valeur a changé
+    if (select.value !== prevValue) {
+      select.dispatchEvent(new Event('change'));
+    }
   };
 
   /**
@@ -361,6 +606,47 @@
       option.textContent = project;
       select.appendChild(option);
     });
+  };
+
+  /**
+   * Met à jour la liste déroulante des projets (filtre) avec les projets disponibles
+   */
+  const updateProjectFilterSelect = () => {
+    const select = $('project-filter-select');
+    if (!select) return;
+    
+    const prevValue = select.value;
+    
+    // Vider la liste tout en conservant l'option par défaut
+    select.innerHTML = '<option value="">Tous les projets</option>';
+    
+    // Vérifier si des projets sont disponibles
+    if (!state.projects || state.projects.length === 0) {
+      console.warn('Aucun projet disponible pour le filtre');
+      return;
+    }
+    
+    console.log(`Mise à jour du sélecteur de projets avec ${state.projects.length} projets`);
+    
+    // Ajouter chaque projet comme option
+    state.projects.forEach(project => {
+      if (project) { // S'assurer que le projet n'est pas vide
+        const option = document.createElement('option');
+        option.value = project;
+        option.textContent = project;
+        select.appendChild(option);
+      }
+    });
+    
+    // Restaurer la valeur précédente si elle existe toujours
+    if (prevValue && state.projects.includes(prevValue)) {
+      select.value = prevValue;
+    }
+    
+    // Déclencher un événement de changement si la valeur a changé
+    if (select.value !== prevValue) {
+      select.dispatchEvent(new Event('change'));
+    }
   };
 
   /**
@@ -447,6 +733,40 @@
     }
   };
 
+  /**
+   * Filtre les agents par projet sélectionné.
+   */
+  const filterAgentsByProject = () => {
+    try {
+      const select = $('agent-select');
+      if (!select) return;
+
+      const visibleAgents = state.agents.filter(agent => {
+        const projectMatch = !state.selectedProjectFilter || agent.project_name === state.selectedProjectFilter;
+        // Ajoutez d'autres logiques de filtrage ici si nécessaire
+        return projectMatch;
+      });
+
+      select.innerHTML = '<option value="">Tous les agents</option>';
+      visibleAgents.forEach(agent => {
+        const option = document.createElement('option');
+        option.value = agent.id;
+        const name = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
+        option.textContent = `${name} (${agent.email})`;
+        select.appendChild(option);
+      });
+
+      // Vérifier si l'agent actuellement sélectionné est toujours visible
+      if (state.selectedAgentId && !visibleAgents.some(a => String(a.id) === state.selectedAgentId)) {
+        state.selectedAgentId = '';
+      }
+      select.value = state.selectedAgentId;
+
+    } catch (e) {
+      console.error('Erreur lors du filtrage des agents par projet:', e);
+    }
+  };
+
   // ----------------------------
   // 6. GESTION DE LA PLANIFICATION
   // ----------------------------
@@ -455,57 +775,105 @@
    * @param {string} dateStr
    */
   const loadWeek = async (dateStr) => {
-    const start = startOfWeek(dateStr ? new Date(dateStr) : new Date());
-    $('week-start').value = toISODate(start);
-    const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
-    const from = toISODate(days[0]);
-    const to = toISODate(days[6]);
     try {
+      const start = startOfWeek(dateStr ? new Date(dateStr) : new Date());
+      if (isNaN(start.getTime())) {
+        throw new Error('Date de début invalide');
+      }
+
+      if ($('week-start')) {
+        $('week-start').value = toISODate(start);
+      }
+
+      const weekDays = Array.from({ length: 5 }, (_, i) => addDays(start, i));
+      const from = toISODate(weekDays[0]);
+      const to = toISODate(weekDays[weekDays.length - 1]);
+
+      if (!from || !to) {
+        throw new Error('Impossible de déterminer la période de la semaine');
+      }
+
       const headers = await authHeaders();
-      const projectParam = state.selectedProjectId ? `&project_name=${encodeURIComponent(state.selectedProjectId)}` : '';
-      const agentParam = state.selectedAgentId ? `&user_id=${encodeURIComponent(state.selectedAgentId)}` : '';
-      const supervisorParam = state.selectedSupervisorId ? `&supervisor_id=${encodeURIComponent(state.selectedSupervisorId)}` : '';
-      const checkinsPath = state.selectedAgentId
-        ? `/checkins?agent_id=${encodeURIComponent(state.selectedAgentId)}&from=${from}&to=${to}`
-        : `/checkins/mine?from=${from}&to=${to}`;
-      const validationsPath = state.selectedAgentId
-        ? `/validations?agent_id=${encodeURIComponent(state.selectedAgentId)}&from=${from}&to=${to}`
-        : `/validations/mine?from=${from}&to=${to}`;
-      const [plansRes, checkinsRes, validationsRes] = await Promise.all([
-        fetch(`${API_BASE}/planifications?from=${from}&to=${to}${projectParam}${agentParam}${supervisorParam}`, { headers }),
-        fetch(`${API_BASE}${checkinsPath}`, { headers }),
-        fetch(`${API_BASE}${validationsPath}`, { headers }),
-      ]);
+      if (!headers) {
+        throw new Error('Impossible de récupérer les en-têtes d\'authentification');
+      }
+
+      // Construire l'URL complète pour les planifications
+      const planificationsUrl = new URL(`${API_BASE}/planifications`, window.location.origin);
+      planificationsUrl.searchParams.append('from', from);
+      planificationsUrl.searchParams.append('to', to);
+      
+      // Appliquer les filtres
+      if (state.selectedProjectFilter) {
+        planificationsUrl.searchParams.append('project_name', state.selectedProjectFilter);
+        console.log(`Filtre projet appliqué: ${state.selectedProjectFilter}`);
+      }
+      if (state.selectedAgentId) {
+        planificationsUrl.searchParams.append('agent_id', state.selectedAgentId);
+        console.log(`Filtre agent appliqué: ${state.selectedAgentId}`);
+      }
+      // Note: Le filtre superviseur sera appliqué côté client car l'API ne le supporte pas
+      if (state.selectedSupervisorId) {
+        console.log(`Filtre superviseur à appliquer côté client: ${state.selectedSupervisorId}`);
+      }
+
+      // Construire les chemins pour les autres appels API
+      const checkinsUrl = new URL(`${API_BASE}/checkins`, window.location.origin);
+      checkinsUrl.searchParams.append('from', from);
+      checkinsUrl.searchParams.append('to', to);
+      if (state.selectedAgentId) checkinsUrl.searchParams.append('agent_id', state.selectedAgentId);
+
+      const validationsUrl = new URL(`${API_BASE}/validations`, window.location.origin);
+      validationsUrl.searchParams.append('from', from);
+      validationsUrl.searchParams.append('to', to);
+      if (state.selectedAgentId) validationsUrl.searchParams.append('agent_id', state.selectedAgentId);
+
+      const requests = [
+        fetch(planificationsUrl.toString(), { headers, credentials: 'include' }).catch(err => ({ ok: false, status: 500, json: async () => ({ items: [] }) })),
+        fetch(checkinsUrl.toString(), { headers, credentials: 'include' }).catch(err => ({ ok: false, status: 500, json: async () => ({ items: [] }) })),
+        fetch(validationsUrl.toString(), { headers, credentials: 'include' }).catch(err => ({ ok: false, status: 500, json: async () => ({ items: [] }) }))
+      ];
+
+      const [plansRes, checkinsRes, validationsRes] = await Promise.all(requests);
+
+      if (!plansRes || !checkinsRes || !validationsRes) {
+        throw new Error('Une ou plusieurs réponses API sont invalides');
+      }
+
       if ([plansRes.status, checkinsRes.status, validationsRes.status].includes(401)) {
-        showAuthBanner('🔒 Session requise pour charger la planification. Connectez-vous depuis la page d\'accueil, puis revenez ici.');
-        const tryRetry = () => {
-          if (findToken()) {
-            hideAuthBanner();
-            loadWeek($('week-start').value);
-          }
-        };
-        if (findToken()) setTimeout(tryRetry, 1500);
-        else {
-          const onStorage = (e) => {
-            if (e.key === 'jwt' && e.newValue) {
-              window.removeEventListener('storage', onStorage);
-              tryRetry();
-            }
-          };
-          window.addEventListener('storage', onStorage);
-        }
+        showAuthBanner('🔒 Session requise. Connectez-vous, puis revenez ici.');
         return;
       }
-      const plans = (await plansRes.json()).items || [];
-      const checkins = (await checkinsRes.json()).items || [];
-      const validations = (await validationsRes.json()).items || [];
+
+      let plans = [];
+      let checkins = [];
+      let validations = [];
+
+      if (plansRes.ok) {
+        const plansData = await plansRes.json();
+        plans = plansData.items || [];
+        // Appliquer les filtres côté client
+        plans = applyClientSideFilters(plans);
+        console.log(`${plans.length} planifications après filtrage côté client (vue semaine)`);
+      }
+      if (checkinsRes.ok) checkins = (await checkinsRes.json()).items || [];
+      if (validationsRes.ok) validations = (await validationsRes.json()).items || [];
+      
       hideAuthBanner();
-      const plansByDate = new Map(plans.map(plan => [plan.date.slice(0, 10), plan]));
-      const checkinDates = new Set(checkins.map(c => (c.timestamp || '').slice(0, 10)));
-      const validatedDates = new Set(validations.filter(v => v.valid).map(v => toISODate(new Date(v.created_at))));
+
+      const plansByDate = new Map(plans.map(p => [String(p.date).slice(0, 10), p]));
+      const checkinDates = new Set(checkins.map(c => String(c.timestamp).slice(0, 10)));
+      const validatedDates = new Set(validations.filter(v => v.valid && v.created_at).map(v => toISODate(new Date(v.created_at))));
+      
       const gantt = $('week-gantt');
-      const todayIso = toISODate(new Date());
+      if (!gantt) {
+        console.error('Erreur: Élément week-gantt introuvable dans le DOM');
+        return;
+      }
+
       gantt.innerHTML = '';
+      const todayIso = toISODate(new Date());
+
       const header = document.createElement('div');
       header.className = 'gantt-header d-flex border-bottom';
       header.innerHTML = `
@@ -514,119 +882,88 @@
           ${Array.from({ length: 24 }, (_, h) => `<div class="gantt-col text-center small" style="width:60px">${String(h).padStart(2, '0')}h</div>`).join('')}
         </div>`;
       gantt.appendChild(header);
+
       let weeklyMinutes = 0;
-      days.forEach((d, idx) => {
+      weekDays.forEach((d) => {
+        if (!d || isNaN(d.getTime())) return;
+        
         const iso = toISODate(d);
         const plan = plansByDate.get(iso);
-        const startMin = hoursToMinutes(plan?.planned_start_time || '');
-        const endMin = hoursToMinutes(plan?.planned_end_time || '');
+        const startMin = hoursToMinutes(plan?.planned_start_time);
+        const endMin = hoursToMinutes(plan?.planned_end_time);
         const planned = Boolean(plan && (plan.planned_start_time || plan.planned_end_time));
-        const duration = (Number.isFinite(startMin) && Number.isFinite(endMin) && endMin > startMin) ? (endMin - startMin) : 0;
+        const duration = (endMin > startMin) ? (endMin - startMin) : 0;
         weeklyMinutes += duration;
         const hasPresence = checkinDates.has(iso);
         const isValidated = validatedDates.has(iso);
         const isPast = iso < todayIso;
+
         const row = document.createElement('div');
         row.className = 'gantt-row d-flex align-items-center border-bottom py-2';
         row.innerHTML = `
-          <div class="gantt-col d-flex align-items-center gap-2" style="width:120px">
-            <span class="fw-semibold">${DAY_NAMES[idx]} ${d.toLocaleDateString()}</span>
+          <div class="gantt-col d-flex align-items-center flex-wrap gap-2" style="width:120px">
+            <span class="fw-semibold">${DAY_NAMES[d.getDay() === 0 ? 6 : d.getDay() - 1]} ${formatDate(d, 'dd/MM')}</span>
             ${planned ? '<span class="badge bg-primary">Planifié</span>' : '<span class="badge bg-secondary">Libre</span>'}
-            ${hasPresence ? `<span class="badge ${isValidated ? 'bg-success' : 'bg-warning'}">${isValidated ? 'Présence validée' : 'Présence à valider'}</span>` : ''}
-            ${plan?.project_name ? `<span class="badge bg-info">${plan.project_name}</span>` : ''}
+            ${hasPresence ? `<span class="badge ${isValidated ? 'bg-success' : 'bg-warning'}">${isValidated ? 'Validée' : 'À valider'}</span>` : ''}
+            ${plan?.project_name ? `<span class="badge bg-info text-truncate" style="max-width: 100px;" title="${plan.project_name}">${plan.project_name}</span>` : ''}
             ${isPast ? '<span class="badge bg-secondary">Verrouillé</span>' : ''}
           </div>
           <div class="flex-grow-1 position-relative" style="height:34px">
             <div class="position-absolute bg-light w-100 h-100" style="opacity:.6"></div>
             ${planned && duration > 0 ? `<div class="position-absolute bg-primary" style="left:${startMin}px;width:${duration}px;height:26px;border-radius:6px;opacity:.85"></div>` : ''}
             <div class="position-absolute d-flex gap-2" style="left:4px;top:4px">
-              <input type="time" class="form-control form-control-sm" id="gs-${iso}" value="${plan?.planned_start_time || ''}" style="width:110px" ${isPast ? 'disabled title="Jour passé — verrouillé"' : ''}>
+              <input type="time" class="form-control form-control-sm" id="gs-${iso}" value="${plan?.planned_start_time || ''}" style="width:110px" ${isPast ? 'disabled' : ''}>
               <input type="time" class="form-control form-control-sm" id="ge-${iso}" value="${plan?.planned_end_time || ''}" style="width:110px" ${isPast ? 'disabled' : ''}>
-              <button class="btn btn-sm btn-success" data-date="${iso}" ${isPast ? 'disabled title="Jour passé — verrouillé"' : ''}>OK</button>
-            </div>
-            <div class="position-absolute d-flex gap-2" style="left:4px;top:40px">
-              <input type="text" class="form-control form-control-sm" id="desc-${iso}" placeholder="Description de l'activité (2 lignes max)" value="${plan?.description_activite || ''}" style="width:300px" ${isPast ? 'disabled' : ''}>
+              <input type="text" class="form-control form-control-sm" id="desc-${iso}" placeholder="Description..." value="${plan?.description_activite || ''}" style="width:200px" ${isPast ? 'disabled' : ''}>
+              <button class="btn btn-sm btn-success" data-date="${iso}" ${isPast ? 'disabled' : ''}>OK</button>
             </div>
           </div>`;
         gantt.appendChild(row);
-        if (plan?.description_activite) {
-          const descRow = document.createElement('div');
-          descRow.className = 'gantt-row border-bottom py-2';
-          descRow.innerHTML = `
-            <div class="col-12">
-              <small class="text-muted">Description:</small>
-              <div class="small">${plan.description_activite}</div>
-            </div>
-          `;
-          gantt.appendChild(descRow);
-        }
-        try {
-          const startInput = $(`gs-${iso}`);
-          const endInput = $(`ge-${iso}`);
-          if (startInput && !startInput.disabled) startInput.addEventListener('input', () => scheduleMonthRefresh());
-          if (endInput && !endInput.disabled) endInput.addEventListener('input', () => scheduleMonthRefresh());
-        } catch (e) {
-          console.error('Erreur ajout event listener:', e);
-        }
       });
-      $('week-summary').textContent = `Total planifié: ${Math.round(weeklyMinutes / 60)}h${String(weeklyMinutes % 60).padStart(2, '0')}`;
+
+      if ($('week-summary')) {
+        $('week-summary').textContent = `Total planifié: ${Math.floor(weeklyMinutes / 60)}h${String(weeklyMinutes % 60).padStart(2, '0')}`;
+      }
+
       gantt.querySelectorAll('button[data-date]').forEach((btn) => {
         btn.addEventListener('click', async () => {
           const date = btn.getAttribute('data-date');
-          if (date < todayIso) {
-            alert('Impossible de planifier un jour passé.');
+          const today = toISODate(new Date());
+          if (date < today) {
+            alert('Impossible de modifier un jour passé.');
             return;
           }
-          const planned_start_time = $(`gs-${date}`).value || null;
-          const planned_end_time = $(`ge-${date}`).value || null;
-          const description_activite = $(`desc-${date}`)?.value || null;
+          const payload = {
+            date,
+            planned_start_time: $(`gs-${date}`).value || null,
+            planned_end_time: $(`ge-${date}`).value || null,
+            description_activite: $(`desc-${date}`).value || null,
+            project_name: state.selectedProjectFilter || null, // Utiliser le filtre projet
+            agent_id: state.selectedAgentId || null // Spécifier l'agent
+          };
+          
           const headers = await authHeaders();
           const response = await fetch(`${API_BASE}/planifications`, {
             method: 'POST',
-            headers: headers,
-            body: JSON.stringify({
-              date,
-              planned_start_time,
-              planned_end_time,
-              description_activite,
-              project_name: state.selectedProjectId
-            })
+            headers,
+            body: JSON.stringify(payload)
           });
-          if (response.status === 401) {
-            showAuthBanner('🔒 Session requise pour enregistrer la planification. Connectez-vous puis réessayez.');
-            const tryRetry = () => {
-              if (findToken()) {
-                hideAuthBanner();
-                loadWeek($('week-start').value);
-              }
-            };
-            if (findToken()) setTimeout(tryRetry, 1500);
-            else {
-              const onStorage = (e) => {
-                if (e.key === 'jwt' && e.newValue) {
-                  window.removeEventListener('storage', onStorage);
-                  tryRetry();
-                }
-              };
-              window.addEventListener('storage', onStorage);
-            }
-            return;
-          }
+
           if (response.ok) {
             await loadWeek($('week-start').value);
-            try {
-              await loadMonth($('month').value);
-            } catch (e) {
-              console.error('Erreur loadMonth:', e);
-            }
+            scheduleMonthRefresh(100);
             await loadWeeklySummary();
           } else {
-            alert('Erreur enregistrement');
+             alert('Erreur lors de l\'enregistrement.');
           }
         });
       });
     } catch (error) {
       console.error('Erreur chargement semaine:', error);
+      const gantt = $('week-gantt');
+      if (gantt) {
+        gantt.innerHTML = `<div class="alert alert-danger">Erreur lors du chargement de la planification : ${error.message}</div>`;
+      }
     }
   };
 
@@ -636,176 +973,129 @@
    */
   const loadMonth = async (monthStr) => {
     try {
-      const base = monthStr ? new Date(monthStr + '-01') : new Date();
-      const monthInput = $('month');
-      if (monthInput) {
-        const monthValue = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`;
-        monthInput.value = monthValue;
+      const base = monthStr ? new Date(monthStr + '-01T12:00:00Z') : new Date();
+      if ($('month')) {
+         $('month').value = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`;
       }
       const year = base.getFullYear();
       const month = base.getMonth();
-      const days = daysInMonth(year, month);
       const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-      const to = `${year}-${String(month + 1).padStart(2, '0')}-${String(days).padStart(2, '0')}`;
+      const to = `${year}-${String(month + 1).padStart(2, '0')}-${daysInMonth(year, month)}`;
+
       const headers = await authHeaders();
       const gantt = $('month-gantt');
-      if (gantt) gantt.innerHTML = '<div class="text-muted">Chargement du récap mensuel…</div>';
-      const projectParam = state.selectedProjectId ? `&project_name=${encodeURIComponent(state.selectedProjectId)}` : '';
-      const agentParam = state.selectedAgentId ? `&agent_id=${encodeURIComponent(state.selectedAgentId)}` : '';
-      const supervisorParam = state.selectedSupervisorId ? `&supervisor_id=${encodeURIComponent(state.selectedSupervisorId)}` : '';
-      const checkinsPathM = state.selectedAgentId
-        ? `/checkins?agent_id=${encodeURIComponent(state.selectedAgentId)}&from=${from}&to=${to}`
-        : `/checkins/mine?from=${from}&to=${to}`;
-      const [plansRes, checkinsRes] = await Promise.all([
-        fetch(`${API_BASE}/planifications?from=${from}&to=${to}${projectParam}${agentParam}${supervisorParam}`, { headers }),
-        fetch(`${API_BASE}${checkinsPathM}`, { headers })
-      ]);
-      if (plansRes.status === 401 || checkinsRes.status === 401) {
-        if (gantt) gantt.innerHTML = '<div class="text-muted">Connexion requise pour afficher le récap mensuel.</div>';
-        showAuthBanner('🔒 Session requise pour charger la planification mensuelle. Connectez-vous puis revenez.');
-        const tryRetry = () => {
-          if (findToken()) {
-            hideAuthBanner();
-            loadMonth($('month').value);
-          }
-        };
-        if (findToken()) setTimeout(tryRetry, 1500);
-        else {
-          const onStorage = (e) => {
-            if (e.key === 'jwt' && e.newValue) {
-              window.removeEventListener('storage', onStorage);
-              tryRetry();
-            }
-          };
-          window.addEventListener('storage', onStorage);
-        }
-        return;
+      if (gantt) gantt.innerHTML = '<div class="text-muted">Chargement...</div>';
+
+      const planificationsUrl = new URL(`${API_BASE}/planifications`, window.location.origin);
+      planificationsUrl.searchParams.append('from', from);
+      planificationsUrl.searchParams.append('to', to);
+      
+      // Appliquer tous les filtres
+      if (state.selectedProjectFilter) {
+        planificationsUrl.searchParams.append('project_name', state.selectedProjectFilter);
+        console.log(`Filtre projet (mois): ${state.selectedProjectFilter}`);
       }
-      const plans = (await plansRes.json()).items || [];
-      const checkins = (await checkinsRes.json()).items || [];
+      if (state.selectedAgentId) {
+        planificationsUrl.searchParams.append('agent_id', state.selectedAgentId);
+        console.log(`Filtre agent (mois): ${state.selectedAgentId}`);
+      }
+      // Note: Les filtres superviseur, département et commune seront appliqués côté client
+      if (state.selectedSupervisorId) {
+        console.log(`Filtre superviseur (mois) à appliquer côté client: ${state.selectedSupervisorId}`);
+      }
+      if (state.selectedDepartmentId) {
+        console.log(`Filtre département (mois) à appliquer côté client: ${state.selectedDepartmentId}`);
+      }
+      if (state.selectedCommuneId) {
+        console.log(`Filtre commune (mois) à appliquer côté client: ${state.selectedCommuneId}`);
+      }
+
+      const plansRes = await fetch(planificationsUrl.toString(), { headers, credentials: 'include' });
+      
+      if (!plansRes.ok) throw new Error('Erreur API lors du chargement du mois');
+      
+      const plansData = await plansRes.json();
+      let plans = plansData.items || [];
+      // Appliquer les filtres côté client
+      plans = applyClientSideFilters(plans);
+      console.log(`${plans.length} planifications après filtrage côté client (vue mois)`);
       hideAuthBanner();
-      const plansNorm = (plans || [])
-        .map(p => ({
-          date: String(p.date).slice(0, 10),
-          s: hoursToMinutes(p.planned_start_time),
-          e: hoursToMinutes(p.planned_end_time)
-        }))
-        .filter(p => (Number.isFinite(p.s) || Number.isFinite(p.e)) && ((p.e || 0) >= (p.s || 0)));
-      const firstDay = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-      const lastDay = `${year}-${String(month + 1).padStart(2, '0')}-${String(days).padStart(2, '0')}`;
-      const firstDate = new Date(firstDay + 'T00:00:00');
-      const lastDate = new Date(lastDay + 'T23:59:59');
-      const expandedStart = startOfWeek(firstDate);
-      const expandedEnd = addDays(startOfWeek(lastDate), 6);
+
       const weekAgg = new Map();
-      for (const p of plansNorm) {
-        const d = new Date(p.date + 'T00:00:00');
-        if (d < expandedStart || d > expandedEnd) continue;
-        const ws = startOfWeek(d);
-        const we = addDays(ws, 6);
-        const key = toISODate(ws);
-        if (!weekAgg.has(key)) weekAgg.set(key, { from: toISODate(ws), to: toISODate(we), minutes: 0, daysSet: new Set() });
+      plans.forEach(p => {
+        const d = new Date(p.date + 'T12:00:00Z');
+        const key = toISODate(startOfWeek(d));
+        if (!weekAgg.has(key)) weekAgg.set(key, { minutes: 0, daysSet: new Set(), activities: [] });
         const bucket = weekAgg.get(key);
-        const duration = (Number.isFinite(p.s) && Number.isFinite(p.e) && p.e > p.s) ? (p.e - p.s) : 0;
-        bucket.minutes += duration;
-        bucket.daysSet.add(toISODate(d));
-      }
+        const startMin = hoursToMinutes(p.planned_start_time);
+        const endMin = hoursToMinutes(p.planned_end_time);
+        if (endMin > startMin) bucket.minutes += (endMin - startMin);
+        bucket.daysSet.add(p.date.slice(0, 10));
+        if (p.description_activite) bucket.activities.push(p.description_activite);
+      });
+
       const weeks = [];
-      let cursor = new Date(firstDay + 'T00:00:00');
+      let cursor = new Date(`${from}T12:00:00Z`);
       while (cursor.getMonth() === month) {
         const ws = startOfWeek(cursor);
         const we = addDays(ws, 6);
         const wsIso = toISODate(ws);
-        const agg = weekAgg.get(wsIso) || { from: toISODate(ws), to: toISODate(we), minutes: 0, daysSet: new Set() };
-        const minutes = agg.minutes;
-        const daysPlanned = agg.daysSet.size;
-        weeks.push({ from: agg.from, to: agg.to, daysPlanned, hours: Math.round(minutes / 60), minutes: minutes % 60 });
+        const agg = weekAgg.get(wsIso) || { minutes: 0, daysSet: new Set(), activities: [] };
+        weeks.push({
+          from: wsIso,
+          to: toISODate(we),
+          daysPlanned: agg.daysSet.size,
+          hours: Math.floor(agg.minutes / 60),
+          minutes: agg.minutes % 60,
+          activities: agg.activities
+        });
         cursor = addDays(we, 1);
       }
+      
       const table = document.createElement('table');
-      table.className = 'table table-striped';
+      table.className = 'table table-striped table-sm';
       table.innerHTML = `
-        <thead><tr>
-          <th>Semaine</th>
-          <th>Période</th>
-          <th>Jours planifiés</th>
-          <th>Heures planifiées</th>
-          <th>Activités planifiées</th>
-          <th>Actions</th>
-        </tr></thead>
+        <thead><tr><th>Semaine</th><th>Période</th><th>Jours planifiés</th><th>Heures</th><th>Actions</th></tr></thead>
         <tbody>
           ${weeks.map((w, i) => `
             <tr>
-              <td>Semaine ${i + 1}</td>
-              <td>du ${new Date(w.from).toLocaleDateString()} au ${new Date(w.to).toLocaleDateString()}</td>
+              <td>Sem. ${i + 1}</td>
+              <td>${formatDate(w.from, 'dd/MM')} - ${formatDate(w.to, 'dd/MM')}</td>
               <td>${w.daysPlanned}</td>
               <td>${w.hours}h${String(w.minutes).padStart(2, '0')}</td>
-              <td>
-                <div class="activities-summary" style="max-width: 300px; max-height: 100px; overflow-y: auto;">
-                  ${getWeekActivities(w.from, w.to, plans) || '<em class="text-muted">Aucune activité planifiée</em>'}
-                </div>
-              </td>
-              <td>
-                <button class="btn btn-sm btn-outline-primary" onclick="editWeekPlanning('${w.from}', '${w.to}')">
-                  <i class="bi bi-pencil"></i> Éditer
-                </button>
-              </td>
+              <td><button class="btn btn-sm btn-outline-primary" onclick="loadWeek('${w.from}')">Voir</button></td>
             </tr>
           `).join('')}
         </tbody>`;
+
       if (gantt) {
         gantt.innerHTML = '';
         gantt.appendChild(table);
       }
-      const totalMinutes = (weeks || []).reduce((acc, w) => acc + (w.hours * 60 + w.minutes), 0);
-      const totalDaysPlanned = (weeks || []).reduce((acc, w) => acc + w.daysPlanned, 0);
-      $('month-summary').textContent = `Total planifié: ${Math.round(totalMinutes / 60)}h${String(totalMinutes % 60).padStart(2, '0')} • Jours planifiés: ${totalDaysPlanned}`;
-      await loadWeeklySummary();
-    } catch (error) {
-      console.error('Erreur lors du chargement du mois:', error);
-      const errorContainer = document.getElementById('error-message');
-      if (errorContainer) {
-        errorContainer.textContent = 'Erreur lors du chargement des données du mois. Veuillez réessayer.';
-        errorContainer.style.display = 'block';
-        setTimeout(() => { errorContainer.style.display = 'none'; }, 5000);
+
+      const totalMinutes = weeks.reduce((acc, w) => acc + (w.hours * 60 + w.minutes), 0);
+      if($('month-summary')) {
+        $('month-summary').textContent = `Total: ${Math.floor(totalMinutes / 60)}h${String(totalMinutes % 60).padStart(2, '0')}`;
       }
-      const gantt = $('month-gantt');
-      if (gantt) gantt.innerHTML = '<div class="alert alert-danger">Erreur lors du chargement du récapitulatif mensuel.</div>';
+    } catch (error) {
+      console.error('Erreur chargement mois:', error);
+      if ($('month-gantt')) $('month-gantt').innerHTML = '<div class="alert alert-danger">Erreur chargement.</div>';
     }
   };
 
-  /**
-   * Récupère les activités d'une semaine.
-   * @param {string} weekStart
-   * @param {string} weekEnd
-   * @param {Array} plans
-   * @returns {string|null}
-   */
-  const getWeekActivities = (weekStart, weekEnd, plans) => {
-    const weekPlans = plans.filter(plan => {
-      const planDate = new Date(plan.date);
-      const start = new Date(weekStart);
-      const end = new Date(weekEnd);
-      return planDate >= start && planDate <= end && plan.description_activite;
-    });
-    if (weekPlans.length === 0) return null;
-    return weekPlans.map(plan => {
-      const date = new Date(plan.date).toLocaleDateString('fr-FR', {
-        weekday: 'short',
-        day: 'numeric'
-      });
-      return `<div class="small mb-1">
-        <strong>${date}:</strong> ${plan.description_activite}
-      </div>`;
-    }).join('');
-  };
 
   /**
    * Charge le récapitulatif hebdomadaire.
    */
   const loadWeeklySummary = async () => {
+    console.log('Début du chargement du récapitulatif hebdomadaire');
     const summaryContainer = $('weekly-summary');
-    if (!summaryContainer) return;
+    if (!summaryContainer) {
+      console.error('Conteneur weekly-summary introuvable dans le DOM');
+      return;
+    }
+    
+    // Afficher un indicateur de chargement
     summaryContainer.innerHTML = `
       <div class="text-center py-5">
         <div class="spinner-border text-primary" role="status">
@@ -813,137 +1103,308 @@
         </div>
         <p class="mt-2 text-muted">Chargement du récapitulatif en cours...</p>
       </div>`;
+
     try {
+      // 1. Préparer les paramètres de la requête
       const headers = await authHeaders();
-      const projectParam = state.selectedProjectId ? `&project_name=${encodeURIComponent(state.selectedProjectId)}` : '';
-      const agentParam = state.selectedAgentId ? `&agent_id=${encodeURIComponent(state.selectedAgentId)}` : '';
-      const supervisorParam = state.selectedSupervisorId ? `&supervisor_id=${encodeURIComponent(state.selectedSupervisorId)}` : '';
+      if (!headers) {
+        throw new Error('Impossible de récupérer les en-têtes d\'authentification');
+      }
+
       const today = new Date();
-      const startDate = addDays(today, -42);
-      const endDate = addDays(today, 42);
-      const from = toISODate(startDate);
-      const to = toISODate(endDate);
-      const [plansRes, usersRes] = await Promise.all([
-        fetch(`${API_BASE}/planifications?from=${from}&to=${to}${projectParam}${agentParam}${supervisorParam}`, { headers }),
-        fetch(`${API_BASE}/users`, { 
-          headers,
-          credentials: 'include' // S'assurer que les cookies d'authentification sont inclus
-        })
-      ]);
+      const startDate = addDays(today, -42); // 6 semaines avant
+      const endDate = addDays(today, 42);    // 6 semaines après
       
-      if (!plansRes.ok) {
-        console.error('Erreur lors du chargement des plannings:', await plansRes.text());
-        displayWeeklySummary([]);
-        return;
+      console.log(`Période de chargement: ${toISODate(startDate)} au ${toISODate(endDate)}`);
+      
+      // Construire l'URL des planifications
+      const planificationsUrl = new URL(`${API_BASE}/planifications`, window.location.origin);
+      planificationsUrl.searchParams.append('from', toISODate(startDate));
+      planificationsUrl.searchParams.append('to', toISODate(endDate));
+      
+      // Appliquer tous les filtres
+      if (state.selectedProjectFilter) {
+        planificationsUrl.searchParams.append('project_name', state.selectedProjectFilter);
+        console.log(`Filtre projet: ${state.selectedProjectFilter}`);
       }
       
-      const plansResult = await plansRes.json();
-      const plans = plansResult.items || [];
+      if (state.selectedAgentId) {
+        planificationsUrl.searchParams.append('agent_id', state.selectedAgentId);
+        console.log(`Filtre agent: ${state.selectedAgentId}`);
+      }
       
-      // Chargement des utilisateurs
-      let usersMap = new Map();
-      if (usersRes.ok) {
-        try {
-          const usersResponse = await usersRes.json();
-          const usersData = Array.isArray(usersResponse) ? usersResponse : (usersResponse?.items || []);
-          
-          // Créer un mappage des utilisateurs par leur ID
-          usersData.forEach(user => {
-            if (user && user.id) {
-              usersMap.set(user.id, {
-                name: user.full_name || user.name || user.email || `Utilisateur ${user.id}`,
-                email: user.email || '',
-                role: user.role || 'agent'
-              });
-            }
-          });
-          
-          console.log('Utilisateurs chargés:', usersMap.size);
-        } catch (error) {
-          console.error('Erreur lors du traitement des données utilisateurs:', error);
-        }
+      // Note: Les filtres superviseur, département et commune seront appliqués côté client
+      if (state.selectedSupervisorId) {
+        console.log(`Filtre superviseur à appliquer côté client: ${state.selectedSupervisorId}`);
+      }
+      
+      if (state.selectedDepartmentId) {
+        console.log(`Filtre département à appliquer côté client: ${state.selectedDepartmentId}`);
+      }
+      
+      if (state.selectedCommuneId) {
+        console.log(`Filtre commune à appliquer côté client: ${state.selectedCommuneId}`);
+      }
+
+      // 2. Effectuer l'appel API pour les planifications
+      console.log('Début de l\'appel API pour les planifications...');
+      
+      const plansRes = await fetch(planificationsUrl.toString(), { 
+        headers, 
+        credentials: 'include' 
+      }).catch(err => {
+        console.error('Erreur lors de la récupération des planifications:', err);
+        return { ok: false, status: 500, json: async () => ({ items: [] }) };
+      });
+      
+      // Utiliser les agents déjà chargés dans state.agents et state.supervisors
+      let usersData = [];
+      
+      // Vérifier si state.agents est défini et contient des données
+      if (state.agents && Array.isArray(state.agents) && state.agents.length > 0) {
+        usersData = [...state.agents];
+        console.log(`${usersData.length} agents trouvés dans state.agents`);
       } else {
-        console.error('Erreur lors du chargement des utilisateurs:', await usersRes.text());
+        console.warn('Aucun agent trouvé dans state.agents, tentative de rechargement...');
+        await loadUsers();
+        if (state.agents && Array.isArray(state.agents)) {
+          usersData = [...state.agents];
+          console.log(`${usersData.length} agents chargés après rechargement`);
+        }
       }
-      const summaryMap = new Map();
-      for (const plan of plans) {
-        const planDate = new Date(plan.date);
-        const weekStart = startOfWeek(planDate);
-        const weekEnd = addDays(weekStart, 6);
-        const weekKey = `${toISODate(weekStart)}_${plan.user_id}_${plan.project_name || 'général'}`;
-        if (!summaryMap.has(weekKey)) {
-          let userData = usersMap.get(plan.user_id);
+      
+      // Ajouter les superviseurs s'ils existent
+      if (state.supervisors && Array.isArray(state.supervisors) && state.supervisors.length > 0) {
+        usersData = [...usersData, ...state.supervisors];
+        console.log(`${state.supervisors.length} superviseurs ajoutés`);
+      }
+      
+      console.log(`${usersData.length} utilisateurs chargés (${state.agents?.length || 0} agents, ${state.supervisors?.length || 0} superviseurs)`);
+
+      // 3. Vérifier la réponse
+      if (!plansRes || !plansRes.ok) {
+        const errorMsg = plansRes ? `Erreur ${plansRes.status} lors du chargement des planifications` : 'Réponse invalide du serveur pour les planifications';
+        console.error(errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      // 4. Traiter les données des planifications
+      const plansData = await plansRes.json();
+      let plans = Array.isArray(plansData.items) ? plansData.items : [];
+      console.log(`${plans.length} planifications chargées avant filtrage côté client`);
+      
+      // Debug: afficher les premières planifications pour voir la structure
+      if (plans.length > 0) {
+        console.log('Première planification:', plans[0]);
+      }
+      
+      // Appliquer les filtres côté client
+      plans = applyClientSideFilters(plans);
+      console.log(`${plans.length} planifications après filtrage côté client`);
+      
+      // Vérifier que nous avons bien des données d'utilisateurs
+      if (usersData.length === 0) {
+        console.warn('Aucun utilisateur trouvé dans le state, tentative de rechargement...');
+        await loadUsers(); // Recharger les utilisateurs si nécessaire
+        usersData = [...(state.agents || []), ...(state.supervisors || [])];
+        console.log(`${usersData.length} utilisateurs après rechargement`);
+        
+        // Si toujours aucun utilisateur, essayer de charger directement depuis l'API
+        if (usersData.length === 0) {
+          console.warn('Tentative de chargement direct depuis l\'API...');
+          try {
+            const headers = await authHeaders();
+            const response = await fetch(`${API_BASE}/admin/agents`, { headers });
+            if (response.ok) {
+              const result = await response.json();
+              const apiUsers = result.agents || result.data || [];
+              usersData = apiUsers.filter(user => user && user.id !== undefined);
+              console.log(`${usersData.length} utilisateurs chargés directement depuis l'API`);
+            }
+          } catch (error) {
+            console.error('Erreur lors du chargement direct des utilisateurs:', error);
+          }
+        }
+      }
+
+      // Créer une map des utilisateurs pour un accès rapide
+      const usersMap = new Map();
+      
+      // Remplir la map avec les utilisateurs
+      usersData.forEach(user => {
+        if (user && user.id !== undefined) {
+          // S'assurer que l'ID est une chaîne pour éviter les problèmes de comparaison
+          const userId = String(user.id);
           
-          // Si l'utilisateur n'est pas trouvé, essayer de le charger
-          if (!userData) {
-            try {
-              const userRes = await fetch(`${API_BASE}/users/${plan.user_id}`, { 
-                headers: await authHeaders(),
-                credentials: 'include'
-              });
-              
-              if (userRes.ok) {
-                const user = await userRes.json();
-                userData = {
-                  name: user.full_name || user.name || user.email || `Utilisateur ${plan.user_id}`,
-                  email: user.email || '',
-                  role: user.role || 'agent'
-                };
-                // Mettre à jour le cache des utilisateurs
-                usersMap.set(plan.user_id, userData);
-              } else {
-                console.warn(`Utilisateur ${plan.user_id} non trouvé`);
-                userData = {
-                  name: `Utilisateur ${plan.user_id}`,
-                  email: '',
-                  role: 'agent'
-                };
+          // S'assurer que l'utilisateur a un nom valide
+          if (!user.name) {
+            const firstName = user.first_name || '';
+            const lastName = user.last_name || '';
+            user.name = `${firstName} ${lastName}`.trim() || user.email || `Agent ${user.id}`;
+          }
+          
+          usersMap.set(userId, user);
+          
+          // Ajouter également l'ID numérique si c'est différent
+          if (user.id !== userId) {
+            usersMap.set(user.id, user);
+          }
+        }
+      });
+      
+      console.log(`Map des utilisateurs créée avec ${usersMap.size} entrées`);
+      
+      // Debug: afficher les utilisateurs chargés
+      console.log('Utilisateurs chargés:', Array.from(usersMap.values()).map(u => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role
+      })));
+      const summaryMap = new Map();
+
+      // 5. Traiter chaque planification
+      plans.forEach(plan => {
+        try {
+          if (!plan || !plan.date) return;
+          
+          const planDate = new Date(plan.date);
+          if (isNaN(planDate.getTime())) {
+            console.warn('Date de planification invalide:', plan.date);
+            return;
+          }
+
+          // Ignorer les week-ends
+          const dayOfWeek = planDate.getDay();
+          if (dayOfWeek === 0 || dayOfWeek === 6) return;
+          
+          const weekStart = startOfWeek(planDate);
+          const weekKey = `${toISODate(weekStart)}_${plan.user_id || plan.agent_id}_${plan.project_name || 'general'}`;
+
+          // Initialiser la semaine si nécessaire
+          if (!summaryMap.has(weekKey)) {
+            // Utiliser les données utilisateur enrichies directement depuis la planification
+            let userName = `Agent ${plan.user_id || plan.agent_id}`;
+            let userEmail = '';
+            let projectName = 'Projet Général';
+            
+            // Utiliser les données utilisateur enrichies si disponibles
+            if (plan.user && plan.user.name) {
+              userName = plan.user.name;
+              userEmail = plan.user.email || '';
+            } else {
+              // Fallback vers la map des utilisateurs
+              const user = usersMap.get(String(plan.user_id || plan.agent_id)) || usersMap.get(plan.user_id || plan.agent_id);
+              if (user) {
+                if (user.name && user.name.trim() !== '') {
+                  userName = user.name;
+                } else if (user.first_name || user.last_name) {
+                  const firstName = user.first_name || '';
+                  const lastName = user.last_name || '';
+                  const fullName = `${firstName} ${lastName}`.trim();
+                  userName = fullName || user.email || `Agent ${plan.user_id || plan.agent_id}`;
+                } else if (user.email) {
+                  userName = user.email;
+                }
+                userEmail = user.email || '';
               }
-            } catch (error) {
-              console.error(`Erreur lors du chargement de l'utilisateur ${plan.user_id}:`, error);
-              userData = {
-                name: `Utilisateur ${plan.user_id}`,
-                email: '',
-                role: 'agent'
-              };
+            }
+            
+            // Utiliser le nom du projet depuis l'utilisateur (table users, colonne project_name)
+            if (plan.user && plan.user.project_name && plan.user.project_name.trim() !== '') {
+              projectName = plan.user.project_name;
+            } else {
+              // Fallback vers la map des utilisateurs pour récupérer le project_name
+              const user = usersMap.get(String(plan.user_id || plan.agent_id)) || usersMap.get(plan.user_id || plan.agent_id);
+              if (user && user.project_name && user.project_name.trim() !== '') {
+                projectName = user.project_name;
+              }
+            }
+            
+            console.log(`Nom d'agent récupéré: ${userName} pour l'ID ${plan.user_id || plan.agent_id}`);
+            console.log(`Projet récupéré: ${projectName}`);
+            console.log(`Données utilisateur enrichies:`, plan.user);
+            
+            summaryMap.set(weekKey, {
+              week_start_date: toISODate(weekStart),
+              user_id: plan.user_id || plan.agent_id,
+              user_name: userName,
+              user_email: userEmail,
+              project_name: projectName,
+              total_planned_hours: 0,
+              planned_days: new Set(),
+              activities: []
+            });
+          }
+
+          // Mettre à jour le résumé de la semaine
+          const summary = summaryMap.get(weekKey);
+          
+          // Calculer la durée planifiée
+          if (plan.planned_start_time && plan.planned_end_time) {
+            const startMinutes = hoursToMinutes(plan.planned_start_time);
+            const endMinutes = hoursToMinutes(plan.planned_end_time);
+            
+            if (startMinutes >= 0 && endMinutes > startMinutes) {
+              const durationHours = (endMinutes - startMinutes) / 60;
+              summary.total_planned_hours += durationHours;
+              summary.planned_days.add(toISODate(planDate));
             }
           }
-          summaryMap.set(weekKey, {
-            week_start_date: toISODate(weekStart),
-            week_end_date: toISODate(weekEnd),
-            user_id: plan.user_id,
-            users: userData,
-            project_name: plan.project_name || 'Projet Général',
-            total_planned_hours: 0,
-            total_planned_days: new Set(),
-            activities: []
-          });
-        }
-        const summary = summaryMap.get(weekKey);
-        if (plan.planned_start_time && plan.planned_end_time) {
-          const startMinutes = hoursToMinutes(plan.planned_start_time);
-          const endMinutes = hoursToMinutes(plan.planned_end_time);
-          if (Number.isFinite(startMinutes) && Number.isFinite(endMinutes) && endMinutes > startMinutes) {
-            summary.total_planned_hours += (endMinutes - startMinutes) / 60;
+          
+          // Ajouter l'activité si elle n'existe pas déjà
+          if (plan.description_activite && !summary.activities.includes(plan.description_activite)) {
+            summary.activities.push(plan.description_activite);
           }
+        } catch (err) {
+          console.error('Erreur lors du traitement d\'une planification:', err, plan);
         }
-        summary.total_planned_days.add(toISODate(planDate));
-        const activity = plan.activity || plan.activities || plan.task || plan.description || '';
-        if (activity && activity.trim() && !summary.activities.includes(activity.trim())) {
-          summary.activities.push(activity.trim());
-        }
-      }
-      const weeklySummaries = Array.from(summaryMap.values()).map(summary => ({
-        ...summary,
-        total_planned_hours: Math.round(summary.total_planned_hours * 10) / 10,
-        total_planned_days: summary.total_planned_days.size,
-        activities_summary: summary.activities.join(' | ') || 'Aucune activité'
-      }));
-      weeklySummaries.sort((a, b) => a.week_start_date.localeCompare(b.week_start_date));
+      });
+
+      // 6. Préparer les données pour l'affichage
+      const weeklySummaries = Array.from(summaryMap.values())
+        .map(s => ({
+          ...s,
+          total_planned_days: s.planned_days.size,
+          activities_summary: s.activities.slice(0, 3).join(' | ') || 'Aucune activité',
+          // Formater les heures avec une décimale
+          total_planned_hours: Math.round(s.total_planned_hours * 10) / 10
+        }))
+        .sort((a, b) => 
+          b.week_start_date.localeCompare(a.week_start_date) || 
+          a.user_name.localeCompare(b.user_name)
+        );
+
+      console.log(`${weeklySummaries.length} semaines à afficher`);
+      
+      // 7. Afficher les résultats
       displayWeeklySummary(weeklySummaries);
+
     } catch (error) {
-      console.error('Erreur chargement récap hebdomadaire:', error);
-      displayWeeklySummary([]);
+      console.error('Erreur lors du chargement du récapitulatif hebdomadaire:', error);
+      
+      let errorMessage = 'Erreur lors du chargement du récapitulatif';
+      if (error.message.includes('401') || error.message.includes('403')) {
+        errorMessage = 'Session expirée. Veuillez vous reconnecter.';
+      } else if (error.message.includes('NetworkError')) {
+        errorMessage = 'Erreur de connexion au serveur. Vérifiez votre connexion Internet.';
+      }
+      
+      if (summaryContainer) {
+        summaryContainer.innerHTML = `
+          <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            ${errorMessage}
+            <div class="mt-2">
+              <button class="btn btn-sm btn-outline-primary" onclick="loadWeeklySummary()">
+                <i class="bi bi-arrow-clockwise me-1"></i> Réessayer
+              </button>
+            </div>
+            <div class="mt-2 small text-muted">
+              Détails techniques: ${error.message || 'Aucun détail disponible'}
+            </div>
+          </div>`;
+      }
     }
   };
 
@@ -954,441 +1415,67 @@
   const displayWeeklySummary = (summaries) => {
     const container = $('weekly-summary');
     if (!container) return;
+
     if (!summaries || summaries.length === 0) {
-      container.innerHTML = `
-        <div class="alert alert-info">
-          <div class="d-flex align-items-center">
-            <i class="bi bi-info-circle-fill me-2"></i>
-            <div>
-              <h5 class="alert-heading mb-1">Aucune activité planifiée</h5>
-              <p class="mb-0">Aucune activité n'a été trouvée pour la période sélectionnée.</p>
-            </div>
-          </div>
-        </div>
-      `;
+      container.innerHTML = `<div class="alert alert-info">Aucune activité planifiée trouvée pour les filtres sélectionnés.</div>`;
       return;
     }
-    try {
-      const weeksMap = new Map();
-      summaries.forEach(summary => {
-        if (!summary.week_start_date) return;
-        const weekStart = new Date(summary.week_start_date);
-        const weekKey = weekStart.toISOString().split('T')[0];
+    
+    // Regrouper par semaine
+    const weeksMap = new Map();
+    summaries.forEach(summary => {
+        const weekKey = summary.week_start_date;
         if (!weeksMap.has(weekKey)) {
-          weeksMap.set(weekKey, {
-            weekStart: summary.week_start_date,
-            weekEnd: summary.week_end_date || toISODate(addDays(new Date(summary.week_start_date), 6)),
-            items: []
-          });
+            weeksMap.set(weekKey, []);
         }
-        weeksMap.get(weekKey).items.push(summary);
-      });
-      const sortedWeeks = Array.from(weeksMap.values()).sort((a, b) => new Date(b.weekStart) - new Date(a.weekStart));
-      const mainDiv = document.createElement('div');
-      mainDiv.className = 'weekly-summary-container';
-      const tabsContainer = document.createElement('div');
-      tabsContainer.className = 'week-tabs d-flex overflow-auto mb-3';
-      const contentContainer = document.createElement('div');
-      contentContainer.className = 'week-contents';
-      sortedWeeks.forEach((week, index) => {
-        const tab = document.createElement('button');
-        tab.className = `week-tab btn btn-outline-primary me-2 ${index === 0 ? 'active' : ''}`;
-        tab.textContent = `Semaine du ${formatDate(week.weekStart, 'dd/MM')}`;
-        tab.onclick = () => switchWeekTab(week.weekStart);
-        const content = document.createElement('div');
-        content.className = `week-content ${index === 0 ? 'active' : 'd-none'}`;
-        content.id = `week-${week.weekStart}`;
-        const table = generateWeekTable(week);
-        content.appendChild(table);
-        tabsContainer.appendChild(tab);
-        contentContainer.appendChild(content);
-      });
-      mainDiv.appendChild(tabsContainer);
-      mainDiv.appendChild(contentContainer);
-      container.innerHTML = '';
-      container.appendChild(mainDiv);
-      const tooltipTriggerList = [].slice.call(container.querySelectorAll('[data-bs-toggle="tooltip"]'));
-      tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-      });
-    } catch (error) {
-      console.error('Erreur affichage récapitulatif:', error);
-      container.innerHTML = `
-        <div class="alert alert-danger">
-          <i class="bi bi-exclamation-triangle-fill me-2"></i>
-          Une erreur est survenue lors du chargement du récapitulatif.
-        </div>
-      `;
-    }
-  };
-
-  /**
-   * Génère un tableau pour une semaine.
-   * @param {Object} week
-   * @returns {HTMLTableElement}
-   */
-  const generateWeekTable = (week) => {
-    const table = document.createElement('table');
-    table.className = 'table table-hover align-middle';
-    const thead = document.createElement('thead');
-    thead.className = 'table-light';
-    thead.innerHTML = `
-      <tr>
-        <th>Agent</th>
-        <th>Projet</th>
-        <th>Heures planifiées</th>
-        <th>Jours planifiés</th>
-        <th>Activités</th>
-        <th>Actions</th>
-      </tr>
-    `;
-    const tbody = document.createElement('tbody');
-    week.items.forEach(item => {
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>
-          <div class="d-flex align-items-center">
-            <div class="avatar-sm bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width:32px;height:32px;font-size:12px">
-              ${(item.users?.name || 'A').charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <div class="fw-semibold">${item.users?.name || 'Agent'}</div>
-              <small class="text-muted">${item.users?.email || ''}</small>
-            </div>
-          </div>
-        </td>
-        <td><span class="badge bg-info">${item.project_name || 'Projet Général'}</span></td>
-        <td><span class="fw-semibold">${item.total_planned_hours || 0}h</span></td>
-        <td><span class="badge bg-secondary">${item.total_planned_days || 0} jours</span></td>
-        <td>
-          <div class="activities-preview" style="max-width: 200px; max-height: 80px; overflow-y: auto;">
-            ${item.activities_summary ?
-              item.activities_summary.split(' | ').map(activity =>
-                `<div class="small mb-1 text-truncate" title="${activity}">${activity}</div>`
-              ).join('') :
-              '<em class="text-muted small">Aucune activité</em>'
-            }
-          </div>
-        </td>
-        <td>
-          <div class="btn-group" role="group">
-            <button class="btn btn-sm btn-outline-primary" onclick="editWeekPlanning('${item.week_start_date}', '${item.user_id}', '${item.project_name}')" title="Modifier la planification" data-bs-toggle="tooltip">
-              <i class="bi bi-pencil"></i>
-            </button>
-            <button class="btn btn-sm btn-outline-info" onclick="viewWeekDetails('${item.week_start_date}', '${item.user_id}', '${item.project_name}')" title="Voir les détails" data-bs-toggle="tooltip">
-              <i class="bi bi-eye"></i>
-            </button>
-            <button class="btn btn-sm btn-outline-danger" onclick="deleteWeekPlanning('${item.week_start_date}', '${item.user_id}', '${item.project_name}')" title="Supprimer la planification" data-bs-toggle="tooltip">
-              <i class="bi bi-trash"></i>
-            </button>
-          </div>
-        </td>
-      `;
-      tbody.appendChild(row);
+        weeksMap.get(weekKey).push(summary);
     });
-    table.appendChild(thead);
-    table.appendChild(tbody);
-    return table;
-  };
 
-  /**
-   * Change l'onglet de la semaine active.
-   * @param {string} weekStart
-   */
-  const switchWeekTab = (weekStart) => {
-    document.querySelectorAll('.week-tab').forEach(tab => {
-      tab.classList.remove('active', 'btn-primary');
-      tab.classList.add('btn-outline-primary');
-    });
-    document.querySelectorAll('.week-content').forEach(content => {
-      content.classList.add('d-none');
-    });
-    const selectedTab = document.querySelector(`.week-tab[onclick*="${weekStart}"]`);
-    const selectedContent = $(`week-${weekStart}`);
-    if (selectedTab && selectedContent) {
-      selectedTab.classList.add('active', 'btn-primary');
-      selectedTab.classList.remove('btn-outline-primary');
-      selectedContent.classList.remove('d-none');
-    }
-  };
-
-  /**
-   * Édite la planification d'une semaine.
-   * @param {string} weekStart
-   * @param {string} userId
-   * @param {string} projectName
-   */
-  const editWeekPlanning = async (weekStart, userId, projectName) => {
-    try {
-      const headers = await authHeaders();
-      const weekEnd = addDays(new Date(weekStart), 6);
-      const response = await fetch(`${API_BASE}/planifications?from=${weekStart}&to=${toISODate(weekEnd)}&agent_id=${userId}&project_name=${encodeURIComponent(projectName)}`, { headers });
-      if (response.ok) {
-        const result = await response.json();
-        const weekPlans = result.items || [];
-        showWeekEditModal(weekStart, toISODate(weekEnd), weekPlans);
-      }
-    } catch (error) {
-      console.error('Erreur chargement semaine:', error);
-      alert('Erreur lors du chargement de la semaine');
-    }
-  };
-
-  /**
-   * Affiche la modale d'édition de la semaine.
-   * @param {string} weekStart
-   * @param {string} weekEnd
-   * @param {Array} weekPlans
-   */
-  const showWeekEditModal = (weekStart, weekEnd, weekPlans) => {
-    const existingModal = $('weekEditModal');
-    if (existingModal) existingModal.remove();
-    const modal = document.createElement('div');
-    modal.className = 'modal fade';
-    modal.id = 'weekEditModal';
-    modal.innerHTML = `
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Édition de la semaine du ${new Date(weekStart).toLocaleDateString()} au ${new Date(weekEnd).toLocaleDateString()}</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <div id="week-edit-content">
-              ${generateWeekEditContent(weekStart, weekEnd, weekPlans)}
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-            <button type="button" class="btn btn-primary" onclick="saveWeekPlanning('${weekStart}', '${weekEnd}')">Sauvegarder</button>
-            <button type="button" class="btn btn-danger" onclick="deleteWeekPlanning('${weekStart}', '${weekEnd}')">Effacer la semaine</button>
-          </div>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-      const bsModal = new bootstrap.Modal(modal);
-      bsModal.show();
-      modal.addEventListener('hidden.bs.modal', () => {
-        if (modal.parentNode) document.body.removeChild(modal);
-      });
-    }
-  };
-
-  /**
-   * Génère le contenu de la modale d'édition de la semaine.
-   * @param {string} weekStart
-   * @param {string} weekEnd
-   * @param {Array} weekPlans
-   * @returns {string}
-   */
-  const generateWeekEditContent = (weekStart, weekEnd, weekPlans) => {
-    const start = new Date(weekStart);
-    const end = new Date(weekEnd);
-    const days = [];
-    const todayIso = toISODate(new Date());
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) days.push(new Date(d));
-    return days.map(day => {
-      const iso = toISODate(day);
-      const plan = weekPlans.find(p => p.date === iso);
-      const dayName = day.toLocaleDateString('fr-FR', { weekday: 'long' });
-      const isPast = iso < todayIso;
-      return `
-        <div class="row mb-3 border-bottom pb-3">
-          <div class="col-12 d-flex align-items-center gap-2">
-            <h6 class="fw-bold mb-0">${dayName} ${day.toLocaleDateString()}</h6>
-            ${isPast ? '<span class="badge bg-secondary">Verrouillé (jour passé)</span>' : ''}
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">Heure de début</label>
-            <input type="time" class="form-control" id="edit-start-${iso}" value="${plan?.planned_start_time || ''}" ${isPast ? 'disabled' : ''}>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">Heure de fin</label>
-            <input type="time" class="form-control" id="edit-end-${iso}" value="${plan?.planned_end_time || ''}" ${isPast ? 'disabled' : ''}>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">Projet</label>
-            <select class="form-select" id="edit-project-${iso}" ${isPast ? 'disabled' : ''}>
-              <option value="">Sélectionner un projet</option>
-              ${state.projects.map(p => `<option value="${p}" ${plan?.project_name === p ? 'selected' : ''}>${p}</option>`).join('')}
-            </select>
-          </div>
-          <div class="col-12 mt-2">
-            <label class="form-label">Description de l'activité</label>
-            <textarea class="form-control" id="edit-desc-${iso}" rows="2" placeholder="Décrivez l'activité prévue..." ${isPast ? 'disabled' : ''}>${plan?.description_activite || ''}</textarea>
-          </div>
-        </div>
-      `;
-    }).join('');
-  };
-
-  /**
-   * Sauvegarde la planification de la semaine.
-   * @param {string} weekStart
-   * @param {string} weekEnd
-   */
-  const saveWeekPlanning = async (weekStart, weekEnd) => {
-    try {
-      const start = new Date(weekStart);
-      const end = new Date(weekEnd);
-      const days = [];
-      const todayIso = toISODate(new Date());
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) days.push(new Date(d));
-      const headers = await authHeaders();
-      const promises = days.map(async (day) => {
-        const iso = toISODate(day);
-        if (iso < todayIso) return true;
-        const startTime = $(`edit-start-${iso}`)?.value || null;
-        const endTime = $(`edit-end-${iso}`)?.value || null;
-        const project = $(`edit-project-${iso}`)?.value || null;
-        const description = $(`edit-desc-${iso}`)?.value || null;
-        const response = await fetch(`${API_BASE}/planifications`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            date: iso,
-            planned_start_time: startTime,
-            planned_end_time: endTime,
-            description_activite: description,
-            project_name: project
-          })
-        });
-        return response.ok;
-      });
-      const results = await Promise.all(promises);
-      const successCount = results.filter(r => r).length;
-      if (successCount === days.length) {
-        alert('Planification de la semaine sauvegardée avec succès !');
-        const modal = bootstrap.Modal.getInstance($('weekEditModal'));
-        if (modal) modal.hide();
-        await loadWeek($('week-start').value);
-        await loadMonth($('month').value);
-        await loadWeeklySummary();
-      } else {
-        alert('Certaines journées n’ont pas été enregistrées (jours passés verrouillés ou erreurs).');
-      }
-    } catch (error) {
-      console.error('Erreur sauvegarde semaine:', error);
-      alert('Erreur lors de la sauvegarde');
-    }
-  };
-
-  /**
-   * Supprime la planification d'une semaine.
-   * @param {string} weekStart
-   * @param {string} weekEnd
-   */
-  const deleteWeekPlanning = async (weekStart, weekEnd) => {
-    if (!confirm(`Êtes-vous sûr de vouloir effacer toutes les planifications de la semaine du ${new Date(weekStart).toLocaleDateString()} au ${new Date(weekEnd).toLocaleDateString()} ?`)) return;
-    try {
-      const headers = await authHeaders();
-      const response = await fetch(`${API_BASE}/planifications?from=${weekStart}&to=${weekEnd}`, {
-        method: 'DELETE',
-        headers
-      });
-      if (response.ok) {
-        alert('Planification de la semaine effacée avec succès');
-        const modal = $('weekEditModal');
-        if (modal) {
-          const bsModal = bootstrap.Modal.getInstance(modal);
-          if (bsModal) bsModal.hide();
-          else modal.remove();
-        }
-        await loadWeeklySummary();
-      } else {
-        throw new Error('Erreur lors de la suppression');
-      }
-    } catch (error) {
-      console.error('Erreur suppression planification:', error);
-      alert('Erreur lors de la suppression de la planification');
-    }
-  };
-
-  /**
-   * Affiche les détails d'une semaine.
-   * @param {string} weekStart
-   * @param {string} userId
-   * @param {string} projectName
-   */
-  const viewWeekDetails = async (weekStart, userId, projectName) => {
-    try {
-      const headers = await authHeaders();
-      const weekEnd = addDays(new Date(weekStart), 6);
-      const response = await fetch(`${API_BASE}/planifications?from=${weekStart}&to=${toISODate(weekEnd)}&agent_id=${userId}&project_name=${encodeURIComponent(projectName)}`, { headers });
-      if (!response.ok) throw new Error('Erreur lors du chargement des détails');
-      const result = await response.json();
-      const plans = result.items || [];
-      const modal = document.createElement('div');
-      modal.className = 'modal fade';
-      modal.innerHTML = `
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title">
-                <i class="bi bi-calendar-week"></i> Détails de la planification
-              </h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-              <div class="row mb-3">
-                <div class="col-md-6">
-                  <strong>Semaine:</strong> ${new Date(weekStart).toLocaleDateString()} - ${weekEnd.toLocaleDateString()}
+    const sortedWeeks = Array.from(weeksMap.keys()).sort((a, b) => b.localeCompare(a));
+    
+    let html = '';
+    sortedWeeks.forEach(weekKey => {
+        const weekSummaries = weeksMap.get(weekKey);
+        const weekStartDate = new Date(weekKey + 'T12:00:00Z');
+        html += `
+            <div class="card mb-4">
+                <div class="card-header">
+                    Semaine du ${formatDate(weekStartDate, 'dd/MM/yyyy')}
                 </div>
-                <div class="col-md-6">
-                  <strong>Projet:</strong> ${projectName}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Agent</th>
+                                <th>Projet</th>
+                                <th class="text-center">Heures plan.</th>
+                                <th class="text-center">Jours plan.</th>
+                                <th>Activités</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${weekSummaries.map(item => `
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold">${item.user_name}</div>
+                                        <small class="text-muted">${item.user_email}</small>
+                                    </td>
+                                    <td><span class="badge bg-info">${item.project_name}</span></td>
+                                    <td class="text-center">${item.total_planned_hours.toFixed(1)}h</td>
+                                    <td class="text-center"><span class="badge bg-secondary">${item.total_planned_days}</span></td>
+                                    <td><small class="text-muted" title="${item.activities.join('\n')}">${item.activities_summary}</small></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
                 </div>
-              </div>
-              <div class="table-responsive">
-                <table class="table table-sm">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Activité</th>
-                      <th>Heure début</th>
-                      <th>Heure fin</th>
-                      <th>Durée</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${plans.map(plan => `
-                      <tr>
-                        <td>${new Date(plan.date).toLocaleDateString()}</td>
-                        <td>${plan.activity || plan.description_activite || 'N/A'}</td>
-                        <td>${plan.planned_start_time || 'N/A'}</td>
-                        <td>${plan.planned_end_time || 'N/A'}</td>
-                        <td>
-                          ${plan.planned_start_time && plan.planned_end_time ?
-                            calculateDuration(plan.planned_start_time, plan.planned_end_time) : 'N/A'
-                          }
-                        </td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
-              </div>
             </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-              <button type="button" class="btn btn-primary" onclick="editWeekPlanning('${weekStart}', '${userId}', '${projectName}')">
-                <i class="bi bi-pencil"></i> Modifier
-              </button>
-            </div>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(modal);
-      const bsModal = new bootstrap.Modal(modal);
-      bsModal.show();
-      modal.addEventListener('hidden.bs.modal', () => {
-        document.body.removeChild(modal);
-      });
-    } catch (error) {
-      console.error('Erreur chargement détails:', error);
-      alert('Erreur lors du chargement des détails');
-    }
+        `;
+    });
+
+    container.innerHTML = html;
   };
+
 
   /**
    * Calcule la durée entre deux heures.
@@ -1401,15 +1488,14 @@
       const start = hoursToMinutes(startTime);
       const end = hoursToMinutes(endTime);
       if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-        const duration = (end - start) / 60;
-        const hours = Math.floor(duration);
-        const minutes = Math.round((duration - hours) * 60);
+        const duration = (end - start);
+        const hours = Math.floor(duration/60);
+        const minutes = Math.round(duration % 60);
         return `${hours}h${minutes.toString().padStart(2, '0')}`;
       }
-      return 'N/A';
+      return '-';
     } catch (e) {
-      console.error('Erreur dans calculateDuration:', e);
-      return 'N/A';
+      return '-';
     }
   };
 
@@ -1422,8 +1508,7 @@
       const response = await fetch(`${API_BASE}/profile`, { headers });
       if (response.ok) {
         const data = await response.json();
-        const user = data.user;
-        displayUserName(user);
+        if (data.user) displayUserName(data.user);
       }
     } catch (error) {
       console.error('Erreur chargement info utilisateur:', error);
@@ -1437,13 +1522,7 @@
   const displayUserName = (user) => {
     const displayElement = $('user-display-name');
     if (displayElement) {
-      const firstName = user.first_name || '';
-      const lastName = user.last_name || '';
-      const name = user.name || '';
-      let displayName = '';
-      if (firstName && lastName) displayName = `${firstName} ${lastName}`;
-      else if (name) displayName = name;
-      else displayName = user.email;
+      const displayName = user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
       displayElement.textContent = displayName;
     }
   };
@@ -1452,144 +1531,296 @@
   // 7. INITIALISATION
   // ----------------------------
   /**
-   * Initialise l'application au chargement de la page.
+   * Applique les filtres sélectionnés
    */
-  const init = () => {
-    loadUserInfo();
-    loadDepartments();
-    loadAgents();
-    loadProjects();
-    loadSupervisors();
-    const projectSelect = $('project-filter-select');
+  const applyFilters = () => {
+    const filters = {
+      agentId: $('agent-select')?.value || '',
+      supervisorId: $('supervisor-filter-select')?.value || '',
+      project: $('project-filter-select')?.value || '',
+      departmentId: $('department-filter-select')?.value || '',
+      communeId: $('commune-filter-select')?.value || '',
+      status: $('status-filter-select')?.value || ''
+    };
+    
+    console.log('Application des filtres:', filters);
+    
+    // Mettre à jour l'état global
+    state.selectedAgentId = filters.agentId;
+    state.selectedSupervisorId = filters.supervisorId;
+    state.selectedProjectFilter = filters.project;
+    state.selectedDepartmentId = filters.departmentId;
+    state.selectedCommuneId = filters.communeId;
+    
+    // Mettre à jour l'URL avec les filtres
+    updateUrlWithFilters(filters);
+    
+    // Recharger les données avec les nouveaux filtres
+    console.log('Rechargement des vues avec les filtres appliqués...');
+    
+    // Recharger la vue hebdomadaire avec les filtres
+    const weekStartInput = $('week-start');
+    if (weekStartInput && weekStartInput.value) {
+      loadWeek(weekStartInput.value);
+    } else {
+      loadWeek();
+    }
+    
+    // Recharger le récapitulatif hebdomadaire avec les filtres
+    loadWeeklySummary();
+    
+    // Recharger la vue mensuelle avec les filtres
+    const monthInput = $('month');
+    if (monthInput && monthInput.value) {
+      loadMonth(monthInput.value);
+    } else {
+      loadMonth();
+    }
+    
+    console.log('Filtres appliqués avec succès');
+  };
+  
+  /**
+   * Met à jour l'URL avec les filtres actuels
+   */
+  const updateUrlWithFilters = (filters) => {
+    const params = new URLSearchParams();
+    
+    if (filters.agentId) params.set('agent', filters.agentId);
+    if (filters.supervisorId) params.set('supervisor', filters.supervisorId);
+    if (filters.project) params.set('project', filters.project);
+    if (filters.departmentId) params.set('department', filters.departmentId);
+    if (filters.communeId) params.set('commune', filters.communeId);
+    if (filters.status) params.set('status', filters.status);
+    
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.pushState({}, '', newUrl);
+  };
+  
+  /**
+   * Charge les filtres depuis l'URL
+   */
+  const loadFiltersFromUrl = () => {
+    const params = new URLSearchParams(window.location.search);
+    
+    if (params.has('agent') && $('agent-select')) $('agent-select').value = params.get('agent');
+    if (params.has('supervisor') && $('supervisor-filter-select')) $('supervisor-filter-select').value = params.get('supervisor');
+    if (params.has('project') && $('project-filter-select')) $('project-filter-select').value = params.get('project');
+    
+    if (params.has('department') && $('department-filter-select')) {
+      const deptId = params.get('department');
+      $('department-filter-select').value = deptId;
+      
+      // Si une commune est spécifiée, charger les communes du département
+      if (params.has('commune') && deptId) {
+        loadCommunes(deptId).then(() => {
+          if ($('commune-filter-select')) {
+            $('commune-filter-select').value = params.get('commune');
+          }
+        });
+      }
+    }
+    
+    if (params.has('status') && $('status-filter-select')) {
+      $('status-filter-select').value = params.get('status');
+    }
+  };
+  
+  /**
+   * Affiche un message d'erreur à l'utilisateur
+   */
+  const showError = (message) => {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+    alertDiv.role = 'alert';
+    alertDiv.innerHTML = `
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    const container = document.querySelector('.container');
+    if (container) {
+      container.insertBefore(alertDiv, container.firstChild);
+    }
+  };
+
+  /**
+   * Initialise le Gantt
+   */
+  const setupGantt = () => {
+    console.log('Initialisation du Gantt...');
+    // Le Gantt sera initialisé dans les fonctions loadWeek et loadMonth
+  };
+
+  /**
+   * Réinitialise le formulaire de planification
+   */
+  const resetPlanningForm = () => {
+    // Réinitialiser les sélecteurs
+    if ($('agent-select')) $('agent-select').value = '';
+    if ($('supervisor-filter-select')) $('supervisor-filter-select').value = '';
+    if ($('project-filter-select')) $('project-filter-select').value = '';
+    if ($('department-filter-select')) $('department-filter-select').value = '';
+    if ($('commune-filter-select')) $('commune-filter-select').value = '';
+    if ($('status-filter-select')) $('status-filter-select').value = '';
+    
+    // Réinitialiser l'état global
+    state.selectedAgentId = '';
+    state.selectedSupervisorId = '';
+    state.selectedProjectFilter = '';
+    state.selectedDepartmentId = '';
+    state.selectedCommuneId = '';
+  };
+
+  /**
+   * Configure les écouteurs d'événements
+   */
+  const setupEventListeners = () => {
+    // Écouteurs pour les filtres
     const agentSelect = $('agent-select');
-    const supervisorSelect = $('supervisor-select');
+    const supervisorSelect = $('supervisor-filter-select');
+    const projectSelect = $('project-filter-select');
     const departmentSelect = $('department-filter-select');
     const communeSelect = $('commune-filter-select');
-    const weekInput = $('week-start');
-    const applyBtn = $('apply-filters-btn');
-    const resetBtn = $('reset-filters-btn');
-    if (supervisorSelect) {
-      supervisorSelect.addEventListener('change', (e) => {
-        state.selectedSupervisorId = e.target.value;
-        filterAgentsBySupervisor();
-      });
-    }
+    const statusSelect = $('status-filter-select');
+    
+    if (agentSelect) agentSelect.addEventListener('change', applyFilters);
+    if (supervisorSelect) supervisorSelect.addEventListener('change', applyFilters);
+    if (projectSelect) projectSelect.addEventListener('change', applyFilters);
     if (departmentSelect) {
-      departmentSelect.addEventListener('change', async (e) => {
-        state.selectedDepartmentId = e.target.value;
-        state.selectedCommuneId = '';
-        await loadCommunes(state.selectedDepartmentId);
-      });
-    }
-    if (communeSelect) {
-      communeSelect.addEventListener('change', (e) => {
-        state.selectedCommuneId = e.target.value;
-      });
-    }
-    if (projectSelect) {
-      projectSelect.addEventListener('change', (e) => {
-        state.selectedProjectId = e.target.value;
-      });
-    }
-    if (agentSelect) {
-      agentSelect.addEventListener('change', (e) => {
-        state.selectedAgentId = e.target.value;
-      });
-    }
-    if (applyBtn) {
-      applyBtn.addEventListener('click', () => {
-        state.selectedProjectId = projectSelect?.value || '';
-        state.selectedAgentId = agentSelect?.value || '';
-        state.selectedSupervisorId = supervisorSelect?.value || '';
-        state.selectedDepartmentId = departmentSelect?.value || '';
-        state.selectedCommuneId = communeSelect?.value || '';
-        loadWeek(weekInput?.value);
-        scheduleMonthRefresh(0);
-        loadWeeklySummary();
-      });
-    }
-    if (resetBtn) {
-      resetBtn.addEventListener('click', () => {
-        if (agentSelect) agentSelect.value = '';
-        state.selectedAgentId = '';
-        if (supervisorSelect) supervisorSelect.value = '';
-        state.selectedSupervisorId = '';
-        if (projectSelect) projectSelect.value = '';
-        state.selectedProjectId = '';
-        if (departmentSelect) departmentSelect.value = '';
-        state.selectedDepartmentId = '';
-        if (communeSelect) {
-          communeSelect.value = '';
-          communeSelect.disabled = true;
-          communeSelect.innerHTML = '<option value="">Sélectionnez d\'abord un département</option>';
+      departmentSelect.addEventListener('change', (e) => {
+        const departmentId = e.target.value;
+        if (departmentId) {
+          loadCommunes(departmentId);
+        } else {
+          state.communes = [];
+          updateCommuneSelect();
         }
-        state.selectedCommuneId = '';
-        const now = new Date();
-        const ws = startOfWeek(now);
-        if (weekInput) weekInput.value = toISODate(ws);
-        const monthEl = $('month');
-        if (monthEl) monthEl.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        loadWeek(weekInput?.value);
-        loadMonth(monthEl?.value);
-        loadWeeklySummary();
+        applyFilters();
       });
     }
-    $('load-week')?.addEventListener('click', () => loadWeek($('week-start').value));
-    $('load-month')?.addEventListener('click', () => loadMonth($('month').value));
-    $('refresh-weekly-summary')?.addEventListener('click', () => loadWeeklySummary());
-    $('prev-week')?.addEventListener('click', () => {
-      const d = new Date($('week-start').value || new Date());
-      d.setDate(d.getDate() - 7);
-      loadWeek(toISODate(d));
-    });
-    $('next-week')?.addEventListener('click', () => {
-      const d = new Date($('week-start').value || new Date());
-      d.setDate(d.getDate() + 7);
-      loadWeek(toISODate(d));
-    });
-    const boot = () => {
-      loadAgents();
-      loadProjects();
-      loadSupervisors();
-      loadWeek();
-      loadMonth();
-    };
-    const token = findToken();
-    if (token) boot();
-    else {
-      let tries = 0;
-      const interval = setInterval(() => {
-        tries++;
-        if (findToken()) {
-          clearInterval(interval);
-          boot();
+    if (communeSelect) communeSelect.addEventListener('change', applyFilters);
+    if (statusSelect) statusSelect.addEventListener('change', applyFilters);
+    
+    // Écouteur pour le bouton d'application des filtres
+    const applyBtn = $('apply-filters-btn');
+    if (applyBtn) applyBtn.addEventListener('click', applyFilters);
+    
+    // Écouteur pour le chargement de la semaine
+    const weekStartInput = $('week-start');
+    if (weekStartInput) {
+      weekStartInput.addEventListener('change', () => {
+        if (weekStartInput.value) {
+          loadWeek(weekStartInput.value);
         }
-        if (tries > 40) {
-          clearInterval(interval);
-          boot();
-        }
-      }, 250);
-      window.addEventListener('storage', (e) => {
-        if (e.key === 'jwt' && e.newValue) {
-          boot();
-        }
+      });
+    }
+    
+    // Écouteurs pour les boutons de navigation
+    const prevWeekBtn = $('prev-week');
+    const nextWeekBtn = $('next-week');
+    const prevMonthBtn = $('prev-month');
+    const nextMonthBtn = $('next-month');
+    
+    if (prevWeekBtn) {
+      prevWeekBtn.addEventListener('click', () => {
+        const currentDate = $('week-start')?.value ? new Date($('week-start').value) : new Date();
+        const newDate = addDays(currentDate, -7);
+        loadWeek(toISODate(newDate));
+      });
+    }
+    
+    if (nextWeekBtn) {
+      nextWeekBtn.addEventListener('click', () => {
+        const currentDate = $('week-start')?.value ? new Date($('week-start').value) : new Date();
+        const newDate = addDays(currentDate, 7);
+        loadWeek(toISODate(newDate));
+      });
+    }
+    
+    if (prevMonthBtn) {
+      prevMonthBtn.addEventListener('click', () => {
+        const currentDate = $('month')?.value ? new Date($('month').value + '-01') : new Date();
+        const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+        loadMonth(toISODate(newDate).slice(0, 7));
+      });
+    }
+    
+    if (nextMonthBtn) {
+      nextMonthBtn.addEventListener('click', () => {
+        const currentDate = $('month')?.value ? new Date($('month').value + '-01') : new Date();
+        const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+        loadMonth(toISODate(newDate).slice(0, 7));
       });
     }
   };
+
+  /**
+   * Initialise l'application au chargement de la page.
+   */
+  const init = async () => {
+    console.log('Initialisation de l\'application...');
+    
+    // Vérifier l'authentification
+    const token = findToken();
+    if (!token) {
+      showAuthBanner();
+      
+      // Essayer de démarrer si le token apparaît plus tard (ex: connexion dans un autre onglet)
+      window.addEventListener('storage', (e) => {
+        if (e.key && DEFAULT_TOKEN_CANDIDATES.includes(e.key) && e.newValue) {
+          hideAuthBanner();
+          init(); // Relancer l'initialisation si un token est détecté
+        }
+      });
+      return;
+    }
+    
+    // Cacher la bannière d'authentification si l'utilisateur est connecté
+    hideAuthBanner();
+    
+    try {
+      // Charger les données utilisateur
+      await loadUserInfo();
+      
+      // Charger les données initiales en parallèle pour améliorer les performances
+      await Promise.all([
+        loadUsers(),
+        loadProjects(),
+        loadDepartments()
+      ]);
+      
+      // Initialiser le Gantt
+      setupGantt();
+      
+      // Configurer les écouteurs d'événements
+      setupEventListeners();
+      
+      // Charger les filtres depuis l'URL
+      loadFiltersFromUrl();
+      
+      // Charger les données initiales du planning
+      loadWeek();
+      loadWeeklySummary();
+      
+      // Réinitialiser le formulaire
+      resetPlanningForm();
+    } catch (error) {
+      console.error('Erreur lors de l\'initialisation:', error);
+      showError('Une erreur est survenue lors du chargement des données.');
+    }
+  };
+
 
   // ----------------------------
   // 8. DÉMARRAGE
   // ----------------------------
   document.addEventListener('DOMContentLoaded', init);
 
-  // Exposition des fonctions globales
+  // Exposition des fonctions globales (si nécessaire pour des appels depuis le HTML)
   window.loadWeek = loadWeek;
   window.loadMonth = loadMonth;
   window.loadWeeklySummary = loadWeeklySummary;
-  window.editWeekPlanning = editWeekPlanning;
-  window.saveWeekPlanning = saveWeekPlanning;
-  window.deleteWeekPlanning = deleteWeekPlanning;
-  window.viewWeekDetails = viewWeekDetails;
-  window.switchWeekTab = switchWeekTab;
-  window.displayWeeklySummary = displayWeeklySummary;
+  window.applyFilters = applyFilters;
+  window.resetPlanningForm = resetPlanningForm;
 })();

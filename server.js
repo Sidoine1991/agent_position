@@ -369,7 +369,7 @@ app.get('/api/attendance/day-status', async (req, res) => {
 });
 
 // API endpoint pour les rapports de présence - utilise la logique qui fonctionne
-app.get('/api/reports', async (req, res) => {
+app.get('/api/reports', authenticateToken, authenticateAdmin, async (req, res) => {
   try {
     console.log('🔍 API /api/reports appelée');
     
@@ -4254,9 +4254,9 @@ async function sendVerificationEmail(email, code, newAccountEmail) {
   await sendMailRobust(mailOptions);
 }
 
-// Route par défaut - redirection vers home.html
+// Route par défaut - redirection vers index.html
 app.get('/', (req, res) => {
-  res.redirect('/home.html');
+  res.redirect('/index.html');
 });
 
 // Démarrage du serveur

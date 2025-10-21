@@ -78,6 +78,59 @@
           font-size: 9px;
         }
       }
+      /* Grille de métriques */
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+        margin: 20px 0;
+        padding: 0 15px;
+      }
+      
+      .metric-card {
+        background: white;
+        border-radius: 10px;
+        padding: 15px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      
+      .metric-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+      }
+      
+      .metric-icon {
+        font-size: 24px;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: #f0f4ff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .metric-content {
+        flex: 1;
+      }
+      
+      .metric-value {
+        font-size: 20px;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 2px;
+      }
+      
+      .metric-label {
+        font-size: 13px;
+        color: #7f8c8d;
+        font-weight: 500;
+      }
+      
       /* Impression: masquer la navbar et libérer l'espace pour les graphiques */
       @media print {
         .navbar { display: none !important; }
@@ -107,14 +160,11 @@
         
         <!-- Première ligne de filtres -->
         <div class="filters-row" style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 12px; align-items: flex-end;">
-          <!-- Type de rapport -->
+          <!-- Filtre par projet -->
           <div class="filter-group" style="flex: 1 1 200px; min-width: 180px;">
-            <label for="report-type" style="display: block; font-size: 13px; margin-bottom: 5px; color: #555; font-weight: 500;">Type de rapport</label>
-            <select id="report-type" onchange="updateReportFilters()" class="form-select form-select-sm">
-              <option value="presence">Rapport de Présence</option>
-              <option value="activity">Rapport d'Activité</option>
-              <option value="performance">Rapport de Performance</option>
-              <option value="summary">Résumé Exécutif</option>
+            <label for="project-filter" style="display: block; font-size: 13px; margin-bottom: 5px; color: #555; font-weight: 500;">Projet</label>
+            <select id="project-filter" class="form-select form-select-sm">
+              <option value="all">Tous les projets</option>
             </select>
           </div>
           
@@ -150,24 +200,38 @@
           </div>
         </div>
         
-        <!-- Deuxième ligne de filtres -->
+        
+        <!-- Troisième ligne de filtres -->
         <div class="filters-row" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
+          <!-- Filtre par département -->
+          <div class="filter-group" style="flex: 1 1 200px; min-width: 180px;">
+            <label for="department-filter" style="display: block; font-size: 13px; margin-bottom: 5px; color: #555; font-weight: 500;">Département</label>
+            <select id="department-filter" class="form-select form-select-sm">
+              <option value="all">Tous les départements</option>
+            </select>
+          </div>
+          
+          <!-- Filtre par commune -->
+          <div class="filter-group" style="flex: 1 1 200px; min-width: 180px;">
+            <label for="commune-filter" style="display: block; font-size: 13px; margin-bottom: 5px; color: #555; font-weight: 500;">Commune</label>
+            <select id="commune-filter" class="form-select form-select-sm" disabled>
+              <option value="all">Sélectionnez d'abord un département</option>
+            </select>
+          </div>
+          
+          <!-- Filtre par superviseur -->
+          <div class="filter-group" style="flex: 1 1 200px; min-width: 180px;">
+            <label for="supervisor-filter" style="display: block; font-size: 13px; margin-bottom: 5px; color: #555; font-weight: 500;">Superviseur</label>
+            <select id="supervisor-filter" class="form-select form-select-sm">
+              <option value="all">Tous les superviseurs</option>
+            </select>
+          </div>
+          
           <!-- Filtre par agent -->
           <div class="filter-group" style="flex: 1 1 200px; min-width: 180px;">
             <label for="agent-filter" style="display: block; font-size: 13px; margin-bottom: 5px; color: #555; font-weight: 500;">Agent</label>
             <select id="agent-filter" class="form-select form-select-sm">
               <option value="all">Tous les agents</option>
-              <option value="1">Admin Principal</option>
-              <option value="2">Superviseur Principal</option>
-              <option value="3">Agent Test</option>
-            </select>
-          </div>
-          
-          <!-- Filtre par projet -->
-          <div class="filter-group" style="flex: 1 1 200px; min-width: 180px;">
-            <label for="project-filter" style="display: block; font-size: 13px; margin-bottom: 5px; color: #555; font-weight: 500;">Projet</label>
-            <select id="project-filter" style="font-size: 13px; padding: 6px 8px;">
-              <option value="all">Tous les projets</option>
             </select>
           </div>
         </div>
@@ -182,17 +246,21 @@
             <i class="bi bi-arrow-counterclockwise"></i>
             Réinitialiser
           </button>
-          <button class="btn btn-success btn-sm" id="generate-btn" style="display: inline-flex; align-items: center; gap: 5px;">
-            <i class="bi bi-file-earmark-bar-graph"></i>
-            Générer le rapport
-          </button>
-          <button class="btn btn-outline-primary btn-sm" id="export-btn" style="display: inline-flex; align-items: center; gap: 5px;">
-            <i class="bi bi-download"></i>
-            Exporter
-          </button>
-          <button class="btn btn-outline-secondary btn-sm" id="print-btn" style="display: inline-flex; align-items: center; gap: 5px;">
+          <div class="dropdown d-inline-block">
+            <button class="btn btn-success btn-sm dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="display: inline-flex; align-items: center; gap: 5px;">
+              <i class="bi bi-download"></i>
+              Exporter
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="exportDropdown">
+              <li><a class="dropdown-item" href="#" onclick="exportReport(); return false;"><i class="bi bi-file-earmark-pdf me-2"></i>Exporter en PDF</a></li>
+              <li><a class="dropdown-item" href="#" onclick="exportAsImage(); return false;"><i class="bi bi-image me-2"></i>Exporter en image</a></li>
+              <li><a class="dropdown-item" href="#" onclick="exportToCSV(); return false;"><i class="bi bi-file-earmark-excel me-2"></i>Exporter en CSV</a></li>
+              <li><a class="dropdown-item" href="#" onclick="exportAsHtml(); return false;"><i class="bi bi-file-earmark-code me-2"></i>Exporter en HTML</a></li>
+            </ul>
+          </div>
+          <button class="btn btn-outline-secondary btn-sm" onclick="printReport()" style="display: inline-flex; align-items: center; gap: 5px;">
             <i class="bi bi-printer"></i>
-            Imprimer / PDF
+            Imprimer
           </button>
         </div>
       </div>
@@ -207,34 +275,70 @@
               <span id="report-generated">Généré le: <span id="generated-date"></span></span>
             </div>
           </div>
-          <div class="metric-card">
-            <div class="metric-icon">📊</div>
-            <div class="metric-content">
-              <div class="metric-value" id="attendance-rate">0%</div>
-              <div class="metric-label">Taux de présence</div>
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-icon">👥</div>
+              <div class="metric-content">
+                <div class="metric-value" id="total-agents">0</div>
+                <div class="metric-label">Agents</div>
+              </div>
             </div>
+            <div class="metric-card">
+              <div class="metric-icon">✅</div>
+              <div class="metric-content">
+                <div class="metric-value" id="present-agents">0</div>
+                <div class="metric-label">Présents</div>
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon">❌</div>
+              <div class="metric-content">
+                <div class="metric-value" id="absent-agents">0</div>
+                <div class="metric-label">Absents</div>
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-icon">📊</div>
+              <div class="metric-content">
+                <div class="metric-value" id="attendance-rate">0%</div>
+                <div class="metric-label">Taux de présence</div>
               </div>
             </div>
           </div>
+          </div>
 
-          <!-- Tableau détaillé -->
+          <!-- Tableau récapitulatif des planifications -->
           <div class="report-table-container">
-            <table class="report-table">
-              <thead>
-                <tr>
-                  <th>Agent</th>
-                  <th>Rôle</th>
-                  <th>Statut</th>
-                  <th>Heure d'arrivée</th>
-                  <th>Heure de départ</th>
-                  <th>Durée</th>
-                  <th>Localisation</th>
-                </tr>
-              </thead>
-              <tbody id="report-table-body">
-                <!-- Données générées dynamiquement -->
-              </tbody>
-            </table>
+            <h4 class="mt-4 mb-3">📋 Récapitulatif des planifications</h4>
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle"></i> Vue d'ensemble des planifications pour la date sélectionnée
+            </div>
+            <div class="table-responsive">
+              <table id="users-planning-table" class="table table-striped table-hover">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Nom</th>
+                    <th>Email</th>
+                    <th>Rôle</th>
+                    <th class="text-center">Planification</th>
+                    <th>Détails</th>
+                  </tr>
+                </thead>
+                <tbody id="users-planning-body">
+                  <tr>
+                    <td colspan="6" class="text-center">Chargement des données...</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr class="table-light">
+                    <td colspan="4" class="text-end fw-bold">Total :</td>
+                    <td id="planning-count" class="text-center fw-bold">-</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
 
           <!-- Graphiques -->
@@ -279,6 +383,11 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" 
+            integrity="sha512-BNaRQImYy+FsM/qr8k0fT4dFnhO4J4N3S11tDwkPGefCIPf+ft9iJK39cl4d2hT6nJk6PP1DgHdd9fYOszMg==" 
+            crossorigin="anonymous" 
+            referrerpolicy="no-referrer">
+    </script>
     <script src="/reports-backend.js"></script>
     <script>
       // Vercel Speed Insights
