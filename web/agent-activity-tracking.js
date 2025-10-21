@@ -225,14 +225,28 @@
   // Peupler le sélecteur d'agents
   function populateAgentSelect() {
     const agentSelect = document.getElementById('agent-select');
-    agentSelect.innerHTML = '<option value="">Tous les agents</option>';
+    agentSelect.innerHTML = '';
     
+    // Ajouter l'option par défaut
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'Sélectionner un agent';
+    agentSelect.appendChild(defaultOption);
+    
+    // Ajouter les agents
     agents.forEach(agent => {
       const option = document.createElement('option');
       option.value = agent.id;
-      option.textContent = `${agent.first_name || ''} ${agent.last_name || ''} (${agent.email})`.trim();
+      // Extraire le prénom et le nom de la colonne 'name' s'il existe
+      const fullName = agent.name || '';
+      // Utiliser le nom complet si disponible, sinon utiliser l'email
+      option.textContent = fullName.trim() || agent.email;
+      option.dataset.email = agent.email;
       agentSelect.appendChild(option);
     });
+    
+    // Mettre à jour le titre lors du changement de sélection
+    agentSelect.addEventListener('change', updateAgentTitle);
   }
 
   // Remplir le filtre des superviseurs (admins uniquement)
@@ -411,6 +425,21 @@
     }
   }
 
+  // Mettre à jour le titre avec le nom de l'agent sélectionné
+  function updateAgentTitle() {
+    const agentSelect = document.getElementById('agent-select');
+    const selectedOption = agentSelect.options[agentSelect.selectedIndex];
+    const agentTitle = document.getElementById('agent-title');
+    
+    if (selectedOption.value) {
+      const agentName = selectedOption.textContent;
+      agentTitle.textContent = `Suivi d'Activité - ${agentName}`;
+      agentTitle.style.display = 'block';
+    } else {
+      agentTitle.style.display = 'none';
+    }
+  }
+
   // Charger les activités pour une date donnée
   async function loadActivities() {
     try {
@@ -454,14 +483,16 @@
 
       // Construire l'URL pour la période hebdomadaire, avec filtre agent si applicable
       let url = `${apiBase}/planifications?from=${fromStr}&to=${toStr}`;
-      const selectedAgentId = document.getElementById('agent-select').value;
+      const agentSelect = document.getElementById('agent-select');
+      const selectedAgentId = agentSelect.value;
       const projectFilterValue = document.getElementById('project-filter').value;
       const supervisorFilterValue = (document.getElementById('supervisor-filter') || {}).value || '';
       
-      if (isAdmin && selectedAgentId) {
+      // Toujours filtrer par l'agent sélectionné si un agent est sélectionné
+      if (selectedAgentId) {
         url += `&agent_id=${selectedAgentId}`;
       } else if (!isAdmin) {
-        // Pour les agents non-admin, filtrer par leur propre ID
+        // Pour les agents non-admin, filtrer par leur propre ID si aucun agent n'est sélectionné
         url += `&agent_id=${currentUserId}`;
       }
 
