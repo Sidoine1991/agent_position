@@ -49,7 +49,8 @@ async function api(path, opts = {}) {
 async function checkAuth() {
   const emailHint = getEmailHint();
   if (!emailHint) {
-    console.warn('Aucun email trouvé, mode lecture seule');
+    console.warn('Aucun email trouvé, redirection vers la page de connexion');
+    window.location.href = '/login.html';
     return false;
   }
 
@@ -58,12 +59,23 @@ async function checkAuth() {
     if (result && result.user) {
       currentUser = result.user;
       console.log('Utilisateur connecté:', currentUser.name, currentUser.role);
+      
+      // Vérifier si l'utilisateur a le droit d'accéder à cette page
+      if (currentUser.role !== 'admin' && currentUser.role !== 'supervisor') {
+        console.warn('Accès refusé: rôle non autorisé', currentUser.role);
+        alert('Accès refusé. Cette page est réservée aux administrateurs et superviseurs.');
+        window.location.href = '/dashboard.html';
+        return false;
+      }
+      
       return true;
     }
   } catch (error) {
     console.warn('Impossible de vérifier l\'authentification:', error.message);
   }
   
+  // Rediriger vers la page de connexion en cas d'erreur
+  window.location.href = '/login.html';
   return false;
 }
 
