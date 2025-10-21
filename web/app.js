@@ -7,6 +7,34 @@ let presenceData = {};
 let appSettings = null;
 let isLoadingProfile = false; // Protection contre les appels répétés
 
+// Cache pour éviter les appels répétitifs
+let userProfileCache = null;
+let lastProfileCall = 0;
+const PROFILE_CACHE_DURATION = 30000; // 30 secondes
+
+// Fonction optimisée pour récupérer le profil avec cache
+async function getCachedProfile(email) {
+  const now = Date.now();
+  
+  // Si le cache est valide et récent, le retourner
+  if (userProfileCache && (now - lastProfileCall) < PROFILE_CACHE_DURATION) {
+    console.log('📦 Utilisation du cache du profil utilisateur');
+    return userProfileCache;
+  }
+  
+  // Sinon, faire l'appel API et mettre en cache
+  try {
+    console.log('🔄 Chargement du profil depuis l\'API...');
+    const profile = await api(`/profile?email=${encodeURIComponent(email)}`);
+    userProfileCache = normalizeProfileResponse(profile);
+    lastProfileCall = now;
+    return userProfileCache;
+  } catch (error) {
+    console.error('Erreur lors du chargement du profil:', error);
+    return null;
+  }
+}
+
 // Initialisation des nouveaux systèmes
 let offlineManager = null;
 let notificationManager = null;
@@ -811,9 +839,11 @@ async function init() {
 
       await loadAgentProfile();
       
-  // Charger les données après connexion
-  await loadPresenceData();
-  await loadDashboardMetrics();
+  // Charger les données après connexion en parallèle pour améliorer les performances
+  await Promise.all([
+    loadPresenceData(),
+    loadDashboardMetrics()
+  ]);
   
   // Bouton unique: rien à mettre à jour dynamiquement
   
@@ -1780,35 +1810,41 @@ async function loadAgentProfile() {
     const urlParams = new URLSearchParams(window.location.search);
     const email = urlParams.get('email') || localStorage.getItem('userEmail');
     if (!email) { return; }
-    const profile = normalizeProfileResponse(await api(`/profile?email=${encodeURIComponent(email)}`));
-    if (profile) {
-      // Si le profil correspond à un autre utilisateur que précédemment, nettoyer les stats locales
-      try {
-        const lastEmail = localStorage.getItem('lastUserEmail');
-        if (profile.email && lastEmail && profile.email.toLowerCase() !== lastEmail.toLowerCase()) {
-          clearCachedUserData();
-          localStorage.setItem('lastUserEmail', profile.email);
-        }
-      } catch {}
-      $('agent-name').textContent = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.name;
-      $('agent-phone').textContent = profile.phone || '-';
-      $('agent-role').textContent = profile.role || '-';
-      $('agent-project').textContent = profile.project_name || '-';
-      $('agent-planning').textContent = profile.planning_start_date && profile.planning_end_date 
-        ? `${profile.planning_start_date} - ${profile.planning_end_date}` 
-        : '-';
-      $('agent-zone').textContent = profile.zone_name || '-';
-      $('agent-expected-days').textContent = profile.expected_days_per_month || '-';
-      
-      if (profile.photo_path) {
-        $('agent-avatar').src = profile.photo_path;
-      }
-      
-      $('agent-profile').classList.remove('hidden');
-      
-      // Mettre à jour la navbar après chargement du profil
-      await updateNavbar();
+    const profile = await getCachedProfile(email);
+    if (!profile) {
+      console.warn('⚠️ Impossible de charger le profil');
+      return;
     }
+    
+    // Si le profil correspond à un autre utilisateur que précédemment, nettoyer les stats locales
+    try {
+      const lastEmail = localStorage.getItem('lastUserEmail');
+      if (profile.email && lastEmail && profile.email.toLowerCase() !== lastEmail.toLowerCase()) {
+        clearCachedUserData();
+        localStorage.setItem('lastUserEmail', profile.email);
+      }
+    } catch {}
+    
+    $('agent-name').textContent = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.name;
+    $('agent-phone').textContent = profile.phone || '-';
+    $('agent-role').textContent = profile.role || '-';
+    $('agent-project').textContent = profile.project_name || '-';
+    $('agent-planning').textContent = profile.planning_start_date && profile.planning_end_date 
+      ? `${profile.planning_start_date} - ${profile.planning_end_date}` 
+      : '-';
+    $('agent-zone').textContent = profile.zone_name || '-';
+    $('agent-expected-days').textContent = profile.expected_days_per_month || '-';
+    
+    if (profile.photo_path) {
+      $('agent-avatar').src = profile.photo_path;
+    }
+    
+    $('agent-profile').classList.remove('hidden');
+    
+    // Mettre à jour la navbar après chargement du profil
+    await updateNavbar();
+    
+    console.log('✅ Profil agent chargé:', profile);
   } catch (e) {
     console.error('Error loading agent profile:', e);
   } finally {
@@ -3542,17 +3578,33 @@ async function initializeAdvancedSystems() {
   try {
     console.log('🔧 Initialisation des systèmes avancés...');
     
-    // Charger les scripts des nouveaux systèmes
-    await loadScript('/offline-manager.js');
-    await loadScript('/notification-manager.js');
-    await loadScript('/gps-tracker.js');
-    await loadScript('/messaging-system.js');
-    await loadScript('/emergency-system.js');
-    await loadScript('/enriched-reports.js');
-    await loadScript('/smart-planning.js');
-    await loadScript('/agent-dashboard.js');
-    await loadScript('/integrated-help.js');
-    await loadScript('/analytics-insights.js');
+    // Charger seulement les scripts essentiels en parallèle
+    const essentialScripts = [
+      '/offline-manager.js',
+      '/notification-manager.js',
+      '/gps-tracker.js'
+    ];
+    
+    await Promise.all(essentialScripts.map(script => loadScript(script)));
+    
+    // Charger les autres scripts en arrière-plan sans bloquer l'interface
+    setTimeout(async () => {
+      try {
+        const optionalScripts = [
+          '/messaging-system.js',
+          '/emergency-system.js',
+          '/enriched-reports.js',
+          '/smart-planning.js',
+          '/agent-dashboard.js',
+          '/integrated-help.js',
+          '/analytics-insights.js'
+        ];
+        
+        await Promise.all(optionalScripts.map(script => loadScript(script)));
+      } catch (error) {
+        console.warn('⚠️ Erreur lors du chargement des systèmes optionnels:', error);
+      }
+    }, 1000); // Délai de 1 seconde pour ne pas bloquer l'interface
     
     // Initialiser les gestionnaires
     if (window.offlineManager) {
