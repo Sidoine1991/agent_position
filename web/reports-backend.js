@@ -3,6 +3,7 @@ let jwt = localStorage.getItem('jwt') || '';
 let currentUser = null;
 let presenceLineChart = null;
 let rolePieChart = null;
+let statusPieChart = null;
 const apiBase = '/api';
 
 function getQueryParam(name) {
@@ -148,72 +149,235 @@ async function fetchReportsFromBackend() {
   params.set('from', fromISO);
   params.set('to', toISO);
   
-  // Appliquer les filtres
+  console.log(`🔍 Recherche des rapports du ${start} au ${end}`);
+
+  // Lire les valeurs des filtres depuis l'UI
   const agentId = document.getElementById('agent-filter')?.value;
   const supervisorId = document.getElementById('supervisor-filter')?.value;
   const projectName = document.getElementById('project-filter')?.value;
   const departmentId = document.getElementById('department-filter')?.value;
   const communeId = document.getElementById('commune-filter')?.value;
-  
-  if (agentId && agentId !== 'all') {
-    params.set('agent_id', agentId);
-  }
-  
+
+  console.log('🔧 Filtres appliqués:', {
+    agentId,
+    supervisorId,
+    projectName,
+    departmentId,
+    communeId
+  });
+
   try {
-    const result = await api('/reports?' + params.toString());
-    let rows = result.success ? (result.data || []) : [];
+    // 1. Charger tous les utilisateurs pour avoir les métadonnées complètes
+    console.log('🔄 Chargement des utilisateurs...');
+    const usersResult = await api('/users?limit=1000'); // Augmenter la limite pour récupérer plus d'utilisateurs
+    const users = Array.isArray(usersResult) 
+      ? usersResult 
+      : (usersResult?.items || usersResult?.data || []);
+      
+    // S'assurer que les clés de la map sont des chaînes pour éviter les erreurs de type
+    const usersById = new Map(users.map(u => [String(u.id), u]));
+    console.log(`✅ ${users.length} utilisateurs chargés`);
+
+    // 2. Charger tous les rapports pour la période donnée avec pagination
+    let rows = [];
+    let page = 1;
+    const limit = 2000; // Augmenter la limite pour réduire le nombre de requêtes
+    let hasMore = true;
+    let retryCount = 0;
+    const maxRetries = 3;
+    let totalPages = 1;
+    let totalReports = 0;
+
+    console.log('🔄 Chargement des rapports...');
     
-    // Appliquer les filtres côté client
-    if (projectName && projectName !== 'all') {
-      rows = rows.filter(r => {
-        // Vérifier plusieurs champs possibles pour le projet
-        const projectField = r.projet || r.project_name || r.project || '';
-        return String(projectField).trim() === projectName;
-      });
-    }
-    
-    if (supervisorId && supervisorId !== 'all') {
-      // Filtrer par superviseur (nécessite une jointure avec la table users)
-      // Pour l'instant, on filtre côté client si les données utilisateur sont disponibles
-      rows = rows.filter(r => {
-        // Si les données utilisateur sont enrichies dans la réponse
-        if (r.user && r.user.supervisor_id) {
-          return String(r.user.supervisor_id) === supervisorId;
+    while (hasMore && page <= totalPages) {
+      try {
+        const paginatedParams = new URLSearchParams(params);
+        paginatedParams.set('page', page);
+        paginatedParams.set('limit', limit);
+        
+        console.log(`📄 Chargement de la page ${page} (limite: ${limit})...`);
+        const result = await api('/reports?' + paginatedParams.toString());
+        
+        // Gérer la réponse paginée
+        let pageData = [];
+        if (Array.isArray(result)) {
+          pageData = result;
+        } else if (result?.data) {
+          pageData = Array.isArray(result.data) ? result.data : [result.data];
+          // Mise à jour du nombre total de pages si disponible
+          if (result.total_pages && result.total_pages > totalPages) {
+            totalPages = result.total_pages;
+            console.log(`📊 Nombre total de pages détecté: ${totalPages}`);
+          }
+          if (result.total) {
+            totalReports = result.total;
+            console.log(`📊 Nombre total de rapports: ${totalReports}`);
+          }
+        } else if (result?.success && result.data) {
+          pageData = Array.isArray(result.data) ? result.data : [result.data];
         }
-        // Fallback: essayer de récupérer les données utilisateur
-        return true; // Pour l'instant, on garde tous les résultats
-      });
-    }
-    
-    if (departmentId && departmentId !== 'all') {
-      // Filtrer par département (colonne departement de la table users)
-      rows = rows.filter(r => {
-        if (r.user && r.user.departement) {
-          return String(r.user.departement) === departmentId;
+        
+        if (pageData.length > 0) {
+          console.log(`📥 ${pageData.length} rapports chargés (page ${page}/${totalPages || '?'})`);
+          
+          // Enrichir chaque rapport avec les données utilisateur
+          const enrichedRows = [];
+          pageData.forEach(row => {
+            const agentIdStr = String(row.agent_id);
+            if (usersById.has(agentIdStr)) {
+              row.user = usersById.get(agentIdStr);
+              enrichedRows.push(row);
+            }
+          });
+          
+          rows.push(...enrichedRows);
+          console.log(`✅ ${enrichedRows.length} rapports enrichis (total: ${rows.length})`);
+          
+          // Vérifier s'il y a plus de pages
+          if (pageData.length < limit) {
+            hasMore = false;
+          } else if (totalPages > 1 && page < totalPages) {
+            page++;
+          } else if (totalPages === 1 && pageData.length === limit) {
+            // Si on n'a pas d'information sur le nombre total de pages
+            // et qu'on a reçu le nombre maximum d'éléments, on continue
+            page++;
+          } else {
+            hasMore = false;
+          }
+          
+          // Réinitialiser le compteur de tentatives en cas de succès
+          retryCount = 0;
+        } else {
+          hasMore = false;
         }
-        return true; // Pour l'instant, on garde tous les résultats
-      });
-    }
-    
-    if (communeId && communeId !== 'all') {
-      // Filtrer par commune (colonne commune de la table users)
-      rows = rows.filter(r => {
-        if (r.user && r.user.commune) {
-          return String(r.user.commune) === communeId;
+      } catch (error) {
+        console.error(`❌ Erreur lors du chargement de la page ${page}:`, error);
+        
+        // Stratégie de nouvel essai pour les erreurs 500
+        if (error.message && error.message.includes('500') && retryCount < maxRetries) {
+          retryCount++;
+          const delay = 1000 * retryCount; // Délai exponentiel
+          console.log(`🔄 Nouvel essai ${retryCount}/${maxRetries} dans ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
         }
-        return true; // Pour l'instant, on garde tous les résultats
+        
+        // Si on a déjà des données, on continue avec ce qu'on a
+        if (rows.length > 0) {
+          console.warn(`⚠️ Chargement partiel: ${rows.length} rapports chargés avant l'erreur`);
+          hasMore = false;
+        } else {
+          throw error;
+        }
+      }
+    }
+    
+    console.log(`Chargement terminé: ${rows.length} rapports chargés`);
+
+    // 3. Filtrer pour ne garder que le premier check-in par agent et par jour
+    const firstCheckinByAgentAndDay = new Map();
+    
+    rows.forEach(row => {
+      if (!row.agent_id || !row.ts) return;
+      
+      const dateKey = new Date(row.ts).toISOString().split('T')[0]; // Format YYYY-MM-DD
+      const agentDateKey = `${row.agent_id}_${dateKey}`;
+      
+      if (!firstCheckinByAgentAndDay.has(agentDateKey)) {
+        firstCheckinByAgentAndDay.set(agentDateKey, row);
+      }
+    });
+    
+    // Convertir la Map en tableau
+    const uniqueRows = Array.from(firstCheckinByAgentAndDay.values());
+    console.log(`🔍 ${uniqueRows.length} rapports uniques après filtrage des doublons (sur ${rows.length} au total)`);
+
+    // 4. Appliquer tous les filtres côté client pour une logique unifiée
+    const filteredRows = uniqueRows.filter(r => {
+      const user = r.user;
+
+      // Filtre par agent (si un agent spécifique est sélectionné)
+      if (agentId && agentId !== 'all') {
+        if (String(r.agent_id) !== agentId) {
+          return false;
+        }
+      }
+
+      // Si l'utilisateur n'a pas de données, on ne peut pas appliquer les autres filtres
+      if (!user) {
+        // Si un filtre nécessitant les données utilisateur est actif, on exclut l'enregistrement
+        if (projectName && projectName !== 'all' || 
+            departmentId && departmentId !== 'all' || 
+            communeId && communeId !== 'all') {
+          return false;
+        }
+        return true;
+      }
+
+      // Filtre par projet
+      if (projectName && projectName !== 'all') {
+        const userProject = user.project_name || user.projet || user.project || '';
+        const cleanedUserProject = cleanProjectName(userProject);
+        const cleanedFilterProject = cleanProjectName(projectName);
+        
+        // Log de débogage plus visible
+        console.log('=== DÉBOGAGE FILTRE PROJET ===');
+        console.log('Valeur du filtre sélectionné:', projectName);
+        console.log('Projet utilisateur brut:', userProject);
+        console.log('Projet utilisateur nettoyé:', cleanedUserProject);
+        console.log('Valeur du filtre nettoyée:', cleanedFilterProject);
+        console.log('Correspondance:', cleanedUserProject === cleanedFilterProject ? 'OUI' : 'NON');
+        
+        if (cleanedUserProject !== cleanedFilterProject) {
+          console.log(`❌ Filtre projet: "${cleanedFilterProject}" ne correspond pas au projet de l'utilisateur: "${cleanedUserProject}"`);
+          return false;
+        } else {
+          console.log(`✅ Projet correspondant trouvé pour l'utilisateur ${user.name || user.id}`);
+        }
+      }
+
+      // Filtre par département
+      if (departmentId && departmentId !== 'all') {
+        if (String(user.departement || '') !== departmentId) {
+          return false;
+        }
+      }
+
+      // Filtre par commune
+      if (communeId && communeId !== 'all') {
+        if (String(user.commune || '') !== communeId) {
+          return false;
+        }
+      }
+      
+      // Filtre par date précise (si appliqué)
+      const precise = (document.getElementById('date-filter')?.value || '').trim();
+      if (precise) {
+        if (!dateMatchesPrecise(precise, r.ts || r.date || r.created_at)) {
+          return false;
+        }
+      }
+
+      // Journalisation pour le débogage
+      console.log('Enregistrement conservé:', {
+        id: r.id,
+        agent_id: r.agent_id,
+        user: user ? {
+          id: user.id,
+          name: user.name,
+          project: user.project_name || user.projet,
+          departement: user.departement,
+          commune: user.commune
+        } : 'no user data'
       });
-    }
+
+      return true;
+    });
     
-    
-    // Appliquer le filtre de date précise
-    const precise = (document.getElementById('date-filter')?.value || '').trim();
-    if (precise) {
-      rows = rows.filter(r => dateMatchesPrecise(precise, r.ts || r.date || r.created_at));
-    }
-    
-    console.log(`${rows.length} rapports filtrés sur ${result.data?.length || 0} total`);
-    return rows;
+    console.log(`${filteredRows.length} rapports filtrés sur ${rows.length} total`);
+    return filteredRows;
   } catch (error) {
     console.error('Erreur lors de la récupération des rapports:', error);
     return [];
@@ -259,22 +423,15 @@ async function renderValidations(rows) {
   if (!tbody) return;
   const cell = v => (v == null || v === '') ? '—' : v;
   const fmt = d => new Date(d).toLocaleString('fr-FR');
+  // Trier les lignes par date
   const sortedRows = [...(rows || [])].sort((a, b) => {
     const dateA = a.ts ? new Date(a.ts) : new Date(0);
     const dateB = b.ts ? new Date(b.ts) : new Date(0);
     return dateA - dateB;
   });
-  const uniqueAgentDays = new Map();
-  const filteredRows = [];
-  for (const row of sortedRows) {
-    if (!row.agent_id || !row.ts) continue;
-    const date = new Date(row.ts);
-    const dateKey = date.toISOString().split('T')[0];
-    const agentDayKey = `${row.agent_id}:${dateKey}`;
-    if (uniqueAgentDays.has(agentDayKey)) continue;
-    uniqueAgentDays.set(agentDayKey, true);
-    filteredRows.push(row);
-  }
+  
+  // Utiliser toutes les entrées sans déduplication
+  const filteredRows = sortedRows.filter(row => row.agent_id && row.ts);
   const thead = document.querySelector('#validations-table thead');
   if (thead) {
     thead.innerHTML = `
@@ -293,23 +450,29 @@ async function renderValidations(rows) {
       </tr>
     `;
   }
-  tbody.innerHTML = await Promise.all(filteredRows.map(async it => {
-    const date = new Date(it.ts).toISOString().split('T')[0];
-    const hasPlanning = await checkPlanningForAgent(it.agent_id, date);
+  tbody.innerHTML = await Promise.all(filteredRows.map(async row => {
+    const date = new Date(row.ts).toISOString().split('T')[0];
+    const hasPlanning = await checkPlanningForAgent(row.agent_id, date);
+    
+    // Récupérer les informations de l'utilisateur
+    const user = row.user || {};
+    const agentName = user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || `Agent ${row.agent_id}`;
+    const projectName = user.project_name || user.projet || user.project || row.projet || 'Non défini';
+    
     return `
       <tr>
-        <td>${cell(it.agent)}</td>
-        <td>${cell(it.projet)}</td>
-        <td>${cell(it.localisation)}</td>
-        <td>${cell(it.rayon_m)}</td>
-        <td>${(it.ref_lat != null && it.ref_lon != null) ? `${it.ref_lat}, ${it.ref_lon}` : '—'}</td>
-        <td>${(it.lat != null && it.lon != null) ? `${it.lat}, ${it.lon}` : '—'}</td>
-        <td>${it.ts ? fmt(it.ts) : '—'}</td>
-        <td>${cell(it.distance_m)}</td>
-        <td>${cell(it.statut)}</td>
+        <td>${cell(agentName)}</td>
+        <td>${cell(projectName)}</td>
+        <td>${cell(row.localisation)}</td>
+        <td>${cell(row.rayon_m)}</td>
+        <td>${(row.ref_lat != null && row.ref_lon != null) ? `${row.ref_lat}, ${row.ref_lon}` : '—'}</td>
+        <td>${(row.lat != null && row.lon != null) ? `${row.lat}, ${row.lon}` : '—'}</td>
+        <td>${row.ts ? fmt(row.ts) : '—'}</td>
+        <td>${cell(row.distance_m)}</td>
+        <td>${cell(row.statut)}</td>
         <td class="text-center">${hasPlanning ? '✅ Oui' : '❌ Non'}</td>
         <td class="text-center">
-          <button class="btn btn-sm btn-outline-primary" onclick="downloadValidationReport('${it.id}')" title="Télécharger le rapport">
+          <button class="btn btn-sm btn-outline-primary" onclick="downloadValidationReport('${row.id}')" title="Télécharger le rapport">
             <i class="bi bi-download"></i>
           </button>
         </td>
@@ -433,11 +596,14 @@ async function loadUsersPlanning() {
       } else {
         displayName = user.email || 'Non renseigné';
       }
+      // Récupérer le numéro de projet de l'utilisateur
+      const projectNumber = user.project_name || user.projet || user.project || '—';
+      
       const row = `
         <tr>
           <td>${index + 1}</td>
           <td>${displayName}</td>
-          <td>${user.email || '—'}</td>
+          <td>${projectNumber}</td>
           <td>${user.role || '—'}</td>
           <td class="${planningClass} text-center">${planningCell}</td>
           <td class="text-center">
@@ -476,46 +642,423 @@ async function loadUsersPlanning() {
  * Affiche les détails de la planification d'un utilisateur
  */
 async function viewPlanningDetails(userId, date) {
+  console.log('[DEBUG] Début de viewPlanningDetails', { userId, date });
   try {
-    const dateInput = document.getElementById('date') || document.getElementById('date-filter');
-    date = dateInput?.value || new Date().toISOString().split('T')[0];
+    console.log(`Récupération des détails pour l'utilisateur ${userId} à la date ${date}`);
+    
+    // Formater la date pour l'API (YYYY-MM-DD)
+    const formattedDate = new Date(date).toISOString().split('T')[0];
+    
+    // Variables pour stocker les informations de l'utilisateur
     let userName = 'Non renseigné';
-    try {
-      const userResponse = await fetch(`${apiBase}/users/${userId}`, { headers: await authHeaders() });
-      if (userResponse.ok) {
-        const userData = await userResponse.json();
-        userName = userData.name || `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || userData.email || 'Utilisateur inconnu';
+    let userProject = 'Non spécifié';
+    let userDepartment = 'Non spécifié';
+    let userCommune = 'Non spécifiée';
+    
+    // Récupérer la liste des utilisateurs à partir du tableau affiché
+    console.log('[DEBUG] Récupération des lignes du tableau des utilisateurs');
+    const tableRows = document.querySelectorAll('#users-planning-body tr');
+    console.log(`[DEBUG] ${tableRows.length} lignes trouvées dans le tableau`);
+    let userData = null;
+    
+    // Parcourir les lignes du tableau pour trouver l'utilisateur
+    for (const row of tableRows) {
+      const button = row.querySelector('button[onclick*="viewPlanningDetails"]');
+      if (button) {
+        // Extraire l'ID utilisateur du bouton
+        const buttonOnClick = button.getAttribute('onclick');
+        const match = buttonOnClick.match(/viewPlanningDetails\('(\d+)'/);
+        if (match && match[1] === userId) {
+          // Extraire les données de la ligne du tableau
+          const cells = row.querySelectorAll('td');
+          if (cells.length >= 6) {
+            userData = {
+              name: cells[1].textContent.trim(),
+              project_name: cells[2].textContent.trim(),
+              role: cells[3].textContent.trim()
+            };
+            break;
+          }
+        }
       }
-    } catch (userError) {
-      console.error('Erreur lors de la récupération des informations utilisateur:', userError);
     }
+    
+    if (userData) {
+      console.log('Données utilisateur trouvées dans le cache:', userData);
+      
+      // Extraire le nom complet de l'utilisateur
+      if (userData.name) {
+        userName = userData.name;
+      } else if (userData.first_name || userData.last_name) {
+        userName = `${userData.first_name || ''} ${userData.last_name || ''}`.trim();
+      } else if (userData.email) {
+        userName = userData.email;
+      }
+      
+      // Extraire les informations du projet et de localisation
+      userProject = userData.project_name || userData.projet || userData.project || 'Non spécifié';
+      userDepartment = userData.departement || userData.department || 'Non spécifié';
+      userCommune = userData.commune || userData.city || 'Non spécifiée';
+      
+      console.log('Informations extraites:', { userName, userProject, userDepartment, userCommune });
+    } else {
+      console.warn(`Aucune donnée utilisateur trouvée pour l'ID ${userId} (${typeof userId}) dans la liste des ${usersList.length} utilisateurs`);
+      console.log('Premiers utilisateurs chargés:', usersList.slice(0, 5));
+    }
+    
+    // Récupérer les détails de planification
     const headers = await authHeaders();
-    const response = await fetch(`${apiBase}/planifications?user_id=${userId}&date=${date}`, { headers });
-    if (!response.ok) {
-      throw new Error('Erreur lors de la récupération des détails de la planification');
+    const planificationUrl = new URL(`${apiBase}/planifications`, window.location.origin);
+    planificationUrl.searchParams.append('user_id', userId);
+    planificationUrl.searchParams.append('from', formattedDate);
+    planificationUrl.searchParams.append('to', formattedDate);
+    
+    console.log('URL de la planification:', planificationUrl.toString());
+    
+    // Récupérer les informations de l'utilisateur et sa planification en parallèle
+    console.log('[DEBUG] Initialisation des variables utilisateur');
+    let userLocation = 'Non spécifiée';
+    let userActivity = 'Non spécifiée';
+    let userActivityDescription = 'Aucune description fournie';
+    let hasError = false;
+    let errorMessage = '';
+    let heureDebut = 'Non spécifiée';
+    let heureFin = 'Non spécifiée';
+    
+    console.log('[DEBUG] Préparation des appels API pour les données utilisateur et rapports');
+    
+    try {
+      console.log('[DEBUG] Début de la récupération des données en parallèle');
+      // Récupérer les détails complets de l'utilisateur avec les relations
+      const [userResponse, reportsResponse] = await Promise.all([
+        fetch(`${apiBase}/users?id=eq.${userId}`, {
+          headers: await authHeaders()
+        }),
+        fetch(`${apiBase}/reports?user_id=eq.${userId}&date=eq.${formattedDate}&order=created_at.desc&limit=1`, {
+          headers: await authHeaders()
+        })
+      ]);
+      
+      // Traiter la réponse des détails utilisateur
+      if (userResponse.ok) {
+        const userDetails = await userResponse.json();
+        console.log('Détails utilisateur récupérés:', userDetails);
+        
+        if (userDetails && userDetails.length > 0) {
+          const user = userDetails[0];
+          
+          // Extraire les informations de localisation
+          userDepartment = user.departement || 'Non spécifié';
+          userCommune = user.commune || 'Non spécifiée';
+          
+          // Construire la localisation complète
+          const locationParts = [];
+          if (user.departement) locationParts.push(user.departement);
+          if (user.commune) locationParts.push(user.commune);
+          if (user.arrondissement) locationParts.push(`Arr. ${user.arrondissement}`);
+          if (user.village) locationParts.push(`Village ${user.village}`);
+          
+          userLocation = locationParts.length > 0 ? locationParts.join(', ') : 'Non spécifiée';
+          console.log('Localisation construite depuis les données utilisateur:', userLocation);
+        }
+      }
+      
+      // Traiter la réponse des rapports
+      if (reportsResponse.ok) {
+        const reports = await reportsResponse.json();
+        if (reports && reports.length > 0) {
+          const report = reports[0];
+          console.log('Détails du rapport trouvé:', report);
+          
+          // Mettre à jour la localisation avec les données du rapport si disponible
+          if (report.localisation) {
+            userLocation = report.localisation;
+            console.log('Localisation du rapport:', userLocation);
+          }
+          
+          // Mettre à jour l'activité et la description si disponibles dans le rapport
+          if (report.activite) {
+            userActivity = report.activite;
+            console.log('Activité du rapport:', userActivity);
+          }
+          
+          // Récupérer la description ou les notes du rapport
+          if (report.description || report.notes) {
+            userActivityDescription = report.description || report.notes;
+            console.log('Description du rapport:', userActivityDescription);
+          }
+          
+          // Vérifier s'il y a des commentaires ou des notes supplémentaires
+          if (report.commentaires) {
+            userActivityDescription += (userActivityDescription ? '\n\n' : '') + report.commentaires;
+          }
+          
+          // Mettre à jour les heures de début et de fin si disponibles
+          if (report.heure_debut) {
+            heureDebut = formatTime(report.heure_debut);
+          }
+          if (report.heure_fin) {
+            heureFin = formatTime(report.heure_fin);
+          }
+        }
+      }
+      
+    } catch (error) {
+      hasError = true;
+      errorMessage = `Erreur lors de la récupération des données: ${error.message}`;
+      console.error(errorMessage, error);
     }
-    const planification = await response.json();
+    
+    // Si une erreur s'est produite, afficher un message d'erreur
+    if (hasError) {
+      showErrorModal('Erreur de chargement', `Une erreur est survenue lors du chargement des données: ${errorMessage}`);
+      return;
+    }
+    
+    // Récupérer les détails de planification
+    let planification = {};
+    try {
+      const response = await fetch(planificationUrl.toString(), { 
+        headers,
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.warn('Aucune planification trouvée pour cette date, utilisation des informations de base. Erreur:', response.status, errorText);
+      } else {
+        planification = await response.json();
+        console.log('Réponse de l\'API de planification:', planification);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la récupération de la planification:', error);
+      // Continuer avec un objet vide pour permettre l'affichage des informations de base
+    }
+    
     let modalContent = `
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
-          <div class="modal-header">
+          <div class="modal-header bg-primary text-white">
             <h5 class="modal-title">Détails de la planification</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
           </div>
           <div class="modal-body">
-            <p><strong>Date :</strong> ${new Date(date).toLocaleDateString('fr-FR')}</p>
+            <div class="mb-3">
+              <h6 class="text-muted">${new Date(date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h6>
+            </div>
     `;
+    
+    // Vérifier si nous avons des données de planification
+    let planData = null;
+    
+    // Essayer différents formats de réponse de l'API
     if (planification && planification.items && planification.items.length > 0) {
-      const plan = planification.items[0];
+      planData = planification.items[0];
+      console.log('Planification trouvée dans items:', planData);
+    } else if (Array.isArray(planification) && planification.length > 0) {
+      planData = planification[0];
+      console.log('Planification trouvée dans tableau:', planData);
+    } else if (planification && planification.data) {
+      planData = planification.data;
+      console.log('Planification trouvée dans data:', planData);
+    } else {
+      console.log('Aucune donnée de planification trouvée dans la réponse');
+    }
+    
+    if (planData) {
+      console.log('Données de planification trouvées:', planData);
+      
+      // Formater les heures si elles existent
+      const formatTime = (timeStr) => {
+        if (!timeStr) return 'Non spécifiée';
+        try {
+          // Si c'est une date complète, on la formate
+          if (timeStr.includes('T')) {
+            const date = new Date(timeStr);
+            return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+          }
+          // Sinon, on suppose que c'est juste l'heure
+          const [hours, minutes] = timeStr.split(':');
+          return `${hours.padStart(2, '0')}h${(minutes || '00').padStart(2, '0')}`;
+        } catch (e) {
+          console.warn('Erreur de format de temps:', e);
+          return timeStr; // Retourner la valeur brute en cas d'erreur de format
+        }
+      };
+      
+      // Fonction pour afficher une modale d'erreur
+      function showErrorModal(title, message) {
+        const modalContent = `
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">${title}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
+              </div>
+              <div class="modal-body">
+                <div class="alert alert-danger">
+                  <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                  ${message}
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        let modal = document.getElementById('errorModal');
+        if (!modal) {
+          modal = document.createElement('div');
+          modal.id = 'errorModal';
+          modal.className = 'modal fade';
+          modal.tabIndex = -1;
+          document.body.appendChild(modal);
+        }
+        
+        modal.innerHTML = modalContent;
+        const modalInstance = new bootstrap.Modal(modal);
+        modalInstance.show();
+      }
+
+      // Fonction pour formater la date
+      const formatDate = (dateStr) => {
+        if (!dateStr) return 'Non spécifiée';
+        try {
+          const date = new Date(dateStr);
+          return date.toLocaleDateString('fr-FR', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+        } catch (e) {
+          return dateStr;
+        }
+      };
+      
+      // Fonction pour formater la localisation
+      const formatLocation = (loc) => {
+        if (!loc) return 'Non spécifiée';
+        // Supprimer les doublons si la localisation contient plusieurs fois la même information
+        const parts = loc.split(' ').filter((v, i, a) => a.indexOf(v) === i);
+        return parts.join(' ');
+      };
+      
+      // Récupérer les informations d'activité
+      const activite = userActivity || planData.activite || planData.activity || planData.tache || planData.task || 'Non spécifiée';
+      
+      // Construire la description en combinant toutes les sources possibles
+      let description = [];
+      
+      // Ajouter la description du rapport si disponible
+      if (userActivityDescription) {
+        description.push(userActivityDescription.trim());
+      }
+      
+      // Ajouter les notes de planification si différentes de la description
+      const planNotes = planData.description || planData.notes;
+      if (planNotes && planNotes.trim() !== userActivityDescription?.trim()) {
+        description.push(planNotes.trim());
+      }
+      
+      // Ajouter les commentaires de validation si disponibles
+      if (planData.commentaires) {
+        description.push(`Commentaires: ${planData.commentaires}`.trim());
+      }
+      
+      // Utiliser la description complète ou un message par défaut
+      const fullDescription = description.length > 0 
+        ? description.join('\n\n') 
+        : 'Aucune description fournie';
+      const datePlan = formatDate(planData.date || date);
+      const heureDebutPlan = planData.heure_debut || planData.start_time || planData.start || planData.heure_debut_planifiee;
+      const heureFinPlan = planData.heure_fin || planData.end_time || planData.end || planData.heure_fin_planifiee;
+      const heureDebutFinal = heureDebut !== 'Non spécifiée' ? heureDebut : (heureDebutPlan ? formatTime(heureDebutPlan) : 'Non spécifiée');
+      const heureFinFinal = heureFin !== 'Non spécifiée' ? heureFin : (heureFinPlan ? formatTime(heureFinPlan) : 'Non spécifiée');
+      const statut = planData.status || (planData.valide ? 'Validé' : 'Planifié');
+      
+      // Récupérer les informations de localisation de la planification si disponibles
+      const localisationPlan = planData.lieu || planData.localisation || planData.location || userLocation;
+      
+      // Construire le contenu du tableau de détails
+      const details = [
+        { 
+          label: 'Informations générales', 
+          value: `
+            <div class="mb-2"><strong>Nom :</strong> ${userName}</div>
+            <div class="mb-2"><strong>Projet :</strong> ${userProject}</div>
+            <div><strong>Localisation :</strong> ${userLocation || 'Non spécifiée'}</div>
+          `,
+          fullWidth: true
+        },
+        { 
+          label: 'Activité planifiée', 
+          value: `
+            <div class="mb-2"><strong>Activité :</strong> ${activite}</div>
+            <div class="mb-2"><strong>Description :</strong></div>
+            <div class="border rounded p-2 bg-light">
+              ${fullDescription.replace(/\n/g, '<br>')}
+            </div>
+          `,
+          fullWidth: true 
+        },
+        { 
+          label: 'Horaires', 
+          value: `
+            <div class="mb-2"><strong>Date :</strong> ${datePlan}</div>
+            <div class="mb-2"><strong>Heure de début :</strong> ${heureDebutFinal}</div>
+            <div><strong>Heure de fin :</strong> ${heureFinFinal}</div>
+          `,
+          fullWidth: true 
+        },
+        { 
+          label: 'Statut', 
+          value: `
+            <span class="badge ${
+              statut === 'validé' ? 'bg-success' : 
+              statut === 'en attente' ? 'bg-warning' : 
+              statut === 'annulé' ? 'bg-danger' : 'bg-secondary'
+            }">
+              ${statut}
+            </span>
+            ${planData.validated_by ? `<div class="mt-2">Validé par: ${planData.validated_by}</div>` : ''}
+          `
+        }
+      ];
+      
+      // Ajouter les détails spécifiques si disponibles
+      if (planData.notes) {
+        details.push({ label: 'Notes', value: planData.notes, fullWidth: true });
+      }
+      
+      // Générer les lignes du tableau
+      const tableRows = details.map(item => {
+        if (item.fullWidth) {
+          return `
+            <tr>
+              <th colspan="2" class="bg-light">${item.label}</th>
+            </tr>
+            <tr>
+              <td colspan="2">${item.value || 'Non spécifié'}</td>
+            </tr>
+          `;
+        }
+        return `
+          <tr>
+            <th style="width: 30%;">${item.label}</th>
+            <td>${item.value || 'Non spécifié'}</td>
+          </tr>
+        `;
+      }).join('');
+      
       modalContent += `
         <div class="table-responsive">
-          <table class="table table-bordered">
-            <tr><th>Utilisateur</th><td>${plan.user_name || 'Non spécifié'}</td></tr>
-            <tr><th>Projet</th><td>${plan.projet || 'Non spécifié'}</td></tr>
-            <tr><th>Localisation</th><td>${plan.localisation || 'Non spécifiée'}</td></tr>
-            <tr><th>Heure de début</th><td>${plan.heure_debut || 'Non spécifiée'}</td></tr>
-            <tr><th>Heure de fin</th><td>${plan.heure_fin || 'Non spécifiée'}</td></tr>
-            <tr><th>Statut</th><td><span class="badge bg-success">Planifié</span></td></tr>
+          <table class="table table-hover table-striped">
+            <tbody>
+              ${tableRows}
+            </tbody>
           </table>
         </div>
       `;
@@ -553,11 +1096,87 @@ async function viewPlanningDetails(userId, date) {
 }
 
 /**
- * Génère le rapport de présence
+ * Applique les filtres aux validations
+ */
+function applyValidationsFilters(validations, filters) {
+  if (!validations || !validations.length) return [];
+
+  return validations.filter(validation => {
+    // Filtre par statut
+    if (filters.status) {
+      if (filters.status === 'validated' && !validation.validated) return false;
+      if (filters.status === 'rejected' && !validation.rejected) return false;
+      if (filters.status === 'pending' && (validation.validated || validation.rejected)) return false;
+    }
+
+    // Filtre par date
+    if (filters.startDate || filters.endDate) {
+      const validationDate = new Date(validation.date || validation.ts || validation.created_at);
+      
+      if (filters.startDate) {
+        const startDate = new Date(filters.startDate);
+        if (validationDate < startDate) return false;
+      }
+      
+      if (filters.endDate) {
+        const endDate = new Date(filters.endDate);
+        endDate.setDate(endDate.getDate() + 1); // Inclure le jour de fin
+        if (validationDate >= endDate) return false;
+      }
+    }
+
+    // Filtre par agent
+    if (filters.agentId && filters.agentId !== 'all') {
+      if (String(validation.agent_id) !== filters.agentId) {
+        return false;
+      }
+    }
+
+    // Filtre par projet
+    if (filters.project && filters.project !== 'all') {
+      const userProject = validation.user ? (validation.user.project_name || validation.user.projet || '') : '';
+      if (cleanProjectName(userProject) !== filters.project) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+/**
+ * Charge et affiche les validations avec les filtres actuels
  */
 window.loadValidations = async function() {
-  const rows = await fetchReportsFromBackend();
-  renderValidations(rows);
+  try {
+    // Récupérer les valeurs des filtres
+    const filters = {
+      status: document.getElementById('validation-status-filter')?.value,
+      startDate: document.getElementById('date-from')?.value,
+      endDate: document.getElementById('date-to')?.value,
+      agentId: document.getElementById('agent-filter')?.value,
+      project: document.getElementById('project-filter')?.value
+    };
+
+    // Charger les rapports avec les filtres
+    const rows = await fetchReportsFromBackend();
+    
+    // Appliquer les filtres supplémentaires spécifiques aux validations
+    const filteredRows = applyValidationsFilters(rows, filters);
+    
+    // Afficher les résultats
+    await renderValidations(filteredRows);
+    
+    // Mettre à jour le compteur de résultats
+    const counter = document.getElementById('validations-count');
+    if (counter) {
+      counter.textContent = filteredRows.length;
+    }
+    
+  } catch (error) {
+    console.error('Erreur lors du chargement des validations:', error);
+    showError('Erreur lors du chargement des validations');
+  }
 };
 
 /**
@@ -1249,43 +1868,169 @@ window.exportAsImage = async function() {
 };
 
 /**
- * Charge les agents pour le filtre (uniquement les utilisateurs avec role "agent")
+ * Récupère tous les utilisateurs avec pagination et gestion améliorée des erreurs
+ */
+async function fetchAllUsers() {
+  const allUsers = [];
+  const limit = 200; // Augmenté à 200 pour réduire le nombre de requêtes
+  let page = 1;
+  let totalPages = 1;
+  let hasMore = true;
+  let retryCount = 0;
+  const maxRetries = 3;
+
+  while (hasMore && page <= totalPages) {
+    try {
+      console.log(`Chargement des utilisateurs - Page ${page}/${totalPages}...`);
+      const result = await api(`/users?page=${page}&limit=${limit}`);
+      
+      // Gestion de la réponse paginée
+      let users = [];
+      if (Array.isArray(result)) {
+        users = result;
+      } else if (result?.items) {
+        users = result.items;
+        // Mise à jour du nombre total de pages si disponible
+        if (result.total_pages && result.total_pages > totalPages) {
+          totalPages = result.total_pages;
+          console.log(`Nombre total de pages détecté: ${totalPages}`);
+        }
+      } else if (result?.data) {
+        users = Array.isArray(result.data) ? result.data : [result.data];
+      }
+      
+      if (users.length > 0) {
+        allUsers.push(...users);
+        console.log(`${users.length} utilisateurs chargés (total: ${allUsers.length})`);
+        
+        // Si on n'a pas d'information sur le nombre total de pages, on continue jusqu'à ce qu'une page soit vide
+        if (totalPages === 1 && users.length === limit) {
+          page++;
+        } else {
+          page++;
+        }
+        
+        // Réinitialiser le compteur de tentatives en cas de succès
+        retryCount = 0;
+      } else {
+        hasMore = false;
+      }
+      
+      // Limite de sécurité pour éviter les boucles infinies
+      if (page > 50) {
+        console.warn('Limite de 50 pages atteinte lors du chargement des utilisateurs');
+        break;
+      }
+    } catch (error) {
+      console.error(`Erreur lors du chargement de la page ${page}:`, error);
+      
+      // Stratégie de nouvel essai pour les erreurs 500
+      if (error.message && error.message.includes('500') && retryCount < maxRetries) {
+        retryCount++;
+        const delay = 1000 * retryCount; // Délai exponentiel
+        console.log(`Nouvel essai ${retryCount}/${maxRetries} dans ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      // Si on a déjà des utilisateurs, on continue avec ce qu'on a
+      if (allUsers.length > 0) {
+        console.warn(`Chargement partiel: ${allUsers.length} utilisateurs chargés avant l'erreur`);
+        hasMore = false;
+      } else {
+        // Si aucune donnée n'a pu être chargée, on lance l'erreur
+        throw error;
+      }
+    }
+  }
+  
+  console.log(`Chargement des utilisateurs terminé. Total: ${allUsers.length} utilisateurs`);
+  return allUsers;
+}
+
+/**
+ * Charge les utilisateurs pour le filtre des agents
+ * Inclut tous les utilisateurs avec leurs rôles respectifs
  */
 async function loadAgentsForFilter() {
+  const select = document.getElementById('agent-filter');
+  if (!select) {
+    console.error('Élément agent-filter non trouvé dans le DOM');
+    return;
+  }
+  
+  // Afficher un indicateur de chargement
+  const loadingOption = document.createElement('option');
+  loadingOption.textContent = 'Chargement des utilisateurs...';
+  loadingOption.disabled = true;
+  select.innerHTML = '';
+  select.appendChild(loadingOption);
+  
   try {
-    const result = await api('/users');
-    const users = result.items || result.data || result || [];
+    // Récupérer tous les utilisateurs avec pagination
+    const users = await fetchAllUsers();
     
-    // Filtrer uniquement les utilisateurs avec le rôle "agent"
-    const agents = users.filter(user => {
-      const role = (user.role || '').toLowerCase().trim();
-      return role === 'agent';
-    });
-    
-    const select = document.getElementById('agent-filter');
-    if (!select) return;
-    
-    // Sauvegarder la valeur actuelle
+    // Sauvegarder la valeur actuelle avant de vider le select
     const currentValue = select.value;
     
     // Vider et réinitialiser le sélecteur
-    select.innerHTML = '<option value="all">Tous les agents</option>';
+    select.innerHTML = '<option value="all">Tous les utilisateurs</option>';
     
-    // Ajouter chaque agent comme option
-    agents.forEach(agent => {
+    if (users.length === 0) {
+      console.warn('Aucun utilisateur trouvé');
+      return;
+    }
+    
+    console.log(`Total de ${users.length} utilisateurs chargés`);
+    
+    // Créer un Set pour éliminer les doublons (au cas où)
+    const uniqueUsers = [];
+    const seenIds = new Set();
+    
+    // Filtrer pour ne garder que les utilisateurs avec le rôle 'Agent' (insensible à la casse)
+    users.forEach(user => {
+      if (!user || !user.id || seenIds.has(String(user.id))) return;
+      
+      // Vérifier si l'utilisateur a le rôle 'Agent' (insensible à la casse)
+      const userRole = String(user.role || '').toLowerCase().trim();
+      if (userRole !== 'agent') {
+        console.log(`Utilisateur non inclus (rôle: ${user.role}):`, user);
+        return;
+      }
+      
+      seenIds.add(String(user.id));
+      uniqueUsers.push(user);
+    });
+    
+    console.log(`${uniqueUsers.length} utilisateurs uniques après déduplication`);
+    
+    // Trier les utilisateurs par nom
+    const sortedUsers = [...uniqueUsers].sort((a, b) => {
+      const nameA = (a.name || `${a.first_name || ''} ${a.last_name || ''}`.trim() || a.email || '').toLowerCase();
+      const nameB = (b.name || `${b.first_name || ''} ${b.last_name || ''}`.trim() || b.email || '').toLowerCase();
+      return nameA.localeCompare(nameB, 'fr');
+    });
+    
+    // Ajouter chaque utilisateur comme option
+    sortedUsers.forEach(user => {
       const option = document.createElement('option');
-      option.value = agent.id;
+      option.value = user.id;
       
       // Construire le nom d'affichage selon la structure de la table users
       let displayName = '';
-      if (agent.name && agent.name.trim()) {
-        displayName = agent.name.trim();
-      } else if (agent.first_name || agent.last_name) {
-        const firstName = agent.first_name || '';
-        const lastName = agent.last_name || '';
+      if (user.name && user.name.trim()) {
+        displayName = user.name.trim();
+      } else if (user.first_name || user.last_name) {
+        const firstName = user.first_name || '';
+        const lastName = user.last_name || '';
         displayName = `${firstName} ${lastName}`.trim();
       } else {
-        displayName = agent.email || `Agent ${agent.id}`;
+        displayName = user.email || `Utilisateur ${user.id}`;
+      }
+      
+      // Ajouter le rôle entre parenthèses s'il est disponible
+      if (user.role) {
+        displayName += ` (${user.role})`;
       }
       
       option.textContent = displayName;
@@ -1294,55 +2039,115 @@ async function loadAgentsForFilter() {
     
     // Restaurer la valeur précédente si elle existe toujours
     if (currentValue && currentValue !== 'all') {
-      const agentExists = agents.some(agent => String(agent.id) === currentValue);
-      if (agentExists) {
+      const userExists = uniqueUsers.some(user => String(user.id) === currentValue);
+      if (userExists) {
         select.value = currentValue;
+        console.log(`Valeur précédente restaurée: ${currentValue}`);
       }
     }
     
-    console.log(`${agents.length} agents chargés pour le filtre (rôle: agent uniquement)`);
-    console.log('Agents trouvés:', agents.map(a => ({ 
-      id: a.id, 
-      name: a.name, 
-      first_name: a.first_name, 
-      last_name: a.last_name, 
-      email: a.email, 
-      role: a.role 
-    })));
+    console.log('Chargement des utilisateurs terminé');
+    
   } catch (error) {
-    console.error('Erreur lors du chargement des agents:', error);
+    console.error('Erreur lors du chargement des utilisateurs:', error);
+    select.innerHTML = '<option value="all">Erreur de chargement des utilisateurs</option>';
   }
 }
 
 /**
- * Charge les superviseurs pour le filtre (uniquement les utilisateurs avec role "superviseur")
+ * Vérifie si un utilisateur est un superviseur basé sur son rôle ou ses propriétés
+ */
+function isSupervisorUser(user) {
+  if (!user) return false;
+  
+  // Vérifier le rôle de différentes manières
+  const role = String(user.role || '').toLowerCase().trim();
+  const isSupervisorRole = [
+    'superviseur', 'supervisor', 'superviseur principal', 'superviseur technique',
+    'superviseur terrain', 'chef d\'équipe', 'team lead', 'manager',
+    'chef de zone', 'responsable', 'coordinateur', 'coordonnateur'
+  ].some(r => role.includes(r.toLowerCase()));
+  
+  // Vérifier également les champs booléens si disponibles
+  const isSupervisorFlag = user.is_supervisor === true || 
+                          user.is_supervisor === 'true' || 
+                          user.is_supervisor === 1 || 
+                          user.is_supervisor === '1';
+  
+  // Vérifier aussi le type de rôle si disponible
+  const roleType = String(user.role_type || '').toLowerCase().trim();
+  const isSupervisorRoleType = [
+    'superviseur', 'supervisor', 'manager', 'admin', 'administrateur'
+  ].some(rt => roleType.includes(rt.toLowerCase()));
+  
+  return isSupervisorRole || isSupervisorFlag || isSupervisorRoleType;
+}
+
+/**
+ * Charge les superviseurs pour le filtre
  */
 async function loadSupervisorsForFilter() {
+  const select = document.getElementById('supervisor-filter');
+  if (!select) {
+    console.error('Élément select supervisor-filter non trouvé dans le DOM');
+    return;
+  }
+  
+  // Afficher un indicateur de chargement
+  const loadingOption = document.createElement('option');
+  loadingOption.textContent = 'Chargement des superviseurs...';
+  loadingOption.disabled = true;
+  select.innerHTML = '';
+  select.appendChild(loadingOption);
+  
   try {
-    const result = await api('/users');
-    const users = result.items || result.data || result || [];
+    // Utiliser la fonction fetchAllUsers qui gère déjà la pagination
+    const users = await fetchAllUsers();
     
-    // Filtrer uniquement les utilisateurs avec le rôle "superviseur" (exclure les admins)
-    const supervisors = users.filter(user => {
-      const role = (user.role || '').toLowerCase().trim();
-      return role === 'superviseur';
-    });
-    
-    const select = document.getElementById('supervisor-filter');
-    if (!select) return;
-    
-    // Sauvegarder la valeur actuelle
+    // Sauvegarder la valeur actuelle avant de vider le select
     const currentValue = select.value;
     
     // Vider et réinitialiser le sélecteur
     select.innerHTML = '<option value="all">Tous les superviseurs</option>';
     
+    if (users.length === 0) {
+      console.warn('Aucun utilisateur trouvé pour le filtre des superviseurs');
+      return;
+    }
+    
+    console.log(`Analyse de ${users.length} utilisateurs pour trouver les superviseurs`);
+    
+    // Filtrer les superviseurs
+    const supervisors = users.filter(user => {
+      if (!user || !user.id) return false;
+      return isSupervisorUser(user);
+    });
+    
+    console.log(`${supervisors.length} superviseurs trouvés sur ${users.length} utilisateurs`);
+    
+    // Afficher les superviseurs dans la console pour le débogage
+    console.log('Superviseurs trouvés:', supervisors.map(s => ({
+      id: s.id,
+      name: s.name || `${s.first_name || ''} ${s.last_name || ''}`.trim(),
+      email: s.email,
+      role: s.role,
+      role_type: s.role_type,
+      is_supervisor: s.is_supervisor
+    })));
+    
+    // Trier les superviseurs par nom
+    const sortedSupervisors = [...supervisors].sort((a, b) => {
+      const nameA = (a.name || `${a.first_name || ''} ${a.last_name || ''}`.trim() || a.email || '').toLowerCase();
+      const nameB = (b.name || `${b.first_name || ''} ${b.last_name || ''}`.trim() || b.email || '').toLowerCase();
+      return nameA.localeCompare(nameB, 'fr');
+    });
+    
     // Ajouter chaque superviseur comme option
-    supervisors.forEach(supervisor => {
+    sortedSupervisors.forEach(supervisor => {
       const option = document.createElement('option');
       option.value = supervisor.id;
       
-      // Construire le nom d'affichage selon la structure de la table users
+      // Construire le nom d'affichage
       let displayName = '';
       if (supervisor.name && supervisor.name.trim()) {
         displayName = supervisor.name.trim();
@@ -1354,29 +2159,31 @@ async function loadSupervisorsForFilter() {
         displayName = supervisor.email || `Superviseur ${supervisor.id}`;
       }
       
+      // Ajouter le rôle entre parenthèses s'il est disponible
+      if (supervisor.role) {
+        displayName += ` (${supervisor.role})`;
+      } else if (supervisor.role_type) {
+        displayName += ` (${supervisor.role_type})`;
+      }
+      
       option.textContent = displayName;
       select.appendChild(option);
     });
     
     // Restaurer la valeur précédente si elle existe toujours
     if (currentValue && currentValue !== 'all') {
-      const supervisorExists = supervisors.some(supervisor => String(supervisor.id) === currentValue);
+      const supervisorExists = sortedSupervisors.some(s => String(s.id) === currentValue);
       if (supervisorExists) {
         select.value = currentValue;
+        console.log(`Valeur précédente restaurée: ${currentValue}`);
       }
     }
     
-    console.log(`${supervisors.length} superviseurs chargés pour le filtre (rôle: superviseur uniquement)`);
-    console.log('Superviseurs trouvés:', supervisors.map(s => ({ 
-      id: s.id, 
-      name: s.name, 
-      first_name: s.first_name, 
-      last_name: s.last_name, 
-      email: s.email, 
-      role: s.role 
-    })));
+    console.log('Chargement des superviseurs terminé');
+    
   } catch (error) {
     console.error('Erreur lors du chargement des superviseurs:', error);
+    select.innerHTML = '<option value="all">Erreur de chargement des superviseurs</option>';
   }
 }
 
@@ -1563,46 +2370,166 @@ async function loadCommunesForFilter(departmentId) {
 }
 
 /**
+ * Nettoie et normalise le nom d'un projet pour une comparaison cohérente
+ * @param {string} name - Le nom du projet à nettoyer
+ * @returns {string|null} Le nom nettoyé ou null si invalide
+ */
+function cleanProjectName(name) {
+  if (!name && name !== 0) return null;
+  
+  // Convertir en chaîne si ce n'est pas déjà le cas et nettoyer
+  let cleaned = String(name)
+    .trim() // Enlève les espaces en début et fin
+    .normalize('NFD') // Décompose les caractères accentués
+    .replace(/[\u0300-\u036f]/g, '') // Supprime les diacritiques
+    .toLowerCase() // Convertit en minuscules
+    .replace(/[^\w\s-]/g, ' ') // Remplace les caractères spéciaux par des espaces
+    .replace(/\s+/g, ' ') // Remplace les espaces multiples par un seul
+    .trim(); // Enlève à nouveau les espaces en début et fin
+    
+  // Supprimer les guillemets (simples/doubles) qui pourraient rester
+  cleaned = cleaned.replace(/^["\']+|["\']+$/g, '').trim();
+  
+  // Si après nettoyage on a une chaîne vide, on retourne null
+  return cleaned || null;
+}
+
+/**
+ * Met à jour la liste déroulante des projets
+ */
+function updateProjectSelect(projectsList) {
+  const select = document.getElementById('project-filter');
+  if (!select) return;
+  
+  const currentValue = select.value;
+  select.innerHTML = '<option value="all">Tous les projets</option>';
+  
+  projectsList.forEach(project => {
+    const option = document.createElement('option');
+    option.value = project;
+    option.textContent = project;
+    select.appendChild(option);
+  });
+  
+  // Restaurer la sélection précédente si elle existe toujours
+  if (currentValue && currentValue !== 'all') {
+    const cleanedCurrentValue = cleanProjectName(currentValue);
+    if (projectsList.includes(cleanedCurrentValue)) {
+      select.value = cleanedCurrentValue;
+    }
+  }
+}
+
+/**
  * Charge les projets pour le filtre depuis la colonne project_name de la table users
  */
 async function loadProjectsForFilter() {
+  const projects = new Set();
+  const select = document.getElementById('project-filter');
+  
+  if (!select) {
+    console.error('❌ Élément select project-filter non trouvé dans le DOM');
+    return [];
+  }
+  
   try {
-    const result = await api('/users');
-    const users = result.items || result.data || result || [];
-    const projects = new Set();
+    console.log('Début du chargement des projets depuis la table users...');
     
-    // Extraire les projets uniques depuis la colonne project_name de la table users
-    users.forEach(user => {
-      if (user.project_name && user.project_name.trim()) {
-        projects.add(user.project_name.trim());
+    // Essayer d'abord de récupérer tous les projets en une seule requête
+    try {
+      console.log('Tentative de chargement des projets en une seule requête...');
+      const result = await api('/users?select=project_name&limit=1000');
+      const users = Array.isArray(result) ? result : (result?.items || result?.data || []);
+      
+      users.forEach(user => {
+        try {
+          if (!user || !user.project_name) return;
+          const projectName = cleanProjectName(user.project_name);
+          if (projectName) projects.add(projectName);
+        } catch (error) {
+          console.warn('Erreur lors du traitement d\'un utilisateur:', error);
+        }
+      });
+      
+      const projectsArray = Array.from(projects).sort((a, b) => a.localeCompare(b, 'fr'));
+      console.log(`✅ ${projectsArray.length} projets chargés en une seule requête`);
+      updateProjectSelect(projectsArray);
+      return projectsArray;
+      
+    } catch (error) {
+      console.warn('Impossible de charger tous les projets en une seule requête, tentative de chargement par lots...', error);
+      
+      // Réinitialiser l'ensemble des projets pour le chargement par lots
+      projects.clear();
+      const limit = 50;
+      let page = 1;
+      let hasMore = true;
+
+      // Boucle pour récupérer les utilisateurs par lots
+      while (hasMore) {
+        try {
+          console.log(`Chargement du lot ${page}...`);
+          const result = await api(`/users?page=${page}&limit=${limit}`);
+          const users = Array.isArray(result) ? result : (result?.items || result?.data || []);
+          
+          if (users.length > 0) {
+            // Traiter les utilisateurs immédiatement sans les stocker tous en mémoire
+            users.forEach(user => {
+              try {
+                if (!user || !user.project_name) return;
+                const projectName = cleanProjectName(user.project_name);
+                if (projectName) projects.add(projectName);
+              } catch (error) {
+                console.warn('Erreur lors du traitement d\'un utilisateur:', error);
+              }
+            });
+            
+            console.log(`Lot ${page} traité avec succès (${users.length} utilisateurs, ${projects.size} projets uniques)`);
+            
+            // Passer au lot suivant
+            page++;
+            
+            // Limiter le nombre de pages pour éviter les boucles infinies
+            if (page > 20) { // Limite de sécurité
+              console.warn('Limite de 20 lots atteinte');
+              hasMore = false;
+            }
+          } else {
+            hasMore = false; // Plus de données à charger
+          }
+        } catch (error) {
+          console.error(`Erreur lors du chargement du lot ${page}:`, error);
+          hasMore = false; // En cas d'erreur, on s'arrête avec ce qu'on a
+        }
       }
-    });
-    
-    const select = document.getElementById('project-filter');
-    if (!select) return;
-    
-    // Sauvegarder la valeur actuelle
-    const currentValue = select.value;
-    
-    // Vider et réinitialiser le sélecteur
-    select.innerHTML = '<option value="all">Tous les projets</option>';
-    
-    // Ajouter chaque projet comme option
-    Array.from(projects).sort().forEach(project => {
-      const option = document.createElement('option');
-      option.value = project;
-      option.textContent = project;
-      select.appendChild(option);
-    });
-    
-    // Restaurer la valeur précédente si elle existe toujours
-    if (currentValue && currentValue !== 'all' && projects.has(currentValue)) {
-      select.value = currentValue;
     }
     
-    console.log(`${projects.size} projets chargés depuis la colonne project_name de la table users:`, Array.from(projects));
-  } catch (error) {
-    console.error('Erreur lors du chargement des projets:', error);
+    // Mise à jour finale de la liste des projets
+    const projectsArray = Array.from(projects).sort((a, b) => a.localeCompare(b, 'fr'));
+    console.log(`✅ Chargement terminé. ${projectsArray.length} projets uniques trouvés.`);
+    
+    // Mettre à jour l'interface utilisateur avec les projets chargés
+    updateProjectSelect(projectsArray);
+    
+    console.log(`✅ ${projectsArray.length} projets uniques chargés dans le filtre.`);
+    console.log('Liste complète des projets:', projectsArray);
+    
+    return projectsArray;
+    
+  } catch (outerError) {
+    console.error('❌ Erreur lors du chargement des projets:', outerError);
+    
+    // Même en cas d'erreur, on essaie d'afficher les projets déjà chargés
+    if (projects && projects.size > 0) {
+      console.log(`Utilisation de ${projects.size} projets déjà chargés malgré l'erreur`);
+      return Array.from(projects);
+    }
+    
+    // Fallback en cas d'échec total
+    if (select) {
+      select.innerHTML = '<option value="all">Erreur de chargement - Réessayez plus tard</option>';
+    }
+    return [];
   }
 }
 
@@ -1639,6 +2566,7 @@ function dateMatchesPrecise(preciseYmd, value) {
  * Affiche les graphiques de présence
  */
 function renderCharts(rows) {
+  // 1. Préparation des données pour le graphique de présence par jour
   const byDate = new Map();
   const fmtYMD = d => {
     const dt = new Date(d);
@@ -1647,18 +2575,34 @@ function renderCharts(rows) {
     const da = String(dt.getDate()).padStart(2, '0');
     return `${y}-${m}-${da}`;
   };
+  
+  // 2. Préparation des données pour le graphique par statut
+  const statusCounts = new Map();
+  
   (rows || []).forEach(r => {
     if (!r.ts) return;
+    
+    // Pour le graphique de présence par jour
     const key = fmtYMD(r.ts);
     const rec = byDate.get(key) || { present: 0, total: 0 };
     rec.total++;
     if (!String(r.statut || '').toLowerCase().includes('hors')) rec.present++;
     byDate.set(key, rec);
+    
+    // Pour le graphique par statut
+    const status = r.statut?.trim() || 'Non spécifié';
+    statusCounts.set(status, (statusCounts.get(status) || 0) + 1);
   });
+  
   const labels = Array.from(byDate.keys()).sort();
   const presentValues = labels.map(k => byDate.get(k).present);
+  
+  // Nettoyage des anciens graphiques
   try { if (presenceLineChart) { presenceLineChart.destroy(); presenceLineChart = null; } } catch (e) { console.error(e); }
   try { if (rolePieChart) { rolePieChart.destroy(); rolePieChart = null; } } catch (e) { console.error(e); }
+  try { if (statusPieChart) { statusPieChart.destroy(); statusPieChart = null; } } catch (e) { console.error(e); }
+  
+  // 3. Graphique de présence par jour (ligne)
   const lineCanvas = document.getElementById('presence-line-chart');
   if (lineCanvas && typeof Chart !== 'undefined') {
     presenceLineChart = new Chart(lineCanvas.getContext('2d'), {
@@ -1677,8 +2621,35 @@ function renderCharts(rows) {
       },
       options: {
         responsive: true,
-        plugins: { legend: { display: true } },
-        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        plugins: { 
+          legend: { 
+            display: true,
+            position: 'top'
+          },
+          title: {
+            display: true,
+            text: 'Présence quotidienne',
+            font: {
+              size: 16
+            }
+          }
+        },
+        scales: { 
+          y: { 
+            beginAtZero: true, 
+            ticks: { precision: 0 },
+            title: {
+              display: true,
+              text: 'Nombre de présences'
+            }
+          },
+          x: {
+            title: {
+              display: true,
+              text: 'Date'
+            }
+          }
+        }
       }
     });
   }

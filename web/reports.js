@@ -155,7 +155,13 @@ async function generateReport() {
       const toISO   = end   ? new Date(end   + 'T23:59:59Z').toISOString() : new Date().toISOString();
       const key  = window.SUPABASE_ANON_KEY || localStorage.getItem('SUPABASE_ANON_KEY') || '';
       const base = (window.SUPABASE_URL || localStorage.getItem('SUPABASE_URL') || '').replace(/\/+$/,'');
-      const body = { _from: fromISO, _to: toISO, _agent_id: (agentFilter && agentFilter !== 'all') ? parseInt(agentFilter,10) : null };
+      const proj = (document.getElementById('project-filter')?.value || 'all').trim();
+      const body = { 
+        _from: fromISO, 
+        _to: toISO, 
+        _agent_id: (agentFilter && agentFilter !== 'all') ? parseInt(agentFilter,10) : null,
+        _project_name: (proj && proj !== 'all') ? proj : null
+      };
       const r = await fetch(`${base}/rest/v1/rpc/attendance_report`, {
         method: 'POST',
         headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
@@ -163,36 +169,7 @@ async function generateReport() {
       });
       if (!r.ok) throw new Error(`RPC ${r.status}`);
       let rows = await r.json();
-      // Appliquer le filtre projet côté client si sélectionné
-      try {
-        const proj = (document.getElementById('project-filter')?.value || 'all').trim();
-        if (proj && proj !== 'all') {
-          rows = rows.filter(it => {
-            const a = (it.projet || it.project_name || '').trim();
-            return a === proj;
-          });
-        }
-      } catch {}
-      // Appliquer le filtre de date précise côté client (robuste fuseaux/format)
-      try {
-        const precise = (document.getElementById('date-filter')?.value || '').trim();
-        if (precise) {
-          rows = rows.filter(it => dateMatchesPrecise(precise, it.ts || it.date || it.created_at));
-        }
-      } catch {}
-      // Appliquer le filtre agent côté client (fallback si l'ID ne correspond pas)
-      try {
-        const sel = document.getElementById('agent-filter');
-        const val = sel ? sel.value : 'all';
-        if (val && val !== 'all') {
-          const label = sel.options[sel.selectedIndex]?.text?.trim() || '';
-          rows = rows.filter(it => {
-            const byId = String(it.agent_id || '') === String(val);
-            const byName = label && String(it.agent || '').trim() === label;
-            return byId || byName;
-          });
-        }
-      } catch {}
+      
       // Convertir vers le modèle d’affichage existant
       const agents = new Map();
       for (const it of rows) {
@@ -315,9 +292,6 @@ async function loadValidations() {
     if (end) qs.set('to', end);
     const resp = await api('/reports/validations?' + qs.toString());
     let items = resp?.items || [];
-    if (preciseDate) {
-      items = items.filter(it => dateMatchesPrecise(preciseDate, it.date || it.ts || it.created_at));
-    }
     const body = $('validations-body');
     body.innerHTML = items.map(it => `
       <tr>
@@ -658,61 +632,206 @@ try {
   window.resetFilters = resetFilters;
 } catch {}
 
-// Appliquer explicitement les filtres sur la page Rapports
+// Récupère tous les filtres sélectionnés sur la page Rapports
 function getSelectedFilters() {
+  // Filtres de date
   const dateRange = $('date-range')?.value || 'today';
   const preciseDate = $('date-filter')?.value || '';
+  
+  // Filtres de sélection
   const agentId = $('agent-filter')?.value || 'all';
   const project = $('project-filter')?.value || 'all';
-  return { dateRange, preciseDate, agentId, project };
+  const department = $('department-filter')?.value || 'all';
+  const commune = $('commune-filter')?.value || 'all';
+  const supervisorId = $('supervisor-filter')?.value || 'all';
+  
+  return { 
+    dateRange, 
+    preciseDate, 
+    agentId, 
+    project,
+    department,
+    commune,
+    supervisorId
+  };
 }
 
+/**
+ * Applique les filtres sélectionnés et recharge les données
+ */
 async function applyFilters() {
-  const { dateRange, preciseDate } = getSelectedFilters();
-  // Priorité à la date précise si renseignée
-  if (preciseDate) {
-    // Forcer la période sur le jour sélectionné pour toutes les requêtes suivantes
-    try {
-      // Met à jour l'affichage de la période
-      const periodText = `Période: ${preciseDate}`;
-      const el = $('report-period'); if (el) el.textContent = periodText;
-    } catch {}
-  }
-  // Recharger les validations avec le bon intervalle
-  await loadValidationsWithPreciseDate();
-  // Regénérer le rapport avec la même contrainte de date
-  try { await generateReport(); } catch {}
-}
-
-function resetFilters() {
-  try { $('date-range').value = 'today'; } catch {}
-  try { const df = $('date-filter'); if (df) df.value = new Date().toISOString().split('T')[0]; } catch {}
-  try { $('agent-filter').value = 'all'; } catch {}
-  try { $('project-filter').value = 'all'; } catch {}
-  // Rafraîchir l'affichage par défaut
-  loadValidationsWithPreciseDate();
   try {
-    const results = $('report-results'); if (results) results.style.display = 'none';
-  } catch {}
+    const { 
+      dateRange, 
+      preciseDate, 
+      agentId, 
+      project, 
+      department, 
+      commune, 
+      supervisorId 
+    } = getSelectedFilters();
+    
+    console.log('Application des filtres:', { 
+      dateRange, 
+      preciseDate, 
+      agentId, 
+      project, 
+      department, 
+      commune, 
+      supervisorId 
+    });
+    
+    // Mise à jour de l'affichage de la période
+    let periodText = 'Période: ';
+    if (preciseDate) {
+      periodText += preciseDate;
+    } else {
+      periodText += {
+        'today': 'Aujourd\'hui',
+        'week': 'Cette semaine',
+        'month': 'Ce mois',
+        'quarter': 'Ce trimestre',
+        'year': 'Cette année',
+        'custom': 'Période personnalisée'
+      }[dateRange] || dateRange;
+    }
+    
+    const periodEl = $('report-period');
+    if (periodEl) periodEl.textContent = periodText;
+    
+    // Recharger les validations avec les filtres
+    await loadValidationsWithPreciseDate();
+    
+    // Mettre à jour les statistiques
+    try { 
+      await generateReport(); 
+    } catch (error) {
+      console.error('Erreur lors de la génération du rapport:', error);
+    }
+    
+    // Afficher les résultats
+    const resultsEl = $('report-results');
+    if (resultsEl) resultsEl.style.display = 'block';
+    
+  } catch (error) {
+    console.error('Erreur lors de l\'application des filtres:', error);
+    alert('Une erreur est survenue lors de l\'application des filtres. Veuillez réessayer.');
+  }
 }
 
+/**
+ * Réinitialise tous les filtres à leurs valeurs par défaut
+ */
+function resetFilters() {
+  try {
+    // Réinitialisation des champs de date
+    $('date-range').value = 'today';
+    const df = $('date-filter');
+    if (df) df.value = '';
+    
+    // Réinitialisation des sélecteurs
+    const filters = [
+      'agent-filter',
+      'project-filter',
+      'department-filter',
+      'commune-filter',
+      'supervisor-filter'
+    ];
+    
+    filters.forEach(id => {
+      try {
+        const el = document.getElementById(id);
+        if (el) el.value = 'all';
+      } catch (e) {
+        console.warn(`Impossible de réinitialiser le filtre ${id}:`, e);
+      }
+    });
+    
+    // Réinitialisation du sélecteur de commune
+    const communeSelect = $('commune-filter');
+    if (communeSelect) {
+      communeSelect.innerHTML = '<option value="all">Sélectionnez d\'abord un département</option>';
+      communeSelect.disabled = true;
+    }
+    
+    // Masquer les résultats
+    const results = $('report-results');
+    if (results) results.style.display = 'none';
+    
+    // Mettre à jour l'affichage de la période
+    const periodEl = $('report-period');
+    if (periodEl) periodEl.textContent = 'Période: Aujourd\'hui';
+    
+    // Recharger les données avec les filtres réinitialisés
+    loadValidationsWithPreciseDate();
+    
+  } catch (error) {
+    console.error('Erreur lors de la réinitialisation des filtres:', error);
+  }
+}
+
+/**
+ * Charge les validations en fonction des filtres sélectionnés
+ */
 async function loadValidationsWithPreciseDate() {
   try {
-    const { dateRange, preciseDate } = getSelectedFilters();
+    // Afficher l'indicateur de chargement
+    const loadingEl = $('validations-loading');
+    if (loadingEl) loadingEl.style.display = 'block';
+    
+    // Récupérer tous les filtres sélectionnés
+    const { 
+      dateRange, 
+      preciseDate, 
+      agentId, 
+      project, 
+      department, 
+      commune, 
+      supervisorId 
+    } = getSelectedFilters();
+    
+    console.log('Chargement des validations avec les filtres:', {
+      dateRange, preciseDate, agentId, project, department, commune, supervisorId
+    });
+    
+    // Déterminer la plage de dates
     let start, end;
     if (preciseDate) {
-      start = preciseDate; end = preciseDate;
+      start = preciseDate; 
+      end = preciseDate;
+      console.log(`Filtrage sur la date précise: ${preciseDate}`);
     } else {
-      const r = getRangeDates(dateRange); start = r.start; end = r.end;
+      const r = getRangeDates(dateRange); 
+      start = r.start; 
+      end = r.end;
+      console.log(`Filtrage sur la plage: ${start} au ${end}`);
     }
+    
+    // Préparer les paramètres de requête
     const qs = new URLSearchParams();
     if (start) qs.set('from', start);
     if (end) qs.set('to', end);
+    
+    // Ajouter les filtres s'ils sont définis et différents de 'all'
+    const addFilterIfNeeded = (param, value) => {
+      if (value && value !== 'all') {
+        qs.set(param, value);
+        console.log(`Filtre appliqué: ${param}=${value}`);
+      }
+    };
+    
+    addFilterIfNeeded('agent_id', agentId);
+    addFilterIfNeeded('project_name', project);
+    addFilterIfNeeded('department', department);
+    addFilterIfNeeded('commune', commune);
+    addFilterIfNeeded('supervisor_id', supervisorId);
+    
+    // Effectuer la requête avec tous les filtres
+    console.log('Requête API avec les paramètres:', qs.toString());
     const resp = await api('/reports/validations?' + qs.toString());
     let items = resp?.items || [];
-    if (preciseDate) {
-      items = items.filter(it => dateMatchesPrecise(preciseDate, it.date || it.ts || it.created_at));
-    }
+    
+    console.log(`${items.length} validations chargées`);
 
 // Utilitaire de comparaison de dates robuste multi-format/fuseaux
 function dateMatchesPrecise(preciseYmd, value) {
@@ -766,26 +885,44 @@ async function loadProjectsOptions() {
     // Par défaut
     sel.innerHTML = '<option value="all">Tous les projets</option>';
 
-    // 1) Essayer via backend admin/agents pour extraire les projets uniques
     let projects = new Set();
-    try {
-      if (jwt) {
-        const res = await fetch(apiBase + '/admin/agents', { headers: { 'Authorization': 'Bearer ' + jwt } });
-        if (res.ok) {
-          const payload = await res.json();
-          const list = Array.isArray(payload) ? payload : (payload?.data || payload?.agents || payload?.items || []);
-          list.forEach(u => { if (u.project_name && String(u.project_name).trim()) projects.add(String(u.project_name).trim()); });
-        }
-      }
-    } catch {}
+    const key  = window.SUPABASE_ANON_KEY || localStorage.getItem('SUPABASE_ANON_KEY') || '';
+    const base = (window.SUPABASE_URL || localStorage.getItem('SUPABASE_URL') || '').replace(/\/+$/,'');
 
-    // 2) Fallback Supabase direct si pas de projets via backend
+    // 1) Nouvelle approche: essayer de charger depuis une table `projects`
+    if (key && base) {
+      try {
+        const p = new URLSearchParams();
+        p.set('select', 'name'); // Supposant une colonne `name`
+        p.set('order', 'name');
+        const r = await fetch(`${base}/rest/v1/projects?${p.toString()}`, { headers: { apikey: key, Authorization: 'Bearer ' + key } });
+        if (r.ok) {
+          const rows = await r.json();
+          rows.forEach(p => { if (p.name && String(p.name).trim()) projects.add(String(p.name).trim()); });
+        }
+      } catch (e) {
+        console.warn('Could not fetch from `projects` table:', e?.message);
+      }
+    }
+
+    // 2) Fallback: essayer via backend admin/agents
     if (projects.size === 0) {
       try {
-        const key  = window.SUPABASE_ANON_KEY || localStorage.getItem('SUPABASE_ANON_KEY') || '';
-        const base = (window.SUPABASE_URL || localStorage.getItem('SUPABASE_URL') || '').replace(/\/+$/,'');
+        if (jwt) {
+          const res = await fetch(apiBase + '/admin/agents', { headers: { 'Authorization': 'Bearer ' + jwt } });
+          if (res.ok) {
+            const payload = await res.json();
+            const list = Array.isArray(payload) ? payload : (payload?.data || payload?.agents || payload?.items || []);
+            list.forEach(u => { if (u.project_name && String(u.project_name).trim()) projects.add(String(u.project_name).trim()); });
+          }
+        }
+      } catch {}
+    }
+
+    // 3) Fallback: Supabase direct sur la table `users`
+    if (projects.size === 0) {
+      try {
         if (key && base) {
-          // Sélectionner juste les colonnes utiles, ordre par project_name
           const p = new URLSearchParams();
           p.set('select', 'project_name');
           p.set('order', 'project_name');
@@ -798,7 +935,7 @@ async function loadProjectsOptions() {
 
     // Renseigner le select
     if (projects.size > 0) {
-      sel.innerHTML = '<option value="all">Tous les projets</option>' + Array.from(projects).map(name => `<option value="${name}">${name}</option>`).join('');
+      sel.innerHTML = '<option value="all">Tous les projets</option>' + Array.from(projects).sort().map(name => `<option value="${name}">${name}</option>`).join('');
     }
   } catch (e) {
     console.warn('loadProjectsOptions failed:', e?.message || e);
