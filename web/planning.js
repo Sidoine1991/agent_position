@@ -973,7 +973,7 @@
         $('week-start').value = toISODate(start);
       }
 
-      const weekDays = Array.from({ length: 5 }, (_, i) => addDays(start, i));
+      const weekDays = Array.from({ length: 6 }, (_, i) => addDays(start, i));
       const from = toISODate(weekDays[0]);
       const to = toISODate(weekDays[weekDays.length - 1]);
 
