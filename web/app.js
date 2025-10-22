@@ -1082,8 +1082,24 @@ async function init() {
       const photoInput = $('photo');
       const selectedPhoto = photoInput && photoInput.files && photoInput.files[0] ? photoInput.files[0] : null;
       if (!selectedPhoto) {
-        showNotification('Veuillez prendre une photo avant de débuter la mission.', 'warning');
-        try { photoInput && photoInput.click && photoInput.click(); } catch {}
+        // Notification plus visible et explicite
+        showNotification('📸 Photo obligatoire ! Veuillez prendre une photo avant de débuter la mission.', 'error');
+        
+        // Animation du bouton pour attirer l'attention
+        if (button) {
+          button.style.animation = 'shake 0.5s ease-in-out';
+          setTimeout(() => {
+            if (button) button.style.animation = '';
+          }, 500);
+        }
+        
+        // Ouvrir automatiquement le sélecteur de photo
+        try { 
+          if (photoInput && photoInput.click) {
+            photoInput.click();
+          }
+        } catch {}
+        
         return;
       }
       
