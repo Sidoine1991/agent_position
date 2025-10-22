@@ -6,6 +6,10 @@
   'use strict';
 
   // ----------------------------
+  // 0. FONCTIONS UTILITAIRES
+  const getElementById = (id) => document.getElementById(id);
+
+  // ----------------------------
   // 1. CONSTANTES GLOBALES
   // ----------------------------
   const API_BASE = '/api';
@@ -29,6 +33,7 @@
     communes: [],
     selectedDepartmentId: '',
     selectedCommuneId: '',
+    selectedStatus: '',
   };
 
   // Données géographiques intégrées
@@ -164,31 +169,34 @@
     
     return filteredPlans;
   };
-  /**
-   * Récupère un élément DOM par son ID.
-   * @param {string} id - ID de l'élément
-   * @returns {HTMLElement|null}
-   */
-  const $ = (id) => document.getElementById(id);
 
   /**
    * Trouve un token JWT dans le stockage local ou global.
    * @returns {string}
    */
   const findToken = () => {
+    console.log('Recherche du token JWT...');
     for (const key of DEFAULT_TOKEN_CANDIDATES) {
       const value = (localStorage.getItem(key) || '').trim();
-      if (value && value.split('.').length >= 3) return value;
+      if (value && value.split('.').length >= 3) {
+        console.log(`Token trouvé dans localStorage.${key}`);
+        return value;
+      }
     }
     if (typeof window.jwt === 'string' && window.jwt.split('.').length >= 3) {
+      console.log('Token trouvé dans window.jwt');
       return window.jwt;
     }
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key) continue;
       const value = localStorage.getItem(key) || '';
-      if (value.split('.').length >= 3 && value.length > 60) return value;
+      if (value.split('.').length >= 3 && value.length > 60) {
+        console.log(`Token trouvé dans localStorage.${key}`);
+        return value;
     }
+    }
+    console.log('Aucun token JWT trouvé');
     return '';
   };
 
@@ -331,88 +339,126 @@
     }
     state.refreshMonthTimer = setTimeout(() => {
       try {
-        loadMonth($('month').value);
+        const monthEl = $('month');
+        if (monthEl && monthEl.value) {
+          loadMonth(monthEl.value);
+        } else {
+          loadMonth();
+        }
       } catch (e) {
-        console.error('Erreur loadMonth:', e);
+        console.error('Erreur scheduleMonthRefresh:', e);
       }
     }, delay);
   };
 
   // ----------------------------
   // 5. CHARGEMENT DES DONNÉES
-  // ----------------------------
+  
   /**
-   * Charge la liste des utilisateurs (agents et superviseurs)
+   * Charge la liste des utilisateurs (agents et superviseurs) depuis l'API avec pagination
+   * @returns {Promise<void>}
    */
   const loadUsers = async () => {
+    console.log('🔄 Début du chargement des utilisateurs...');
+    const loadingToastId = showToast('Chargement des utilisateurs...', 'info', { autoClose: false });
+    
     try {
+      // Vérifier la connexion Internet
+      if (!navigator.onLine) {
+        throw new Error('Pas de connexion Internet. Veuillez vérifier votre connexion.');
+      }
+
+      console.log('🔑 Génération des headers d\'authentification...');
       const headers = await authHeaders();
-      const response = await fetch(`${API_BASE}/admin/agents`, { headers });
+      console.log('📤 Headers générés:', headers);
 
-      if (!response.ok) {
-        throw new Error(`Erreur HTTP ${response.status} lors du chargement des utilisateurs`);
-      }
+      // Afficher un indicateur de chargement
+      showToast('Chargement des utilisateurs...', 'info', { id: loadingToastId, autoClose: false });
 
-      const result = await response.json();
-      const users = result.agents || result.data || [];
 
-      if (!Array.isArray(users)) {
-        console.error('Format de données inattendu pour les utilisateurs:', result);
-        return;
-      }
 
-      // S'assurer que chaque utilisateur a un nom valide
-      const processedUsers = users.map(user => {
-        // Utiliser le nom complet (name) s'il existe, sinon concaténer first_name et last_name
-        if (!user.name || user.name.trim() === '') {
-          const firstName = user.first_name || '';
-          const lastName = user.last_name || '';
-          const fullName = `${firstName} ${lastName}`.trim();
-          user.name = fullName || user.email || `Agent ${user.id}`;
+      // Essayer de charger les utilisateurs depuis l'API /api/users
+      try {
+        console.log('🌐 Chargement des utilisateurs depuis /api/users...');
+        console.log('📤 Headers utilisés:', headers);
+        
+        const startTime = Date.now();
+        const response = await fetch(`${API_BASE}/users`, { 
+          headers: {
+            ...headers,
+            'Accept': 'application/json'
+          },
+          credentials: 'include'
+        });
+        const loadTime = Date.now() - startTime;
+        console.log(`⏱️ Temps de réponse API: ${loadTime}ms`);
+
+        if (!response.ok) {
+          console.error(`❌ Erreur API: ${response.status} ${response.statusText}`);
+          if (response.status === 401) {
+            localStorage.removeItem('jwt');
+            showAuthBanner('Session expirée. Veuillez vous reconnecter.');
+            throw new Error('Session expirée');
+          }
+          throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+        }
+
+        const raw = await response.json();
+        const allUsers = Array.isArray(raw)
+          ? raw
+          : Array.isArray(raw?.items)
+            ? raw.items
+            : Array.isArray(raw?.data)
+              ? raw.data
+              : [];
+        console.log(`✅ ${allUsers.length} utilisateurs chargés depuis l'API en ${loadTime}ms`);
+        
+        // Traiter les données reçues avec filtrage correct des rôles
+        state.agents = allUsers.filter(user => user.role === 'agent');
+        state.supervisors = allUsers.filter(user => user.role === 'superviseur');
+        state.admins = allUsers.filter(user => user.role === 'admin');
+        
+        // Pour l'affichage, on peut combiner superviseurs et admins si nécessaire
+        state.allSupervisors = [...state.supervisors, ...state.admins];
+        
+        console.log(`📊 Répartition: ${state.agents.length} agents, ${state.supervisors.length} superviseurs, ${state.admins.length} admins`);
+        
+        // Si aucun utilisateur n'est trouvé, afficher un message
+        if (state.agents.length === 0 && state.supervisors.length === 0 && state.admins.length === 0) {
+          console.warn('⚠️ Aucun utilisateur trouvé dans la base de données');
+          showToast('Aucun utilisateur trouvé dans la base de données', 'warning', { id: loadingToastId });
+          return;
         }
         
-        // S'assurer que le nom n'est pas vide
-        if (!user.name || user.name.trim() === '') {
-          user.name = user.email || `Agent ${user.id}`;
-        }
+        console.log('🔄 Mise à jour de l\'interface utilisateur...');
+        // Mettre à jour l'interface
+        updateAgentSelect();
+        updateSupervisorSelect();
         
-        return user;
-      });
-
-      // Filtrer les agents et les superviseurs
-      state.agents = processedUsers.filter(user => user && user.role === 'agent');
-      // Les superviseurs sont tous les utilisateurs sauf les agents
-      state.supervisors = processedUsers.filter(u =>
-        u && u.role && u.role !== 'agent'
-      );
-
-      console.log(`${state.agents.length} agents et ${state.supervisors.length} superviseurs chargés`);
-      console.log('Rôles uniques trouvés:', [...new Set(processedUsers.map(u => u.role))]);
-      console.log('Superviseurs chargés:', state.supervisors.map(s => ({ name: s.name, role: s.role, id: s.id })));
-
-      // Mettre à jour les sélecteurs
-      updateAgentSelect();
-      updateSupervisorSelect();
-
-      // Si un agent est déjà sélectionné, s'assurer qu'il est toujours valide
-      if (state.selectedAgentId) {
-        const agentExists = state.agents.some(a => String(a.id) === String(state.selectedAgentId));
-        if (!agentExists) {
-          state.selectedAgentId = '';
-          if ($('agent-select')) $('agent-select').value = '';
+        showToast(
+          `✅ ${state.agents.length} agents, ${state.supervisors.length} superviseurs et ${state.admins.length} admins chargés`, 
+          'success', 
+          { id: loadingToastId }
+        );
+        
+      } catch (error) {
+        console.error('❌ Erreur lors du chargement des utilisateurs:', error);
+        
+        // Afficher un message d'erreur et ne pas utiliser les données de test
+          const errorMessage = `Erreur: ${error.message || 'Impossible de charger les utilisateurs'}`;
+          showToast(errorMessage, 'error', { id: loadingToastId });
+          
+        // Réessayer après un délai seulement si c'est une erreur réseau
+        if (navigator.onLine && error.message.includes('Failed to fetch')) {
+          const retryTime = 5000; // 5 secondes
+          console.log(`🔄 Nouvelle tentative dans ${retryTime / 1000} secondes...`);
+            setTimeout(loadUsers, retryTime);
         }
       }
-
+      
     } catch (error) {
-      console.error('Erreur chargement utilisateurs:', error);
-      // Afficher un message d'erreur à l'utilisateur
-      const errorDiv = document.createElement('div');
-      errorDiv.className = 'alert alert-danger';
-      errorDiv.textContent = 'Erreur lors du chargement de la liste des agents. Veuillez rafraîchir la page.';
-      const container = $('agent-select')?.parentNode;
-      if (container) {
-        container.insertBefore(errorDiv, $('agent-select'));
-      }
+      console.error('Erreur critique lors du chargement des utilisateurs:', error);
+      showToast(`Erreur: ${error.message || 'Erreur inconnue'}`, 'error');
     }
   };
 
@@ -442,15 +488,14 @@
       } else {
         // Fallback: récupérer tous les utilisateurs pour extraire les projets uniques
         console.warn('Endpoint projets non disponible, fallback vers les utilisateurs');
-        response = await fetch(`${API_BASE}/admin/agents`, { 
+        response = await fetch(`${API_BASE}/users`, { 
           headers,
           credentials: 'include',
           method: 'GET'
         });
         
         if (response.ok) {
-          const result = await response.json();
-          const users = result.agents || result.data || [];
+          const users = await response.json();
           
           // Extraire les projets uniques depuis la colonne project_name
           const projects = users
@@ -480,31 +525,83 @@
   };
 
   /**
-   * Charge la liste des départements.
+   * Charge la liste des départements depuis l'API ou utilise les données intégrées en cas d'échec.
    */
   const loadDepartments = async () => {
-    try {
-      const headers = await authHeaders();
-      const response = await fetch(`${API_BASE}/departments`, { headers });
-      
-      if (response.ok) {
-        const data = await response.json();
-        state.departments = data.items || data || [];
-        console.log(`${state.departments.length} départements chargés depuis Supabase`);
-      } else {
-        console.warn('Erreur lors du chargement des départements depuis Supabase, utilisation des données intégrées');
-        // Fallback vers les données intégrées
-        state.departments = geoData.departements || [];
-        console.log(`${state.departments.length} départements chargés depuis les données intégrées`);
-      }
-      
-      updateDepartmentSelect();
-    } catch (error) {
-      console.error('Erreur chargement départements:', error);
-      // Fallback vers les données intégrées
+    console.log('Chargement des départements...');
+    
+    // Fonction pour charger les données intégrées
+    const loadIntegratedData = () => {
+      console.warn('Utilisation des données intégrées pour les départements');
       state.departments = geoData.departements || [];
-      console.log(`${state.departments.length} départements chargés depuis les données intégrées (fallback)`);
       updateDepartmentSelect();
+      console.log(`${state.departments.length} départements chargés depuis les données intégrées`);
+    };
+
+    // Si pas de connexion, utiliser directement les données intégrées
+    if (!navigator.onLine) {
+      console.warn('Pas de connexion Internet, utilisation des données intégrées');
+      loadIntegratedData();
+      return;
+    }
+
+    try {
+      // Essayer de récupérer les en-têtes d'authentification
+      let headers;
+      try {
+        headers = await authHeaders();
+      } catch (authError) {
+        console.warn('Erreur d\'authentification, utilisation des données intégrées:', authError);
+        loadIntegratedData();
+        return;
+      }
+
+      // Configuration de la requête avec timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // Timeout de 5 secondes
+
+      try {
+        const response = await fetch(`${API_BASE}/departments`, { 
+          headers,
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json();
+          state.departments = data.items || data || [];
+          
+          // Si aucun département n'est retourné, utiliser les données intégrées
+          if (state.departments.length === 0) {
+            console.warn('Aucun département trouvé dans la réponse, utilisation des données intégrées');
+            loadIntegratedData();
+            return;
+          }
+          
+          console.log(`${state.departments.length} départements chargés depuis l'API`);
+          updateDepartmentSelect();
+        } else {
+          // Si l'API retourne une erreur, utiliser les données intégrées
+          console.warn(`Erreur ${response.status} lors du chargement des départements, utilisation des données intégrées`);
+          loadIntegratedData();
+        }
+      } catch (error) {
+        clearTimeout(timeoutId);
+        
+        // En cas d'erreur réseau ou de timeout, utiliser les données intégrées
+        if (error.name === 'AbortError' || error.message.includes('Failed to fetch')) {
+          console.warn('Délai d\'attente dépassé ou erreur réseau, utilisation des données intégrées');
+        } else {
+          console.error('Erreur lors du chargement des départements:', error);
+        }
+        
+        loadIntegratedData();
+      }
+    } catch (error) {
+      console.error('Erreur critique lors du chargement des départements:', error);
+      // En cas d'erreur inattendue, utiliser les données intégrées
+      loadIntegratedData();
     }
   };
 
@@ -547,14 +644,19 @@
    * Met à jour la liste déroulante des agents.
    */
   const updateAgentSelect = () => {
-    const select = $('agent-select');
-    if (!select) return;
+    console.log('Mise à jour du sélecteur des agents...');
+    const select = document.getElementById('agent-select');
+    if (!select) {
+      console.error('Élément agent-select non trouvé dans le DOM');
+      return;
+    }
     const prevValue = select.value;
     select.innerHTML = '<option value="">Tous les agents</option>';
+    console.log(`Nombre d'agents à afficher: ${state.agents ? state.agents.length : 0}`);
     state.agents.forEach(agent => {
       const option = document.createElement('option');
       option.value = agent.id;
-      const name = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
+      const name = agent.name || agent.email;
       option.textContent = `${name} (${agent.email})`;
       select.appendChild(option);
     });
@@ -565,24 +667,31 @@
    * Met à jour la liste déroulante des superviseurs.
    */
   const updateSupervisorSelect = () => {
-    const select = $('supervisor-filter-select');
+    console.log('Mise à jour du sélecteur des superviseurs...');
+    const select = document.getElementById('supervisor-filter-select');
     if (!select) {
       console.error('Sélecteur de superviseur non trouvé: supervisor-filter-select');
       return;
     }
     
+    // Utiliser allSupervisors qui combine superviseurs et admins
+    const supervisorsToShow = state.allSupervisors || [];
+    console.log(`Nombre de superviseurs à afficher: ${supervisorsToShow.length} (${state.supervisors?.length || 0} superviseurs + ${state.admins?.length || 0} admins)`);
+    
     const prevValue = select.value;
+    
+    console.log(`Mise à jour du sélecteur de superviseurs avec ${supervisorsToShow.length} superviseurs/admins`);
+    
     select.innerHTML = '<option value="">Tous les superviseurs</option>';
     
-    console.log(`Mise à jour du sélecteur de superviseurs avec ${state.supervisors.length} superviseurs`);
-    
-    state.supervisors.forEach(supervisor => {
+    supervisorsToShow.forEach(supervisor => {
       const option = document.createElement('option');
       option.value = String(supervisor.id || supervisor.email || '');
-      const name = supervisor.name || `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() || supervisor.email;
-      option.textContent = name;
+      const name = supervisor.name || supervisor.email;
+      const roleLabel = supervisor.role === 'admin' ? ' (Admin)' : ' (Superviseur)';
+      option.textContent = name + roleLabel;
       select.appendChild(option);
-      console.log(`Ajout du superviseur: ${name} (ID: ${supervisor.id})`);
+      console.log(`Ajout du superviseur: ${name}${roleLabel} (ID: ${supervisor.id})`);
     });
     
     if (prevValue) select.value = prevValue;
@@ -597,7 +706,7 @@
    * Met à jour la liste déroulante des projets.
    */
   const updateProjectSelect = () => {
-    const select = $('project-select');
+    const select = getElementById('project-select');
     if (!select) return;
     select.innerHTML = '<option value="">Tous les projets</option>';
     state.projects.forEach(project => {
@@ -612,7 +721,7 @@
    * Met à jour la liste déroulante des projets (filtre) avec les projets disponibles
    */
   const updateProjectFilterSelect = () => {
-    const select = $('project-filter-select');
+    const select = getElementById('project-filter-select');
     if (!select) return;
     
     const prevValue = select.value;
@@ -705,7 +814,7 @@
    */
   const filterAgentsBySupervisor = () => {
     try {
-      const select = $('agent-select');
+      const select = document.getElementById('agent-select');
       if (!select) return;
       const options = Array.from(select.querySelectorAll('option'));
       options.forEach((option, index) => {
@@ -738,7 +847,7 @@
    */
   const filterAgentsByProject = () => {
     try {
-      const select = $('agent-select');
+      const select = document.getElementById('agent-select');
       if (!select) return;
 
       const visibleAgents = state.agents.filter(agent => {
@@ -751,7 +860,7 @@
       visibleAgents.forEach(agent => {
         const option = document.createElement('option');
         option.value = agent.id;
-        const name = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
+        const name = agent.name || agent.email;
         option.textContent = `${name} (${agent.email})`;
         select.appendChild(option);
       });
@@ -770,6 +879,85 @@
   // ----------------------------
   // 6. GESTION DE LA PLANIFICATION
   // ----------------------------
+  
+  /**
+   * Sauvegarde une planification via l'API
+   * @param {Object} planningData - Les données de planification à sauvegarder
+   * @param {HTMLElement} [buttonElement=null] - Élément bouton à désactiver pendant la sauvegarde
+   * @returns {Promise<Object>} - La réponse de l'API
+   */
+  const savePlanning = async (planningData, buttonElement = null) => {
+    // Sauvegarder l'état original du bouton
+    let originalButtonState = null;
+    if (buttonElement) {
+      originalButtonState = {
+        disabled: buttonElement.disabled,
+        innerHTML: buttonElement.innerHTML
+      };
+      buttonElement.disabled = true;
+      buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+    }
+
+    try {
+      // Récupérer les en-têtes d'authentification
+      const auth = await authHeaders();
+      if (!auth) {
+        throw new Error('Erreur d\'authentification: veuillez vous reconnecter');
+      }
+
+      // Valider les données requises
+      if (!planningData.date || !planningData.planned_start_time || !planningData.planned_end_time) {
+        throw new Error('Les champs date, heure de début et heure de fin sont obligatoires');
+      }
+
+      // Valider que l'heure de fin est après l'heure de début
+      const startTime = planningData.planned_start_time;
+      const endTime = planningData.planned_end_time;
+      if (startTime && endTime && startTime >= endTime) {
+        throw new Error('L\'heure de fin doit être postérieure à l\'heure de début');
+      }
+
+      // Préparer les en-têtes
+      const headers = {
+        'Content-Type': 'application/json',
+        ...auth,
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      };
+
+      console.log('Envoi des données de planification:', planningData);
+      
+      // Envoyer la requête à l'API
+      const response = await fetch(`${API_BASE}/planifications`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify(planningData)
+      });
+
+      const responseData = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        console.error('Erreur API:', response.status, responseData);
+        throw new Error(
+          responseData.message || 
+          responseData.error || 
+          `Erreur ${response.status} lors de l'enregistrement`
+        );
+      }
+
+      return responseData;
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde de la planification:', error);
+      throw error; // Propager l'erreur pour la gestion par l'appelant
+    } finally {
+      // Restaurer l'état du bouton
+      if (buttonElement && originalButtonState) {
+        buttonElement.disabled = originalButtonState.disabled;
+        buttonElement.innerHTML = originalButtonState.innerHTML;
+      }
+    }
+  };
   /**
    * Charge la planification pour une semaine.
    * @param {string} dateStr
@@ -815,6 +1003,20 @@
       // Note: Le filtre superviseur sera appliqué côté client car l'API ne le supporte pas
       if (state.selectedSupervisorId) {
         console.log(`Filtre superviseur à appliquer côté client: ${state.selectedSupervisorId}`);
+      }
+
+      // Mapper departement/commune ID -> nom pour l'API backend (users stocke les noms)
+      if (state.selectedDepartmentId) {
+        const dept = (geoData.departements || []).find(d => String(d.id) === String(state.selectedDepartmentId));
+        if (dept && dept.name) planificationsUrl.searchParams.append('departement', dept.name);
+      }
+      if (state.selectedCommuneId) {
+        const communesForDept = (geoData.communes || {})[String(state.selectedDepartmentId)] || state.communes || [];
+        const com = communesForDept.find(c => String(c.id) === String(state.selectedCommuneId));
+        if (com && com.name) planificationsUrl.searchParams.append('commune', com.name);
+      }
+      if (state.selectedStatus) {
+        planificationsUrl.searchParams.append('resultat_journee', state.selectedStatus);
       }
 
       // Construire les chemins pour les autres appels API
@@ -929,32 +1131,51 @@
         btn.addEventListener('click', async () => {
           const date = btn.getAttribute('data-date');
           const today = toISODate(new Date());
+          
+          // Vérifier si la date est dans le passé
           if (date < today) {
-            alert('Impossible de modifier un jour passé.');
+            showToast('Impossible de modifier un jour passé', 'error');
             return;
           }
-          const payload = {
+          
+          // Préparer les données de planification
+          const planningData = {
             date,
             planned_start_time: $(`gs-${date}`).value || null,
             planned_end_time: $(`ge-${date}`).value || null,
             description_activite: $(`desc-${date}`).value || null,
-            project_name: state.selectedProjectFilter || null, // Utiliser le filtre projet
-            agent_id: state.selectedAgentId || null // Spécifier l'agent
+            project_name: state.selectedProjectFilter || null,
+            user_id: state.selectedAgentId ? parseInt(state.selectedAgentId, 10) : null,
+            resultat_journee: 'en_cours'
           };
           
-          const headers = await authHeaders();
-          const response = await fetch(`${API_BASE}/planifications`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(payload)
-          });
-
-          if (response.ok) {
-            await loadWeek($('week-start').value);
+          // Validation des champs requis
+          if (!planningData.planned_start_time || !planningData.planned_end_time) {
+            showToast('Veuillez spécifier une heure de début et de fin', 'error');
+            return;
+          }
+          
+          try {
+            // Utiliser la fonction savePlanning centralisée
+            await savePlanning(planningData, btn);
+            
+            // Afficher un message de succès
+            showToast('Planification enregistrée avec succès', 'success');
+            
+            // Recharger les données mises à jour
+            await loadWeek($('week-start')?.value || toISODate(new Date()));
             scheduleMonthRefresh(100);
             await loadWeeklySummary();
-          } else {
-             alert('Erreur lors de l\'enregistrement.');
+            
+            // Forcer le rechargement du Gantt
+            const ganttElement = $('week-gantt');
+            if (ganttElement) {
+              ganttElement.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Rechargement du planning...</p></div>';
+            }
+            
+          } catch (error) {
+            // L'erreur est déjà gérée dans savePlanning
+            console.error('Erreur lors de la sauvegarde de la planification:', error);
           }
         });
       });
@@ -999,15 +1220,22 @@
         planificationsUrl.searchParams.append('agent_id', state.selectedAgentId);
         console.log(`Filtre agent (mois): ${state.selectedAgentId}`);
       }
-      // Note: Les filtres superviseur, département et commune seront appliqués côté client
+      // Note: Le filtre superviseur sera appliqué côté client
       if (state.selectedSupervisorId) {
         console.log(`Filtre superviseur (mois) à appliquer côté client: ${state.selectedSupervisorId}`);
       }
+      // Mapper departement/commune ID -> nom pour l'API backend
       if (state.selectedDepartmentId) {
-        console.log(`Filtre département (mois) à appliquer côté client: ${state.selectedDepartmentId}`);
+        const dept = (geoData.departements || []).find(d => String(d.id) === String(state.selectedDepartmentId));
+        if (dept && dept.name) planificationsUrl.searchParams.append('departement', dept.name);
       }
       if (state.selectedCommuneId) {
-        console.log(`Filtre commune (mois) à appliquer côté client: ${state.selectedCommuneId}`);
+        const communesForDept = (geoData.communes || {})[String(state.selectedDepartmentId)] || state.communes || [];
+        const com = communesForDept.find(c => String(c.id) === String(state.selectedCommuneId));
+        if (com && com.name) planificationsUrl.searchParams.append('commune', com.name);
+      }
+      if (state.selectedStatus) {
+        planificationsUrl.searchParams.append('resultat_journee', state.selectedStatus);
       }
 
       const plansRes = await fetch(planificationsUrl.toString(), { headers, credentials: 'include' });
@@ -1173,13 +1401,13 @@
         }
       }
       
-      // Ajouter les superviseurs s'ils existent
-      if (state.supervisors && Array.isArray(state.supervisors) && state.supervisors.length > 0) {
-        usersData = [...usersData, ...state.supervisors];
-        console.log(`${state.supervisors.length} superviseurs ajoutés`);
+      // Ajouter les superviseurs et admins s'ils existent
+      if (state.allSupervisors && Array.isArray(state.allSupervisors) && state.allSupervisors.length > 0) {
+        usersData = [...usersData, ...state.allSupervisors];
+        console.log(`${state.allSupervisors.length} superviseurs/admins ajoutés`);
       }
       
-      console.log(`${usersData.length} utilisateurs chargés (${state.agents?.length || 0} agents, ${state.supervisors?.length || 0} superviseurs)`);
+      console.log(`${usersData.length} utilisateurs chargés (${state.agents?.length || 0} agents, ${state.supervisors?.length || 0} superviseurs, ${state.admins?.length || 0} admins)`);
 
       // 3. Vérifier la réponse
       if (!plansRes || !plansRes.ok) {
@@ -1206,7 +1434,7 @@
       if (usersData.length === 0) {
         console.warn('Aucun utilisateur trouvé dans le state, tentative de rechargement...');
         await loadUsers(); // Recharger les utilisateurs si nécessaire
-        usersData = [...(state.agents || []), ...(state.supervisors || [])];
+        usersData = [...(state.agents || []), ...(state.allSupervisors || [])];
         console.log(`${usersData.length} utilisateurs après rechargement`);
         
         // Si toujours aucun utilisateur, essayer de charger directement depuis l'API
@@ -1214,10 +1442,9 @@
           console.warn('Tentative de chargement direct depuis l\'API...');
           try {
             const headers = await authHeaders();
-            const response = await fetch(`${API_BASE}/admin/agents`, { headers });
+            const response = await fetch(`${API_BASE}/users`, { headers });
             if (response.ok) {
-              const result = await response.json();
-              const apiUsers = result.agents || result.data || [];
+              const apiUsers = await response.json();
               usersData = apiUsers.filter(user => user && user.id !== undefined);
               console.log(`${usersData.length} utilisateurs chargés directement depuis l'API`);
             }
@@ -1298,11 +1525,8 @@
               if (user) {
                 if (user.name && user.name.trim() !== '') {
                   userName = user.name;
-                } else if (user.first_name || user.last_name) {
-                  const firstName = user.first_name || '';
-                  const lastName = user.last_name || '';
-                  const fullName = `${firstName} ${lastName}`.trim();
-                  userName = fullName || user.email || `Agent ${plan.user_id || plan.agent_id}`;
+                } else if (user.name) {
+                  userName = user.name;
                 } else if (user.email) {
                   userName = user.email;
                 }
@@ -1478,6 +1702,85 @@
 
 
   /**
+   * Affiche une notification toast
+   * @param {string} message - Le message à afficher
+   * @param {string} type - Le type de notification (success, error, warning, info)
+   */
+  const showToast = (message, type = 'info') => {
+    try {
+      // Créer le conteneur s'il n'existe pas
+      let toastContainer = document.getElementById('toast-container');
+      if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.style.position = 'fixed';
+        toastContainer.style.top = '20px';
+        toastContainer.style.right = '20px';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+      }
+
+      // Créer le toast
+      const toast = document.createElement('div');
+      const toastClass = `alert alert-${type} alert-dismissible fade show`;
+      toast.className = toastClass;
+      toast.role = 'alert';
+      toast.style.marginBottom = '10px';
+      toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+      
+      // Icône selon le type
+      let icon = 'info-circle';
+      if (type === 'success') icon = 'check-circle';
+      else if (type === 'error') icon = 'exclamation-triangle';
+      else if (type === 'warning') icon = 'exclamation-circle';
+      
+      toast.innerHTML = `
+        <i class="bi bi-${icon} me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      `;
+      
+      toastContainer.appendChild(toast);
+      
+      // Animation d'entrée
+      setTimeout(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateX(0)';
+      }, 10);
+      
+      // Supprimer automatiquement après 5 secondes
+      const removeToast = () => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => toast.remove(), 300);
+      };
+      
+      const timeoutId = setTimeout(removeToast, 5000);
+      
+      // Annuler la suppression automatique si l'utilisateur survole le toast
+      toast.addEventListener('mouseenter', () => clearTimeout(timeoutId));
+      toast.addEventListener('mouseleave', () => {
+        const newTimeoutId = setTimeout(removeToast, 2000);
+        toast.dataset.timeoutId = newTimeoutId;
+      });
+      
+      // Gérer la fermeture manuelle
+      const closeBtn = toast.querySelector('.btn-close');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          clearTimeout(timeoutId);
+          removeToast();
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'affichage du toast:', error);
+      // Fallback simple
+      alert(message);
+    }
+  };
+
+  /**
    * Calcule la durée entre deux heures.
    * @param {string} startTime
    * @param {string} endTime
@@ -1522,7 +1825,7 @@
   const displayUserName = (user) => {
     const displayElement = $('user-display-name');
     if (displayElement) {
-      const displayName = user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
+      const displayName = user.name || user.email;
       displayElement.textContent = displayName;
     }
   };
@@ -1673,9 +1976,63 @@
   };
 
   /**
+   * Gère la soumission du formulaire de planification
+   */
+  const handlePlanningSubmit = async (event) => {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    const payload = Object.fromEntries(formData.entries());
+    
+    // Validation des champs requis
+    if (!payload.agent_id || !payload.start_date || !payload.end_date || !payload.start_time || !payload.end_time) {
+      showError('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+    
+    const submitBtn = form.querySelector('button[type="submit"]');
+    
+    try {
+      // Préparer les données pour l'API
+      const planningData = {
+        user_id: parseInt(payload.agent_id, 10),
+        date: payload.start_date,
+        planned_start_time: payload.start_time,
+        planned_end_time: payload.end_time,
+        description_activite: payload.notes || '',
+        resultat_journee: 'en_cours',
+        project_name: payload.project_id || null
+      };
+      
+      // Utiliser la fonction savePlanning centralisée
+      await savePlanning(planningData, submitBtn);
+      
+      // Afficher un message de succès
+      showToast('Planification enregistrée avec succès', 'success');
+      
+      // Recharger les données
+      await loadWeek($('week-start')?.value || toISODate(new Date()));
+      await loadWeeklySummary();
+      
+      // Réinitialiser le formulaire
+      form.reset();
+      
+    } catch (error) {
+      console.error('Erreur lors de l\'enregistrement de la planification:', error);
+      showError(error.message || 'Une erreur est survenue lors de l\'enregistrement');
+    }
+  };
+
+  /**
    * Configure les écouteurs d'événements
    */
   const setupEventListeners = () => {
+    // Ajouter l'écouteur pour le formulaire de planification
+    const planningForm = document.getElementById('planning-form');
+    if (planningForm) {
+      planningForm.addEventListener('submit', handlePlanningSubmit);
+    }
     // Écouteurs pour les filtres
     const agentSelect = $('agent-select');
     const supervisorSelect = $('supervisor-filter-select');
@@ -1759,16 +2116,18 @@
    * Initialise l'application au chargement de la page.
    */
   const init = async () => {
-    console.log('Initialisation de l\'application...');
+    console.log('🚀 Initialisation de l\'application Planning...');
     
     // Vérifier l'authentification
     const token = findToken();
     if (!token) {
+      console.log('❌ Aucun token trouvé, affichage de la bannière d\'authentification');
       showAuthBanner();
       
       // Essayer de démarrer si le token apparaît plus tard (ex: connexion dans un autre onglet)
       window.addEventListener('storage', (e) => {
         if (e.key && DEFAULT_TOKEN_CANDIDATES.includes(e.key) && e.newValue) {
+          console.log('🔄 Token détecté dans le storage, relance de l\'initialisation');
           hideAuthBanner();
           init(); // Relancer l'initialisation si un token est détecté
         }
@@ -1776,37 +2135,65 @@
       return;
     }
     
+    console.log('✅ Token trouvé, démarrage de l\'initialisation');
     // Cacher la bannière d'authentification si l'utilisateur est connecté
     hideAuthBanner();
     
     try {
-      // Charger les données utilisateur
+      console.log('📋 Étape 1: Chargement des informations utilisateur...');
       await loadUserInfo();
       
+      console.log('📋 Étape 2: Chargement des données en parallèle...');
       // Charger les données initiales en parallèle pour améliorer les performances
-      await Promise.all([
+      const [usersResult, projectsResult, departmentsResult] = await Promise.allSettled([
         loadUsers(),
         loadProjects(),
         loadDepartments()
       ]);
       
+      // Vérifier les résultats
+      if (usersResult.status === 'rejected') {
+        console.error('❌ Erreur lors du chargement des utilisateurs:', usersResult.reason);
+      } else {
+        console.log('✅ Utilisateurs chargés avec succès');
+      }
+      
+      if (projectsResult.status === 'rejected') {
+        console.error('❌ Erreur lors du chargement des projets:', projectsResult.reason);
+      } else {
+        console.log('✅ Projets chargés avec succès');
+      }
+      
+      if (departmentsResult.status === 'rejected') {
+        console.error('❌ Erreur lors du chargement des départements:', departmentsResult.reason);
+      } else {
+        console.log('✅ Départements chargés avec succès');
+      }
+      
+      console.log('📋 Étape 3: Initialisation du Gantt...');
       // Initialiser le Gantt
       setupGantt();
       
+      console.log('📋 Étape 4: Configuration des écouteurs d\'événements...');
       // Configurer les écouteurs d'événements
       setupEventListeners();
       
+      console.log('📋 Étape 5: Chargement des filtres depuis l\'URL...');
       // Charger les filtres depuis l'URL
       loadFiltersFromUrl();
       
+      console.log('📋 Étape 6: Chargement des données du planning...');
       // Charger les données initiales du planning
       loadWeek();
       loadWeeklySummary();
       
+      console.log('📋 Étape 7: Réinitialisation du formulaire...');
       // Réinitialiser le formulaire
       resetPlanningForm();
+      
+      console.log('🎉 Initialisation terminée avec succès!');
     } catch (error) {
-      console.error('Erreur lors de l\'initialisation:', error);
+      console.error('❌ Erreur lors de l\'initialisation:', error);
       showError('Une erreur est survenue lors du chargement des données.');
     }
   };

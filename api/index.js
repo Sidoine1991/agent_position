@@ -135,19 +135,27 @@ async function sendVerificationEmail(email, code, newAccountEmail = null) {
 }
 
 // Middleware CORS
-function corsHandler(req, res) {
+const corsHandler = (req, res) => {
   const origin = getAllowedOrigin(req);
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-Id');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
   
+  // Répondre immédiatement aux requêtes OPTIONS
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return true;
   }
+  
+  // Ajouter des en-têtes de sécurité supplémentaires
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  
   return false;
-}
+};
 
 // Middleware d'authentification
 function authenticateToken(req, res, next) {
@@ -659,7 +667,13 @@ module.exports = async (req, res) => {
     if (path === '/api/planifications' && method === 'GET') {
       authenticateToken(req, res, async () => {
         try {
-          const { from, to, project_id, project_name, agent_id } = req.query;
+          const { from, to, project_id, project_name, agent_id, departement, commune, resultat_journee, page, limit } = req.query;
+          
+          // Si page et limit sont spécifiés, utiliser la pagination, sinon récupérer toutes les données
+          let usePagination = page && limit;
+          const currentPage = parseInt(page) || 1;
+          const pageLimit = parseInt(limit) || 1000; // Limite élevée par défaut
+          const offset = (currentPage - 1) * pageLimit;
           
           // Récupérer les planifications sans embedding pour éviter le conflit de relations
           let query = supabaseClient
@@ -686,37 +700,141 @@ module.exports = async (req, res) => {
             query = query.eq('project_name', project_id);
           }
 
-          const { data: planifications, error } = await query.order('date', { ascending: false });
+          // Filtre par résultat de journée si fourni
+          if (resultat_journee) {
+            query = query.eq('resultat_journee', resultat_journee);
+          }
+
+          // Filtres par département/commune via table users
+          if (departement || commune) {
+            // Récupérer les ids utilisateurs correspondant aux filtres
+            let usersQ = supabaseClient.from('users').select('id');
+            if (departement) usersQ = usersQ.eq('departement', departement);
+            if (commune) usersQ = usersQ.eq('commune', commune);
+            const { data: filteredUsers, error: usersError } = await usersQ;
+            if (usersError) throw usersError;
+            const userIds = (filteredUsers || []).map(u => u.id);
+            // Si aucun utilisateur ne correspond, retourner vide immédiatement
+            if (userIds.length === 0) {
+              return res.json({
+                success: true,
+                items: [],
+                pagination: {
+                  current_page: currentPage,
+                  total_pages: 0,
+                  total_items: 0,
+                  items_per_page: pageLimit,
+                  has_next_page: false,
+                  has_prev_page: false,
+                  next_page: null,
+                  prev_page: null
+                }
+              });
+            }
+            query = query.in('user_id', userIds);
+          }
+
+          // Si pagination demandée, compter le total
+          let totalCount = null;
+          if (usePagination) {
+            const { count, error: countError } = await query
+              .select('*', { count: 'exact', head: true });
+            
+            if (countError) throw countError;
+            totalCount = count;
+          }
+
+          // Récupérer les données avec ou sans pagination
+          let dataQuery = query.order('date', { ascending: false });
+          
+          if (usePagination) {
+            dataQuery = dataQuery.range(offset, offset + pageLimit - 1);
+          }
+          
+          const { data: planifications, error } = await dataQuery;
 
           if (error) throw error;
 
           // Enrichir avec les données utilisateurs séparément
           if (planifications && planifications.length > 0) {
             const userIds = [...new Set(planifications.map(p => p.user_id).filter(Boolean))];
-            const { data: users } = await supabaseClient
+            const { data: users, error: usersError } = await supabaseClient
               .from('users')
-              .select('id, name, email, role, project_name')
+              .select('id, name, first_name, last_name, email, role, project_name, departement, commune')
               .in('id', userIds);
 
+            if (usersError) {
+              console.error('Erreur lors du chargement des utilisateurs:', usersError);
+            }
+
             // Créer un map pour l'enrichissement
-            const usersMap = new Map(users.map(u => [u.id, u]));
+            const usersMap = new Map();
+            (users || []).forEach(user => {
+              // Utiliser directement la colonne name de la table users
+              const displayName = user.name || user.email || `Agent ${user.id}`;
+              
+              usersMap.set(user.id, {
+                ...user,
+                name: displayName
+              });
+            });
 
             // Enrichir les planifications
             const enrichedPlanifications = planifications.map(plan => ({
               ...plan,
-              user: usersMap.get(plan.user_id) || null
+              user: usersMap.get(plan.user_id) || {
+                id: plan.user_id,
+                name: `Agent ${plan.user_id}`,
+                email: '',
+                role: 'agent',
+                project_name: plan.project_name || 'Projet Général'
+              }
             }));
+
+            const totalPages = Math.ceil(totalCount / pageLimit);
+            const hasNextPage = currentPage < totalPages;
+            const hasPrevPage = currentPage > 1;
 
             return res.json({
               success: true,
-              items: enrichedPlanifications
+              items: enrichedPlanifications,
+              pagination: {
+                current_page: currentPage,
+                total_pages: totalPages,
+                total_items: totalCount,
+                items_per_page: pageLimit,
+                has_next_page: hasNextPage,
+                has_prev_page: hasPrevPage,
+                next_page: hasNextPage ? currentPage + 1 : null,
+                prev_page: hasPrevPage ? currentPage - 1 : null
+              }
             });
           }
 
-          return res.json({
-            success: true,
-            items: planifications || []
-          });
+          // Retourner la réponse selon le mode (pagination ou non)
+          if (usePagination) {
+            const totalPages = Math.ceil(totalCount / pageLimit);
+            const hasNextPage = currentPage < totalPages;
+            const hasPrevPage = currentPage > 1;
+
+            return res.json({
+              success: true,
+              items: enrichedPlanifications,
+              pagination: {
+                current_page: currentPage,
+                total_pages: totalPages,
+                total_items: totalCount,
+                items_per_page: pageLimit,
+                has_next_page: hasNextPage,
+                has_prev_page: hasPrevPage,
+                next_page: hasNextPage ? currentPage + 1 : null,
+                prev_page: hasPrevPage ? currentPage - 1 : null
+              }
+            });
+          } else {
+            // Mode sans pagination - retourner directement les données
+            return res.json(enrichedPlanifications);
+          }
         } catch (error) {
           console.error('Erreur planifications:', error);
           return res.status(500).json({ error: 'Erreur serveur' });
@@ -733,35 +851,70 @@ module.exports = async (req, res) => {
             planned_start_time, 
             planned_end_time, 
             description_activite, 
-            project_id 
+            project_id,
+            project_name,
+            user_id
           } = req.body;
 
           if (!date) {
             return res.status(400).json({ error: 'Date requise' });
           }
 
+          // Déterminer l'utilisateur cible: un admin/superviseur peut planifier pour un autre agent
+          const targetUserId = (user_id && (req.user.role === 'admin' || req.user.role === 'superviseur'))
+            ? user_id
+            : req.user.id;
+
           const planificationData = {
-            user_id: req.user.id,
-            agent_id: req.user.id, // Ajouter la colonne agent_id requise
+            user_id: targetUserId,
             date,
             planned_start_time: planned_start_time || null,
             planned_end_time: planned_end_time || null,
             description_activite: description_activite || null,
-            project_name: project_id || null, // project_id contient en fait le nom du projet
+            // Supporter project_name natif et rétro-compat project_id
+            project_name: (project_name || project_id) || null,
             resultat_journee: null,
             observations: null
           };
 
+          console.log('API /api/planifications POST: Données reçues:', req.body);
+          console.log('API /api/planifications POST: Utilisateur authentifié:', req.user);
+          console.log('API /api/planifications POST: Données de planification:', planificationData);
+
+          // Vérifier que l'utilisateur cible existe
+          const { data: targetUser, error: userError } = await supabaseClient
+            .from('users')
+            .select('id, name, role')
+            .eq('id', targetUserId)
+            .single();
+
+          if (userError || !targetUser) {
+            console.error('API /api/planifications POST: Utilisateur cible non trouvé:', targetUserId, userError);
+            return res.status(400).json({ 
+              error: 'Utilisateur cible non trouvé',
+              details: `L'utilisateur avec l'ID ${targetUserId} n'existe pas`
+            });
+          }
+
+          console.log('API /api/planifications POST: Utilisateur cible trouvé:', targetUser);
+
+          // Solution directe : utiliser insert simple
+          console.log('API /api/planifications POST: Tentative avec insert simple');
           const { data: planification, error } = await supabaseClient
             .from('planifications')
-            .upsert([planificationData], { 
-              onConflict: 'user_id,date',
-              ignoreDuplicates: false 
-            })
+            .insert([planificationData])
             .select()
             .single();
 
-          if (error) throw error;
+          if (error) {
+            console.error('API /api/planifications POST: Erreur Supabase:', error);
+            console.error('API /api/planifications POST: Code d\'erreur:', error.code);
+            console.error('API /api/planifications POST: Message d\'erreur:', error.message);
+            console.error('API /api/planifications POST: Détails:', error.details);
+            throw error;
+          }
+
+          console.log('API /api/planifications POST: Planification créée:', planification);
 
           return res.json({
             success: true,
@@ -769,7 +922,11 @@ module.exports = async (req, res) => {
           });
         } catch (error) {
           console.error('Erreur création planification:', error);
-          return res.status(500).json({ error: 'Erreur serveur' });
+          return res.status(500).json({ 
+            error: 'Erreur serveur',
+            details: error.message,
+            code: error.code
+          });
         }
       });
       return;
@@ -817,6 +974,142 @@ module.exports = async (req, res) => {
         }
       });
       return;
+    }
+
+    // Récupérer les utilisateurs par rôle (accessible avec authentification)
+    if (path === '/api/users' && method === 'GET') {
+      console.log('API /api/users: Requête reçue');
+      
+      // Vérifier si l'utilisateur est authentifié
+      const authHeader = req.headers['authorization'];
+      const token = authHeader && authHeader.split(' ')[1];
+      
+      console.log('API /api/users: Auth header:', authHeader ? 'Présent' : 'Absent');
+      console.log('API /api/users: Token:', token ? 'Présent' : 'Absent');
+      
+      // Pour le debug, permettre l'accès sans token en mode développement
+      const isDevelopment = process.env.NODE_ENV !== 'production';
+      
+      if (!token && !isDevelopment) {
+        console.log('API /api/users: Aucun token fourni, retour 401');
+        return res.status(401).json({ error: 'Token d\'accès requis' });
+      }
+
+      if (token) {
+        try {
+          // Vérifier le token JWT
+          const jwt = require('jsonwebtoken');
+          const decoded = jwt.verify(token, JWT_SECRET);
+          req.user = decoded;
+          console.log('API /api/users: Token valide, utilisateur:', decoded.id);
+        } catch (err) {
+          console.log('API /api/users: Token invalide:', err.message);
+          if (!isDevelopment) {
+            return res.status(403).json({ error: 'Token invalide' });
+          } else {
+            console.log('API /api/users: Mode développement - continuation sans token valide');
+          }
+        }
+      } else {
+        console.log('API /api/users: Mode développement - accès sans token');
+      }
+
+      try {
+        const { role } = req.query;
+        
+        console.log(`API /api/users: Début du chargement avec filtre role=${role || 'tous'}`);
+        
+        // D'abord, compter le total d'utilisateurs pour vérifier
+        let countQuery = supabaseClient
+          .from('users')
+          .select('*', { count: 'exact', head: true });
+        if (role) {
+          countQuery = countQuery.eq('role', role);
+        }
+        
+        const { count: totalUsers, error: countError } = await countQuery;
+        if (countError) {
+          console.error('Erreur lors du comptage des utilisateurs:', countError);
+        } else {
+          console.log(`API /api/users: Total d'utilisateurs dans la base: ${totalUsers}`);
+        }
+        
+        // Récupérer tous les utilisateurs avec pagination
+        let allUsers = [];
+        let page = 0;
+        const pageSize = 1000; // Taille de page importante pour réduire le nombre de requêtes
+        let hasMore = true;
+        
+        while (hasMore) {
+          const start = page * pageSize;
+          const end = start + pageSize - 1;
+          
+          console.log(`API /api/users: Chargement page ${page + 1} (${start}-${end})`);
+          
+          let query = supabaseClient
+            .from('users')
+            .select('id, name, email, role, project_name, departement, commune, status, is_verified, photo_path')
+            .order('id', { ascending: true })
+            .range(start, end);
+            
+          if (role) {
+            query = query.eq('role', role);
+            console.log(`API /api/users: Filtre role appliqué: ${role}`);
+          }
+          
+          const { data: users, error } = await query;
+          
+          if (error) {
+            console.error(`API /api/users: Erreur page ${page + 1}:`, error);
+            throw error;
+          }
+          
+          console.log(`API /api/users: Page ${page + 1} - ${users?.length || 0} utilisateurs récupérés`);
+          
+          if (users && users.length > 0) {
+            allUsers = [...allUsers, ...users];
+            console.log(`API /api/users: Total cumulé: ${allUsers.length} utilisateurs`);
+            
+            // Si on a moins d'utilisateurs que la taille de page, on a atteint la fin
+            hasMore = users.length === pageSize;
+            console.log(`API /api/users: hasMore = ${hasMore} (${users.length} === ${pageSize})`);
+            page++;
+          } else {
+            console.log(`API /api/users: Aucun utilisateur trouvé sur la page ${page + 1}, arrêt de la pagination`);
+            hasMore = false;
+          }
+        }
+        
+        console.log(`API /api/users: Chargement terminé - ${allUsers.length} utilisateurs récupérés au total`);
+        
+        // Vérifier si on a récupéré tous les utilisateurs attendus
+        if (totalUsers && allUsers.length < totalUsers) {
+          console.warn(`⚠️ ATTENTION: Seulement ${allUsers.length} utilisateurs récupérés sur ${totalUsers} attendus`);
+        }
+        
+        if (allUsers.length > 0) {
+          const roleCounts = allUsers.reduce((acc, user) => {
+            acc[user.role] = (acc[user.role] || 0) + 1;
+            return acc;
+          }, {});
+          console.log('Répartition des rôles:', roleCounts);
+          
+          // Afficher quelques exemples d'utilisateurs pour debug
+          console.log('Exemples d\'utilisateurs récupérés:');
+          allUsers.slice(0, 5).forEach((user, index) => {
+            console.log(`  ${index + 1}. ID: ${user.id}, Name: ${user.name}, Role: ${user.role}, Email: ${user.email}`);
+          });
+        }
+        
+        return res.json(allUsers);
+        
+      } catch (error) {
+        console.error('Erreur lors de la récupération des utilisateurs:', error);
+        return res.status(500).json({ 
+          error: 'Erreur serveur lors de la récupération des utilisateurs',
+          details: error.message 
+        });
+      }
     }
 
     // Routes pour les utilisateurs par projet
@@ -1057,7 +1350,7 @@ module.exports = async (req, res) => {
       return;
     }
 
-    // Admin - Liste des agents
+    // Admin - Liste des agents avec pagination
     if (path === '/api/admin/agents' && method === 'GET') {
       console.log('🔍 Endpoint /api/admin/agents appelé');
       authenticateToken(req, res, async () => {
@@ -1071,6 +1364,18 @@ module.exports = async (req, res) => {
             return res.status(403).json({ error: 'Accès refusé' });
           }
 
+          const page = parseInt(req.query.page) || 1;
+          const limit = parseInt(req.query.limit) || 50;
+          const offset = (page - 1) * limit;
+
+          // Compter le total d'agents
+          const { count: totalCount, error: countError } = await supabaseClient
+            .from('users')
+            .select('*', { count: 'exact', head: true });
+
+          if (countError) throw countError;
+
+          // Récupérer les agents avec pagination
           const { data: agents, error } = await supabaseClient
             .from('users')
             .select(`
@@ -1081,13 +1386,28 @@ module.exports = async (req, res) => {
               created_at, contract_start_date, contract_end_date, years_of_service, last_activity,
               is_verified, verification_code, verification_expires
             `)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1);
 
           if (error) throw error;
 
+          const totalPages = Math.ceil(totalCount / limit);
+          const hasNextPage = page < totalPages;
+          const hasPrevPage = page > 1;
+
           return res.json({
             success: true,
-            data: agents || []
+            data: agents || [],
+            pagination: {
+              current_page: page,
+              total_pages: totalPages,
+              total_items: totalCount,
+              items_per_page: limit,
+              has_next_page: hasNextPage,
+              has_prev_page: hasPrevPage,
+              next_page: hasNextPage ? page + 1 : null,
+              prev_page: hasPrevPage ? page - 1 : null
+            }
           });
         } catch (error) {
           console.error('Erreur récupération agents:', error);

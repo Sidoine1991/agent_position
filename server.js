@@ -133,7 +133,7 @@ if (process.env.NODE_ENV !== 'test') {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
+        styleSrc: ["'self'", 'https://cdn.dhtmlx.com', "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-hashes'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://maps.googleapis.com"],
         // Autoriser les gestionnaires d'événements inline (onclick, etc.)
         scriptSrcAttr: ["'unsafe-inline'"],
@@ -831,7 +831,7 @@ app.post('/api/planifications', async (req, res) => {
     const token = authHeader.slice('Bearer '.length);
     let userId; try { const d = jwt.verify(token, JWT_SECRET); userId = d.id || d.userId; } catch { return res.status(401).json({ success: false, error: 'Token invalide' }); }
 
-    const { date, planned_start_time, planned_end_time, description_activite, project_name } = req.body || {};
+    const { date, planned_start_time, planned_end_time, description_activite, project_name, user_id } = req.body || {};
     if (!date) return res.status(400).json({ success: false, error: 'date requise (YYYY-MM-DD)' });
 
     // Enrichir la description avec le nom complet de l'agent si disponible
@@ -850,9 +850,26 @@ app.post('/api/planifications', async (req, res) => {
       }
     } catch {}
 
+    // Déterminer l'utilisateur cible: un admin/superviseur peut planifier pour un autre agent
+    // Récupérer les informations de l'utilisateur depuis la base de données
+    let userRole = 'agent'; // Par défaut
+    try {
+      const { data: userData } = await supabaseClient
+        .from('users')
+        .select('role')
+        .eq('id', userId)
+        .single();
+      if (userData) {
+        userRole = userData.role;
+      }
+    } catch (err) {
+      console.log('Erreur récupération rôle utilisateur:', err.message);
+    }
+    
+    const targetUserId = (user_id && (userRole === 'admin' || userRole === 'superviseur')) ? user_id : userId;
+
     const payload = {
-      user_id: userId,
-      agent_id: userId,
+      user_id: targetUserId,
       date,
       planned_start_time: planned_start_time || null,
       planned_end_time: planned_end_time || null,
@@ -867,7 +884,7 @@ app.post('/api/planifications', async (req, res) => {
     await supabaseClient
       .from('planifications')
       .delete()
-      .eq('agent_id', userId)
+      .eq('user_id', targetUserId)
       .eq('date', date);
     
     // Puis insérer la nouvelle planification
@@ -885,7 +902,7 @@ app.post('/api/planifications', async (req, res) => {
 // Récupérer la planification d'une période
 app.get('/api/planifications', authenticateToken, async (req, res) => {
   try {
-    const { from, to, project_name, agent_id } = req.query;
+    const { from, to, project_name, agent_id, departement, commune, resultat_journee } = req.query;
     
     let query = supabaseClient
       .from('planifications')
@@ -905,12 +922,61 @@ app.get('/api/planifications', authenticateToken, async (req, res) => {
 
     if (from) query = query.gte('date', String(from));
     if (to) query = query.lte('date', String(to));
+    if (resultat_journee) query = query.eq('resultat_journee', resultat_journee);
+
+    // Filtres par département/commune via la table users
+    if (departement || commune) {
+      let usersQ = supabaseClient.from('users').select('id');
+      if (departement) usersQ = usersQ.eq('departement', departement);
+      if (commune) usersQ = usersQ.eq('commune', commune);
+      const { data: filteredUsers, error: usersError } = await usersQ;
+      if (usersError) throw usersError;
+      const userIds = (filteredUsers || []).map(u => u.id);
+      if (userIds.length === 0) {
+        return res.json({ success: true, items: [] });
+      }
+      query = query.in('user_id', userIds);
+    }
     
     const { data, error } = await query.order('date', { ascending: false });
 
     if (error) throw error;
 
-    return res.json({ success: true, items: data || [] });
+    // Enrichir avec les données utilisateurs
+    let enrichedData = data || [];
+    if (enrichedData.length > 0) {
+      const userIds = [...new Set(enrichedData.map(p => p.user_id).filter(Boolean))];
+      const { data: users, error: usersError } = await supabaseClient
+        .from('users')
+        .select('id, name, first_name, last_name, email, role, project_name, departement, commune')
+        .in('id', userIds);
+
+      if (!usersError && users) {
+        const usersMap = new Map();
+        users.forEach(user => {
+          // Utiliser directement la colonne name de la table users
+          const displayName = user.name || user.email || `Agent ${user.id}`;
+          
+          usersMap.set(user.id, {
+            ...user,
+            name: displayName
+          });
+        });
+
+        enrichedData = enrichedData.map(plan => ({
+          ...plan,
+          user: usersMap.get(plan.user_id) || {
+            id: plan.user_id,
+            name: `Agent ${plan.user_id}`,
+            email: '',
+            role: 'agent',
+            project_name: plan.project_name || 'Projet Général'
+          }
+        }));
+      }
+    }
+
+    return res.json({ success: true, items: enrichedData });
 
   } catch (e) {
     console.error('Erreur planifications list:', e);
@@ -934,7 +1000,7 @@ app.put('/api/planifications/result', authenticateToken, async (req, res) => {
         observations: observations || null,
         updated_at: new Date().toISOString()
       })
-      .eq('agent_id', req.user.id)
+      .eq('user_id', req.user.id)
       .eq('date', date)
       .select();
 
@@ -2404,18 +2470,19 @@ app.get('/api/admin-units', async (req, res) => {
 
 app.get('/api/users', async (req, res) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page || '1', 10));
-    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit || '10', 10)));
-    const offset = (page - 1) * limit;
     const search = String(req.query.search || '').trim();
     const role = String(req.query.role || '').trim();
     const status = String(req.query.status || '').trim();
     const sortBy = String(req.query.sortBy || 'name').trim();
     const sortDir = (String(req.query.sortDir || 'asc').toLowerCase() === 'desc') ? 'desc' : 'asc';
 
+    // Vérifier si pagination est demandée
+    const page = req.query.page ? Math.max(1, parseInt(req.query.page, 10)) : null;
+    const limit = req.query.limit ? Math.max(1, Math.min(100, parseInt(req.query.limit, 10))) : null;
+    
     let query = supabaseClient
       .from('users')
-      .select('id,name,email,role,phone,departement,project_name,status,photo_path,last_activity', { count: 'exact' });
+      .select('id,name,email,role,phone,departement,project_name,status,photo_path,last_activity');
 
     if (search) {
       query = query.ilike('name', `%${search}%`).or(`email.ilike.%${search}%`);
@@ -2423,12 +2490,33 @@ app.get('/api/users', async (req, res) => {
     if (role) query = query.eq('role', role);
     if (status) query = query.eq('status', status);
 
-    query = query.order(sortBy, { ascending: sortDir === 'asc' }).range(offset, offset + limit - 1);
+    query = query.order(sortBy, { ascending: sortDir === 'asc' });
 
-    const { data, error, count } = await query;
-    if (error) throw error;
-
-    res.json({ success: true, items: data || [], total: count || 0, page, limit });
+    // Appliquer la pagination seulement si demandée
+    if (page && limit) {
+      const offset = (page - 1) * limit;
+      query = query.range(offset, offset + limit - 1);
+      
+      // Compter le total pour la pagination
+      let countQuery = supabaseClient.from('users').select('*', { count: 'exact', head: true });
+      if (search) countQuery = countQuery.ilike('name', `%${search}%`).or(`email.ilike.%${search}%`);
+      if (role) countQuery = countQuery.eq('role', role);
+      if (status) countQuery = countQuery.eq('status', status);
+      
+      const { count, error: countError } = await countQuery;
+      if (countError) throw countError;
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      res.json({ success: true, items: data || [], total: count || 0, page, limit });
+    } else {
+      // Pas de pagination - retourner tous les utilisateurs
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      res.json(data || []);
+    }
   } catch (error) {
     console.error('Erreur users:', error);
     res.status(500).json({ success: false, error: error.message });
