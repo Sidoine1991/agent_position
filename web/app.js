@@ -1078,6 +1078,15 @@ async function init() {
   // Fonction pour commencer une mission
   async function startMission(button, status) {
     try {
+      // Exiger une photo avant démarrage
+      const photoInput = $('photo');
+      const selectedPhoto = photoInput && photoInput.files && photoInput.files[0] ? photoInput.files[0] : null;
+      if (!selectedPhoto) {
+        showNotification('Veuillez prendre une photo avant de débuter la mission.', 'warning');
+        try { photoInput && photoInput.click && photoInput.click(); } catch {}
+        return;
+      }
+      
       // Vérifier les heures de présence avant de commencer
       if (!isWithinWorkHours()) {
         const workStatus = getWorkHoursStatus();
@@ -1160,6 +1169,8 @@ async function init() {
       fd.append('arrondissement', $('arrondissement').value);
       fd.append('village', $('village').value);
       if (typeof coords.accuracy !== 'undefined') fd.append('accuracy', String(Math.round(coords.accuracy)));
+      // Ajouter l'horodatage de la capture
+      fd.append('captured_at', new Date().toISOString());
       const baseNote = $('note').value || 'Début de mission';
       if (lowPrecision) {
         fd.append('note', `${baseNote} (faible précision ~${Math.round(coords.accuracy)}m)`);
@@ -1167,7 +1178,7 @@ async function init() {
         fd.append('note', baseNote);
       }
       
-      const photo = $('photo').files[0];
+      const photo = selectedPhoto;
       if (photo) fd.append('photo', photo);
 
       status.textContent = 'Envoi...';
@@ -1250,6 +1261,21 @@ async function init() {
       removeLoadingState(button);
     }
   }
+
+  // Désactiver le bouton démarrer tant qu'aucune photo n'est fournie
+  try {
+    const startBtnGuard = $('start-mission');
+    const photoInputEl = $('photo');
+    if (startBtnGuard && photoInputEl) {
+      startBtnGuard.disabled = !(photoInputEl.files && photoInputEl.files[0]);
+      if (!photoInputEl._boundEnableOnChange) {
+        photoInputEl.addEventListener('change', () => {
+          startBtnGuard.disabled = !(photoInputEl.files && photoInputEl.files[0]);
+        });
+        photoInputEl._boundEnableOnChange = true;
+      }
+    }
+  } catch {}
 
   // Fonction pour finir une mission
   async function endMission(missionId, button, status) {
