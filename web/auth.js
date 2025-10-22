@@ -22,7 +22,7 @@ const PAGE_ACCESS = {
 
   // Pages pour Admins (et plus)
   '/admin-agents.html': [ROLES.ADMIN, ROLES.SUPERADMIN],
-  '/reports.html': [ROLES.ADMIN, ROLES.SUPERADMIN],
+  '/reports.html': [ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN],
 
   // Page Superadmin
   '/admin.html': [ROLES.SUPERADMIN],

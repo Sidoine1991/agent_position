@@ -81,8 +81,8 @@ async function checkAuth() {
     return false;
   }
 
-  // Vérifier admin ou supervisor
-  if (currentUser.role !== 'admin' && currentUser.role !== 'supervisor') {
+  // Vérifier admin ou superviseur
+  if (currentUser.role !== 'admin' && currentUser.role !== 'superviseur') {
     alert('Accès refusé. Cette page est réservée aux administrateurs et superviseurs.');
     return false;
   }
@@ -551,7 +551,7 @@ async function updateNavbar() {
     if (profileLink) profileLink.style.display = 'flex';
     
     // Navigation pour Admin et Superviseur
-    if (currentUser.role === 'admin' || currentUser.role === 'supervisor') {
+    if (currentUser.role === 'admin' || currentUser.role === 'superviseur') {
       if (dashboardLink) dashboardLink.style.display = 'flex';
       if (agentsLink) agentsLink.style.display = 'flex';
       if (reportsLink) reportsLink.style.display = 'flex';
