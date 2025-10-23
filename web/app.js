@@ -2914,7 +2914,7 @@ async function loadDashboardMetrics() {
       s1.set('select', 'id,user_id,lat,lon,created_at,timestamp');
       s1.set('user_id', 'eq.' + Number(userId));
       s1.set('created_at', 'gte.' + fromIso);
-      s1.append('created_at', 'lte.' + toIso);
+      s1.set('created_at', 'lte.' + toIso);
       s1.set('order', 'created_at.desc');
       let res = await fetch(`${sbUrl}/rest/v1/checkins?${s1.toString()}`, { headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey } });
       if (!res.ok) {
@@ -2923,7 +2923,7 @@ async function loadDashboardMetrics() {
         s2.set('select', 'id,user_id,lat,lon,timestamp,created_at');
         s2.set('user_id', 'eq.' + Number(userId));
         s2.set('timestamp', 'gte.' + fromIso);
-        s2.append('timestamp', 'lte.' + toIso);
+        s2.set('timestamp', 'lte.' + toIso);
         s2.set('order', 'timestamp.desc');
         res = await fetch(`${sbUrl}/rest/v1/checkins?${s2.toString()}`, { headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey } });
         if (!res.ok) {

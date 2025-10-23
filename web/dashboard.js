@@ -282,7 +282,7 @@ async function fetchCheckinsFromSupabase(params) {
       }
       if (params.to) {
         const t = new Date(params.to + 'T23:59:59');
-        search.append('timestamp', `lte.${t.toISOString()}`);
+        search.set('timestamp', `lte.${t.toISOString()}`);
       }
     } catch {}
   } else if (params?.date) {
@@ -290,7 +290,7 @@ async function fetchCheckinsFromSupabase(params) {
       const from = new Date(params.date + 'T00:00:00');
       const to = new Date(from); to.setDate(to.getDate() + 1);
       search.set('timestamp', `gte.${from.toISOString()}`);
-      search.append('timestamp', `lt.${to.toISOString()}`);
+      search.set('timestamp', `lt.${to.toISOString()}`);
     } catch {}
   }
   if (params?.villageId) search.set('village_id', 'eq.' + Number(params.villageId));
@@ -374,7 +374,7 @@ async function fetchPlanificationsFromSupabase(from, to) {
     const p = new URLSearchParams();
     p.set('select', 'agent_id,date,planned_start_time,planned_end_time');
     if (from) p.set('date', 'gte.' + from);
-    if (to) p.append('date', 'lte.' + to);
+    if (to) p.set('date', 'lte.' + to);
     const res = await fetch(`${url}/rest/v1/planifications?${p.toString()}`, {
       headers: { apikey: key, Authorization: 'Bearer ' + key }
     });

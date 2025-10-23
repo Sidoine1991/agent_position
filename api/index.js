@@ -2318,6 +2318,422 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // ===== ENDPOINTS MANQUANTS POUR DASHBOARD =====
+
+    // Endpoint pour les zones de travail
+    if (path === '/api/work-zones' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          // Retourner des zones de travail fictives pour l'instant
+          const workZones = [
+            { id: 1, name: 'Zone Nord', description: 'Zone de travail au nord' },
+            { id: 2, name: 'Zone Sud', description: 'Zone de travail au sud' },
+            { id: 3, name: 'Zone Est', description: 'Zone de travail à l\'est' },
+            { id: 4, name: 'Zone Ouest', description: 'Zone de travail à l\'ouest' }
+          ];
+          return res.json({ success: true, workZones });
+        } catch (error) {
+          console.error('Erreur récupération zones de travail:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les contacts
+    if (path === '/api/contacts' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: contacts, error } = await supabaseClient
+            .from('users')
+            .select('id, first_name, last_name, email, phone')
+            .eq('role', 'agent')
+            .order('first_name');
+
+          if (error) throw error;
+
+          return res.json({ success: true, contacts: contacts || [] });
+        } catch (error) {
+          console.error('Erreur récupération contacts:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les contacts d'urgence
+    if (path === '/api/emergency-contacts' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          // Retourner des contacts d'urgence fictifs pour l'instant
+          const emergencyContacts = [
+            { id: 1, name: 'Urgences Médicales', phone: '118' },
+            { id: 2, name: 'Police', phone: '117' },
+            { id: 3, name: 'Pompiers', phone: '118' },
+            { id: 4, name: 'Support Technique', phone: '+229 12345678' }
+          ];
+          return res.json({ success: true, emergencyContacts });
+        } catch (error) {
+          console.error('Erreur récupération contacts d\'urgence:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour le contenu d'aide
+    if (path === '/api/help/content' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          const helpContent = {
+            sections: [
+              {
+                id: 1,
+                title: 'Guide de démarrage',
+                content: 'Comment utiliser l\'application CCRB'
+              },
+              {
+                id: 2,
+                title: 'Planification',
+                content: 'Comment planifier vos activités'
+              },
+              {
+                id: 3,
+                title: 'Rapports',
+                content: 'Comment générer et consulter les rapports'
+              }
+            ]
+          };
+          return res.json({ success: true, helpContent });
+        } catch (error) {
+          console.error('Erreur récupération contenu d\'aide:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les missions
+    if (path === '/api/missions' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: missions, error } = await supabaseClient
+            .from('missions')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+          if (error) throw error;
+
+          return res.json({ success: true, missions: missions || [] });
+        } catch (error) {
+          console.error('Erreur récupération missions:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les localisations
+    if (path === '/api/locations' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          // Retourner des localisations fictives pour l'instant
+          const locations = [
+            { id: 1, name: 'Cotonou', type: 'ville', lat: 6.3667, lon: 2.4333 },
+            { id: 2, name: 'Porto-Novo', type: 'ville', lat: 6.4969, lon: 2.6036 },
+            { id: 3, name: 'Parakou', type: 'ville', lat: 9.3500, lon: 2.6167 }
+          ];
+          return res.json({ success: true, locations });
+        } catch (error) {
+          console.error('Erreur récupération localisations:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les checkins
+    if (path === '/api/checkins' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { from, to, agent_id } = req.query;
+          let query = supabaseClient
+            .from('checkins')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (from) {
+            query = query.gte('created_at', from);
+          }
+          if (to) {
+            query = query.lte('created_at', to);
+          }
+          if (agent_id) {
+            query = query.eq('user_id', agent_id);
+          }
+
+          const { data: checkins, error } = await query.limit(100);
+
+          if (error) throw error;
+
+          return res.json({ success: true, checkins: checkins || [] });
+        } catch (error) {
+          console.error('Erreur récupération checkins:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les checkins personnels
+    if (path === '/api/checkins/mine' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { from, to } = req.query;
+          let query = supabaseClient
+            .from('checkins')
+            .select('*')
+            .eq('user_id', req.user.id)
+            .order('created_at', { ascending: false });
+
+          if (from) {
+            query = query.gte('created_at', from);
+          }
+          if (to) {
+            query = query.lte('created_at', to);
+          }
+
+          const { data: checkins, error } = await query.limit(100);
+
+          if (error) throw error;
+
+          return res.json({ success: true, checkins: checkins || [] });
+        } catch (error) {
+          console.error('Erreur récupération checkins personnels:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les validations personnelles
+    if (path === '/api/validations/mine' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { from, to } = req.query;
+          let query = supabaseClient
+            .from('validations')
+            .select('*')
+            .eq('user_id', req.user.id)
+            .order('created_at', { ascending: false });
+
+          if (from) {
+            query = query.gte('created_at', from);
+          }
+          if (to) {
+            query = query.lte('created_at', to);
+          }
+
+          const { data: validations, error } = await query.limit(100);
+
+          if (error) throw error;
+
+          return res.json({ success: true, validations: validations || [] });
+        } catch (error) {
+          console.error('Erreur récupération validations personnelles:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les planifications personnelles
+    if (path === '/api/planifications' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { from, to, agent_id } = req.query;
+          let query = supabaseClient
+            .from('planifications')
+            .select('*')
+            .order('date', { ascending: false });
+
+          if (agent_id) {
+            query = query.eq('user_id', agent_id);
+          } else {
+            query = query.eq('user_id', req.user.id);
+          }
+
+          if (from) {
+            query = query.gte('date', from);
+          }
+          if (to) {
+            query = query.lte('date', to);
+          }
+
+          const { data: planifications, error } = await query.limit(100);
+
+          if (error) throw error;
+
+          return res.json({ success: true, planifications: planifications || [] });
+        } catch (error) {
+          console.error('Erreur récupération planifications:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les missions personnelles
+    if (path === '/api/me/missions' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: missions, error } = await supabaseClient
+            .from('missions')
+            .select('*')
+            .eq('user_id', req.user.id)
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+          if (error) throw error;
+
+          return res.json({ success: true, missions: missions || [] });
+        } catch (error) {
+          console.error('Erreur récupération missions personnelles:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les checkins d'une mission
+    if (path.startsWith('/api/missions/') && path.endsWith('/checkins') && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const missionId = path.split('/')[3];
+          const { data: checkins, error } = await supabaseClient
+            .from('checkins')
+            .select('*')
+            .eq('mission_id', missionId)
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+
+          return res.json({ success: true, checkins: checkins || [] });
+        } catch (error) {
+          console.error('Erreur récupération checkins mission:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les analytics (retourner des données fictives)
+    if (path.startsWith('/api/analytics/') && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          const analyticsData = {
+            presence: { total: 0, percentage: 0 },
+            missions: { completed: 0, pending: 0 },
+            performance: { score: 0, trend: 'stable' }
+          };
+          return res.json({ success: true, data: analyticsData });
+        } catch (error) {
+          console.error('Erreur récupération analytics:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les achievements d'agent
+    if (path.startsWith('/api/agent/achievements') && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          const achievements = [];
+          return res.json({ success: true, achievements });
+        } catch (error) {
+          console.error('Erreur récupération achievements:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour le leaderboard
+    if (path.startsWith('/api/agent/leaderboard') && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          const leaderboard = [];
+          return res.json({ success: true, leaderboard });
+        } catch (error) {
+          console.error('Erreur récupération leaderboard:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les objectifs
+    if (path === '/api/goals' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          const goals = [];
+          return res.json({ success: true, goals });
+        } catch (error) {
+          console.error('Erreur récupération objectifs:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les badges
+    if (path === '/api/badges' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          const badges = [];
+          return res.json({ success: true, badges });
+        } catch (error) {
+          console.error('Erreur récupération badges:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
     // Route non trouvée
     return res.status(404).json({ error: 'Route non trouvée' });
 
