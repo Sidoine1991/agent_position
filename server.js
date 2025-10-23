@@ -3637,7 +3637,9 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
           commune: commune || null,
           arrondissement: arrondissement || null,
           village: village || null,
-          note: note || 'Début de mission'
+          note: note || 'Début de mission',
+          start_lat: latitude,
+          start_lon: longitude
         }])
         .select('id')
         .single();
@@ -3819,7 +3821,9 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
         .update({ 
           date_end: end_time,
           status: 'completed',
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          end_lat: latitude,
+          end_lon: longitude
         })
         .eq('id', targetMissionId);
       if (!updateByIdOnly) {
@@ -4043,6 +4047,83 @@ app.get('/api/debug/email/verify', async (req, res) => {
   } catch (e) {
     console.error('SMTP verify error:', e);
     return res.status(500).json({ success: false, error: e?.message || 'smtp_error' });
+  }
+});
+
+// ===== ENDPOINTS MANQUANTS POUR MESSAGERIE =====
+
+// Endpoint pour le statut en ligne des utilisateurs
+app.get('/api/users/online', authenticateToken, async (req, res) => {
+  try {
+    const { data: users, error } = await supabaseClient
+      .from('users')
+      .select('id, name, email, last_seen, is_online')
+      .eq('is_online', true)
+      .order('last_seen', { ascending: false });
+    
+    if (error) throw error;
+    
+    res.json({ success: true, users: users || [] });
+  } catch (error) {
+    console.error('Erreur récupération utilisateurs en ligne:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// Endpoint pour mettre à jour le statut en ligne
+app.post('/api/users/online', authenticateToken, async (req, res) => {
+  try {
+    const { is_online } = req.body;
+    
+    const { error } = await supabaseClient
+      .from('users')
+      .update({ 
+        is_online: is_online || false,
+        last_seen: new Date().toISOString()
+      })
+      .eq('id', req.user.id);
+    
+    if (error) throw error;
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erreur mise à jour statut en ligne:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// Endpoint pour les catégories de forum
+app.get('/api/forum/categories', authenticateToken, async (req, res) => {
+  try {
+    // Pour l'instant, retourner des catégories fictives
+    const categories = [
+      {
+        id: 1,
+        name: 'Général',
+        description: 'Discussions générales',
+        message_count: 0,
+        last_message: null
+      },
+      {
+        id: 2,
+        name: 'Annonces',
+        description: 'Annonces importantes',
+        message_count: 0,
+        last_message: null
+      },
+      {
+        id: 3,
+        name: 'Support',
+        description: 'Aide et support technique',
+        message_count: 0,
+        last_message: null
+      }
+    ];
+    
+    res.json({ success: true, categories });
+  } catch (error) {
+    console.error('Erreur récupération catégories forum:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 

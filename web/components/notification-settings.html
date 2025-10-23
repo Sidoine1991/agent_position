@@ -1,0 +1,357 @@
+<!-- Modal des paramètres de notification -->
+<div class="modal fade" id="notificationSettingsModal" tabindex="-1" aria-labelledby="notificationSettingsModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="notificationSettingsModalLabel">
+          <i class="bi bi-bell"></i> Paramètres de notification
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="notificationSettingsForm">
+          <!-- Notifications desktop -->
+          <div class="mb-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="enableDesktopNotifications" checked>
+              <label class="form-check-label" for="enableDesktopNotifications">
+                <i class="bi bi-desktop"></i> Notifications desktop
+              </label>
+            </div>
+            <small class="text-muted">Afficher les notifications même quand l'application est en arrière-plan</small>
+          </div>
+
+          <!-- Bulles de notification -->
+          <div class="mb-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="enableBubbleNotifications" checked>
+              <label class="form-check-label" for="enableBubbleNotifications">
+                <i class="bi bi-chat-bubble"></i> Bulles de notification
+              </label>
+            </div>
+            <small class="text-muted">Afficher des bulles flottantes pour les nouveaux messages</small>
+          </div>
+
+          <!-- Sons de notification -->
+          <div class="mb-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="enableNotificationSounds" checked>
+              <label class="form-check-label" for="enableNotificationSounds">
+                <i class="bi bi-volume-up"></i> Sons de notification
+              </label>
+            </div>
+            <small class="text-muted">Jouer un son pour les nouveaux messages</small>
+          </div>
+
+          <!-- Vibration -->
+          <div class="mb-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="enableVibration" checked>
+              <label class="form-check-label" for="enableVibration">
+                <i class="bi bi-phone-vibrate"></i> Vibration
+              </label>
+            </div>
+            <small class="text-muted">Vibrer le téléphone pour les nouveaux messages</small>
+          </div>
+
+          <!-- Durée des bulles -->
+          <div class="mb-3">
+            <label for="bubbleDuration" class="form-label">
+              <i class="bi bi-clock"></i> Durée d'affichage des bulles
+            </label>
+            <select class="form-select" id="bubbleDuration">
+              <option value="3000">3 secondes</option>
+              <option value="5000" selected>5 secondes</option>
+              <option value="10000">10 secondes</option>
+              <option value="0">Ne jamais fermer automatiquement</option>
+            </select>
+          </div>
+
+          <!-- Volume des sons -->
+          <div class="mb-3">
+            <label for="soundVolume" class="form-label">
+              <i class="bi bi-volume-up"></i> Volume des sons
+            </label>
+            <input type="range" class="form-range" id="soundVolume" min="0" max="1" step="0.1" value="0.3">
+            <div class="d-flex justify-content-between">
+              <small class="text-muted">Silencieux</small>
+              <small class="text-muted">Fort</small>
+            </div>
+          </div>
+
+          <!-- Test des notifications -->
+          <div class="mb-3">
+            <label class="form-label">Tester les notifications</label>
+            <div class="d-grid gap-2 d-md-flex">
+              <button type="button" class="btn btn-outline-primary btn-sm" onclick="testNotification('message')">
+                <i class="bi bi-chat"></i> Test message
+              </button>
+              <button type="button" class="btn btn-outline-warning btn-sm" onclick="testNotification('urgent')">
+                <i class="bi bi-exclamation-triangle"></i> Test urgent
+              </button>
+              <button type="button" class="btn btn-outline-info btn-sm" onclick="testNotification('system')">
+                <i class="bi bi-bell"></i> Test système
+              </button>
+            </div>
+          </div>
+
+          <!-- Statut des permissions -->
+          <div class="mb-3">
+            <label class="form-label">Statut des permissions</label>
+            <div id="permissionsStatus">
+              <div class="d-flex align-items-center mb-2">
+                <i class="bi bi-desktop me-2"></i>
+                <span>Notifications desktop: </span>
+                <span id="desktopPermissionStatus" class="badge bg-secondary ms-2">Vérification...</span>
+              </div>
+              <div class="d-flex align-items-center mb-2">
+                <i class="bi bi-volume-up me-2"></i>
+                <span>Audio: </span>
+                <span id="audioPermissionStatus" class="badge bg-secondary ms-2">Vérification...</span>
+              </div>
+              <div class="d-flex align-items-center">
+                <i class="bi bi-phone-vibrate me-2"></i>
+                <span>Vibration: </span>
+                <span id="vibrationPermissionStatus" class="badge bg-secondary ms-2">Vérification...</span>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeNotificationSettings()">Annuler</button>
+        <button type="button" class="btn btn-primary" onclick="saveNotificationSettings()">
+          <i class="bi bi-check"></i> Enregistrer
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Fonctions pour gérer les paramètres de notification
+function openNotificationSettings() {
+  const modalElement = document.getElementById('notificationSettingsModal');
+  const modal = new bootstrap.Modal(modalElement);
+  
+  // Écouter les événements de fermeture Bootstrap
+  modalElement.addEventListener('hidden.bs.modal', () => {
+    console.log('✅ Modal fermé via événement Bootstrap');
+  });
+  
+  modalElement.addEventListener('hide.bs.modal', () => {
+    console.log('🔄 Modal en cours de fermeture...');
+  });
+  
+  loadNotificationSettings();
+  updatePermissionsStatus();
+  modal.show();
+}
+
+function loadNotificationSettings() {
+  if (window.notificationManager) {
+    const settings = window.notificationManager.getSettings();
+    
+    document.getElementById('enableDesktopNotifications').checked = settings.enableDesktop;
+    document.getElementById('enableBubbleNotifications').checked = settings.enableBubbles;
+    document.getElementById('enableNotificationSounds').checked = settings.enableSounds;
+    document.getElementById('enableVibration').checked = settings.enableVibration;
+    document.getElementById('bubbleDuration').value = settings.bubbleDuration;
+    document.getElementById('soundVolume').value = settings.soundVolume;
+  }
+}
+
+function saveNotificationSettings() {
+  if (window.notificationManager) {
+    const settings = {
+      enableDesktop: document.getElementById('enableDesktopNotifications')?.checked || false,
+      enableBubbles: document.getElementById('enableBubbleNotifications')?.checked || false,
+      enableSounds: document.getElementById('enableNotificationSounds')?.checked || false,
+      enableVibration: document.getElementById('enableVibration')?.checked || false,
+      bubbleDuration: parseInt(document.getElementById('bubbleDuration')?.value) || 5000,
+      soundVolume: parseFloat(document.getElementById('soundVolume')?.value) || 0.3
+    };
+    
+    // Appliquer les paramètres
+    Object.keys(settings).forEach(key => {
+      window.notificationManager.setSetting(key, settings[key]);
+    });
+    
+    // Afficher une confirmation
+    showToast('Paramètres sauvegardés', 'success');
+    
+    // Fermer le modal après un court délai
+    setTimeout(() => {
+      closeNotificationSettings();
+    }, 500);
+  }
+}
+
+function closeNotificationSettings() {
+  console.log('🔄 Tentative de fermeture du modal...');
+  const modalElement = document.getElementById('notificationSettingsModal');
+  
+  if (!modalElement) {
+    console.error('❌ Élément modal non trouvé');
+    return;
+  }
+  
+  // Essayer de récupérer l'instance existante
+  let modal = bootstrap.Modal.getInstance(modalElement);
+  
+  // Si aucune instance n'existe, en créer une nouvelle
+  if (!modal) {
+    console.log('📝 Création d\'une nouvelle instance de modal');
+    modal = new bootstrap.Modal(modalElement);
+  }
+  
+  // Fermer le modal
+  console.log('🚪 Fermeture du modal...');
+  modal.hide();
+  
+  // Forcer la fermeture si nécessaire
+  setTimeout(() => {
+    if (modalElement.classList.contains('show')) {
+      console.log('🔧 Fermeture forcée du modal');
+      modalElement.classList.remove('show');
+      modalElement.style.display = 'none';
+      modalElement.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('modal-open');
+      document.body.style.paddingRight = '';
+      
+      const backdrop = document.querySelector('.modal-backdrop');
+      if (backdrop) {
+        backdrop.remove();
+      }
+      
+      console.log('✅ Modal fermé avec succès');
+    } else {
+      console.log('✅ Modal fermé normalement');
+    }
+  }, 300);
+}
+
+function updatePermissionsStatus() {
+  if (window.notificationManager) {
+    const permissions = window.notificationManager.getPermissions();
+    
+    // Notifications desktop
+    const desktopStatus = document.getElementById('desktopPermissionStatus');
+    if (permissions.notification === 'granted') {
+      desktopStatus.textContent = 'Autorisé';
+      desktopStatus.className = 'badge bg-success ms-2';
+    } else if (permissions.notification === 'denied') {
+      desktopStatus.textContent = 'Refusé';
+      desktopStatus.className = 'badge bg-danger ms-2';
+    } else {
+      desktopStatus.textContent = 'Non demandé';
+      desktopStatus.className = 'badge bg-warning ms-2';
+    }
+    
+    // Audio
+    const audioStatus = document.getElementById('audioPermissionStatus');
+    if (permissions.sound) {
+      audioStatus.textContent = 'Supporté';
+      audioStatus.className = 'badge bg-success ms-2';
+    } else {
+      audioStatus.textContent = 'Non supporté';
+      audioStatus.className = 'badge bg-danger ms-2';
+    }
+    
+    // Vibration
+    const vibrationStatus = document.getElementById('vibrationPermissionStatus');
+    if (permissions.vibration) {
+      vibrationStatus.textContent = 'Supporté';
+      vibrationStatus.className = 'badge bg-success ms-2';
+    } else {
+      vibrationStatus.textContent = 'Non supporté';
+      vibrationStatus.className = 'badge bg-danger ms-2';
+    }
+  }
+}
+
+function testNotification(type) {
+  if (window.notificationManager) {
+    window.notificationManager.testNotification(type);
+  }
+}
+
+function showToast(message, type = 'info') {
+  // Créer un toast de notification
+  const toastContainer = document.getElementById('toast-container') || createToastContainer();
+  
+  const toast = document.createElement('div');
+  toast.className = `toast align-items-center text-white bg-${type} border-0`;
+  toast.setAttribute('role', 'alert');
+  toast.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body">${message}</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  `;
+  
+  toastContainer.appendChild(toast);
+  
+  const bsToast = new bootstrap.Toast(toast);
+  bsToast.show();
+  
+  // Supprimer le toast après fermeture
+  toast.addEventListener('hidden.bs.toast', () => {
+    toast.remove();
+  });
+}
+
+function createToastContainer() {
+  const container = document.createElement('div');
+  container.id = 'toast-container';
+  container.className = 'toast-container position-fixed top-0 end-0 p-3';
+  container.style.zIndex = '1055';
+  document.body.appendChild(container);
+  return container;
+}
+
+// Gestion des événements de fermeture du modal
+document.addEventListener('DOMContentLoaded', () => {
+  const modalElement = document.getElementById('notificationSettingsModal');
+  if (modalElement) {
+    // Fermer avec la touche Échap
+    modalElement.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeNotificationSettings();
+      }
+    });
+    
+    // Fermer en cliquant sur le backdrop
+    modalElement.addEventListener('click', (e) => {
+      if (e.target === modalElement) {
+        closeNotificationSettings();
+      }
+    });
+  }
+});
+
+// Fonction de test pour vérifier la fermeture du modal
+window.testModalClose = function() {
+  console.log('🧪 Test de fermeture du modal...');
+  closeNotificationSettings();
+  
+  // Vérifier après 1 seconde
+  setTimeout(() => {
+    const modalElement = document.getElementById('notificationSettingsModal');
+    if (modalElement && modalElement.classList.contains('show')) {
+      console.error('❌ Le modal est toujours ouvert après 1 seconde');
+      console.log('🔧 Tentative de fermeture forcée...');
+      forceCloseModal();
+    } else {
+      console.log('✅ Le modal s\'est fermé correctement');
+    }
+  }, 1000);
+};
+
+// Exposer les fonctions globalement
+window.openNotificationSettings = openNotificationSettings;
+window.saveNotificationSettings = saveNotificationSettings;
+window.closeNotificationSettings = closeNotificationSettings;
+window.testNotification = testNotification;
+window.testModalClose = testModalClose;
+</script>

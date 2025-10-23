@@ -50,6 +50,95 @@
         font-weight: 500;
       }
       
+      /* Styles pour la section des paramètres de notification */
+      .notification-settings-panel {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 90%;
+        max-width: 500px;
+        max-height: 80vh;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        z-index: 1050;
+        overflow: hidden;
+        border: 1px solid #dee2e6;
+      }
+      
+      .notification-settings-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.5rem;
+        background: linear-gradient(135deg, #0d6efd, #0b5ed7);
+        color: white;
+        border-bottom: 1px solid #dee2e6;
+      }
+      
+      .notification-settings-title {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+      
+      .notification-settings-body {
+        padding: 1.5rem;
+        max-height: 60vh;
+        overflow-y: auto;
+      }
+      
+      .notification-settings-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        padding: 1rem 1.5rem;
+        background: #f8f9fa;
+        border-top: 1px solid #dee2e6;
+      }
+      
+      .notification-settings-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1040;
+      }
+      
+      /* Animation pour l'ouverture/fermeture */
+      .notification-settings-panel.show {
+        animation: slideInDown 0.3s ease-out;
+      }
+      
+      .notification-settings-panel.hide {
+        animation: slideOutUp 0.3s ease-in;
+      }
+      
+      @keyframes slideInDown {
+        from {
+          opacity: 0;
+          transform: translate(-50%, -60%);
+        }
+        to {
+          opacity: 1;
+          transform: translate(-50%, -50%);
+        }
+      }
+      
+      @keyframes slideOutUp {
+        from {
+          opacity: 1;
+          transform: translate(-50%, -50%);
+        }
+        to {
+          opacity: 0;
+          transform: translate(-50%, -60%);
+        }
+      }
+      
       /* Interface moderne de messagerie */
       .messaging-container {
         height: calc(100vh - 120px);
@@ -655,6 +744,26 @@
           opacity: 1;
         }
       }
+      
+      .notification-settings-btn {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+      }
+      
+      .notification-settings-btn .btn {
+        border-radius: 20px;
+        padding: 8px 16px;
+        font-size: 14px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+      }
+      
+      .notification-settings-btn .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
     </style>
   </head>
   <body>
@@ -673,6 +782,13 @@
       <div id="connection-status" class="connection-status offline">
         <i class="bi bi-wifi-off"></i>
         <span>Connexion...</span>
+      </div>
+
+      <!-- Bouton des paramètres de notification -->
+      <div class="notification-settings-btn">
+        <button class="btn btn-outline-primary btn-sm" onclick="toggleNotificationSettings()" title="Paramètres de notification">
+          <i class="bi bi-gear"></i> Notifications
+        </button>
       </div>
 
       <!-- Interface de messagerie moderne -->
@@ -828,7 +944,11 @@
         try {
           const response = await fetch('/api/users/online', {
             method: 'POST',
-            headers: authHeaders()
+            headers: {
+              ...authHeaders(),
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ is_online: true })
           });
           if (!response.ok) throw new Error('Erreur de mise à jour du statut');
         } catch (error) {
@@ -871,6 +991,350 @@
     </script>
     <!-- <script src="/app.js"></script> -->
     <script src="/advanced-messaging.js"></script>
+    
+    <!-- Composants de notification -->
+    <script src="/components/notification-bubble.js"></script>
+    <script src="/components/realtime-messaging.js"></script>
+    <script src="/components/notification-sounds.js"></script>
+    <script src="/components/notification-manager.js"></script>
+    <script src="/debug-messaging.js"></script>
+    
+    <!-- Section des paramètres de notification -->
+    <div id="notification-settings-section" class="notification-settings-panel" style="display: none;">
+      <div class="notification-settings-header">
+        <h5 class="notification-settings-title">
+          <i class="bi bi-bell"></i> Paramètres de notification
+        </h5>
+        <button type="button" class="btn-close" onclick="toggleNotificationSettings()" aria-label="Fermer"></button>
+      </div>
+      
+      <div class="notification-settings-body">
+        <form id="notificationSettingsForm">
+          <!-- Notifications desktop -->
+          <div class="mb-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="enableDesktopNotifications" checked>
+              <label class="form-check-label" for="enableDesktopNotifications">
+                <i class="bi bi-desktop"></i> Notifications desktop
+              </label>
+            </div>
+            <small class="text-muted">Afficher les notifications même quand l'application est en arrière-plan</small>
+          </div>
+
+          <!-- Bulles de notification -->
+          <div class="mb-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="enableBubbleNotifications" checked>
+              <label class="form-check-label" for="enableBubbleNotifications">
+                <i class="bi bi-chat-bubble"></i> Bulles de notification
+              </label>
+            </div>
+            <small class="text-muted">Afficher des bulles flottantes pour les nouveaux messages</small>
+          </div>
+
+          <!-- Sons de notification -->
+          <div class="mb-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="enableNotificationSounds" checked>
+              <label class="form-check-label" for="enableNotificationSounds">
+                <i class="bi bi-volume-up"></i> Sons de notification
+              </label>
+            </div>
+            <small class="text-muted">Jouer un son pour les nouveaux messages</small>
+          </div>
+
+          <!-- Vibration -->
+          <div class="mb-3">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="enableVibration" checked>
+              <label class="form-check-label" for="enableVibration">
+                <i class="bi bi-phone-vibrate"></i> Vibration
+              </label>
+            </div>
+            <small class="text-muted">Vibrer le téléphone pour les nouveaux messages</small>
+          </div>
+
+          <!-- Durée des bulles -->
+          <div class="mb-3">
+            <label for="bubbleDuration" class="form-label">
+              <i class="bi bi-clock"></i> Durée d'affichage des bulles
+            </label>
+            <select class="form-select" id="bubbleDuration">
+              <option value="3000">3 secondes</option>
+              <option value="5000" selected>5 secondes</option>
+              <option value="10000">10 secondes</option>
+              <option value="0">Ne jamais fermer automatiquement</option>
+            </select>
+          </div>
+
+          <!-- Volume des sons -->
+          <div class="mb-3">
+            <label for="soundVolume" class="form-label">
+              <i class="bi bi-volume-up"></i> Volume des sons
+            </label>
+            <input type="range" class="form-range" id="soundVolume" min="0" max="1" step="0.1" value="0.3">
+            <div class="d-flex justify-content-between">
+              <small class="text-muted">Silencieux</small>
+              <small class="text-muted">Fort</small>
+            </div>
+          </div>
+
+          <!-- Test des notifications -->
+          <div class="mb-3">
+            <label class="form-label">Tester les notifications</label>
+            <div class="d-grid gap-2 d-md-flex">
+              <button type="button" class="btn btn-outline-primary btn-sm" onclick="testNotification('message')">
+                <i class="bi bi-chat"></i> Test message
+              </button>
+              <button type="button" class="btn btn-outline-warning btn-sm" onclick="testNotification('urgent')">
+                <i class="bi bi-exclamation-triangle"></i> Test urgent
+              </button>
+              <button type="button" class="btn btn-outline-info btn-sm" onclick="testNotification('system')">
+                <i class="bi bi-bell"></i> Test système
+              </button>
+            </div>
+          </div>
+
+          <!-- Statut des permissions -->
+          <div class="mb-3">
+            <label class="form-label">Statut des permissions</label>
+            <div id="permissionsStatus">
+              <div class="d-flex align-items-center mb-2">
+                <i class="bi bi-desktop me-2"></i>
+                <span>Notifications desktop: </span>
+                <span id="desktopPermissionStatus" class="badge bg-secondary ms-2">Vérification...</span>
+              </div>
+              <div class="d-flex align-items-center mb-2">
+                <i class="bi bi-volume-up me-2"></i>
+                <span>Audio: </span>
+                <span id="audioPermissionStatus" class="badge bg-secondary ms-2">Vérification...</span>
+              </div>
+              <div class="d-flex align-items-center">
+                <i class="bi bi-phone-vibrate me-2"></i>
+                <span>Vibration: </span>
+                <span id="vibrationPermissionStatus" class="badge bg-secondary ms-2">Vérification...</span>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      
+      <div class="notification-settings-footer">
+        <button type="button" class="btn btn-secondary" onclick="toggleNotificationSettings()">Annuler</button>
+        <button type="button" class="btn btn-primary" onclick="saveNotificationSettings()">
+          <i class="bi bi-check"></i> Enregistrer
+        </button>
+      </div>
+    </div>
+    <script>
+      // Fonctions pour les paramètres de notification (section au lieu de modal)
+      let notificationSettingsVisible = false;
+      let backdrop = null;
+      
+      window.toggleNotificationSettings = function() {
+        const panel = document.getElementById('notification-settings-section');
+        
+        if (notificationSettingsVisible) {
+          // Fermer la section
+          closeNotificationSettings();
+        } else {
+          // Ouvrir la section
+          openNotificationSettings();
+        }
+      };
+      
+      window.openNotificationSettings = function() {
+        const panel = document.getElementById('notification-settings-section');
+        
+        if (!panel) {
+          console.error('❌ Section des paramètres non trouvée');
+          return;
+        }
+        
+        // Créer le backdrop
+        backdrop = document.createElement('div');
+        backdrop.className = 'notification-settings-backdrop';
+        backdrop.onclick = closeNotificationSettings;
+        document.body.appendChild(backdrop);
+        
+        // Afficher la section
+        panel.style.display = 'block';
+        panel.classList.add('show');
+        notificationSettingsVisible = true;
+        
+        // Charger les paramètres et permissions
+        loadNotificationSettings();
+        updatePermissionsStatus();
+        
+        console.log('✅ Section des paramètres ouverte');
+      };
+      
+      window.closeNotificationSettings = function() {
+        const panel = document.getElementById('notification-settings-section');
+        
+        if (!panel) {
+          console.error('❌ Section des paramètres non trouvée');
+          return;
+        }
+        
+        // Animation de fermeture
+        panel.classList.remove('show');
+        panel.classList.add('hide');
+        
+        // Supprimer le backdrop
+        if (backdrop) {
+          backdrop.remove();
+          backdrop = null;
+        }
+        
+        // Masquer après l'animation
+        setTimeout(() => {
+          panel.style.display = 'none';
+          panel.classList.remove('hide');
+          notificationSettingsVisible = false;
+          console.log('✅ Section des paramètres fermée');
+        }, 300);
+      };
+      
+      window.saveNotificationSettings = function() {
+        if (window.notificationManager) {
+          const settings = {
+            enableDesktop: document.getElementById('enableDesktopNotifications')?.checked || false,
+            enableBubbles: document.getElementById('enableBubbleNotifications')?.checked || false,
+            enableSounds: document.getElementById('enableNotificationSounds')?.checked || false,
+            enableVibration: document.getElementById('enableVibration')?.checked || false,
+            bubbleDuration: parseInt(document.getElementById('bubbleDuration')?.value) || 5000,
+            soundVolume: parseFloat(document.getElementById('soundVolume')?.value) || 0.3
+          };
+          
+          // Appliquer les paramètres
+          Object.keys(settings).forEach(key => {
+            window.notificationManager.setSetting(key, settings[key]);
+          });
+          
+          // Afficher une confirmation
+          showToast('Paramètres sauvegardés', 'success');
+          
+          // Fermer la section après un court délai
+          setTimeout(() => {
+            closeNotificationSettings();
+          }, 500);
+        }
+      };
+      
+      window.testNotification = function(type) {
+        if (window.notificationManager) {
+          window.notificationManager.testNotification(type);
+        }
+      };
+      
+      function loadNotificationSettings() {
+        if (window.notificationManager) {
+          const settings = window.notificationManager.getSettings();
+          
+          const enableDesktop = document.getElementById('enableDesktopNotifications');
+          const enableBubbles = document.getElementById('enableBubbleNotifications');
+          const enableSounds = document.getElementById('enableNotificationSounds');
+          const enableVibration = document.getElementById('enableVibration');
+          const bubbleDuration = document.getElementById('bubbleDuration');
+          const soundVolume = document.getElementById('soundVolume');
+          
+          if (enableDesktop) enableDesktop.checked = settings.enableDesktop;
+          if (enableBubbles) enableBubbles.checked = settings.enableBubbles;
+          if (enableSounds) enableSounds.checked = settings.enableSounds;
+          if (enableVibration) enableVibration.checked = settings.enableVibration;
+          if (bubbleDuration) bubbleDuration.value = settings.bubbleDuration;
+          if (soundVolume) soundVolume.value = settings.soundVolume;
+        }
+      }
+      
+      function updatePermissionsStatus() {
+        if (window.notificationManager) {
+          const permissions = window.notificationManager.getPermissions();
+          
+          // Notifications desktop
+          const desktopStatus = document.getElementById('desktopPermissionStatus');
+          if (desktopStatus) {
+            if (permissions.notification === 'granted') {
+              desktopStatus.textContent = 'Autorisé';
+              desktopStatus.className = 'badge bg-success ms-2';
+            } else if (permissions.notification === 'denied') {
+              desktopStatus.textContent = 'Refusé';
+              desktopStatus.className = 'badge bg-danger ms-2';
+            } else {
+              desktopStatus.textContent = 'Non demandé';
+              desktopStatus.className = 'badge bg-warning ms-2';
+            }
+          }
+          
+          // Audio
+          const audioStatus = document.getElementById('audioPermissionStatus');
+          if (audioStatus) {
+            if (permissions.sound) {
+              audioStatus.textContent = 'Supporté';
+              audioStatus.className = 'badge bg-success ms-2';
+            } else {
+              audioStatus.textContent = 'Non supporté';
+              audioStatus.className = 'badge bg-danger ms-2';
+            }
+          }
+          
+          // Vibration
+          const vibrationStatus = document.getElementById('vibrationPermissionStatus');
+          if (vibrationStatus) {
+            if (permissions.vibration) {
+              vibrationStatus.textContent = 'Supporté';
+              vibrationStatus.className = 'badge bg-success ms-2';
+            } else {
+              vibrationStatus.textContent = 'Non supporté';
+              vibrationStatus.className = 'badge bg-danger ms-2';
+            }
+          }
+        }
+      }
+      
+      function showToast(message, type = 'info') {
+        // Créer un toast de notification
+        let toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) {
+          toastContainer = document.createElement('div');
+          toastContainer.id = 'toast-container';
+          toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+          toastContainer.style.zIndex = '1055';
+          document.body.appendChild(toastContainer);
+        }
+        
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${type} border-0`;
+        toast.setAttribute('role', 'alert');
+        toast.innerHTML = `
+          <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+          </div>
+        `;
+        
+        toastContainer.appendChild(toast);
+        
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+        
+        // Supprimer le toast après fermeture
+        toast.addEventListener('hidden.bs.toast', () => {
+          toast.remove();
+        });
+      }
+
+      // Gestion de la touche Échap pour fermer la section
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && notificationSettingsVisible) {
+          closeNotificationSettings();
+        }
+      });
+      
+      console.log('✅ Section des paramètres de notification prête');
+    </script>
+    
     <script>
       // Initialiser la page de messagerie moderne
       document.addEventListener('DOMContentLoaded', () => {
@@ -914,6 +1378,78 @@
         // Gestion des notifications
         if ('Notification' in window && Notification.permission === 'default') {
           Notification.requestPermission();
+        }
+        
+        // Initialiser le système de notifications en temps réel
+        setupRealtimeNotifications();
+      }
+      
+      function setupRealtimeNotifications() {
+        // Écouter les événements de notification
+        document.addEventListener('showBubbleNotification', (event) => {
+          if (window.notificationBubble) {
+            window.notificationBubble.showNotification(event.detail);
+          }
+        });
+        
+        document.addEventListener('playNotificationSound', (event) => {
+          if (window.notificationSounds) {
+            window.notificationSounds.play(event.detail.type);
+          }
+        });
+        
+        // Écouter les changements de connexion
+        document.addEventListener('messagingConnectionChange', (event) => {
+          updateConnectionStatus(event.detail.isConnected);
+        });
+        
+        // Écouter les nouveaux messages
+        document.addEventListener('newMessage', (event) => {
+          handleRealtimeMessage(event.detail.message);
+        });
+      }
+      
+      function handleRealtimeMessage(message) {
+        // Mettre à jour l'interface utilisateur
+        if (message && message.content) {
+          // Ajouter le message à la conversation active
+          const messagesContainer = document.getElementById('messages-container');
+          if (messagesContainer) {
+            // Vérifier si c'est la conversation active
+            const currentChat = document.querySelector('.chat-area.active');
+            if (currentChat && currentChat.dataset.chatId === message.chat_id) {
+              displayMessages([message]);
+            }
+          }
+          
+          // Mettre à jour le compteur de messages non lus
+          updateUnreadCount(message.chat_id);
+        }
+      }
+      
+      function updateUnreadCount(chatId) {
+        // Mettre à jour le badge de notification pour le chat spécifique
+        const chatElement = document.querySelector(`[data-chat-id="${chatId}"]`);
+        if (chatElement) {
+          const badge = chatElement.querySelector('.unread-badge');
+          if (badge) {
+            const currentCount = parseInt(badge.textContent) || 0;
+            badge.textContent = currentCount + 1;
+            badge.style.display = 'block';
+          }
+        }
+      }
+      
+      function updateConnectionStatus(isConnected) {
+        const statusElement = document.getElementById('connection-status');
+        if (statusElement) {
+          if (isConnected) {
+            statusElement.className = 'connection-status online';
+            statusElement.innerHTML = '<i class="bi bi-wifi"></i><span>Connecté</span>';
+          } else {
+            statusElement.className = 'connection-status offline';
+            statusElement.innerHTML = '<i class="bi bi-wifi-off"></i><span>Déconnecté</span>';
+          }
         }
       }
 
@@ -1341,7 +1877,6 @@
         updateOnlineStatus();
         
         // Configurer les gestionnaires d'événements
-        setupEventListeners();
         setupRefreshButton();
         
         // Démarrer le rechargement automatique

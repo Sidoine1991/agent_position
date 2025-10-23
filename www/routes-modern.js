@@ -376,11 +376,13 @@ router.post('/presence/start', requireAuth, async (req, res) => {
     }
     
     // Créer une nouvelle mission
+    const lat = Number(req.body?.lat ?? req.body?.latitude);
+    const lon = Number(req.body?.lon ?? req.body?.longitude);
     const result = await db.query(`
-      INSERT INTO missions (user_id, status, start_time, created_at)
-      VALUES ($1, 'active', NOW(), NOW())
+      INSERT INTO missions (user_id, status, start_time, created_at, start_lat, start_lon)
+      VALUES ($1, 'active', NOW(), NOW(), $2, $3)
       RETURNING id, user_id, status, start_time, created_at
-    `, [userId]);
+    `, [userId, Number.isFinite(lat) ? lat : null, Number.isFinite(lon) ? lon : null]);
     
     const mission = result.rows[0];
     // Geofencing calculation if coords provided
@@ -442,11 +444,13 @@ router.post('/presence/end', requireAuth, async (req, res) => {
     }
     
     // Terminer la mission
+    const lat = Number(req.body?.lat ?? req.body?.latitude);
+    const lon = Number(req.body?.lon ?? req.body?.longitude);
     await db.query(`
       UPDATE missions 
-      SET status = 'completed', end_time = NOW(), updated_at = NOW()
+      SET status = 'completed', end_time = NOW(), updated_at = NOW(), end_lat = $2, end_lon = $3
       WHERE user_id = $1 AND status = 'active'
-    `, [userId]);
+    `, [userId, Number.isFinite(lat) ? lat : null, Number.isFinite(lon) ? lon : null]);
     
     res.json({ message: 'Mission terminée avec succès', zone_id: zoneId ? Number(zoneId) : null, distance_m, tol_m, within_tolerance });
   } catch (error) {

@@ -34,6 +34,7 @@
     selectedDepartmentId: '',
     selectedCommuneId: '',
     selectedStatus: '',
+    isReloading: false // Flag pour éviter les rechargements multiples
   };
 
   // Données géographiques intégrées
@@ -349,6 +350,81 @@
         console.error('Erreur scheduleMonthRefresh:', e);
       }
     }, delay);
+  };
+
+  // ----------------------------
+  // 4.5. GESTION DES ÉVÉNEMENTS DE SAUVEGARDE
+  
+  /**
+   * Attache les événements de sauvegarde aux boutons du Gantt
+   * @param {HTMLElement} ganttElement
+   */
+  const attachSaveEventListeners = (ganttElement) => {
+    ganttElement.querySelectorAll('button[data-date]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const date = btn.getAttribute('data-date');
+        const today = toISODate(new Date());
+        
+        // Vérifier si la date est dans le passé
+        if (date < today) {
+          showToast('Impossible de modifier un jour passé', 'error');
+          return;
+        }
+        
+        // Préparer les données de planification
+        const planningData = {
+          date,
+          planned_start_time: $(`gs-${date}`).value || null,
+          planned_end_time: $(`ge-${date}`).value || null,
+          description_activite: $(`desc-${date}`).value || null,
+          project_name: state.selectedProjectFilter || null,
+          user_id: state.selectedAgentId ? parseInt(state.selectedAgentId, 10) : null,
+          resultat_journee: 'en_cours'
+        };
+        
+        // Validation des champs requis
+        if (!planningData.planned_start_time || !planningData.planned_end_time) {
+          showToast('Veuillez spécifier une heure de début et de fin', 'error');
+          return;
+        }
+        
+        try {
+          // Vérifier si un rechargement est déjà en cours
+          if (state.isReloading) {
+            console.log('⚠️ Rechargement déjà en cours, ignoré');
+            return;
+          }
+          
+          // Utiliser la fonction savePlanning centralisée
+          await savePlanning(planningData, btn);
+          
+          // Afficher un message de succès
+          showToast('Planification enregistrée avec succès', 'success');
+          
+          // Marquer le début du rechargement
+          state.isReloading = true;
+          console.log('🔄 Rechargement des données après sauvegarde...');
+          
+          // Recharger uniquement les données nécessaires (éviter la cascade)
+          await loadWeek($('week-start')?.value || toISODate(new Date()));
+          
+          // Programmer le rechargement du mois avec un délai plus long pour éviter les conflits
+          scheduleMonthRefresh(500);
+          
+          // Recharger le récapitulatif avec un délai pour éviter les conflits
+          setTimeout(async () => {
+            await loadWeeklySummary();
+            // Marquer la fin du rechargement
+            state.isReloading = false;
+          }, 200);
+          
+        } catch (error) {
+          // L'erreur est déjà gérée dans savePlanning
+          console.error('Erreur lors de la sauvegarde de la planification:', error);
+          state.isReloading = false;
+        }
+      });
+    });
   };
 
   // ----------------------------
@@ -964,6 +1040,12 @@
    */
   const loadWeek = async (dateStr) => {
     try {
+      // Vérifier si un rechargement est déjà en cours
+      if (state.isReloading) {
+        console.log('⚠️ Rechargement déjà en cours, loadWeek ignoré');
+        return;
+      }
+      
       const start = startOfWeek(dateStr ? new Date(dateStr) : new Date());
       if (isNaN(start.getTime())) {
         throw new Error('Date de début invalide');
@@ -1127,58 +1209,8 @@
         $('week-summary').textContent = `Total planifié: ${Math.floor(weeklyMinutes / 60)}h${String(weeklyMinutes % 60).padStart(2, '0')}`;
       }
 
-      gantt.querySelectorAll('button[data-date]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const date = btn.getAttribute('data-date');
-          const today = toISODate(new Date());
-          
-          // Vérifier si la date est dans le passé
-          if (date < today) {
-            showToast('Impossible de modifier un jour passé', 'error');
-            return;
-          }
-          
-          // Préparer les données de planification
-          const planningData = {
-            date,
-            planned_start_time: $(`gs-${date}`).value || null,
-            planned_end_time: $(`ge-${date}`).value || null,
-            description_activite: $(`desc-${date}`).value || null,
-            project_name: state.selectedProjectFilter || null,
-            user_id: state.selectedAgentId ? parseInt(state.selectedAgentId, 10) : null,
-            resultat_journee: 'en_cours'
-          };
-          
-          // Validation des champs requis
-          if (!planningData.planned_start_time || !planningData.planned_end_time) {
-            showToast('Veuillez spécifier une heure de début et de fin', 'error');
-            return;
-          }
-          
-          try {
-            // Utiliser la fonction savePlanning centralisée
-            await savePlanning(planningData, btn);
-            
-            // Afficher un message de succès
-            showToast('Planification enregistrée avec succès', 'success');
-            
-            // Recharger les données mises à jour
-            await loadWeek($('week-start')?.value || toISODate(new Date()));
-            scheduleMonthRefresh(100);
-            await loadWeeklySummary();
-            
-            // Forcer le rechargement du Gantt
-            const ganttElement = $('week-gantt');
-            if (ganttElement) {
-              ganttElement.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Rechargement du planning...</p></div>';
-            }
-            
-          } catch (error) {
-            // L'erreur est déjà gérée dans savePlanning
-            console.error('Erreur lors de la sauvegarde de la planification:', error);
-          }
-        });
-      });
+      // Attacher les événements de sauvegarde aux boutons
+      attachSaveEventListeners(gantt);
     } catch (error) {
       console.error('Erreur chargement semaine:', error);
       const gantt = $('week-gantt');

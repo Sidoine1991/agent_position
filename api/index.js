@@ -2153,6 +2153,171 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // ===== ENDPOINTS MANQUANTS POUR MESSAGERIE =====
+
+    // Endpoint pour le statut en ligne des utilisateurs
+    if (path === '/api/users/online' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: users, error } = await supabaseClient
+            .from('users')
+            .select('id, name, email, last_seen, is_online')
+            .eq('is_online', true)
+            .order('last_seen', { ascending: false });
+
+          if (error) throw error;
+
+          return res.json({ success: true, users });
+        } catch (error) {
+          console.error('Erreur récupération utilisateurs en ligne:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour mettre à jour le statut en ligne
+    if (path === '/api/users/online' && method === 'POST') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { is_online } = req.body;
+          
+          const { error } = await supabaseClient
+            .from('users')
+            .update({ 
+              is_online: is_online || false,
+              last_seen: new Date().toISOString()
+            })
+            .eq('id', req.user.id);
+
+          if (error) throw error;
+
+          return res.json({ success: true });
+        } catch (error) {
+          console.error('Erreur mise à jour statut en ligne:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les catégories de forum
+    if (path === '/api/forum/categories' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          // Pour l'instant, retourner des catégories fictives
+          const categories = [
+            {
+              id: 1,
+              name: 'Général',
+              description: 'Discussions générales',
+              message_count: 0,
+              last_message: null
+            },
+            {
+              id: 2,
+              name: 'Annonces',
+              description: 'Annonces importantes',
+              message_count: 0,
+              last_message: null
+            },
+            {
+              id: 3,
+              name: 'Support',
+              description: 'Aide et support technique',
+              message_count: 0,
+              last_message: null
+            }
+          ];
+          
+          return res.json({ success: true, categories });
+        } catch (error) {
+          console.error('Erreur récupération catégories forum:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les messages (GET)
+    if (path === '/api/messages' && method === 'GET') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { data: messages, error } = await supabaseClient
+            .from('messages')
+            .select(`
+              *,
+              sender:agents!messages_sender_id_fkey(first_name, last_name, email),
+              recipient:agents!messages_recipient_id_fkey(first_name, last_name, email)
+            `)
+            .or(`sender_id.eq.${req.user.id},recipient_id.eq.${req.user.id}`)
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+          if (error) throw error;
+
+          return res.json({ success: true, messages });
+        } catch (error) {
+          console.error('Erreur récupération messages:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
+    // Endpoint pour les messages (POST)
+    if (path === '/api/messages' && method === 'POST') {
+      authenticateToken(req, res, async () => {
+        try {
+          if (!supabaseClient) {
+            return res.status(500).json({ error: 'Supabase non configuré' });
+          }
+
+          const { content, recipient_id, message_type = 'direct' } = req.body;
+
+          if (!content || !recipient_id) {
+            return res.status(400).json({ error: 'Contenu et destinataire requis' });
+          }
+
+          const { data: message, error } = await supabaseClient
+            .from('messages')
+            .insert({
+              content,
+              sender_id: req.user.id,
+              recipient_id,
+              message_type,
+              created_at: new Date().toISOString()
+            })
+            .select(`
+              *,
+              sender:agents!messages_sender_id_fkey(first_name, last_name, email),
+              recipient:agents!messages_recipient_id_fkey(first_name, last_name, email)
+            `)
+            .single();
+
+          if (error) throw error;
+
+          return res.json({ success: true, message });
+        } catch (error) {
+          console.error('Erreur envoi message:', error);
+          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+      return;
+    }
+
     // Route non trouvée
     return res.status(404).json({ error: 'Route non trouvée' });
 
