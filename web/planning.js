@@ -151,21 +151,75 @@
     
     // Filtre par superviseur (si un superviseur est sélectionné)
     if (state.selectedSupervisorId) {
-      console.log(`Application du filtre superviseur côté client: ${state.selectedSupervisorId}`);
-      // Pour l'instant, on ne peut pas filtrer par superviseur car l'API ne retourne pas cette info
-      // Il faudrait modifier l'API pour inclure les données utilisateur enrichies
+      const supervisorId = String(state.selectedSupervisorId).trim();
+      console.log(`Application du filtre superviseur côté client: ${supervisorId} (type: ${typeof supervisorId})`);
+      
+      // Filtrer les planifications selon le superviseur
+      // Le superviseur peut voir :
+      // 1. Ses propres planifications (user_id = supervisor_id)
+      // 2. Les planifications de ses agents supervisés (user.supervisor_id = supervisor_id)
+      filteredPlans = filteredPlans.filter(plan => {
+        if (!plan) return false;
+        
+        // Cas 1: Planification du superviseur lui-même
+        if (String(plan.user_id) === supervisorId) {
+          console.log(`✅ Planification du superviseur trouvée: user_id=${plan.user_id}, date=${plan.date}`);
+          return true;
+        }
+        
+        // Cas 2: Planification d'un agent sous sa supervision
+        const user = state.usersMap?.get(String(plan.user_id));
+        if (!user) {
+          console.log(`⚠️ Utilisateur non trouvé pour planification user_id=${plan.user_id}`);
+          return false;
+        }
+        
+        // Vérifier le superviseur de l'utilisateur
+        const userSupervisorId = user.supervisor_id || user.supervisor || user.supervisor_email;
+        const isSupervised = String(userSupervisorId) === supervisorId;
+        
+        if (isSupervised) {
+          console.log(`✅ Planification d'agent supervisé trouvée: user_id=${plan.user_id}, supervisor_id=${userSupervisorId}, date=${plan.date}`);
+        }
+        
+        return isSupervised;
+      });
+      
+      console.log(`Planifications filtrées par superviseur: ${filteredPlans.length} sur ${plans.length}`);
     }
     
     // Filtre par département (si un département est sélectionné)
     if (state.selectedDepartmentId) {
       console.log(`Application du filtre département côté client: ${state.selectedDepartmentId}`);
-      // Pour l'instant, on ne peut pas filtrer par département car l'API ne retourne pas cette info
+      
+      filteredPlans = filteredPlans.filter(plan => {
+        const user = state.usersMap?.get(plan.user_id);
+        if (!user) return false;
+        
+        // Mapper l'ID du département vers le nom
+        const departmentNames = {
+          '1': 'Atlantique', '2': 'Borgou', '3': 'Collines', '4': 'Couffo', '5': 'Donga',
+          '6': 'Littoral', '7': 'Mono', '8': 'Ouémé', '9': 'Plateau', '10': 'Zou'
+        };
+        const departmentName = departmentNames[state.selectedDepartmentId];
+        return user.departement === departmentName || user.department === departmentName;
+      });
+      
+      console.log(`Planifications filtrées par département: ${filteredPlans.length}`);
     }
     
     // Filtre par commune (si une commune est sélectionnée)
     if (state.selectedCommuneId) {
       console.log(`Application du filtre commune côté client: ${state.selectedCommuneId}`);
-      // Pour l'instant, on ne peut pas filtrer par commune car l'API ne retourne pas cette info
+      
+      filteredPlans = filteredPlans.filter(plan => {
+        const user = state.usersMap?.get(plan.user_id);
+        if (!user) return false;
+        
+        return user.commune === state.selectedCommuneId;
+      });
+      
+      console.log(`Planifications filtrées par commune: ${filteredPlans.length}`);
     }
     
     return filteredPlans;
@@ -202,14 +256,62 @@
   };
 
   /**
-   * Génère les headers d'authentification.
-   * @returns {Promise<Object>}
+   * Génère les headers d'authentification avec gestion du rafraîchissement du token.
+   * @returns {Promise<Object>} Les en-têtes d'authentification
+   * @throws {Error} Si l'authentification échoue
    */
   const authHeaders = async () => {
-    const token = findToken();
-    const headers = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    return headers;
+    try {
+      // 1. Récupérer le token actuel
+      let token = findToken();
+      
+      // 2. Si pas de token, essayer de rafraîchir la page pour en obtenir un nouveau
+      if (!token) {
+        console.warn('Aucun token trouvé, tentative de rafraîchissement...');
+        const refreshedToken = findToken(); // Essayer de récupérer à nouveau après un court délai
+        if (!refreshedToken) {
+          throw new Error('Session expirée. Veuillez vous reconnecter.');
+        }
+        token = refreshedToken;
+      }
+
+      // 3. Vérifier si le token est expiré (format JWT simple)
+      if (token && token.split('.').length === 3) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          const expiry = payload.exp;
+          if (expiry && Date.now() >= expiry * 1000) {
+            console.warn('Token expiré, tentative de rafraîchissement...');
+            // Ici, vous pourriez appeler une API de rafraîchissement de token si disponible
+            // Par exemple: token = await refreshToken();
+            // Pour l'instant, on se contente de rafraîchir la page
+            window.location.reload();
+            throw new Error('Session expirée. Rafraîchissement en cours...');
+          }
+        } catch (e) {
+          console.error('Erreur lors de la vérification du token:', e);
+          // Si le token est invalide, on le supprime et on rafraîchit
+          localStorage.removeItem('jwt');
+          window.location.reload();
+          throw new Error('Session invalide. Veuillez vous reconnecter.');
+        }
+      }
+
+      // 4. Créer les en-têtes avec le token
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      return headers;
+    } catch (error) {
+      console.error('Erreur dans authHeaders:', error);
+      throw error; // Propager l'erreur pour une gestion plus haut niveau
+    }
   };
 
   /**
@@ -497,7 +599,42 @@
         // Pour l'affichage, on peut combiner superviseurs et admins si nécessaire
         state.allSupervisors = [...state.supervisors, ...state.admins];
         
-        console.log(`📊 Répartition: ${state.agents.length} agents, ${state.supervisors.length} superviseurs, ${state.admins.length} admins`);
+      // Créer une map des utilisateurs pour un accès rapide (nécessaire pour le filtrage)
+      const usersMap = new Map();
+      allUsers.forEach(user => {
+        if (user && user.id !== undefined) {
+          // S'assurer que l'ID est une chaîne pour éviter les problèmes de comparaison
+          const userId = String(user.id);
+          
+          // S'assurer que l'utilisateur a un nom valide
+          if (!user.name) {
+            const firstName = user.first_name || '';
+            const lastName = user.last_name || '';
+            user.name = `${firstName} ${lastName}`.trim() || user.email || `Agent ${user.id}`;
+          }
+          
+          usersMap.set(userId, user);
+          
+          // Ajouter également l'ID numérique si c'est différent
+          if (user.id !== userId) {
+            usersMap.set(user.id, user);
+          }
+        }
+      });
+      
+      // Assigner la map à state pour qu'elle soit accessible dans les filtres
+      state.usersMap = usersMap;
+      
+      console.log(`📊 Répartition: ${state.agents.length} agents, ${state.supervisors.length} superviseurs, ${state.admins.length} admins`);
+      console.log(`🗺️ Map des utilisateurs créée avec ${usersMap.size} entrées`);
+      
+      // Déclencher le rechargement du Gantt après le chargement des utilisateurs
+      if (typeof loadWeeklySummary === 'function') {
+        console.log('🔄 Rechargement du Gantt après chargement des utilisateurs...');
+        setTimeout(() => {
+          loadWeeklySummary();
+        }, 500);
+      }
         
         // Si aucun utilisateur n'est trouvé, afficher un message
         if (state.agents.length === 0 && state.supervisors.length === 0 && state.admins.length === 0) {
@@ -957,12 +1094,16 @@
   // ----------------------------
   
   /**
-   * Sauvegarde une planification via l'API
+   * Sauvegarde une planification via l'API avec gestion améliorée des erreurs et du rafraîchissement du token
    * @param {Object} planningData - Les données de planification à sauvegarder
    * @param {HTMLElement} [buttonElement=null] - Élément bouton à désactiver pendant la sauvegarde
+   * @param {number} [retryCount=0] - Nombre de tentatives de réessai en cas d'échec
    * @returns {Promise<Object>} - La réponse de l'API
    */
-  const savePlanning = async (planningData, buttonElement = null) => {
+  const savePlanning = async (planningData, buttonElement = null, retryCount = 0) => {
+    // Limite de tentatives de réessai
+    const MAX_RETRIES = 2;
+    
     // Sauvegarder l'état original du bouton
     let originalButtonState = null;
     if (buttonElement) {
@@ -971,61 +1112,211 @@
         innerHTML: buttonElement.innerHTML
       };
       buttonElement.disabled = true;
-      buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+      buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enregistrement...';
     }
+    
+    // Vérifier si on doit rafraîchir le token
+    const shouldRefreshToken = () => {
+      const token = findToken();
+      if (!token) return true;
+      
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const expiry = payload.exp;
+        // Rafraîchir si le token expire dans moins de 5 minutes
+        return expiry && (Date.now() >= (expiry - 300) * 1000);
+      } catch (e) {
+        return true;
+      }
+    };
 
     try {
-      // Récupérer les en-têtes d'authentification
-      const auth = await authHeaders();
-      if (!auth) {
-        throw new Error('Erreur d\'authentification: veuillez vous reconnecter');
+      // 1. Vérifier et rafraîchir le token si nécessaire
+      if (shouldRefreshToken() && retryCount === 0) {
+        console.log('Rafraîchissement du token...');
+        try {
+          // Essayer de rafraîchir la page pour obtenir un nouveau token
+          window.location.reload();
+          return;
+        } catch (refreshError) {
+          console.error('Échec du rafraîchissement du token:', refreshError);
+        }
+      }
+      
+      // 2. Récupérer les en-têtes d'authentification
+      let auth;
+      try {
+        auth = await authHeaders();
+        console.log('En-têtes d\'authentification générés avec succès');
+      } catch (authError) {
+        console.error('Erreur d\'authentification:', authError);
+        // Si c'est une erreur d'authentification, on ne réessaie pas
+        showError('Session expirée. Veuillez vous reconnecter.');
+        window.location.href = '/login';
+        return;
       }
 
-      // Valider les données requises
+      // 2. Validation des données
       if (!planningData.date || !planningData.planned_start_time || !planningData.planned_end_time) {
         throw new Error('Les champs date, heure de début et heure de fin sont obligatoires');
       }
 
-      // Valider que l'heure de fin est après l'heure de début
+      // 3. Validation des heures
       const startTime = planningData.planned_start_time;
       const endTime = planningData.planned_end_time;
       if (startTime && endTime && startTime >= endTime) {
         throw new Error('L\'heure de fin doit être postérieure à l\'heure de début');
       }
 
-      // Préparer les en-têtes
+      // 4. Préparation de la requête
       const headers = {
         'Content-Type': 'application/json',
-        ...auth,
         'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
+        ...auth
       };
 
-      console.log('Envoi des données de planification:', planningData);
-      
-      // Envoyer la requête à l'API
-      const response = await fetch(`${API_BASE}/planifications`, {
+      const requestData = {
+        ...planningData,
+        // S'assurer que les IDs sont des nombres si nécessaire
+        user_id: parseInt(planningData.user_id, 10),
+        // Ajouter un timestamp pour éviter le cache
+        _t: new Date().getTime()
+      };
+
+      console.log('Envoi des données de planification à l\'API:', {
+        url: `${API_BASE}/planifications`,
         method: 'POST',
         headers,
-        credentials: 'include',
-        body: JSON.stringify(planningData)
+        body: requestData
       });
-
-      const responseData = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        console.error('Erreur API:', response.status, responseData);
-        throw new Error(
-          responseData.message || 
-          responseData.error || 
-          `Erreur ${response.status} lors de l'enregistrement`
-        );
+      
+      // 5. Envoi de la requête avec timeout
+      let response;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // Timeout de 10 secondes
+      
+      try {
+        console.log('Envoi de la requête à l\'API...');
+        response = await fetch(`${API_BASE}/planifications`, {
+          method: 'POST',
+          headers,
+          credentials: 'include', // Important pour les cookies d'authentification
+          body: JSON.stringify(requestData),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+      } catch (networkError) {
+        clearTimeout(timeoutId);
+        console.error('Erreur réseau:', networkError);
+        
+        // Gestion spécifique des timeouts
+        if (networkError.name === 'AbortError') {
+          console.error('Délai d\'attente dépassé lors de la requête');
+        }
+        
+        // En cas d'erreur réseau, on peut réessayer
+        if (retryCount < MAX_RETRIES) {
+          const delay = 1000 * (retryCount + 1);
+          console.log(`Nouvelle tentative (${retryCount + 1}/${MAX_RETRIES}) dans ${delay}ms...`);
+          // Attendre un peu avant de réessayer avec un délai exponentiel
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return savePlanning(planningData, buttonElement, retryCount + 1);
+        }
+        
+        // Si c'est une erreur de réseau et qu'on a une connexion, c'est peut-être un problème de CORS
+        if (navigator.onLine) {
+          throw new Error('Impossible de se connecter au serveur. Vérifiez votre connexion ou contactez l\'administrateur.');
+        } else {
+          throw new Error('Vous semblez être hors ligne. Veuillez vérifier votre connexion Internet.');
+        }
       }
 
+      // 6. Traitement de la réponse
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch (parseError) {
+        console.error('Erreur lors du parsing de la réponse:', parseError);
+        // Si le parsing échoue mais que le statut est 2xx, on considère que c'est un succès
+        if (response.ok) {
+          console.warn('Réponse non-JSON mais statut OK, traitement comme succès');
+          return { success: true };
+        }
+        throw new Error('Réponse invalide du serveur');
+      }
+
+      // 7. Gestion des erreurs HTTP
+      if (!response.ok) {
+        console.error('Erreur API:', {
+          status: response.status,
+          statusText: response.statusText,
+          data: responseData
+        });
+        
+        // Si erreur d'authentification, on redirige vers la page de connexion
+        if (response.status === 401) {
+          console.log('Session expirée, redirection vers la page de connexion...');
+          showError('Votre session a expiré. Veuillez vous reconnecter.');
+          // Nettoyer le token avant la redirection
+          localStorage.removeItem('jwt');
+          sessionStorage.removeItem('jwt');
+          window.location.href = '/login';
+          return;
+        }
+        
+        // Gestion des erreurs spécifiques
+        let errorMessage = `Erreur ${response.status} lors de l'enregistrement`;
+        if (responseData) {
+          if (responseData.error) errorMessage = responseData.error;
+          else if (responseData.message) errorMessage = responseData.message;
+          else if (typeof responseData === 'string') errorMessage = responseData;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      // 8. Succès
+      console.log('Planification enregistrée avec succès:', responseData);
+      
+      // Vérifier si la réponse contient des données valides
+      if (!responseData || (responseData.success === false)) {
+        const errorMsg = responseData?.message || 'Réponse inattendue du serveur';
+        console.error('Erreur dans la réponse du serveur:', errorMsg);
+        throw new Error(errorMsg);
+      }
+      
       return responseData;
+      
     } catch (error) {
       console.error('Erreur lors de la sauvegarde de la planification:', error);
-      throw error; // Propager l'erreur pour la gestion par l'appelant
+      
+      // Si c'est une erreur réseau et qu'on peut réessayer
+      if ((error.message.includes('network') || error.name === 'TypeError') && retryCount < MAX_RETRIES) {
+        const delay = 1000 * Math.pow(2, retryCount); // Délai exponentiel
+        console.log(`Nouvelle tentative après erreur (${retryCount + 1}/${MAX_RETRIES}) dans ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return savePlanning(planningData, buttonElement, retryCount + 1);
+      }
+      
+      // Gestion des erreurs spécifiques
+      let errorMessage = 'Une erreur est survenue lors de l\'enregistrement';
+      
+      if (error.message.includes('Failed to fetch')) {
+        errorMessage = 'Impossible de se connecter au serveur. Vérifiez votre connexion Internet.';
+      } else if (error.message.includes('401')) {
+        errorMessage = 'Session expirée. Veuillez vous reconnecter.';
+        window.location.href = '/login';
+        return;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // Afficher l'erreur à l'utilisateur
+      showError(errorMessage);
+      
+      // Propager l'erreur pour une gestion plus haut niveau
+      throw new Error(errorMessage);
+      
     } finally {
       // Restaurer l'état du bouton
       if (buttonElement && originalButtonState) {
@@ -1136,16 +1427,56 @@
       if (plansRes.ok) {
         const plansData = await plansRes.json();
         plans = plansData.items || [];
+        console.log(`🔍 DEBUG: ${plans.length} planifications reçues de l'API avant filtrage:`, plans.map(p => ({
+          id: p.id,
+          user_id: p.user_id,
+          date: p.date,
+          planned_date: p.planned_date,
+          planned_start_time: p.planned_start_time,
+          planned_end_time: p.planned_end_time,
+          activity: p.activity_name || p.description_activite
+        })));
+        
         // Appliquer les filtres côté client
+        const originalCount = plans.length;
         plans = applyClientSideFilters(plans);
-        console.log(`${plans.length} planifications après filtrage côté client (vue semaine)`);
+        console.log(`🔍 DEBUG: ${originalCount} planifications avant filtrage → ${plans.length} après filtrage côté client (vue semaine)`);
+        
+        if (originalCount > plans.length) {
+          console.log(`⚠️ ${originalCount - plans.length} planifications filtrées par les filtres côté client`);
+        }
       }
       if (checkinsRes.ok) checkins = (await checkinsRes.json()).items || [];
       if (validationsRes.ok) validations = (await validationsRes.json()).items || [];
       
       hideAuthBanner();
 
-      const plansByDate = new Map(plans.map(p => [String(p.date).slice(0, 10), p]));
+      // Créer une map des planifications par date (utiliser planned_date si disponible, sinon date)
+      const plansByDate = new Map();
+      console.log(`🔍 DEBUG: ${plans.length} planifications reçues avant mapping:`, plans.map(p => ({
+        id: p.id,
+        user_id: p.user_id,
+        date: p.date,
+        planned_date: p.planned_date,
+        planned_start_time: p.planned_start_time,
+        planned_end_time: p.planned_end_time,
+        activity: p.activity_name || p.description_activite,
+        project: p.project_name
+      })));
+      
+      plans.forEach(p => {
+        const dateKey = String(p.planned_date || p.date).slice(0, 10);
+        plansByDate.set(dateKey, p);
+        console.log(`📅 Planification ajoutée pour ${dateKey}:`, {
+          activity: p.activity_name || p.description_activite,
+          start: p.planned_start_time,
+          end: p.planned_end_time,
+          user_id: p.user_id,
+          project: p.project_name
+        });
+      });
+      
+      console.log(`🗺️ PlansByDate créé avec ${plansByDate.size} entrées:`, Array.from(plansByDate.keys()));
       const checkinDates = new Set(checkins.map(c => String(c.timestamp).slice(0, 10)));
       const validatedDates = new Set(validations.filter(v => v.valid && v.created_at).map(v => toISODate(new Date(v.created_at))));
       
@@ -1173,10 +1504,34 @@
         
         const iso = toISODate(d);
         const plan = plansByDate.get(iso);
+        
+        // Debug pour voir ce qui se passe
+        console.log(`🔍 Jour ${iso}:`, {
+          plan: plan ? {
+            activity: plan.activity_name || plan.description_activite,
+            start: plan.planned_start_time,
+            end: plan.planned_end_time,
+            project: plan.project_name
+          } : 'Aucune planification',
+          plansByDateKeys: Array.from(plansByDate.keys())
+        });
+        
         const startMin = hoursToMinutes(plan?.planned_start_time);
         const endMin = hoursToMinutes(plan?.planned_end_time);
         const planned = Boolean(plan && (plan.planned_start_time || plan.planned_end_time));
         const duration = (endMin > startMin) ? (endMin - startMin) : 0;
+        
+        // Debug spécifique pour les heures
+        if (plan) {
+          console.log(`⏰ DEBUG Heures pour ${iso}:`, {
+            planned_start_time: plan.planned_start_time,
+            planned_end_time: plan.planned_end_time,
+            startMin: startMin,
+            endMin: endMin,
+            duration: duration,
+            planned: planned
+          });
+        }
         weeklyMinutes += duration;
         const hasPresence = checkinDates.has(iso);
         const isValidated = validatedDates.has(iso);
@@ -1190,6 +1545,7 @@
             ${planned ? '<span class="badge bg-primary">Planifié</span>' : '<span class="badge bg-secondary">Libre</span>'}
             ${hasPresence ? `<span class="badge ${isValidated ? 'bg-success' : 'bg-warning'}">${isValidated ? 'Validée' : 'À valider'}</span>` : ''}
             ${plan?.project_name ? `<span class="badge bg-info text-truncate" style="max-width: 100px;" title="${plan.project_name}">${plan.project_name}</span>` : ''}
+            ${plan?.users?.name ? `<span class="badge bg-dark text-truncate" style="max-width: 80px;" title="${plan.users.name}">${plan.users.name}</span>` : ''}
             ${isPast ? '<span class="badge bg-secondary">Verrouillé</span>' : ''}
           </div>
           <div class="flex-grow-1 position-relative" style="height:34px">
@@ -1512,6 +1868,9 @@
       });
       
       console.log(`Map des utilisateurs créée avec ${usersMap.size} entrées`);
+      
+      // Assigner la map à state pour qu'elle soit accessible dans les filtres
+      state.usersMap = usersMap;
       
       // Debug: afficher les utilisateurs chargés
       console.log('Utilisateurs chargés:', Array.from(usersMap.values()).map(u => ({
@@ -2011,49 +2370,53 @@
    * Gère la soumission du formulaire de planification
    */
   const handlePlanningSubmit = async (event) => {
-    event.preventDefault();
+  event.preventDefault();
+  
+  const form = event.target;
+  const formData = new FormData(form);
+  const payload = Object.fromEntries(formData.entries());
+  
+  // Validation des champs requis
+  if (!payload.agent_id || !payload.start_date || !payload.start_time || !payload.end_time) {
+    showError('Veuillez remplir tous les champs obligatoires');
+    return;
+  }
+  
+  const submitBtn = form.querySelector('button[type="submit"]');
+  
+  try {
+    // Préparer les données pour l'API
+    const planningData = {
+      user_id: payload.agent_id,  // Ne pas parser en nombre si l'API attend une chaîne
+      date: payload.start_date,
+      planned_start_time: payload.start_time,
+      planned_end_time: payload.end_time,
+      description_activite: payload.notes || '',
+      resultat_journee: 'en_cours',
+      project_name: payload.project_id || 'PARSAD'  // Valeur par défaut si non spécifiée
+    };
     
-    const form = event.target;
-    const formData = new FormData(form);
-    const payload = Object.fromEntries(formData.entries());
+    console.log('Données à envoyer:', planningData);
     
-    // Validation des champs requis
-    if (!payload.agent_id || !payload.start_date || !payload.end_date || !payload.start_time || !payload.end_time) {
-      showError('Veuillez remplir tous les champs obligatoires');
-      return;
-    }
+    // Utiliser la fonction savePlanning centralisée
+    const result = await savePlanning(planningData, submitBtn);
+    console.log('Réponse du serveur:', result);
     
-    const submitBtn = form.querySelector('button[type="submit"]');
+    // Afficher un message de succès
+    showToast('Planification enregistrée avec succès', 'success');
     
-    try {
-      // Préparer les données pour l'API
-      const planningData = {
-        user_id: parseInt(payload.agent_id, 10),
-        date: payload.start_date,
-        planned_start_time: payload.start_time,
-        planned_end_time: payload.end_time,
-        description_activite: payload.notes || '',
-        resultat_journee: 'en_cours',
-        project_name: payload.project_id || null
-      };
-      
-      // Utiliser la fonction savePlanning centralisée
-      await savePlanning(planningData, submitBtn);
-      
-      // Afficher un message de succès
-      showToast('Planification enregistrée avec succès', 'success');
-      
-      // Recharger les données
-      await loadWeek($('week-start')?.value || toISODate(new Date()));
-      await loadWeeklySummary();
-      
-      // Réinitialiser le formulaire
-      form.reset();
-      
-    } catch (error) {
-      console.error('Erreur lors de l\'enregistrement de la planification:', error);
-      showError(error.message || 'Une erreur est survenue lors de l\'enregistrement');
-    }
+    // Recharger les données
+    const currentDate = payload.start_date || toISODate(new Date());
+    await loadWeek(currentDate);
+    await loadWeeklySummary();
+    
+    // Réinitialiser le formulaire
+    form.reset();
+    
+  } catch (error) {
+    console.error('Erreur lors de l\'enregistrement de la planification:', error);
+    showError(error.message || 'Une erreur est survenue lors de l\'enregistrement');
+  }
   };
 
   /**
@@ -2232,7 +2595,131 @@
 
 
   // ----------------------------
-  // 8. DÉMARRAGE
+  // 8. FONCTIONS D'AMÉLIORATION DU GANTT
+  // ----------------------------
+  
+  // Fonction pour améliorer l'affichage du Gantt avec les données de planification
+  const enhanceGanttDisplay = () => {
+    console.log('🎨 Amélioration de l\'affichage du Gantt...');
+    
+    // Vérifier si le Gantt est initialisé
+    if (typeof window.gantt !== 'undefined' && window.gantt) {
+      // Configurer le Gantt pour une meilleure visibilité
+      window.gantt.config.show_links = true;
+      window.gantt.config.show_critical_path = true;
+      window.gantt.config.highlight_critical_path = true;
+      
+      // Améliorer les couleurs selon le statut
+      window.gantt.templates.task_class = function(start, end, task) {
+        if (task.status === 'validated') return 'gantt-task-validated';
+        if (task.status === 'pending') return 'gantt-task-pending';
+        if (task.status === 'completed') return 'gantt-task-completed';
+        return 'gantt-task-default';
+      };
+      
+      // Ajouter des tooltips informatifs
+      window.gantt.templates.tooltip_text = function(start, end, task) {
+        return `<b>${task.text}</b><br/>
+                Agent: ${task.agent_name || 'N/A'}<br/>
+                Statut: ${task.status || 'En attente'}<br/>
+                Début: ${window.gantt.templates.date_format(start)}<br/>
+                Fin: ${window.gantt.templates.date_format(end)}`;
+      };
+      
+      console.log('✅ Affichage du Gantt amélioré');
+    } else {
+      console.log('⚠️ Gantt non initialisé, tentative d\'initialisation...');
+      setTimeout(enhanceGanttDisplay, 1000);
+    }
+  };
+
+  // Fonction pour créer une vue complète du Gantt pour les agents
+  const createCompleteGanttView = () => {
+    console.log('📊 Création de la vue complète du Gantt...');
+    
+    // Vérifier le rôle de l'utilisateur
+    const userRole = localStorage.getItem('userRole') || '';
+    const isAgent = userRole === 'agent';
+    
+    if (isAgent) {
+      // Pour les agents, afficher toutes les planifications de leur superviseur
+      const userId = localStorage.getItem('userId');
+      const user = state.usersMap?.get(userId);
+      
+      if (user && user.supervisor_id) {
+        console.log(`👤 Agent ${user.name} sous supervision de ${user.supervisor_id}`);
+        
+        // Filtrer les planifications par superviseur
+        const supervisorPlannings = state.planifications?.filter(p => 
+          p.user_id && state.usersMap?.get(p.user_id)?.supervisor_id === user.supervisor_id
+        ) || [];
+        
+        console.log(`📋 ${supervisorPlannings.length} planifications trouvées pour le superviseur`);
+        
+        // Mettre à jour le Gantt avec ces données
+        if (window.gantt && supervisorPlannings.length > 0) {
+          const ganttData = supervisorPlannings.map(p => ({
+            id: p.id,
+            text: `${state.usersMap?.get(p.user_id)?.name || 'Agent'} - ${p.activity_name || 'Activité'}`,
+            start_date: p.planned_date,
+            end_date: p.planned_date,
+            agent_name: state.usersMap?.get(p.user_id)?.name || 'Agent',
+            status: p.resultat_journee || 'pending',
+            color: p.resultat_journee === 'validated' ? '#28a745' : 
+                   p.resultat_journee === 'rejected' ? '#dc3545' : '#ffc107'
+          }));
+          
+          window.gantt.clearAll();
+          window.gantt.parse({data: ganttData});
+          window.gantt.render();
+          
+          console.log('✅ Vue complète du Gantt créée pour l\'agent');
+        }
+      }
+    }
+  };
+
+  // Fonction pour permettre l'édition des planifications validées
+  const enablePlanningEdit = () => {
+    console.log('✏️ Activation du mode édition des planifications...');
+    
+    // Vérifier les permissions
+    const userRole = localStorage.getItem('userRole') || '';
+    if (userRole !== 'admin' && userRole !== 'superviseur') {
+      console.log('❌ Permissions insuffisantes pour l\'édition');
+      return false;
+    }
+    
+    // Activer les interactions avec le Gantt
+    if (window.gantt) {
+      window.gantt.config.readonly = false;
+      window.gantt.config.drag_links = true;
+      window.gantt.config.drag_progress = true;
+      window.gantt.config.drag_resize = true;
+      
+      // Ajouter des gestionnaires d'événements pour l'édition
+      window.gantt.attachEvent("onTaskClick", function(id, e) {
+        console.log('🖱️ Clic sur la tâche:', id);
+        // Ici vous pouvez ajouter la logique pour ouvrir un modal d'édition
+        return true;
+      });
+      
+      window.gantt.attachEvent("onAfterTaskUpdate", function(id, task) {
+        console.log('💾 Mise à jour de la tâche:', id, task);
+        // Ici vous pouvez ajouter la logique pour sauvegarder les modifications
+        return true;
+      });
+      
+      window.gantt.render();
+      console.log('✅ Mode édition activé');
+      return true;
+    }
+    
+    return false;
+  };
+
+  // ----------------------------
+  // 9. DÉMARRAGE
   // ----------------------------
   document.addEventListener('DOMContentLoaded', init);
 
@@ -2242,4 +2729,7 @@
   window.loadWeeklySummary = loadWeeklySummary;
   window.applyFilters = applyFilters;
   window.resetPlanningForm = resetPlanningForm;
+  window.enhanceGanttDisplay = enhanceGanttDisplay;
+  window.createCompleteGanttView = createCompleteGanttView;
+  window.enablePlanningEdit = enablePlanningEdit;
 })();
