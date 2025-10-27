@@ -177,6 +177,7 @@ async function fetchReportsFromBackend() {
     // S'assurer que les clés de la map sont des chaînes pour éviter les erreurs de type
     const usersById = new Map(users.map(u => [String(u.id), u]));
     console.log(`✅ ${users.length} utilisateurs chargés`);
+    console.log(`🔑 User IDs disponibles: ${Array.from(usersById.keys()).slice(0, 10).join(', ')}...`);
 
     // 2. Charger tous les rapports pour la période donnée avec pagination
     let rows = [];
@@ -223,13 +224,23 @@ async function fetchReportsFromBackend() {
           
           // Enrichir chaque rapport avec les données utilisateur
           const enrichedRows = [];
+          const skippedRows = [];
           pageData.forEach(row => {
-            const agentIdStr = String(row.agent_id);
+            const agentIdStr = String(row.agent_id || row.user_id);
             if (usersById.has(agentIdStr)) {
               row.user = usersById.get(agentIdStr);
               enrichedRows.push(row);
+            } else {
+              // Conserver le rapport même sans données utilisateur (pour le débogage)
+              skippedRows.push(row);
+              row.user = null; // Marquer comme non enrichi
+              enrichedRows.push(row); // Tout de même ajouter pour le débogage
             }
           });
+          
+          if (skippedRows.length > 0) {
+            console.warn(`⚠️ ${skippedRows.length} rapports sans correspondance utilisateur (agent_id: ${skippedRows.slice(0, 3).map(r => r.agent_id || r.user_id).join(', ')})`);
+          }
           
           rows.push(...enrichedRows);
           console.log(`✅ ${enrichedRows.length} rapports enrichis (total: ${rows.length})`);
@@ -322,19 +333,9 @@ async function fetchReportsFromBackend() {
         const cleanedUserProject = cleanProjectName(userProject);
         const cleanedFilterProject = cleanProjectName(projectName);
         
-        // Log de débogage plus visible
-        console.log('=== DÉBOGAGE FILTRE PROJET ===');
-        console.log('Valeur du filtre sélectionné:', projectName);
-        console.log('Projet utilisateur brut:', userProject);
-        console.log('Projet utilisateur nettoyé:', cleanedUserProject);
-        console.log('Valeur du filtre nettoyée:', cleanedFilterProject);
-        console.log('Correspondance:', cleanedUserProject === cleanedFilterProject ? 'OUI' : 'NON');
-        
-        if (cleanedUserProject !== cleanedFilterProject) {
-          console.log(`❌ Filtre projet: "${cleanedFilterProject}" ne correspond pas au projet de l'utilisateur: "${cleanedUserProject}"`);
+        // Vérification de correspondance du projet (insensible à la casse)
+        if (cleanedUserProject?.toLowerCase() !== cleanedFilterProject?.toLowerCase()) {
           return false;
-        } else {
-          console.log(`✅ Projet correspondant trouvé pour l'utilisateur ${user.name || user.id}`);
         }
       }
 
@@ -349,6 +350,20 @@ async function fetchReportsFromBackend() {
       if (communeId && communeId !== 'all') {
         if (String(user.commune || '') !== communeId) {
           return false;
+        }
+      }
+      
+      // Filtre par superviseur (si un superviseur spécifique est sélectionné)
+      if (supervisorId && supervisorId !== 'all') {
+        // Le superviseur peut être dans différents champs
+        const userSupervisorId = user.supervisor_id || user.supervisor || user.supervisor_email || user.supervisorId;
+        // Vérifier si le user a un superviseur
+        if (userSupervisorId && String(userSupervisorId) !== String(supervisorId)) {
+          // console.log(`Filtre superviseur non matché pour ${user.name || user.id}`);
+          return false;
+        } else if (!userSupervisorId) {
+          // Pas de superviseur défini, on ignore ce filtre
+          // console.log(`Agent ${user.name || user.id} n'a pas de superviseur défini`);
         }
       }
       
@@ -485,9 +500,23 @@ async function renderValidations(rows) {
 
 /**
  * Charge les utilisateurs et leurs planifications pour la date sélectionnée
+ * Applique les filtres sélectionnés (projet, agent, département, commune, superviseur)
  */
 async function loadUsersPlanning() {
   try {
+    // Récupérer les filtres sélectionnés
+    const filters = (typeof getSelectedFilters === 'function') ? getSelectedFilters() : {
+      dateRange: 'today',
+      preciseDate: '',
+      agentId: 'all',
+      project: 'all',
+      department: 'all',
+      commune: 'all',
+      supervisorId: 'all'
+    };
+    console.log('Filtres appliqués au tableau de planification:', filters);
+    console.log('Filtre projet actif:', filters.project !== 'all' ? filters.project : 'Aucun');
+    
     let date = '';
     const dateInput = document.getElementById('date') || document.getElementById('date-filter');
     if (dateInput && dateInput.value) {
@@ -542,8 +571,63 @@ async function loadUsersPlanning() {
       users = allUsers.filter(user => {
         if (!user) return false;
         const userRole = (user.role || '').toLowerCase().trim();
-        return userRole !== 'admin' && userRole !== '';
+        
+        // Filtre de base : exclure les admins
+        if (userRole === 'admin' || userRole === '') return false;
+        
+        // Appliquer les filtres sélectionnés
+        if (filters.agentId && filters.agentId !== 'all' && user.id != filters.agentId) {
+          return false;
+        }
+        
+        if (filters.project && filters.project !== 'all') {
+          const userProject = user.project_name || user.projet || user.project || '';
+          const cleanedUserProject = cleanProjectName(userProject);
+          const cleanedFilterProject = cleanProjectName(filters.project);
+          if (cleanedUserProject?.toLowerCase() !== cleanedFilterProject?.toLowerCase()) {
+            return false;
+          }
+        }
+        
+        if (filters.department && filters.department !== 'all') {
+          // Le filtre département utilise des IDs, mais les utilisateurs peuvent avoir des noms de départements
+          // On doit mapper l'ID vers le nom ou vice versa
+          const departmentNames = {
+            '1': 'Atacora',
+            '2': 'Atacora-Donga', 
+            '3': 'Collines',
+            '4': 'Couffo',
+            '5': 'Donga',
+            '6': 'Littoral',
+            '7': 'Mono',
+            '8': 'Ouémé',
+            '9': 'Plateau',
+            '10': 'Zou'
+          };
+          const departmentName = departmentNames[filters.department];
+          if (departmentName && user.department !== departmentName) {
+            return false;
+          }
+        }
+        
+        if (filters.commune && filters.commune !== 'all' && user.commune !== filters.commune) {
+          return false;
+        }
+        
+      if (filters.supervisorId && filters.supervisorId !== 'all') {
+        // Le superviseur peut être dans différents champs
+        const userSupervisorId = user.supervisor_id || user.supervisor || user.supervisor_email || user.supervisorId;
+        // Vérifier si le user a un superviseur
+        if (userSupervisorId && String(userSupervisorId) !== String(filters.supervisorId)) {
+          return false;
+        }
+        // Si pas de superviseur défini, on accepte quand même (le filtre est optionnel)
+      }
+        
+        return true;
       });
+      
+      console.log(`Filtrage appliqué au tableau de planification: ${allUsers.length} utilisateurs → ${users.length} utilisateurs après filtrage`);
     } catch (error) {
       console.error('Erreur lors du parsing des utilisateurs:', error);
       users = [];
@@ -571,6 +655,61 @@ async function loadUsersPlanning() {
     } catch (error) {
       console.error('Erreur lors du chargement des planifications:', error);
     }
+    
+    console.log(`${planningItems.length} planifications chargées au total avant filtrage`);
+    
+    // Filtrer les planifications selon tous les filtres sélectionnés
+    if (filters.project && filters.project !== 'all') {
+      // Créer un Set des IDs des utilisateurs du projet sélectionné
+      const projectUserIds = new Set(users.map(user => user.id));
+      // Filtrer les planifications pour ne garder que celles des utilisateurs du projet
+      planningItems = planningItems.filter(planning => projectUserIds.has(planning.user_id));
+      console.log(`Planifications filtrées par projet "${filters.project}": ${planningItems.length} planifications`);
+    }
+    
+    // Filtrer les planifications selon les autres filtres (agent, département, commune, superviseur)
+    if (filters.agentId && filters.agentId !== 'all') {
+      planningItems = planningItems.filter(planning => planning.user_id == filters.agentId);
+      console.log(`Planifications filtrées par agent "${filters.agentId}": ${planningItems.length} planifications`);
+    }
+    
+    if (filters.department && filters.department !== 'all') {
+      // Le filtre département utilise des IDs, mapper vers le nom
+      const departmentNames = {
+        '1': 'Atacora',
+        '2': 'Atacora-Donga', 
+        '3': 'Collines',
+        '4': 'Couffo',
+        '5': 'Donga',
+        '6': 'Littoral',
+        '7': 'Mono',
+        '8': 'Ouémé',
+        '9': 'Plateau',
+        '10': 'Zou'
+      };
+      const departmentName = departmentNames[filters.department];
+      if (departmentName) {
+        // Filtrer les planifications selon le département des utilisateurs
+        const departmentUserIds = new Set(users.filter(user => user.department === departmentName).map(user => user.id));
+        planningItems = planningItems.filter(planning => departmentUserIds.has(planning.user_id));
+        console.log(`Planifications filtrées par département "${departmentName}" (ID: ${filters.department}): ${planningItems.length} planifications`);
+      }
+    }
+    
+    if (filters.commune && filters.commune !== 'all') {
+      // Filtrer les planifications selon la commune des utilisateurs
+      const communeUserIds = new Set(users.filter(user => user.commune === filters.commune).map(user => user.id));
+      planningItems = planningItems.filter(planning => communeUserIds.has(planning.user_id));
+      console.log(`Planifications filtrées par commune "${filters.commune}": ${planningItems.length} planifications`);
+    }
+    
+    if (filters.supervisorId && filters.supervisorId !== 'all') {
+      // Filtrer les planifications selon le superviseur des utilisateurs
+      const supervisorUserIds = new Set(users.filter(user => String(user.supervisor_id) === String(filters.supervisorId)).map(user => user.id));
+      planningItems = planningItems.filter(planning => supervisorUserIds.has(planning.user_id));
+      console.log(`Planifications filtrées par superviseur "${filters.supervisorId}": ${planningItems.length} planifications`);
+    }
+    
     const usersWithPlanning = new Set(planningItems.map(p => p.user_id));
     let withPlanning = 0;
     let withoutPlanning = 0;
@@ -1135,7 +1274,20 @@ function applyValidationsFilters(validations, filters) {
     // Filtre par projet
     if (filters.project && filters.project !== 'all') {
       const userProject = validation.user ? (validation.user.project_name || validation.user.projet || '') : '';
-      if (cleanProjectName(userProject) !== filters.project) {
+      const cleanedUserProject = cleanProjectName(userProject);
+      const cleanedFilterProject = cleanProjectName(filters.project);
+      if (cleanedUserProject?.toLowerCase() !== cleanedFilterProject?.toLowerCase()) {
+        return false;
+      }
+    }
+
+    // Filtre par superviseur
+    if (filters.supervisorId && filters.supervisorId !== 'all') {
+      const user = validation.user;
+      if (!user) return false;
+      
+      const userSupervisorId = user.supervisor_id || user.supervisor || user.supervisor_email;
+      if (String(userSupervisorId) !== String(filters.supervisorId)) {
         return false;
       }
     }
@@ -1242,20 +1394,181 @@ window.exportReport = function() {
 function loadHtml2Canvas() {
   return new Promise((resolve, reject) => {
     if (window.html2canvas) {
+      console.log('✅ html2canvas déjà chargé (window.html2canvas)');
       return resolve(window.html2canvas);
     }
+    
+    if (typeof html2canvas === 'function') {
+      console.log('✅ html2canvas déjà chargé (global html2canvas)');
+      return resolve(html2canvas);
+    }
+    
+    console.log('🔄 Chargement de html2canvas...');
     const script = document.createElement('script');
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
     script.integrity = 'sha512-DtPgXY9o0X7dJQeVD3+BTaV3VH6f3WbbVwY6JyvRkU6pqfT4WkV95F6w5VwJQJZt+2Q1RCT3v5F7V0k58ygg==';
     script.crossOrigin = 'anonymous';
     script.referrerPolicy = 'no-referrer';
-    script.onload = () => resolve(window.html2canvas);
-    script.onerror = (error) => {
-      console.error('Erreur lors du chargement de html2canvas:', error);
-      reject(new Error('Impossible de charger la bibliothèque html2canvas'));
+    
+    script.onload = () => {
+      console.log('✅ html2canvas chargé avec succès');
+      if (window.html2canvas) {
+        resolve(window.html2canvas);
+      } else {
+        reject(new Error('html2canvas chargé mais non disponible dans window'));
+      }
     };
+    
+    script.onerror = (error) => {
+      console.error('❌ Erreur lors du chargement de html2canvas:', error);
+      console.error('Détails de l\'erreur:', {
+        type: error.type,
+        target: error.target,
+        src: script.src
+      });
+      reject(new Error('Impossible de charger la bibliothèque html2canvas. Vérifiez votre connexion internet.'));
+    };
+    
+    // Timeout de sécurité
+    setTimeout(() => {
+      if (!window.html2canvas) {
+        reject(new Error('Timeout lors du chargement de html2canvas'));
+      }
+    }, 10000);
+    
     document.head.appendChild(script);
   });
+}
+
+/**
+ * Stocke automatiquement les données de présence dans la table presence_validations
+ */
+async function storePresenceValidations(presencesData) {
+  try {
+    if (!presencesData || presencesData.length === 0) {
+      console.log('ℹ️ Aucune donnée de présence à stocker');
+      return;
+    }
+
+    console.log(`📊 Stockage de ${presencesData.length} presences dans presence_validations...`);
+    
+    // Préparer les données pour l'insertion
+    const validationRecords = [];
+    
+    for (const presence of presencesData) {
+      if (!presence.user_id || !presence.start_time) {
+        continue; // Ignorer les presences incomplètes
+      }
+      
+      // Déterminer le statut de validation
+      let validationStatus = 'pending';
+      let checkinType = 'manual';
+      
+      if (presence.checkin_type === 'validated') {
+        validationStatus = 'validated';
+        checkinType = 'manual';
+      } else if (presence.checkin_type === 'rejected') {
+        validationStatus = 'rejected';
+        checkinType = 'manual';
+      } else if (presence.within_tolerance === true) {
+        validationStatus = 'validated';
+      } else if (presence.within_tolerance === false) {
+        validationStatus = 'rejected';
+      }
+      
+      // Normaliser checkin_type
+      if (presence.checkin_type && ['manual', 'automatic', 'admin_override'].includes(presence.checkin_type)) {
+        checkinType = presence.checkin_type;
+      }
+      
+      const validationRecord = {
+        user_id: presence.user_id,
+        presence_id: presence.id,
+        validation_status: validationStatus,
+        checkin_type: checkinType,
+        checkin_lat: presence.location_lat || 0,
+        checkin_lng: presence.location_lng || 0,
+        checkin_location_name: presence.location_name,
+        reference_lat: presence.users?.reference_lat,
+        reference_lng: presence.users?.reference_lon,
+        distance_from_reference_m: presence.distance_from_reference_m,
+        tolerance_meters: presence.tolerance_meters || presence.users?.tolerance_radius_meters || 500,
+        within_tolerance: presence.within_tolerance || false,
+        validation_reason: presence.notes,
+        validation_notes: presence.notes,
+        validation_method: 'gps',
+        photo_url: presence.photo_url,
+        checkin_timestamp: presence.start_time,
+        validation_timestamp: presence.created_at || presence.start_time,
+        device_info: {
+          source: 'reports_auto_sync',
+          original_presence_id: presence.id,
+          sync_timestamp: new Date().toISOString()
+        }
+      };
+      
+      validationRecords.push(validationRecord);
+    }
+    
+    if (validationRecords.length === 0) {
+      console.log('ℹ️ Aucun enregistrement de validation à créer');
+      return;
+    }
+    
+    // Insérer les données par batch pour éviter les timeouts
+    const batchSize = 20;
+    let insertedCount = 0;
+    
+    for (let i = 0; i < validationRecords.length; i += batchSize) {
+      const batch = validationRecords.slice(i, i + batchSize);
+      
+      try {
+        // Vérifier d'abord si l'enregistrement existe déjà
+        const existingCheck = await Promise.all(
+          batch.map(async (record) => {
+            try {
+              const response = await api(`/presence-validations?user_id=${record.user_id}&checkin_timestamp=${record.checkin_timestamp}`);
+              return response.data && response.data.length > 0;
+            } catch (error) {
+              return false;
+            }
+          })
+        );
+        
+        // Filtrer les enregistrements qui n'existent pas déjà
+        const newRecords = batch.filter((record, index) => !existingCheck[index]);
+        
+        if (newRecords.length > 0) {
+          // Créer les validations via l'API
+          for (const record of newRecords) {
+            try {
+              await api('/presence-validations', {
+                method: 'POST',
+                body: record
+              });
+              insertedCount++;
+            } catch (error) {
+              console.warn(`⚠️ Erreur lors de la création de la validation pour l'utilisateur ${record.user_id}:`, error.message);
+            }
+          }
+        }
+        
+        // Petite pause entre les batches
+        if (i + batchSize < validationRecords.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+      } catch (error) {
+        console.warn(`⚠️ Erreur lors du traitement du batch ${Math.floor(i / batchSize) + 1}:`, error.message);
+      }
+    }
+    
+    console.log(`✅ ${insertedCount} validations stockées dans presence_validations`);
+    
+  } catch (error) {
+    console.error('❌ Erreur lors du stockage des validations:', error);
+    // Ne pas faire échouer le rapport pour cette erreur
+  }
 }
 
 // Fonction pour exporter le rapport en HTML
@@ -1770,8 +2083,184 @@ window.exportAsHtml = async function() {
   }
 };
 
-// Fonction pour exporter en image
+// Fonction simple pour exporter en PNG - Version simplifiée et robuste
 window.exportAsImage = async function() {
+  console.log('🖼️ Début export PNG simplifié...');
+  
+  // Créer un indicateur de chargement simple
+  const loading = document.createElement('div');
+  loading.style.cssText = `
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.9); color: white; padding: 20px;
+    border-radius: 8px; z-index: 99999; font-family: Arial, sans-serif;
+    text-align: center; min-width: 300px;
+  `;
+  loading.innerHTML = '🔄 Préparation export PNG...<br><small>Veuillez patienter</small>';
+  document.body.appendChild(loading);
+  
+  try {
+    // Étape 1: Charger html2canvas de manière simple
+    loading.innerHTML = '📦 Chargement html2canvas...';
+    
+    if (!window.html2canvas) {
+      console.log('📥 Chargement html2canvas depuis CDN...');
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        script.onload = () => {
+          console.log('✅ html2canvas chargé');
+          resolve();
+        };
+        script.onerror = () => reject(new Error('Erreur chargement html2canvas'));
+        document.head.appendChild(script);
+      });
+    }
+    
+    // Étape 2: Sélectionner le contenu à exporter
+    loading.innerHTML = '🎯 Sélection du contenu...';
+    
+    let targetElement = document.querySelector('main.main-content');
+    if (!targetElement) {
+      targetElement = document.querySelector('main');
+    }
+    if (!targetElement) {
+      targetElement = document.querySelector('.main-content');
+    }
+    if (!targetElement) {
+      targetElement = document.body;
+    }
+    
+    console.log('📋 Élément cible:', targetElement.tagName, targetElement.className);
+    
+    // Étape 3: Générer le canvas
+    loading.innerHTML = '🎨 Génération du canvas...';
+    
+    const canvas = await window.html2canvas(targetElement, {
+      scale: 1.5,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      width: targetElement.scrollWidth,
+      height: targetElement.scrollHeight,
+      scrollX: 0,
+      scrollY: 0,
+      onclone: (clonedDoc) => {
+        // Forcer la visibilité de tous les éléments importants
+        const allCards = clonedDoc.querySelectorAll('.card');
+        allCards.forEach(card => {
+          card.style.opacity = '1';
+          card.style.visibility = 'visible';
+          card.style.display = 'block';
+        });
+        
+        // Forcer la visibilité de tous les tableaux
+        const allTables = clonedDoc.querySelectorAll('table');
+        allTables.forEach(table => {
+          table.style.opacity = '1';
+          table.style.visibility = 'visible';
+          table.style.display = 'table';
+        });
+        
+        // Forcer la visibilité de la section validations-table
+        const validationsTable = clonedDoc.querySelector('#validations-table');
+        if (validationsTable) {
+          const card = validationsTable.closest('.card');
+          if (card) {
+            card.style.opacity = '1';
+            card.style.visibility = 'visible';
+            card.style.display = 'block';
+          }
+          validationsTable.style.opacity = '1';
+          validationsTable.style.visibility = 'visible';
+          validationsTable.style.display = 'table';
+          const tbody = validationsTable.querySelector('tbody');
+          if (tbody) {
+            tbody.style.opacity = '1';
+            tbody.style.visibility = 'visible';
+          }
+        }
+      }
+    });
+    
+    console.log('✅ Canvas généré:', canvas.width, 'x', canvas.height);
+    
+    // Étape 4: Créer et télécharger l'image PNG
+    loading.innerHTML = '💾 Génération PNG...';
+    
+    const dataURL = canvas.toDataURL('image/png', 1.0);
+    const link = document.createElement('a');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    link.download = `rapport-presence-${timestamp}.png`;
+    link.href = dataURL;
+    
+    // Déclencher le téléchargement
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    console.log('✅ Export PNG terminé avec succès !');
+    loading.innerHTML = '✅ Export PNG réussi !<br><small>Téléchargement en cours...</small>';
+    
+    // Nettoyer après 2 secondes
+    setTimeout(() => {
+      if (loading.parentNode) {
+        document.body.removeChild(loading);
+      }
+    }, 2000);
+    
+  } catch (error) {
+    console.error('❌ Erreur export PNG:', error);
+    loading.innerHTML = `❌ Erreur export PNG:<br>${error.message}`;
+    
+    setTimeout(() => {
+      if (loading.parentNode) {
+        document.body.removeChild(loading);
+      }
+    }, 3000);
+    
+    alert(`Erreur lors de l'export PNG:\n\n${error.message}\n\nVérifiez la console pour plus de détails.`);
+  }
+};
+
+// Fonction d'export PNG ultra-simple (alternative de secours)
+window.exportAsImageSimple = async function() {
+  console.log('🖼️ Export PNG ultra-simple...');
+  
+  try {
+    // Charger html2canvas si nécessaire
+    if (!window.html2canvas) {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      await new Promise((resolve, reject) => {
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+    
+    // Exporter directement le body
+    const canvas = await window.html2canvas(document.body, {
+      scale: 1,
+      backgroundColor: '#ffffff'
+    });
+    
+    // Télécharger
+    const link = document.createElement('a');
+    link.download = `rapport-${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    
+    console.log('✅ Export simple réussi !');
+    
+  } catch (error) {
+    console.error('❌ Erreur export simple:', error);
+    alert('Erreur export: ' + error.message);
+  }
+};
+
+// Ancienne fonction complexe (gardée en commentaire pour référence)
+window.exportAsImageComplex = async function() {
   const loading = document.createElement('div');
   loading.style.position = 'fixed';
   loading.style.top = '50%';
@@ -1781,82 +2270,495 @@ window.exportAsImage = async function() {
   loading.style.backgroundColor = 'rgba(0,0,0,0.8)';
   loading.style.color = 'white';
   loading.style.borderRadius = '5px';
-  loading.style.zIndex = '1000';
+  loading.style.zIndex = '99999';
   loading.style.textAlign = 'center';
   loading.innerHTML = 'Préparation de l\'export image...<br><small>Veuillez patienter</small>';
   document.body.appendChild(loading);
+  
+  let container = null;
+  
   try {
+    console.log('🚀 Début de l\'export d\'image...');
+    console.log('🔍 Vérification de l\'environnement:', {
+      userAgent: navigator.userAgent,
+      language: navigator.language,
+      platform: navigator.platform,
+      cookieEnabled: navigator.cookieEnabled,
+      onLine: navigator.onLine,
+      windowSize: { width: window.innerWidth, height: window.innerHeight }
+    });
+    
+    // Charger html2canvas
+    console.log('📦 Chargement de html2canvas...');
     await loadHtml2Canvas();
-    loading.innerHTML = 'Génération de l\'image...<br><small>Veuillez patienter</small>';
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const element = document.getElementById('reports-container');
-    if (!element) {
-      throw new Error('Élément à exporter non trouvé');
+    console.log('✅ html2canvas chargé avec succès');
+    
+    // Vérifier que html2canvas est bien disponible
+    if (typeof window.html2canvas !== 'function' && typeof html2canvas !== 'function') {
+      throw new Error('html2canvas n\'est pas disponible après le chargement');
     }
-    const clone = element.cloneNode(true);
-    const container = document.createElement('div');
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    container.style.width = '1000px';
-    container.style.padding = '20px';
-    container.style.backgroundColor = 'white';
-    container.style.boxSizing = 'border-box';
-    container.appendChild(clone);
-    document.body.appendChild(container);
+    console.log('✅ html2canvas vérifié et disponible');
+    
+    loading.innerHTML = 'Création de la structure pour l\'export...';
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Récupérer le conteneur principal (main ou fallback)
+    let mainContent = document.querySelector('main.main-content');
+    
+    // Fallback si le sélecteur principal ne fonctionne pas
+    if (!mainContent) {
+      mainContent = document.querySelector('main');
+    }
+    
+    // Autre fallback
+    if (!mainContent) {
+      mainContent = document.querySelector('.main-content');
+    }
+    
+    // Dernier fallback - utiliser le body
+    if (!mainContent) {
+      mainContent = document.body;
+      console.warn('⚠️ Utilisation du body comme conteneur de fallback');
+    }
+    
+    if (!mainContent) {
+      console.error('❌ Aucun conteneur trouvé');
+      throw new Error('Aucun conteneur trouvé pour l\'export');
+    }
+    
+    console.log('✅ Conteneur principal trouvé:', mainContent.tagName, mainContent.className);
+    
+    loading.innerHTML = 'Clonage du contenu...';
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Cloner tout le contenu
+    const clone = mainContent.cloneNode(true);
+    
+    // Nettoyer le clone pour l'export
     const cleanElement = (el) => {
       if (!el) return;
-      const buttons = el.querySelectorAll('button, .btn, .no-print');
-      buttons.forEach(btn => btn.remove());
-      const links = el.querySelectorAll('a[onclick]');
+      
+      // Supprimer les boutons et éléments interactifs
+      const buttons = el.querySelectorAll('button, .btn, .dropdown, .no-print, .filter-actions');
+      buttons.forEach(btn => {
+        if (!btn.classList.contains('table-dark')) {
+          btn.remove();
+        }
+      });
+      
+      // Supprimer les sélecteurs de mois/année (on garde juste l'en-tête)
+      const monthSelector = el.querySelector('#month-selector');
+      const yearSelector = el.querySelector('#year-selector');
+      if (monthSelector) monthSelector.parentNode.removeChild(monthSelector);
+      if (yearSelector) yearSelector.parentNode.removeChild(yearSelector);
+      
+      // Supprimer les éléments circular-nav
+      const navs = el.querySelectorAll('circular-nav');
+      navs.forEach(nav => nav.remove());
+      
+      // Nettoyer les liens
+      const links = el.querySelectorAll('a');
       links.forEach(link => {
         link.style.pointerEvents = 'none';
         link.style.textDecoration = 'none';
         link.style.color = 'inherit';
       });
-      el.style.overflow = 'visible';
-      el.style.boxShadow = 'none';
-      el.style.border = '1px solid #eee';
-      el.style.marginBottom = '20px';
+      
+      // Supprimer les spinners de chargement
+      const spinners = el.querySelectorAll('.spinner-border, .visually-hidden');
+      spinners.forEach(spinner => spinner.remove());
+      
+      // Afficher les tableaux cachés
+      const hiddenTables = el.querySelectorAll('table[style*="display: none"]');
+      hiddenTables.forEach(table => table.style.display = 'table');
+      
+      // Afficher les éléments qui doivent être visibles pour l'export
+      const reportResults = el.querySelector('#report-results');
+      if (reportResults) {
+        reportResults.style.display = 'block';
+      }
+      
+      // Rendre les canvas Chart.js visibles et nets
       const canvases = el.querySelectorAll('canvas');
       canvases.forEach(canvas => {
         canvas.style.display = 'block';
         canvas.style.width = '100%';
         canvas.style.height = 'auto';
+        canvas.style.marginBottom = '20px';
+        canvas.style.opacity = '1';
+        canvas.style.position = 'relative';
+        canvas.style.zIndex = '1';
       });
+      
+      // S'assurer que tous les tableaux sont visibles et nets
+      const tables = el.querySelectorAll('table');
+      tables.forEach(table => {
+        table.style.display = 'table';
+        table.style.opacity = '1';
+        table.style.position = 'relative';
+        table.style.zIndex = '1';
+        table.style.borderCollapse = 'separate';
+        table.style.borderSpacing = '0';
+      });
+      
+      // S'assurer que la section validations est visible
+      const validationsTable = el.querySelector('#validations-table');
+      if (validationsTable) {
+        // Rendre le tableau visible
+        validationsTable.style.display = 'table';
+        validationsTable.style.opacity = '1';
+        validationsTable.style.visibility = 'visible';
+        validationsTable.style.position = 'relative';
+        validationsTable.style.zIndex = '1';
+        
+        // Rendre le conteneur table-responsive visible
+        const tableResponsive = validationsTable.closest('.table-responsive');
+        if (tableResponsive) {
+          tableResponsive.style.display = 'block';
+          tableResponsive.style.opacity = '1';
+          tableResponsive.style.visibility = 'visible';
+          tableResponsive.style.position = 'relative';
+          tableResponsive.style.zIndex = '1';
+          tableResponsive.style.width = '100%';
+          tableResponsive.style.overflowX = 'visible';
+          console.log('✅ Conteneur table-responsive rendu visible');
+        }
+        
+        // Rendre la carte parent visible
+        const validationsCard = validationsTable.closest('.card');
+        if (validationsCard) {
+          validationsCard.style.display = 'block';
+          validationsCard.style.opacity = '1';
+          validationsCard.style.visibility = 'visible';
+          validationsCard.style.position = 'relative';
+          validationsCard.style.zIndex = '1';
+          console.log('✅ Carte validations rendue visible');
+        }
+        
+        // Rendre tous les éléments parents visibles
+        let parent = validationsTable.parentElement;
+        while (parent && parent !== el) {
+          parent.style.display = parent.style.display || 'block';
+          parent.style.opacity = '1';
+          parent.style.visibility = 'visible';
+          parent.style.position = parent.style.position || 'relative';
+          parent = parent.parentElement;
+        }
+        
+        console.log('✅ Section validations rendue visible');
+      }
+      
+      // Nettoyer les styles overflow
+      el.style.overflow = 'visible';
+      el.style.height = 'auto';
+      
+      // Corriger les couleurs de texte
+      el.querySelectorAll('*').forEach(elem => {
+        elem.style.color = elem.style.color || '#212529';
+      });
+      
+      console.log('✅ Éléments nettoyés pour l\'export');
+      console.log(`📊 Canvas trouvés: ${el.querySelectorAll('canvas').length}`);
+      console.log(`📋 Tableaux trouvés: ${el.querySelectorAll('table').length}`);
     };
+    
+    loading.innerHTML = 'Nettoyage des éléments interactifs...';
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
     cleanElement(clone);
+    
+    // Créer un conteneur pour l'export
+    container = document.createElement('div');
+    container.id = 'export-container';
+    container.style.position = 'absolute';
+    container.style.left = '-99999px';
+    container.style.top = '0';
+    container.style.width = '1200px';
+    container.style.backgroundColor = 'white';
+    container.style.padding = '40px';
+    container.style.boxSizing = 'border-box';
+    
+    // Ajouter des styles pour l'export
     const style = document.createElement('style');
     style.textContent = `
-      body { background: white !important; padding: 20px !important; }
-      .card { border: 1px solid #dee2e6 !important; border-radius: 0.5rem !important; margin-bottom: 1rem !important; }
-      .card-body { padding: 1.25rem !important; }
-      .table { width: 100% !important; margin-bottom: 1rem !important; color: #212529 !important; border-collapse: collapse !important; }
-      .table th, .table td { padding: 0.75rem !important; vertical-align: top !important; border: 1px solid #dee2e6 !important; }
-      .table thead th { vertical-align: bottom !important; border-bottom: 2px solid #dee2e6 !important; }
-      .badge { font-size: 90% !important; padding: 0.35em 0.65em !important; }
-      .stats-grid { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important; gap: 15px !important; margin: 20px 0 !important; }
-      .stat-card { background: #f8f9fa !important; border-radius: 8px !important; padding: 15px !important; text-align: center !important; }
-      canvas { max-width: 100% !important; height: auto !important; display: block !important; }
+      #export-container { 
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+      }
+      #export-container .card { 
+        border: 1px solid #dee2e6 !important; 
+        border-radius: 0.5rem !important; 
+        margin-bottom: 1.5rem !important; 
+        box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075) !important;
+      }
+      #export-container .card-header { 
+        padding: 0.75rem 1.25rem !important; 
+        background-color: #f8f9fa !important; 
+        border-bottom: 1px solid #dee2e6 !important; 
+      }
+      #export-container .card-body { 
+        padding: 1.25rem !important; 
+      }
+      #export-container .card-body.p-0 { 
+        padding: 0 !important; 
+      }
+      #export-container .table { 
+        width: 100% !important; 
+        margin-bottom: 1rem !important; 
+        color: #212529 !important; 
+        border-collapse: collapse !important; 
+        font-size: 14px !important;
+      }
+      #export-container .table th, #export-container .table td { 
+        padding: 0.75rem !important; 
+        vertical-align: top !important; 
+        border: 1px solid #dee2e6 !important; 
+      }
+      #export-container .table thead th { 
+        vertical-align: bottom !important; 
+        border-bottom: 2px solid #dee2e6 !important; 
+        background-color: #f8f9fa !important;
+        font-weight: 600 !important;
+      }
+      #export-container .table-striped > tbody > tr:nth-of-type(odd) { 
+        background-color: rgba(0,0,0,0.02) !important; 
+      }
+      #export-container .metric-card { 
+        background: #f8f9fa !important; 
+        border-radius: 8px !important; 
+        padding: 20px !important; 
+        text-align: center !important;
+        border: 1px solid #dee2e6 !important;
+      }
+      #export-container canvas { 
+        max-width: 100% !important; 
+        height: auto !important; 
+        display: block !important;
+        opacity: 1 !important;
+        position: relative !important;
+        z-index: 1 !important;
+        margin: 20px 0 !important;
+        background: white !important;
+      }
+      #export-container .chart-container {
+        background: white !important;
+        padding: 20px !important;
+        margin-bottom: 20px !important;
+        border: 1px solid #dee2e6 !important;
+        border-radius: 0.5rem !important;
+      }
+      #export-container .report-charts {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 20px !important;
+        margin: 20px 0 !important;
+      }
+      #export-container .progress { 
+        height: 20px !important; 
+        overflow: visible !important;
+        background-color: #e9ecef !important;
+        border-radius: 0.25rem !important;
+      }
+      #export-container .progress-bar { 
+        height: 100% !important;
+        background-color: #0d6efd !important;
+        border-radius: 0.25rem !important;
+      }
+      #export-container .table-responsive {
+        overflow: visible !important;
+        width: 100% !important;
+        display: block !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+      #export-container #validations-table {
+        display: table !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        position: relative !important;
+        z-index: 1 !important;
+        background: white !important;
+      }
+      #export-container .card {
+        page-break-inside: avoid !important;
+        display: block !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+      #export-container .card:has(#validations-table),
+      #export-container .card .table-responsive:has(#validations-table),
+      #export-container .card:has(.table-responsive #validations-table) {
+        display: block !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        position: relative !important;
+        z-index: 1 !important;
+        background: white !important;
+      }
+      #export-container h3, #export-container h4, #export-container h5 {
+        color: #212529 !important;
+        font-weight: 600 !important;
+        margin-top: 0 !important;
+      }
     `;
-    container.prepend(style);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const canvas = await html2canvas(container, {
+    
+    container.appendChild(style);
+    container.appendChild(clone);
+    document.body.appendChild(container);
+    
+    loading.innerHTML = 'Génération de l\'image en haute résolution...';
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Vérifications avant génération du canvas
+    console.log('🔍 Vérifications avant génération du canvas...');
+    console.log('Container dimensions:', {
+      width: container.offsetWidth,
+      height: container.offsetHeight,
+      scrollWidth: container.scrollWidth,
+      scrollHeight: container.scrollHeight
+    });
+    
+    // Vérifier que le conteneur a du contenu
+    if (container.offsetHeight === 0) {
+      throw new Error('Le conteneur d\'export est vide - Aucun contenu à exporter');
+    }
+    
+    // Vérifier que html2canvas est disponible
+    if (typeof html2canvas !== 'function' && typeof window.html2canvas !== 'function') {
+      throw new Error('html2canvas n\'est pas disponible - Erreur de chargement de la bibliothèque');
+    }
+    
+    console.log('✅ Toutes les vérifications passées, génération du canvas...');
+    
+    const canvas = await (window.html2canvas || html2canvas)(container, {
       scale: 2,
       useCORS: true,
-      allowTaint: true,
+      allowTaint: false,
       backgroundColor: '#ffffff',
-      logging: false
+      logging: false,
+      scrollY: 0,
+      scrollX: 0,
+      windowWidth: container.scrollWidth,
+      windowHeight: container.scrollHeight,
+      ignoreElements: (element) => {
+        // Ignorer les éléments cachés ou vides
+        return element.style.display === 'none' || 
+               element.style.visibility === 'hidden' ||
+               element.offsetParent === null ||
+               element.classList.contains('spinner-border');
+      },
+      onclone: (clonedDoc) => {
+        // S'assurer que tous les canvas sont bien visibles dans le clone
+        const clonedCanvases = clonedDoc.querySelectorAll('canvas');
+        clonedCanvases.forEach(canvas => {
+          canvas.style.display = 'block';
+          canvas.style.opacity = '1';
+          canvas.style.visibility = 'visible';
+          canvas.style.position = 'relative';
+          canvas.style.zIndex = '1';
+        });
+        
+        // S'assurer que tous les tableaux sont visibles
+        const clonedTables = clonedDoc.querySelectorAll('table');
+        clonedTables.forEach(table => {
+          table.style.display = 'table';
+          table.style.opacity = '1';
+          table.style.visibility = 'visible';
+          table.style.position = 'relative';
+        });
+      }
     });
+    
+    // Vérifier que le canvas a été généré correctement
+    if (!canvas) {
+      throw new Error('Échec de la génération du canvas - Aucune image générée');
+    }
+    
+    if (canvas.width === 0 || canvas.height === 0) {
+      throw new Error('Canvas vide généré - Dimensions nulles');
+    }
+    
+    console.log('✅ Canvas généré avec succès:', {
+      width: canvas.width,
+      height: canvas.height
+    });
+    
+    loading.innerHTML = 'Téléchargement de l\'image...';
+    
     const link = document.createElement('a');
     const date = new Date().toISOString().split('T')[0];
-    link.download = `rapport-${date}.png`;
-    link.href = canvas.toDataURL('image/png');
+    const time = new Date().toISOString().split('T')[1].substring(0, 5).replace(':', '-');
+    link.download = `rapport-complet-${date}-${time}.png`;
+    
+    // Générer l'URL de l'image
+    const imageDataUrl = canvas.toDataURL('image/png');
+    if (!imageDataUrl || imageDataUrl === 'data:,') {
+      throw new Error('Échec de la génération de l\'URL de l\'image');
+    }
+    
+    link.href = imageDataUrl;
     document.body.appendChild(link);
+    
+    console.log('📥 Déclenchement du téléchargement...');
     link.click();
+    
+    // Attendre un peu avant de supprimer le lien
+    await new Promise(resolve => setTimeout(resolve, 100));
     document.body.removeChild(link);
+    
+    console.log('✅ Export terminé avec succès !');
+    loading.innerHTML = '✅ Export terminé avec succès !';
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
   } catch (error) {
-    console.error('Erreur lors de la génération de l\'image:', error);
-    alert('Une erreur est survenue lors de l\'export en image : ' + (error.message || 'Erreur inconnue'));
+    console.error('🚨 ERREUR DÉTAILLÉE lors de la génération de l\'image:', error);
+    console.error('📊 Stack trace complète:', error.stack);
+    console.error('🏷️ Type d\'erreur:', error.name);
+    console.error('💬 Message détaillé:', error.message);
+    console.error('🔍 Propriétés de l\'erreur:', Object.keys(error));
+    
+    // Diagnostic détaillé avec plus d'informations
+    let errorDetails = 'Erreur inconnue';
+    let errorCode = 'UNKNOWN';
+    
+    if (error.message) {
+      errorDetails = error.message;
+    } else if (error.name) {
+      errorDetails = error.name;
+    }
+    
+    // Vérifications spécifiques avec codes d'erreur
+    if (error.message && error.message.includes('html2canvas')) {
+      errorDetails = 'Erreur de chargement de la bibliothèque html2canvas';
+      errorCode = 'HTML2CANVAS_LOAD_ERROR';
+    } else if (error.message && error.message.includes('canvas')) {
+      errorDetails = 'Erreur de génération du canvas';
+      errorCode = 'CANVAS_GENERATION_ERROR';
+    } else if (error.message && error.message.includes('CORS')) {
+      errorDetails = 'Erreur CORS - Problème de sécurité du navigateur';
+      errorCode = 'CORS_ERROR';
+    } else if (error.message && error.message.includes('memory')) {
+      errorDetails = 'Erreur de mémoire - Page trop volumineuse';
+      errorCode = 'MEMORY_ERROR';
+    } else if (error.name === 'TypeError') {
+      errorDetails = 'Erreur de type - Élément non trouvé ou invalide';
+      errorCode = 'TYPE_ERROR';
+    } else if (error.name === 'ReferenceError') {
+      errorDetails = 'Erreur de référence - Variable ou fonction non définie';
+      errorCode = 'REFERENCE_ERROR';
+    } else if (error.name === 'SecurityError') {
+      errorDetails = 'Erreur de sécurité - Restrictions du navigateur';
+      errorCode = 'SECURITY_ERROR';
+    } else if (error.name === 'NetworkError') {
+      errorDetails = 'Erreur réseau - Problème de connexion';
+      errorCode = 'NETWORK_ERROR';
+    }
+    
+    console.error(`🎯 Code d'erreur identifié: ${errorCode}`);
+    console.error(`📝 Message final: ${errorDetails}`);
+    
+    loading.innerHTML = `❌ Erreur [${errorCode}]: ${errorDetails}`;
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    alert(`Une erreur est survenue lors de l'export en image :\n\nCode: ${errorCode}\nMessage: ${errorDetails}\n\nVérifiez la console pour plus de détails.`);
   } finally {
     if (container && container.parentNode) {
       document.body.removeChild(container);
@@ -2382,7 +3284,6 @@ function cleanProjectName(name) {
     .trim() // Enlève les espaces en début et fin
     .normalize('NFD') // Décompose les caractères accentués
     .replace(/[\u0300-\u036f]/g, '') // Supprime les diacritiques
-    .toLowerCase() // Convertit en minuscules
     .replace(/[^\w\s-]/g, ' ') // Remplace les caractères spéciaux par des espaces
     .replace(/\s+/g, ' ') // Remplace les espaces multiples par un seul
     .trim(); // Enlève à nouveau les espaces en début et fin
@@ -2413,9 +3314,12 @@ function updateProjectSelect(projectsList) {
   
   // Restaurer la sélection précédente si elle existe toujours
   if (currentValue && currentValue !== 'all') {
-    const cleanedCurrentValue = cleanProjectName(currentValue);
-    if (projectsList.includes(cleanedCurrentValue)) {
-      select.value = cleanedCurrentValue;
+    // Rechercher une correspondance insensible à la casse
+    const matchingProject = projectsList.find(project => 
+      project.toLowerCase() === currentValue.toLowerCase()
+    );
+    if (matchingProject) {
+      select.value = matchingProject;
     }
   }
 }
@@ -2444,7 +3348,8 @@ async function loadProjectsForFilter() {
       users.forEach(user => {
         try {
           if (!user || !user.project_name) return;
-          const projectName = cleanProjectName(user.project_name);
+          // Préserver la casse originale du nom du projet
+          const projectName = String(user.project_name).trim();
           if (projectName) projects.add(projectName);
         } catch (error) {
           console.warn('Erreur lors du traitement d\'un utilisateur:', error);
@@ -2477,7 +3382,8 @@ async function loadProjectsForFilter() {
             users.forEach(user => {
               try {
                 if (!user || !user.project_name) return;
-                const projectName = cleanProjectName(user.project_name);
+                // Préserver la casse originale du nom du projet
+                const projectName = String(user.project_name).trim();
                 if (projectName) projects.add(projectName);
               } catch (error) {
                 console.warn('Erreur lors du traitement d\'un utilisateur:', error);
@@ -2704,10 +3610,262 @@ document.addEventListener('DOMContentLoaded', async function() {
   if (generateBtn) {
     generateBtn.addEventListener('click', window.generateReport);
   }
+
+  // Gestionnaire d'événement pour le bouton d'export HTML
+  const exportHtmlBtn = document.getElementById('export-html');
+  if (exportHtmlBtn) {
+    exportHtmlBtn.addEventListener('click', exportAsHtml);
+  }
+
+  // Initialisation du tableau récapitulatif des présences
+async function updatePresenceSummary() {
+  try {
+    const month = parseInt(document.getElementById('month-selector').value);
+    const year = parseInt(document.getElementById('year-selector').value);
+    
+    // Récupérer tous les filtres actifs avec getSelectedFilters() pour la cohérence
+    const filters = (typeof getSelectedFilters === 'function') ? getSelectedFilters() : {
+      project: document.getElementById('project-filter')?.value || 'all',
+      department: document.getElementById('department-filter')?.value || 'all',
+      commune: document.getElementById('commune-filter')?.value || 'all',
+      agentId: document.getElementById('agent-filter')?.value || 'all',
+      supervisorId: document.getElementById('supervisor-filter')?.value || 'all'
+    };
+    
+    const projectFilter = filters.project;
+    const departementFilter = filters.department;
+    const communeFilter = filters.commune;
+    const agentFilter = filters.agentId;
+    const supervisorFilter = filters.supervisorId;
+    
+    console.log('🔍 Filtres actifs pour le récapitulatif mensuel:', { 
+      projectFilter, 
+      departementFilter, 
+      communeFilter, 
+      agentFilter, 
+      supervisorFilter 
+    });
+    console.log('📍 Source des filtres: getSelectedFilters()');
+    
+    // Afficher le spinner de chargement
+    const tbody = document.querySelector('#presence-summary tbody');
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Chargement...</span>
+          </div>
+        </td>
+      </tr>`;
+
+    // Utiliser l'endpoint /api/presence-summary qui calcule déjà tout
+    console.log(`📊 Chargement du récapitulatif pour ${month}/${year}`);
+    
+    let summaryResponse;
+    try {
+      summaryResponse = await api(`/presence-summary?month=${month}&year=${year}`);
+      console.log('Réponse API presence-summary:', summaryResponse);
+    } catch (error) {
+      console.error('Erreur avec /api/presence-summary:', error);
+      throw error;
+    }
+    
+    // Gérer la réponse de l'API
+    const summaryData = summaryResponse?.data || [];
+    console.log('Données extraites:', summaryData.length, 'agents');
+    
+    if (!summaryData || !Array.isArray(summaryData) || summaryData.length === 0) {
+      console.warn('Aucune donnée de récapitulatif trouvée pour la période sélectionnée');
+    } else {
+      console.log(`${summaryData.length} agents chargés`);
+      if (summaryData.length > 0) {
+        console.log('Premier agent:', summaryData[0]);
+        console.log('Clés du premier agent:', Object.keys(summaryData[0]));
+      }
+    }
+    
+    // Utiliser les données du récapitulatif directement
+    const summaryResult = summaryData;
+    
+    // Appliquer les filtres côté client si nécessaire
+    let filteredResult = summaryResult;
+    
+    if (projectFilter && projectFilter !== 'all') {
+      filteredResult = filteredResult.filter(agent => agent.project === projectFilter);
+    }
+    
+    if (departementFilter && departementFilter !== 'all') {
+      filteredResult = filteredResult.filter(agent => agent.departement === departementFilter);
+    }
+    
+    if (communeFilter && communeFilter !== 'all') {
+      filteredResult = filteredResult.filter(agent => agent.commune === communeFilter);
+    }
+    
+    if (agentFilter && agentFilter !== 'all') {
+      filteredResult = filteredResult.filter(agent => agent.user_id === parseInt(agentFilter));
+    }
+    
+    console.log(`📈 Récapitulatif final: ${filteredResult.length} agents avec des données de présence`);
+    
+    // Générer les lignes du tableau
+    const agentsWithData = filteredResult;
+    console.log(`✅ Statistiques finales: ${agentsWithData.length} utilisateurs avec données`);
+    
+    if (agentsWithData.length === 0) {
+      console.warn('⚠️ Aucune statistique générée. Vérifiez les filtres et les données.');
+      console.log('Filtres actifs:', { projectFilter, departementFilter, communeFilter });
+      
+      let debugInfo = '';
+      if (summaryResult.length > 0) {
+        debugInfo = `
+          <div class="mt-2 small">
+            <div><strong>${summaryResult.length} agents</strong> trouvés pour cette période</div>
+            ${projectFilter ? `<div>Filtre projet: <strong>${projectFilter}</strong></div>` : ''}
+            ${departementFilter ? `<div>Filtre département: <strong>${departementFilter}</strong></div>` : ''}
+            ${communeFilter ? `<div>Filtre commune: <strong>${communeFilter}</strong></div>` : ''}
+            <div class="text-muted">Vérifiez que les filtres correspondent aux données.</div>
+          </div>`;
+      }
+      
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5" class="text-center py-4">
+            Aucune donnée de présence disponible pour cette période avec les filtres actuels.
+            ${debugInfo}
+          </td>
+        </tr>`;
+      return;
+    }
+    
+    // Générer le tableau avec les données filtrées
+    const DAYS_REQUIRED = 20; // Nombre de jours requis par mois
+    
+    console.log(`📊 Génération du tableau avec ${agentsWithData.length} utilisateurs`);  
+
+    let tableContent = '';
+    
+    if (filteredResult.length === 0) {
+      tableContent = `
+        <tr>
+          <td colspan="5" class="text-center py-4">
+            Aucune donnée de présence disponible pour cette période avec les filtres actuels.
+          </td>
+        </tr>`;
+    } else {
+      filteredResult.forEach(agent => {
+        // Le taux de présence est maintenant calculé par rapport aux 20 jours attendus du mois
+        
+        // Déterminer la classe de la barre de progression
+        let progressClass = 'bg-success';
+        if (agent.presence_rate < 50) progressClass = 'bg-danger';
+        else if (agent.presence_rate < 80) progressClass = 'bg-warning';
+
+        tableContent += `
+          <tr>
+            <td>${agent.name}</td>
+            <td>${agent.planned_days || 0} / ${DAYS_REQUIRED}</td>
+            <td>${agent.present_days}</td>
+            <td>${agent.absent_days}</td>
+            <td>
+              <div class="progress" style="height: 20px;">
+                <div class="progress-bar ${progressClass}" 
+                     role="progressbar" 
+                     style="width: ${agent.presence_rate}%" 
+                     aria-valuenow="${agent.presence_rate}" 
+                     aria-valuemin="0" 
+                     aria-valuemax="100">
+                  ${agent.presence_rate}%
+                </div>
+              </div>
+            </td>
+          </tr>`;
+      });
+    }
+
+    tbody.innerHTML = tableContent;
+
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du récapitulatif:', error);
+    const tbody = document.querySelector('#presence-summary tbody');
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="text-center text-danger py-4">
+          Erreur lors du chargement des données. Veuillez réessayer.
+          ${window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `<br><small>${error.message}</small>` : ''}
+        </td>
+      </tr>`;
+  }
+}
+
+// Fonction utilitaire pour récupérer les filtres actifs
+function getActiveFilters() {
+  return {
+    project: document.getElementById('project-filter')?.value || '',
+    departement: document.getElementById('department-filter')?.value || '',
+    commune: document.getElementById('commune-filter')?.value || ''
+  };
+}
+
+function getSelectedFilters() {
+  // Filtres de date
+  const dateRange = document.getElementById('date-range')?.value || 'today';
+  const preciseDate = document.getElementById('date-filter')?.value || '';
   
-  const exportBtn = document.getElementById('export-btn');
-  if (exportBtn) {
-    exportBtn.addEventListener('click', window.exportReport);
+  // Filtres de sélection
+  const agentId = document.getElementById('agent-filter')?.value || 'all';
+  const project = document.getElementById('project-filter')?.value || 'all';
+  const department = document.getElementById('department-filter')?.value || 'all';
+  const commune = document.getElementById('commune-filter')?.value || 'all';
+  const supervisorId = document.getElementById('supervisor-filter')?.value || 'all';
+  
+  return { 
+    dateRange, 
+    preciseDate, 
+    agentId, 
+    project,
+    department,
+    commune,
+    supervisorId
+  };
+}
+
+// Mettre à jour le récapitulatif quand les filtres changent
+document.addEventListener('DOMContentLoaded', () => {
+  const filterElements = [
+    document.getElementById('month-selector'),
+    document.getElementById('year-selector'),
+    document.getElementById('project-filter'),
+    document.getElementById('department-filter'),
+    document.getElementById('commune-filter'),
+    document.getElementById('agent-filter'),
+    document.getElementById('supervisor-filter')
+  ].filter(Boolean);
+  
+  console.log(`✅ ${filterElements.length} filtres attachés au récapitulatif mensuel`);
+  
+  filterElements.forEach(element => {
+    element?.addEventListener('change', updatePresenceSummary);
+  });
+});
+
+  // Gestionnaires d'événements pour les sélecteurs de mois/année
+  const monthSelector = document.getElementById('month-selector');
+  const yearSelector = document.getElementById('year-selector');
+  
+  if (monthSelector && yearSelector) {
+    // Définir le mois et l'année actuels par défaut
+    const today = new Date();
+    monthSelector.value = today.getMonth() + 1;
+    yearSelector.value = today.getFullYear();
+    
+    // Mettre à jour le tableau lors du changement de mois/année
+    const updateHandler = () => updatePresenceSummary();
+    monthSelector.addEventListener('change', updateHandler);
+    yearSelector.addEventListener('change', updateHandler);
+    
+    // Charger les données initiales
+    updatePresenceSummary();
   }
   
   const printBtn = document.getElementById('print-btn');
@@ -2780,6 +3938,7 @@ document.addEventListener('DOMContentLoaded', async function() {
   });
   
   window.updateDateInputs();
+  window.loadUsersPlanning = loadUsersPlanning; // Exposer la fonction au scope global
   const dateInput = document.getElementById('date');
   if (dateInput) {
     dateInput.addEventListener('change', loadUsersPlanning);
