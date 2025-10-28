@@ -630,6 +630,7 @@ try {
   window.loadValidations = loadValidations;
   window.applyFilters = applyFilters;
   window.resetFilters = resetFilters;
+  window.getSelectedFilters = getSelectedFilters; // Exposer la fonction getSelectedFilters
 } catch {}
 
 // Récupère tous les filtres sélectionnés sur la page Rapports
@@ -702,6 +703,15 @@ async function applyFilters() {
     // Recharger les validations avec les filtres
     await loadValidationsWithPreciseDate();
     
+    // Recharger le tableau de planification avec les filtres
+    try {
+      if (typeof window.loadUsersPlanning === 'function') {
+        await window.loadUsersPlanning();
+      }
+    } catch (error) {
+      console.error('Erreur lors du rechargement du tableau de planification:', error);
+    }
+    
     // Mettre à jour les statistiques
     try { 
       await generateReport(); 
@@ -722,7 +732,7 @@ async function applyFilters() {
 /**
  * Réinitialise tous les filtres à leurs valeurs par défaut
  */
-function resetFilters() {
+async function resetFilters() {
   try {
     // Réinitialisation des champs de date
     $('date-range').value = 'today';
@@ -764,6 +774,15 @@ function resetFilters() {
     
     // Recharger les données avec les filtres réinitialisés
     loadValidationsWithPreciseDate();
+    
+    // Recharger le tableau de planification avec les filtres réinitialisés
+    try {
+      if (typeof window.loadUsersPlanning === 'function') {
+        await window.loadUsersPlanning();
+      }
+    } catch (error) {
+      console.error('Erreur lors du rechargement du tableau de planification:', error);
+    }
     
   } catch (error) {
     console.error('Erreur lors de la réinitialisation des filtres:', error);

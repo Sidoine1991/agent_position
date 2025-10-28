@@ -103,6 +103,9 @@ class RealtimeMessaging {
         case 'message':
           this.handleRealtimeMessage(data.payload);
           break;
+        case 'read':
+          this.handleReadReceipt(data.payload);
+          break;
         case 'typing':
           this.handleTypingIndicator(data.payload);
           break;
@@ -150,6 +153,18 @@ class RealtimeMessaging {
   handleHeartbeat() {
     // Réinitialiser le timer de heartbeat
     this.resetHeartbeat();
+  }
+
+  handleReadReceipt(payload) {
+    try {
+      // Notifier les abonnés et propager un événement global
+      this.notifySubscribers('read', payload);
+      document.dispatchEvent(new CustomEvent('messageRead', {
+        detail: payload
+      }));
+    } catch (e) {
+      console.error('Erreur traitement read receipt:', e);
+    }
   }
 
   setupHeartbeat() {
@@ -272,6 +287,18 @@ class RealtimeMessaging {
         content,
         recipient_id: recipientId,
         message_type: type,
+        timestamp: Date.now()
+      }
+    });
+  }
+
+  // Envoyer un accusé de lecture pour une conversation
+  sendReadReceipt(conversationId, lastReadMessageId) {
+    return this.send({
+      type: 'read',
+      payload: {
+        conversation_id: conversationId,
+        last_read_message_id: lastReadMessageId,
         timestamp: Date.now()
       }
     });

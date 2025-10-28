@@ -16,6 +16,49 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="/js/supabase-config.js"></script>
   <style>
+    /* Styles pour améliorer l'affichage du Gantt */
+    .gantt-task-validated {
+      background-color: #28a745 !important;
+      border-color: #1e7e34 !important;
+    }
+    .gantt-task-pending {
+      background-color: #ffc107 !important;
+      border-color: #e0a800 !important;
+    }
+    .gantt-task-completed {
+      background-color: #17a2b8 !important;
+      border-color: #117a8b !important;
+    }
+    .gantt-task-default {
+      background-color: #6c757d !important;
+      border-color: #545b62 !important;
+    }
+    
+    /* Améliorer la visibilité des boutons d'édition */
+    #edit-planning-btn, #edit-planning-month-btn {
+      transition: all 0.3s ease;
+    }
+    #edit-planning-btn:hover, #edit-planning-month-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    /* Styles pour les agents - vue complète */
+    .agent-complete-view {
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    
+    /* Améliorer l'affichage des filtres */
+    .filter-section {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+
     /* Styles pour les boutons circulaires de navigation */
     .circle-actions {
       display: flex !important;
@@ -379,13 +422,16 @@
     <div class="tab-content" id="ganttViewTabContent">
         <div class="tab-pane fade show active" id="week-view-pane" role="tabpanel" aria-labelledby="week-view-tab" tabindex="0">
             <div class="card mb-4 border-top-0 rounded-top-0">
-                <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
-                    <h5 class="mb-0">Tableau de Gantt hebdomadaire</h5>
-                    <div class="d-flex gap-2">
-                        <button id="prev-week" class="btn btn-sm btn-light">← Préc.</button>
-                        <button id="next-week" class="btn btn-sm btn-light">Suiv. →</button>
+                    <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
+                        <h5 class="mb-0">Tableau de Gantt hebdomadaire</h5>
+                        <div class="d-flex gap-2">
+                            <button id="edit-planning-btn" class="btn btn-sm btn-warning" style="display: none;">
+                                <i class="fas fa-edit"></i> Modifier
+                            </button>
+                            <button id="prev-week" class="btn btn-sm btn-light">← Préc.</button>
+                            <button id="next-week" class="btn btn-sm btn-light">Suiv. →</button>
+                        </div>
                     </div>
-                </div>
                 <div class="card-body p-0">
                     <div class="mb-2 small text-muted p-3" data-translate="planning.drag.info">Double-cliquez sur une tâche dans le Gantt pour l'éditer ci-dessus.</div>
                     <div id="week-gantt" class="gantt" style="height: 600px; width: 100%;"></div>
@@ -398,6 +444,9 @@
                 <div class="card-header d-flex justify-content-between align-items-center bg-info text-white">
                     <h5 class="mb-0" data-translate="planning.month.view">Vue mensuelle détaillée (Gantt)</h5>
                      <div class="d-flex gap-2">
+                        <button id="edit-planning-month-btn" class="btn btn-sm btn-warning" style="display: none;">
+                            <i class="fas fa-edit"></i> Modifier
+                        </button>
                         <button id="prev-month" class="btn btn-sm btn-light">← Préc.</button>
                         <button id="next-month" class="btn btn-sm btn-light">Suiv. →</button>
                     </div>
@@ -472,6 +521,43 @@
         refreshButton.addEventListener('click', function() {
           loadWeeklySummary();
         });
+      }
+
+      // Gérer les boutons d'édition
+      const editBtnWeek = document.getElementById('edit-planning-btn');
+      const editBtnMonth = document.getElementById('edit-planning-month-btn');
+      
+      if (editBtnWeek) {
+        editBtnWeek.addEventListener('click', function() {
+          if (canEditPlanning()) {
+            toggleEditMode(true);
+            showToast('Mode édition activé. Vous pouvez maintenant modifier les planifications.', 'info');
+          } else {
+            showToast('Vous n\'avez pas les permissions pour modifier les planifications.', 'warning');
+          }
+        });
+      }
+      
+      if (editBtnMonth) {
+        editBtnMonth.addEventListener('click', function() {
+          if (canEditPlanning()) {
+            toggleEditMode(true);
+            showToast('Mode édition activé. Vous pouvez maintenant modifier les planifications.', 'info');
+          } else {
+            showToast('Vous n\'avez pas les permissions pour modifier les planifications.', 'warning');
+          }
+        });
+      }
+
+      // Vérifier si l'utilisateur peut éditer et afficher les boutons
+      if (canEditPlanning()) {
+        // Vérifier s'il y a des planifications validées à modifier
+        setTimeout(() => {
+          const hasValidatedPlanning = document.querySelector('.planning-validated');
+          if (hasValidatedPlanning) {
+            toggleEditMode(true);
+          }
+        }, 2000);
       }
     });
     let activeGanttView = 'week';
@@ -890,25 +976,72 @@
       // Vérifier si un filtre de superviseur est appliqué
       if (filters.supervisorId) {
         console.log('Application du filtre superviseur au Gantt:', filters.supervisorId);
-        // Implémentez ici la logique pour filtrer les données du Gantt
-        // par exemple :
-        // if (window.gantt) {
-        //   window.gantt.clearAll();
-        //   const filteredTasks = originalTasks.filter(task => task.supervisorId === filters.supervisorId);
-        //   window.gantt.parse({data: filteredTasks});
-        // }
+        // Recharger les données avec le filtre superviseur
+        if (typeof loadWeeklySummary === 'function') {
+          loadWeeklySummary();
+        }
       } else {
         // Réinitialiser le filtre si aucun superviseur n'est sélectionné
-        // if (window.gantt) {
-        //   window.gantt.clearAll();
-        //   window.gantt.parse({data: originalTasks});
-        // }
+        if (typeof loadWeeklySummary === 'function') {
+          loadWeeklySummary();
+        }
+      }
+    }
+
+    // Fonction pour activer/désactiver le mode édition
+    function toggleEditMode(isEditMode) {
+      const editBtnWeek = document.getElementById('edit-planning-btn');
+      const editBtnMonth = document.getElementById('edit-planning-month-btn');
+      
+      if (editBtnWeek) {
+        editBtnWeek.style.display = isEditMode ? 'block' : 'none';
+      }
+      if (editBtnMonth) {
+        editBtnMonth.style.display = isEditMode ? 'block' : 'none';
       }
       
-      // Mettre à jour l'affichage du Gantt
-      // if (window.gantt) {
-      //   window.gantt.render();
-      // }
+      // Activer/désactiver les interactions avec le Gantt
+      if (window.gantt) {
+        window.gantt.config.readonly = !isEditMode;
+        window.gantt.render();
+      }
+    }
+
+    // Fonction pour vérifier si l'utilisateur peut modifier les planifications
+    function canEditPlanning() {
+      // Vérifier le rôle de l'utilisateur
+      const userRole = localStorage.getItem('userRole') || '';
+      return userRole === 'admin' || userRole === 'superviseur';
+    }
+
+    // Fonction pour réinitialiser le statut de validation d'une planification
+    async function resetPlanningValidation(planningId) {
+      try {
+        const token = localStorage.getItem('jwt');
+        const response = await fetch('/api/planifications/result', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            planning_id: planningId,
+            resultat_journee: 'en_attente' // Remettre en attente
+          })
+        });
+
+        if (response.ok) {
+          console.log('Planification remise en attente avec succès');
+          // Recharger les données
+          if (typeof loadWeeklySummary === 'function') {
+            loadWeeklySummary();
+          }
+        } else {
+          console.error('Erreur lors de la remise en attente:', await response.text());
+        }
+      } catch (error) {
+        console.error('Erreur lors de la remise en attente:', error);
+      }
     }
     
     // Fonction pour initialiser le Gantt

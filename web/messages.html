@@ -1407,6 +1407,30 @@
         document.addEventListener('newMessage', (event) => {
           handleRealtimeMessage(event.detail.message);
         });
+
+        // Écouter les accusés de lecture et mettre à jour l'UI
+        document.addEventListener('messageRead', (event) => {
+          const { conversation_id, last_read_message_id } = event.detail || {};
+          if (!conversation_id || !last_read_message_id) return;
+          try {
+            // Mettre à jour le statut pour tous les messages envoyés jusqu'à last_read_message_id
+            const sentMessages = document.querySelectorAll('.message.sent');
+            sentMessages.forEach(el => {
+              const mid = el.getAttribute('data-message-id');
+              if (!mid) return;
+              // Si l'ID est numérique, comparer numériquement; sinon, fallback
+              const a = Number(mid);
+              const b = Number(last_read_message_id);
+              const reached = Number.isFinite(a) && Number.isFinite(b) ? a <= b : true;
+              if (reached) {
+                const status = el.querySelector('.message-status');
+                if (status) status.textContent = '✓✓';
+              }
+            });
+          } catch (e) {
+            console.warn('Update read UI failed:', e);
+          }
+        });
       }
       
       function handleRealtimeMessage(message) {

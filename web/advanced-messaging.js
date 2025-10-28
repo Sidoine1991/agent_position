@@ -642,6 +642,16 @@ class AdvancedMessaging {
     const messageElement = this.createMessageElement(message);
     messagesContainer.appendChild(messageElement);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+    // Si on reçoit un message dans la conversation ouverte, envoyer un read receipt
+    const isIncoming = message.sender_id !== this.currentUser?.id;
+    if (isIncoming && this.currentConversationId && window.realtimeMessaging) {
+      try {
+        window.realtimeMessaging.sendReadReceipt(this.currentConversationId, message.id);
+      } catch (e) {
+        console.warn('Impossible d\'envoyer le read receipt:', e);
+      }
+    }
   }
 
   updateMessageStatus(messageId, status) {
@@ -662,6 +672,22 @@ class AdvancedMessaging {
       case 'read': return '✓✓';
       case 'failed': return '❌';
       default: return '';
+    }
+  }
+
+  // Marquer la conversation comme lue quand elle est ouverte
+  markConversationAsRead(contactId) {
+    // Marquer la conversation comme lue
+    try {
+      const messagesContainer = document.getElementById('messages-container');
+      if (!messagesContainer) return;
+      const lastMessage = messagesContainer.querySelector('[data-message-id]:last-child');
+      if (lastMessage && this.currentConversationId && window.realtimeMessaging) {
+        const lastId = lastMessage.getAttribute('data-message-id');
+        window.realtimeMessaging.sendReadReceipt(this.currentConversationId, lastId);
+      }
+    } catch (e) {
+      console.warn('markConversationAsRead failed:', e);
     }
   }
 

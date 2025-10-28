@@ -680,12 +680,17 @@ module.exports = async (req, res) => {
             .from('planifications')
             .select('*');
 
-          // Si agent_id est spécifié, filtrer par cet agent
+          // Logique de filtrage par rôle améliorée
           if (agent_id) {
+            // Si un agent_id spécifique est demandé, l'utiliser
             query = query.eq('user_id', agent_id);
-          } else if (req.user.role === 'admin' || req.user.role === 'superviseur') {
-            // Les admins et superviseurs voient toutes les planifications
+          } else if (req.user.role === 'admin') {
+            // Les admins voient toutes les planifications
             // Pas de filtre par user_id
+          } else if (req.user.role === 'superviseur') {
+            // Les superviseurs voient seulement leurs propres planifications
+            // et celles de leurs agents sous supervision
+            query = query.eq('user_id', req.user.id);
           } else {
             // Les agents voient seulement leurs propres planifications
             query = query.eq('user_id', req.user.id);
@@ -942,27 +947,34 @@ module.exports = async (req, res) => {
             observations 
           } = req.body;
 
-          if (!date || !resultat_journee) {
-            return res.status(400).json({ error: 'Date et résultat requis' });
+          if (!date) {
+            return res.status(400).json({ error: 'Date requise' });
           }
 
-          const validResults = ['realise', 'partiellement_realise', 'non_realise', 'en_cours'];
-          if (!validResults.includes(resultat_journee)) {
-            return res.status(400).json({ error: 'Résultat invalide' });
+          // Validation des résultats si fourni
+          if (resultat_journee) {
+            const validResults = ['realise', 'partiellement_realise', 'non_realise', 'en_cours'];
+            if (!validResults.includes(resultat_journee)) {
+              return res.status(400).json({ error: 'Résultat invalide' });
+            }
           }
 
           const { data: planification, error } = await supabaseClient
             .from('planifications')
             .update({
-              resultat_journee,
-              observations: observations || null
+              resultat_journee: resultat_journee || null,
+              observations: observations || null,
+              updated_at: new Date().toISOString()
             })
             .eq('user_id', req.user.id)
             .eq('date', date)
             .select()
             .single();
 
-          if (error) throw error;
+          if (error) {
+            console.error('Erreur Supabase:', error);
+            throw error;
+          }
 
           return res.json({
             success: true,

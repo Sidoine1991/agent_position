@@ -190,6 +190,8 @@ async function protectPage() {
 document.addEventListener('DOMContentLoaded', async () => {
   await protectPage();
   await renderNavbar();
+  // Initialiser l'affichage global des messages (bulle) sur toutes les pages
+  initGlobalMessagingUI();
 });
 
 async function renderNavbar() {
@@ -317,5 +319,36 @@ function logout() {
   localStorage.removeItem('jwt');
   localStorage.removeItem('userProfile');
   window.location.href = '/index.html';
+}
+
+// Injection légère des scripts temps réel + bulle si non présents
+function initGlobalMessagingUI() {
+  try {
+    const ensureScript = (src) => {
+      if (![...document.scripts].some(s => (s.getAttribute('src') || '').includes(src))) {
+        const tag = document.createElement('script');
+        tag.src = src;
+        document.head.appendChild(tag);
+      }
+    };
+
+    // Charger les composants nécessaires
+    ensureScript('/components/realtime-messaging.js');
+    ensureScript('/components/notification-bubble.js');
+
+    // Si déjà chargés, rien à faire; sinon, attendre l'init et tester
+    const readyCheck = () => {
+      const hasRealtime = typeof window.realtimeMessaging !== 'undefined';
+      const hasBubble = typeof window.notificationBubble !== 'undefined';
+      if (!hasRealtime || !hasBubble) {
+        setTimeout(readyCheck, 300);
+        return;
+      }
+      // Rien d'autre: la bulle écoute l'événement 'newMessage' et s'auto-cache sur messages.html
+    };
+    readyCheck();
+  } catch (e) {
+    console.warn('Init global messaging UI failed:', e);
+  }
 }
 
