@@ -159,7 +159,7 @@ async function protectPage() {
       if (userRole === ROLES.AGENT) {
         window.location.href = '/agent-dashboard.html';
       } else if (userRole === ROLES.SUPERVISEUR) {
-        window.location.href = '/dashboard.html';
+        window.location.href = '/index.html';
       } else if (userRole === ROLES.ADMIN || userRole === ROLES.SUPERADMIN) {
         window.location.href = '/admin.html';
       } else {
