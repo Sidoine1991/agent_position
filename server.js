@@ -2742,7 +2742,15 @@ app.post('/api/messages', authenticateToken, async (req, res) => {
 
     // Diffuser en temps réel aux clients WebSocket
     try {
-      broadcastRealtime({ type: 'message', payload: message });
+      broadcastRealtime({ type: 'message', payload: {
+        id: message.id,
+        conversation_id: message.conversation_id,
+        content: message.content,
+        message_type: message.message_type,
+        sender_id: message.sender_id,
+        sender_user_id: message.sender_user_id,
+        created_at: message.created_at
+      }});
     } catch (e) {
       console.warn('Broadcast message failed:', e?.message);
     }
@@ -5588,9 +5596,16 @@ function broadcastRealtime(event) {
 wss.on('connection', ws => {
   console.log('Client connecté via WebSocket');
 
-  ws.on('message', message => {
-    console.log(`Received message via WebSocket: ${message}`);
-    // Handle incoming WebSocket messages (e.g., broadcast to other clients)
+  ws.on('message', async (raw) => {
+    try {
+      const msg = JSON.parse(String(raw || '{}'));
+      if (msg && msg.type === 'message' && msg.payload) {
+        // Optionnel: prise en charge d'envoi via WS (fallback REST existe déjà)
+        broadcastRealtime({ type: 'message', payload: msg.payload });
+      } else if (msg && msg.type === 'ping') {
+        try { ws.send(JSON.stringify({ type: 'heartbeat', timestamp: Date.now() })); } catch {}
+      }
+    } catch {}
   });
 
   ws.on('close', () => {
