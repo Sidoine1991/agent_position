@@ -354,9 +354,14 @@ app.get('/api/attendance/day-status', async (req, res) => {
     }
 
     // 4) Marquer en rouge les jours planifiés sans présence après échéance
+    //    Exception: ne pas marquer les samedis/dimanches (jours de repos)
     for (const p of plans) {
       const k = String(p.date);
       if (!result[k] && k < todayKey) {
+        const d = new Date(k);
+        const dayOfWeek = d.getDay(); // 0 = dimanche, 6 = samedi
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        if (isWeekend) continue;
         result[k] = { status: 'absent', color: 'red', tooltip: 'Planifié, non pointé' };
       }
     }
