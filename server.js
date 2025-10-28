@@ -1214,7 +1214,7 @@ app.post('/api/register', async (req, res) => {
       email, 
       password, 
       name, 
-        role = 'agent',
+      role = 'agent',
       phone,
       departement,
       commune,
@@ -3319,33 +3319,33 @@ app.get('/api/admin/agents', async (req, res) => {
     const isPrivileged = role === 'admin' || role === 'superviseur' || role === 'supervisor';
 
     if (isPrivileged) {
-      const { data: agents, error } = await supabaseClient
-        .from('users')
+    const { data: agents, error } = await supabaseClient
+      .from('users')
         .select('*, auth_uuid')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
+      .order('created_at', { ascending: false });
+    if (error) throw error;
 
-      const enrichedAgents = (agents || []).map(agent => ({
-        ...agent,
+    const enrichedAgents = (agents || []).map(agent => ({
+      ...agent,
         auth_uuid: agent.auth_uuid || agent.auth_uuid,
-        status: agent.status || 'active',
-        project_name: agent.project_name || agent.project || '',
-        departement: agent.departement || '',
-        commune: agent.commune || '',
-        arrondissement: agent.arrondissement || '',
-        village: agent.village || '',
-        phone: agent.phone || '',
-        reference_lat: agent.reference_lat || null,
-        reference_lon: agent.reference_lon || null,
-        tolerance_radius_meters: agent.tolerance_radius_meters || null,
-        gps_accuracy: agent.gps_accuracy || 'medium',
-        expected_days_per_month: agent.expected_days_per_month || null,
-        expected_hours_per_month: agent.expected_hours_per_month || null,
-        work_schedule: agent.work_schedule || '',
-        contract_type: agent.contract_type || '',
-        observations: agent.observations || '',
-        photo_path: agent.photo_path || null
-      }));
+      status: agent.status || 'active',
+      project_name: agent.project_name || agent.project || '',
+      departement: agent.departement || '',
+      commune: agent.commune || '',
+      arrondissement: agent.arrondissement || '',
+      village: agent.village || '',
+      phone: agent.phone || '',
+      reference_lat: agent.reference_lat || null,
+      reference_lon: agent.reference_lon || null,
+      tolerance_radius_meters: agent.tolerance_radius_meters || null,
+      gps_accuracy: agent.gps_accuracy || 'medium',
+      expected_days_per_month: agent.expected_days_per_month || null,
+      expected_hours_per_month: agent.expected_hours_per_month || null,
+      work_schedule: agent.work_schedule || '',
+      contract_type: agent.contract_type || '',
+      observations: agent.observations || '',
+      photo_path: agent.photo_path || null
+    }));
       return res.json({ success: true, data: enrichedAgents });
     }
 

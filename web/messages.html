@@ -818,47 +818,7 @@
             <!-- Les contacts seront chargés ici -->
           </div>
 
-          <!-- Forum de discussion -->
-          <div class="forum-section" id="forum-section">
-            <!-- En-tête avec bouton de rafraîchissement -->
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5 class="mb-0">Forums de discussion</h5>
-              <button id="refresh-forums-btn" class="btn btn-sm btn-outline-secondary" title="Rafraîchir">
-                <i class="bi bi-arrow-clockwise"></i>
-              </button>
-            </div>
-            
-            <!-- Indicateur de chargement -->
-            <div id="forum-loading" class="loading-overlay" style="display: none;">
-              <div class="loading-spinner"></div>
-              <div class="loading-text">Chargement des forums...</div>
-            </div>
-            
-            <!-- Conteneur des catégories -->
-            <div class="forum-categories" id="forum-categories">
-              <div class="text-center py-4">
-                <div class="spinner-border text-primary" role="status">
-                  <span class="visually-hidden">Chargement des forums...</span>
-                </div>
-                <p class="mt-2 text-muted">Chargement des forums en cours...</p>
-              </div>
-            </div>
-            <div id="forum-thread" style="display:none">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <button class="btn btn-sm btn-outline-secondary" id="forum-back-btn"><i class="bi bi-arrow-left"></i> Retour</button>
-                <button class="btn btn-sm btn-outline-secondary" id="forum-refresh-btn" title="Rafraîchir"><i class="bi bi-arrow-clockwise"></i></button>
-              </div>
-              <div class="messages-container" id="forum-messages"></div>
-              <div class="message-input-area">
-                <div class="input-container">
-                  <textarea class="message-input" id="forum-input" placeholder="Écrire un message au forum..." rows="1"></textarea>
-                  <div class="input-actions">
-                    <button class="input-btn primary" id="forum-send-btn" title="Envoyer"><i class="bi bi-send"></i></button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          
         </div>
 
         <!-- Zone de chat principale -->
@@ -903,6 +863,14 @@
 
           <!-- Zone de saisie -->
           <div class="message-input-area" id="message-input-area" style="display: none;">
+        <!-- Aperçu de réponse -->
+        <div id="reply-preview" class="d-flex align-items-start gap-2 mb-2" style="display:none; background:#f1f3f5; border:1px solid #e9ecef; border-radius:10px; padding:8px 10px;">
+          <div style="flex:1; min-width:0;">
+            <div id="reply-preview-author" style="font-size:12px; font-weight:600; color:#495057;"></div>
+            <div id="reply-preview-text" style="font-size:12px; color:#6c757d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+          </div>
+          <button type="button" id="reply-preview-cancel" class="btn btn-sm btn-outline-secondary" title="Annuler" style="padding:2px 6px;">✕</button>
+        </div>
             <div class="input-container">
               <textarea 
                 class="message-input" 
@@ -931,40 +899,7 @@
           </div>
         </div>
 
-        <!-- Forum dans l'espace principal (chat area) -->
-        <div id="forum-chat" style="display:none;flex:1;display:flex;flex-direction:column;">
-          <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
-            <div class="d-flex align-items-center gap-2">
-              <i class="bi bi-chat-square-dots"></i>
-              <strong>Forum</strong>
-            </div>
-            <div class="d-flex gap-2">
-              <button class="btn btn-sm btn-outline-secondary" id="forum-back-btn-main" title="Retour" style="display:none"><i class="bi bi-arrow-left"></i></button>
-              <button class="btn btn-sm btn-outline-secondary" id="forum-refresh-btn-main" title="Rafraîchir"><i class="bi bi-arrow-clockwise"></i></button>
-            </div>
-          </div>
-          <!-- Catégories -->
-          <div class="p-3" id="forum-categories-main">
-            <div class="text-center py-4">
-              <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Chargement des forums...</span>
-              </div>
-              <p class="mt-2 text-muted">Chargement des forums en cours...</p>
-            </div>
-          </div>
-          <!-- Thread -->
-          <div id="forum-thread-main" style="display:none;flex:1;display:flex;flex-direction:column;">
-            <div class="messages-container" id="forum-messages-main" style="flex:1;"></div>
-            <div class="message-input-area">
-              <div class="input-container">
-                <textarea class="message-input" id="forum-input-main" placeholder="Écrire un message au forum..." rows="1"></textarea>
-                <div class="input-actions">
-                  <button class="input-btn primary" id="forum-send-btn-main" title="Envoyer"><i class="bi bi-send"></i></button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        
       </div>
     </main>
 
@@ -1505,38 +1440,101 @@
         // Tabs Contacts/Forum
         const tabContacts = document.getElementById('tab-contacts');
         const tabForum = document.getElementById('tab-forum');
-        const forumSection = document.getElementById('forum-section'); // sidebar forum (restera caché en mode forum principal)
         const contactsList = document.getElementById('contacts-list');
         const chatArea = document.getElementById('chat-area');
-        const forumChat = document.getElementById('forum-chat');
         const msgInputArea = document.getElementById('message-input-area');
         const chatUserName = document.getElementById('chat-user-name');
         const noConversation = document.getElementById('no-conversation');
+        const chatActions = document.querySelector('.chat-actions');
+
+        // Forum quick choices (2 max)
+        let forumChoicesContainer = null;
+        function showForumChoices(show) {
+          if (!chatActions) return;
+          if (!forumChoicesContainer) {
+            forumChoicesContainer = document.createElement('div');
+            forumChoicesContainer.id = 'forum-choices';
+            forumChoicesContainer.style.display = 'none';
+            forumChoicesContainer.style.gap = '6px';
+            forumChoicesContainer.style.alignItems = 'center';
+            forumChoicesContainer.style.marginRight = '8px';
+
+            const btn1 = document.createElement('button');
+            btn1.className = 'btn btn-sm btn-outline-primary';
+            btn1.textContent = 'Général';
+            btn1.title = 'Discussion Générale';
+            btn1.addEventListener('click', () => {
+              const cat = { id: 'general', name: 'Discussion Générale', icon: '💬' };
+              if (window.advancedMessaging) {
+                window.advancedMessaging.selectForumCategory(cat);
+                if (msgInputArea) msgInputArea.style.display = 'block';
+              }
+            });
+
+            const btn2 = document.createElement('button');
+            btn2.className = 'btn btn-sm btn-outline-secondary';
+            btn2.textContent = 'Support';
+            btn2.title = 'Support Technique';
+            btn2.addEventListener('click', () => {
+              const cat = { id: 'technical', name: 'Support Technique', icon: '🔧' };
+              if (window.advancedMessaging) {
+                window.advancedMessaging.selectForumCategory(cat);
+                if (msgInputArea) msgInputArea.style.display = 'block';
+              }
+            });
+
+            forumChoicesContainer.appendChild(btn1);
+            forumChoicesContainer.appendChild(btn2);
+            chatActions.prepend(forumChoicesContainer);
+          }
+          forumChoicesContainer.style.display = show ? 'flex' : 'none';
+        }
         function activateTab(tab) {
           if (tab === 'forum') {
             tabContacts?.classList.remove('active');
             tabForum?.classList.add('active');
-            // Afficher le forum dans l'espace principal
-            if (forumSection) forumSection.style.display = 'none';
+            // Afficher le forum dans l'espace principal (thread seulement)
             contactsList.style.display = 'none';
             chatArea.style.display = 'flex';
-            forumChat.style.display = 'flex';
-            msgInputArea.style.display = 'none';
+            msgInputArea.style.display = 'block';
             if (chatUserName) chatUserName.textContent = 'Forum';
             if (noConversation) noConversation.style.display = 'none';
-            loadForumCategoriesMain();
+            // Afficher un flux forum minimal si nécessaire (géré ailleurs)
+            showForumChoices(true);
+            try {
+              localStorage.setItem('messagesMode', 'forum');
+              const url = new URL(window.location.href);
+              url.searchParams.set('mode', 'forum');
+              history.replaceState({}, '', url);
+            } catch (e) { /* noop */ }
           } else {
             tabForum?.classList.remove('active');
             tabContacts?.classList.add('active');
-            if (forumSection) forumSection.style.display = 'none';
             contactsList.style.display = 'block';
-            forumChat.style.display = 'none';
             msgInputArea.style.display = 'block';
             if (noConversation) noConversation.style.display = '';
+            showForumChoices(false);
+            try {
+              localStorage.setItem('messagesMode', 'contacts');
+              const url = new URL(window.location.href);
+              url.searchParams.set('mode', 'contacts');
+              history.replaceState({}, '', url);
+            } catch (e) { /* noop */ }
           }
         }
         tabContacts?.addEventListener('click', ()=>activateTab('contacts'));
         tabForum?.addEventListener('click', ()=>activateTab('forum'));
+
+        // Initial mode from URL or localStorage
+        try {
+          const url = new URL(window.location.href);
+          const urlMode = url.searchParams.get('mode');
+          const savedMode = localStorage.getItem('messagesMode');
+          const initialMode = urlMode === 'forum' || urlMode === 'contacts' ? urlMode : (savedMode || 'contacts');
+          activateTab(initialMode);
+        } catch (e) {
+          activateTab('contacts');
+        }
 
         // Forum UI events (main chat area)
         const forumCategoriesMain = document.getElementById('forum-categories-main');
@@ -1867,7 +1865,7 @@
         
         // Charger les données initiales
         loadMessages();
-        loadForumCategories();
+        // Le forum s'affiche dans l'espace principal; garder la section latérale masquée
         
         // Initialiser la messagerie moderne
         initializeModernMessaging();

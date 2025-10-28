@@ -14,6 +14,7 @@ class AdvancedMessaging {
     this.forumCategories = [];
     this.isConnected = false;
     this.encryptionKey = null;
+    this.replyToMessage = null; // message being replied to
     
     this.init();
   }
@@ -551,16 +552,36 @@ class AdvancedMessaging {
       senderName = `<div class="message-sender-name">${message.sender.name}</div>`;
     }
 
+    const quoteHtml = message.reply_to && message.reply_to.content ? `
+      <div class="reply-quote" style="border-left:3px solid rgba(102,126,234,.6); padding-left:8px; margin-bottom:6px; opacity:.9;">
+        <div style="font-size:11px; font-weight:600; color:#495057;">${(message.reply_to.author || '')}</div>
+        <div style="font-size:12px; color:#6c757d;">${message.reply_to.content}</div>
+      </div>
+    ` : '';
+
     div.innerHTML = `
       <div class="message-content">
         <div class="message-bubble">
           ${senderName}
+          ${quoteHtml}
           <div>${content}</div>
         </div>
         <div class="message-time">${time}</div>
         ${isSent ? `<div class="message-status">${this.getMessageStatus(message.status)}</div>` : ''}
       </div>
     `;
+
+    // Long-press / context menu to reply
+    let pressTimer;
+    const startPress = () => {
+      pressTimer = setTimeout(() => {
+        this.startReplyToMessage(message);
+      }, 420);
+    };
+    const cancelPress = () => clearTimeout(pressTimer);
+    div.addEventListener('mousedown', startPress);
+    div.addEventListener('touchstart', startPress);
+    ['mouseup','mouseleave','touchend','touchcancel'].forEach(evt => div.addEventListener(evt, cancelPress));
 
     return div;
   }
@@ -582,12 +603,16 @@ class AdvancedMessaging {
     };
 
     if (this.currentForumCategory) {
-      payload.message_type = 'forum'; // Explicitly mark as forum message
-      payload.forum_category_id = this.currentForumCategory.id; // Add forum category ID
+      payload.message_type = 'forum';
+      payload.forum_category_id = this.currentForumCategory.id;
+    }
+
+    if (this.replyToMessage && this.replyToMessage.id) {
+      payload.reply_to_message_id = this.replyToMessage.id;
     }
 
     const tempId = Date.now();
-    const message = { ...payload, id: tempId, created_at: new Date().toISOString() };
+    const message = { ...payload, id: tempId, created_at: new Date().toISOString(), reply_to: this.buildReplyStub(this.replyToMessage) };
 
     // Afficher le message immédiatement
     this.addMessageToChat(message);
@@ -604,13 +629,11 @@ class AdvancedMessaging {
       });
 
       if (response.ok) {
-        const savedMessage = await response.json();
-        this.updateMessageStatus(tempId, 'sent');
-        // Reload messages after sending to ensure consistency
-        if (this.currentContact) {
-          this.loadConversation(this.currentConversationId);
-        } else if (this.currentForumCategory) {
-          this.loadForumMessages(this.currentForumCategory.id, this.currentConversationId);
+        try {
+          const savedMessage = await response.json();
+          this.updateMessageStatus(tempId, 'sent');
+        } catch (_) {
+          this.updateMessageStatus(tempId, 'sent');
         }
       } else {
         this.updateMessageStatus(tempId, 'failed');
@@ -619,6 +642,9 @@ class AdvancedMessaging {
       console.error('Erreur envoi message:', error);
       this.updateMessageStatus(tempId, 'failed');
     }
+
+    // Clear reply state after send
+    this.clearReply();
   }
 
   async encryptMessage(message) {
@@ -652,6 +678,40 @@ class AdvancedMessaging {
         console.warn('Impossible d\'envoyer le read receipt:', e);
       }
     }
+  }
+
+  startReplyToMessage(message) {
+    try {
+      this.replyToMessage = message;
+      const preview = document.getElementById('reply-preview');
+      const author = document.getElementById('reply-preview-author');
+      const text = document.getElementById('reply-preview-text');
+      if (preview && author && text) {
+        const isMine = message.sender_id === this.currentUser?.id;
+        author.textContent = isMine ? 'Vous' : (message.sender?.name || 'Contact');
+        const raw = (message.content || '');
+        text.textContent = raw.length > 120 ? raw.slice(0, 120) + '…' : raw;
+        preview.style.display = 'flex';
+      }
+      const cancel = document.getElementById('reply-preview-cancel');
+      cancel?.addEventListener('click', () => this.clearReply(), { once: true });
+    } catch (e) { /* noop */ }
+  }
+
+  clearReply() {
+    this.replyToMessage = null;
+    const preview = document.getElementById('reply-preview');
+    if (preview) preview.style.display = 'none';
+  }
+
+  buildReplyStub(message) {
+    if (!message) return null;
+    const author = (message.sender && message.sender.name) ? message.sender.name : (message.sender_id === this.currentUser?.id ? 'Vous' : 'Contact');
+    return {
+      id: message.id,
+      author,
+      content: typeof message.content === 'string' ? message.content : ''
+    };
   }
 
   updateMessageStatus(messageId, status) {
@@ -780,12 +840,7 @@ class AdvancedMessaging {
       });
     }
 
-    // Onglets
-    document.querySelectorAll('.tab').forEach(tab => {
-      tab.addEventListener('click', (e) => {
-        this.switchTab(e.target.dataset.tab);
-      });
-    });
+    // Onglets: la logique de bascule est gérée par messages.html pour un espace unique
 
     // Catégories de forum
     document.querySelectorAll('.forum-category').forEach(category => {

@@ -166,10 +166,11 @@ async function protectPage() {
       if (userRole === ROLES.AGENT) {
         redirectUrl = '/agent-dashboard.html';
       } else if (userRole === ROLES.SUPERVISEUR || userRole === 'supervisor') {
-        // Les superviseurs peuvent accéder au dashboard, mais par défaut rediriger vers index
-        redirectUrl = '/index.html';
-      } else if (userRole === ROLES.ADMIN || userRole === ROLES.SUPERADMIN) {
-        // Uniquement pour les vraies admins et superadmins
+        redirectUrl = '/dashboard.html';
+      } else if (userRole === ROLES.ADMIN) {
+        // Les admins non-superadmin ne doivent pas être redirigés vers /admin.html
+        redirectUrl = '/dashboard.html';
+      } else if (userRole === ROLES.SUPERADMIN) {
         redirectUrl = '/admin.html';
       } else {
         redirectUrl = '/index.html';
