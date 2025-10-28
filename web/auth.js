@@ -143,6 +143,8 @@ async function protectPage() {
   try {
     const userRole = await getUserRole();
     
+    console.log('🔍 Debug auth - Rôle détecté:', userRole, 'Page actuelle:', currentPage);
+    
     // Si l'utilisateur n'est pas connecté, le rediriger vers la page de connexion
     if (!userRole) {
       // Sauvegarder l'URL actuelle pour redirection après connexion
@@ -154,17 +156,27 @@ async function protectPage() {
     }
 
     // Vérifier si l'utilisateur a le bon rôle
-    if (!checkAccess(currentPage, userRole)) {
+    const hasAccess = checkAccess(currentPage, userRole);
+    console.log('🔍 Debug auth - Accès à la page:', hasAccess);
+    
+    if (!hasAccess) {
       // Si l'utilisateur n'a pas accès, on le redirige vers une page appropriée
+      let redirectUrl = '/index.html';
+      
       if (userRole === ROLES.AGENT) {
-        window.location.href = '/agent-dashboard.html';
-      } else if (userRole === ROLES.SUPERVISEUR) {
-        window.location.href = '/index.html';
+        redirectUrl = '/agent-dashboard.html';
+      } else if (userRole === ROLES.SUPERVISEUR || userRole === 'supervisor') {
+        // Les superviseurs peuvent accéder au dashboard, mais par défaut rediriger vers index
+        redirectUrl = '/index.html';
       } else if (userRole === ROLES.ADMIN || userRole === ROLES.SUPERADMIN) {
-        window.location.href = '/admin.html';
+        // Uniquement pour les vraies admins et superadmins
+        redirectUrl = '/admin.html';
       } else {
-        window.location.href = '/index.html';
+        redirectUrl = '/index.html';
       }
+      
+      console.log('🔍 Debug auth - Redirection vers:', redirectUrl, 'pour rôle:', userRole);
+      window.location.href = redirectUrl;
     }
   } catch (error) {
     console.error('Erreur lors de la protection de la page:', error);
