@@ -930,6 +930,41 @@
             </div>
           </div>
         </div>
+
+        <!-- Forum dans l'espace principal (chat area) -->
+        <div id="forum-chat" style="display:none;flex:1;display:flex;flex-direction:column;">
+          <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-chat-square-dots"></i>
+              <strong>Forum</strong>
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-outline-secondary" id="forum-back-btn-main" title="Retour" style="display:none"><i class="bi bi-arrow-left"></i></button>
+              <button class="btn btn-sm btn-outline-secondary" id="forum-refresh-btn-main" title="Rafraîchir"><i class="bi bi-arrow-clockwise"></i></button>
+            </div>
+          </div>
+          <!-- Catégories -->
+          <div class="p-3" id="forum-categories-main">
+            <div class="text-center py-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Chargement des forums...</span>
+              </div>
+              <p class="mt-2 text-muted">Chargement des forums en cours...</p>
+            </div>
+          </div>
+          <!-- Thread -->
+          <div id="forum-thread-main" style="display:none;flex:1;display:flex;flex-direction:column;">
+            <div class="messages-container" id="forum-messages-main" style="flex:1;"></div>
+            <div class="message-input-area">
+              <div class="input-container">
+                <textarea class="message-input" id="forum-input-main" placeholder="Écrire un message au forum..." rows="1"></textarea>
+                <div class="input-actions">
+                  <button class="input-btn primary" id="forum-send-btn-main" title="Envoyer"><i class="bi bi-send"></i></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
 
@@ -1470,81 +1505,126 @@
         // Tabs Contacts/Forum
         const tabContacts = document.getElementById('tab-contacts');
         const tabForum = document.getElementById('tab-forum');
-        const forumSection = document.getElementById('forum-section');
+        const forumSection = document.getElementById('forum-section'); // sidebar forum (restera caché en mode forum principal)
         const contactsList = document.getElementById('contacts-list');
+        const chatArea = document.getElementById('chat-area');
+        const forumChat = document.getElementById('forum-chat');
+        const msgInputArea = document.getElementById('message-input-area');
+        const chatUserName = document.getElementById('chat-user-name');
+        const noConversation = document.getElementById('no-conversation');
         function activateTab(tab) {
           if (tab === 'forum') {
             tabContacts?.classList.remove('active');
             tabForum?.classList.add('active');
-            forumSection.style.display = 'block';
+            // Afficher le forum dans l'espace principal
+            if (forumSection) forumSection.style.display = 'none';
             contactsList.style.display = 'none';
-            loadForumCategories();
+            chatArea.style.display = 'flex';
+            forumChat.style.display = 'flex';
+            msgInputArea.style.display = 'none';
+            if (chatUserName) chatUserName.textContent = 'Forum';
+            if (noConversation) noConversation.style.display = 'none';
+            loadForumCategoriesMain();
           } else {
             tabForum?.classList.remove('active');
             tabContacts?.classList.add('active');
-            forumSection.style.display = 'none';
+            if (forumSection) forumSection.style.display = 'none';
             contactsList.style.display = 'block';
+            forumChat.style.display = 'none';
+            msgInputArea.style.display = 'block';
+            if (noConversation) noConversation.style.display = '';
           }
         }
         tabContacts?.addEventListener('click', ()=>activateTab('contacts'));
         tabForum?.addEventListener('click', ()=>activateTab('forum'));
 
-        // Forum UI events
-        const forumThread = document.getElementById('forum-thread');
-        const forumCategoriesEl = document.getElementById('forum-categories');
-        const forumBackBtn = document.getElementById('forum-back-btn');
-        const forumRefreshBtn = document.getElementById('forum-refresh-btn');
-        const forumMessages = document.getElementById('forum-messages');
-        const forumInput = document.getElementById('forum-input');
-        const forumSendBtn = document.getElementById('forum-send-btn');
-        let currentForumCategoryId = null;
+        // Forum UI events (main chat area)
+        const forumCategoriesMain = document.getElementById('forum-categories-main');
+        const forumThreadMain = document.getElementById('forum-thread-main');
+        const forumMessagesMain = document.getElementById('forum-messages-main');
+        const forumBackBtnMain = document.getElementById('forum-back-btn-main');
+        const forumRefreshBtnMain = document.getElementById('forum-refresh-btn-main');
+        const forumInputMain = document.getElementById('forum-input-main');
+        const forumSendBtnMain = document.getElementById('forum-send-btn-main');
+        let currentForumCategoryIdMain = null;
 
-        window.openForumCategory = async function(categoryId) {
-          currentForumCategoryId = categoryId;
-          forumCategoriesEl.style.display = 'none';
-          forumThread.style.display = 'block';
-          await loadForumMessages();
+        async function loadForumCategoriesMain(force=false) {
+          try {
+            const resp = await fetch('/api/forum/categories', { headers: authHeaders(), cache: force ? 'reload' : 'default' });
+            const data = await resp.json();
+            displayForumCategoriesMain(data?.categories || []);
+            forumBackBtnMain.style.display = 'none';
+            forumThreadMain.style.display = 'none';
+            forumCategoriesMain.style.display = 'block';
+          } catch (e) {
+            forumCategoriesMain.innerHTML = `<div class="alert alert-warning">Impossible de charger les catégories du forum</div>`;
+          }
+        }
+
+        function displayForumCategoriesMain(categories) {
+          if (!categories || !categories.length) {
+            forumCategoriesMain.innerHTML = `<div class="alert alert-info">Aucune catégorie disponible</div>`;
+            return;
+          }
+          forumCategoriesMain.innerHTML = categories.map(c => `
+            <div class="forum-category" data-category="${c.id}" onclick="openForumCategoryMain('${c.id}')">
+              <div class="forum-category-header">
+                <h6 class="forum-category-title">${c.icon || '💬'} ${c.name}</h6>
+                <span class="forum-category-count">${c.thread_count || 0}</span>
+              </div>
+              <p class="forum-category-description">${c.description || ''}</p>
+            </div>
+          `).join('');
+        }
+
+        window.openForumCategoryMain = async function(categoryId) {
+          currentForumCategoryIdMain = categoryId;
+          forumCategoriesMain.style.display = 'none';
+          forumThreadMain.style.display = 'flex';
+          forumBackBtnMain.style.display = '';
+          await loadForumMessagesMain();
         };
 
-        forumBackBtn?.addEventListener('click', ()=>{
-          forumThread.style.display = 'none';
-          forumCategoriesEl.style.display = 'block';
-          currentForumCategoryId = null;
+        forumBackBtnMain?.addEventListener('click', ()=>{
+          forumThreadMain.style.display = 'none';
+          forumCategoriesMain.style.display = 'block';
+          currentForumCategoryIdMain = null;
+          forumBackBtnMain.style.display = 'none';
         });
-        forumRefreshBtn?.addEventListener('click', ()=> loadForumMessages(true));
-        forumSendBtn?.addEventListener('click', async ()=>{
-          const text = (forumInput?.value || '').trim();
-          if (!text || !currentForumCategoryId) return;
+        forumRefreshBtnMain?.addEventListener('click', ()=> loadForumMessagesMain(true));
+        forumSendBtnMain?.addEventListener('click', async ()=>{
+          const text = (forumInputMain?.value || '').trim();
+          if (!text || !currentForumCategoryIdMain) return;
           try {
             const resp = await fetch('/api/forum/messages', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', ...authHeaders() },
-              body: JSON.stringify({ category_id: currentForumCategoryId, content: text })
+              body: JSON.stringify({ category_id: currentForumCategoryIdMain, content: text })
             });
             if (resp.ok) {
-              forumInput.value = '';
-              await loadForumMessages(true);
+              forumInputMain.value = '';
+              await loadForumMessagesMain(true);
             }
           } catch(e) { console.warn('send forum msg failed', e); }
         });
 
-        async function loadForumMessages(force=false) {
-          if (!currentForumCategoryId) return;
+        async function loadForumMessagesMain(force=false) {
+          if (!currentForumCategoryIdMain) return;
           try {
-            const resp = await fetch(`/api/forum/messages?category_id=${encodeURIComponent(currentForumCategoryId)}`, { headers: authHeaders(), cache: force ? 'reload' : 'default' });
+            const resp = await fetch(`/api/forum/messages?category_id=${encodeURIComponent(currentForumCategoryIdMain)}`, { headers: authHeaders(), cache: force ? 'reload' : 'default' });
             const data = await resp.json();
             const msgs = data?.messages || [];
-            forumMessages.innerHTML = '';
+            forumMessagesMain.innerHTML = '';
             msgs.forEach(m => {
               const div = document.createElement('div');
               const mine = m.sender_user_id === getCurrentUserId();
               div.className = 'message ' + (mine ? 'sent' : 'received');
-              div.innerHTML = `<div class="message-content"><div class="message-text">${(m.content||'')}</div><div class="message-time">${new Date(m.created_at).toLocaleString()}</div></div>`;
-              forumMessages.appendChild(div);
+              div.innerHTML = `<div class=\"message-content\"><div class=\"message-text\">${(m.content||'')}</div><div class=\"message-time\">${new Date(m.created_at).toLocaleString()}</div></div>`;
+              forumMessagesMain.appendChild(div);
             });
-            forumMessages.scrollTop = forumMessages.scrollHeight;
+            forumMessagesMain.scrollTop = forumMessagesMain.scrollHeight;
           } catch (e) {
-            console.warn('loadForumMessages failed', e);
+            console.warn('loadForumMessagesMain failed', e);
           }
         }
       }
@@ -1591,243 +1671,6 @@
             statusElement.innerHTML = '<i class="bi bi-wifi-off"></i><span>Déconnecté</span>';
           }
         }
-      }
-
-      // Fonction pour charger les messages depuis l'API
-      async function loadMessages() {
-        try {
-          const response = await fetch('/api/messages', {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('jwt')}`
-            }
-          });
-          
-          if (!response.ok) {
-            throw new Error('Erreur lors du chargement des messages');
-          }
-          
-          const data = await response.json();
-          if (data.success) {
-            displayMessages(data.messages);
-          }
-        } catch (error) {
-          console.error('Erreur chargement messages:', error);
-          showNotification('Erreur', 'Impossible de charger les messages');
-        }
-      }
-
-      // Fonction pour envoyer un message
-      async function sendMessage(content, recipientId) {
-        try {
-          const response = await fetch('/api/messages', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('jwt')}`
-            },
-            body: JSON.stringify({
-              recipient_id: recipientId,
-              content: content,
-              message_type: 'text'
-            })
-          });
-          
-          if (!response.ok) {
-            throw new Error('Erreur lors de l\'envoi du message');
-          }
-          
-          const data = await response.json();
-          if (data.success) {
-            // Recharger les messages après envoi
-            await loadMessages();
-            return data.message;
-          }
-        } catch (error) {
-          console.error('Erreur envoi message:', error);
-          showNotification('Erreur', 'Impossible d\'envoyer le message');
-        }
-      }
-
-      // Fonction pour afficher les messages
-      function displayMessages(messages) {
-        const messagesContainer = document.getElementById('messages-container');
-        if (!messagesContainer || !Array.isArray(messages)) return;
-        
-        messagesContainer.innerHTML = '';
-        
-        messages.forEach(message => {
-          try {
-            const messageElement = document.createElement('div');
-            const isCurrentUser = message.sender_id === getCurrentUserId();
-            messageElement.className = 'message ' + (isCurrentUser ? 'sent' : 'received');
-            
-            const messageTime = message.created_at 
-              ? new Date(message.created_at).toLocaleTimeString() 
-              : 'Maintenant';
-              
-            messageElement.innerHTML = [
-              '<div class="message-content">',
-              '  <div class="message-text">' + (message.content || '') + '</div>',
-              '  <div class="message-time">' + messageTime + '</div>',
-              '</div>'
-            ].join('');
-            
-            messagesContainer.appendChild(messageElement);
-          } catch (error) {
-            console.error('Erreur affichage message:', error, message);
-          }
-        });
-        
-        // Scroll vers le bas
-        if (messagesContainer.scrollHeight > 0) {
-          messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
-      }
-
-      // Fonction pour obtenir l'ID de l'utilisateur actuel
-      function getCurrentUserId() {
-        const token = localStorage.getItem('jwt');
-        if (!token) return null;
-        
-        try {
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          return payload.id;
-        } catch (error) {
-          console.error('Erreur décodage token:', error);
-          return null;
-        }
-      }
-
-      // Fonction pour afficher les notifications
-      function showNotification(title, body, icon = '/Media/logo-ccrb.png') {
-        if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification(title, {
-            body: body,
-            icon: icon,
-            tag: 'ccrb-messaging'
-          });
-        }
-      }
-
-      // Fonction pour gérer les nouveaux messages
-      function handleNewMessage(event) {
-        const message = event.detail;
-        if (!message) return;
-        
-        // Vérifier si le message est pour la conversation actuelle
-        const currentChatId = document.querySelector('.chat-area.active')?.dataset.chatId;
-        if (currentChatId && message.chat_id === currentChatId) {
-          // Ajouter le message à la conversation
-          const messagesContainer = document.getElementById('messages-container');
-          if (messagesContainer) {
-            displayMessages([message]);
-          }
-        }
-        
-        // Mettre à jour le badge de notification
-        updateUnreadCount();
-      }
-      
-      // Fonction pour charger les catégories de forum depuis Supabase avec cache
-      async function loadForumCategories(forceRefresh = false) {
-        const now = Date.now();
-        const isCacheValid = forumCategoriesCache && (now - lastFetchTime < CACHE_DURATION);
-        
-        // Utiliser le cache si disponible et pas de forçage du rafraîchissement
-        if (isCacheValid && !forceRefresh) {
-          displayForumCategories(forumCategoriesCache);
-          return;
-        }
-
-        // Afficher l'indicateur de chargement
-        const loadingIndicator = document.getElementById('forum-loading');
-        const forumContainer = document.getElementById('forum-categories');
-        
-        if (loadingIndicator) loadingIndicator.style.display = 'block';
-        if (forumContainer) forumContainer.style.opacity = '0.6';
-
-        try {
-          const response = await fetch('/api/forum/categories', {
-            headers: authHeaders(),
-            cache: forceRefresh ? 'reload' : 'default'
-          });
-          
-          if (!response.ok) {
-            throw new Error('Erreur lors du chargement des catégories');
-          }
-          
-          const data = await response.json();
-          if (data.success && Array.isArray(data.categories)) {
-            // Mettre à jour le cache
-            forumCategoriesCache = data.categories;
-            lastFetchTime = now;
-            
-            // Afficher les catégories
-            displayForumCategories(data.categories);
-          } else {
-            throw new Error('Format de réponse invalide');
-          }
-        } catch (error) {
-          console.error('Erreur lors du chargement des catégories de forum:', error);
-          
-          // Afficher un message d'erreur dans l'interface
-          if (forumContainer) {
-            forumContainer.innerHTML = `
-              <div class="alert alert-warning">
-                <i class="bi bi-exclamation-triangle"></i>
-                Impossible de charger les catégories de forum. 
-                <button class="btn btn-sm btn-outline-warning ms-2" onclick="loadForumCategories(true)">
-                  <i class="bi bi-arrow-clockwise"></i> Réessayer
-                </button>
-              </div>
-            `;
-          }
-          
-          // Si on a des données en cache, on les affiche malgré l'erreur
-          if (forumCategoriesCache) {
-            displayForumCategories(forumCategoriesCache);
-          }
-        } finally {
-          // Masquer l'indicateur de chargement
-          if (loadingIndicator) loadingIndicator.style.display = 'none';
-          if (forumContainer) forumContainer.style.opacity = '1';
-        }
-      }
-      
-      // Fonction pour afficher les catégories de forum
-      function displayForumCategories(categories) {
-        const forumContainer = document.getElementById('forum-categories');
-        if (!forumContainer) return;
-        
-        if (!categories || categories.length === 0) {
-          forumContainer.innerHTML = `
-            <div class="alert alert-info">
-              <i class="bi bi-info-circle"></i>
-              Aucune catégorie de forum disponible pour le moment.
-            </div>
-          `;
-          return;
-        }
-        
-        // Créer les éléments HTML pour chaque catégorie
-        const categoriesHtml = categories.map(category => `
-          <div class="forum-category" data-category="${category.id}" onclick="openForumCategory('${category.id}')">
-            <div class="forum-category-header">
-              <h6 class="forum-category-title">${category.icon || '💬'} ${category.name}</h6>
-              <span class="forum-category-count">${category.thread_count || 0}</span>
-            </div>
-            <p class="forum-category-description">${category.description || ''}</p>
-          </div>
-        `).join('');
-        
-        forumContainer.innerHTML = categoriesHtml;
-      }
-      
-      // Fonction pour ouvrir une catégorie de forum
-      function openForumCategory(categoryId) {
-        // Implémentez la logique pour afficher les discussions de la catégorie sélectionnée
-        console.log('Ouverture de la catégorie:', categoryId);
-        // Vous pouvez ajouter ici le code pour charger les discussions de cette catégorie
       }
 
       // Fonction pour charger les messages depuis l'API
