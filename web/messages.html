@@ -869,6 +869,9 @@
               <button class="chat-action-btn" id="voice-call-btn" title="Appel vocal">
                 <i class="bi bi-telephone"></i>
               </button>
+              <button class="chat-action-btn" id="refresh-chat-btn" title="Rafraîchir la discussion">
+                <i class="bi bi-arrow-clockwise"></i>
+              </button>
               <button class="chat-action-btn" id="more-options-btn" title="Plus d'options">
                 <i class="bi bi-three-dots-vertical"></i>
               </button>
@@ -1374,6 +1377,23 @@
             }
           }
         });
+
+        // Bouton rafraîchir la discussion
+        const refreshChatBtn = document.getElementById('refresh-chat-btn');
+        if (refreshChatBtn) {
+          refreshChatBtn.addEventListener('click', async () => {
+            try {
+              const icon = refreshChatBtn.querySelector('i');
+              if (icon) icon.classList.add('spin');
+              await loadMessages();
+            } finally {
+              setTimeout(() => {
+                const icon = refreshChatBtn.querySelector('i');
+                if (icon) icon.classList.remove('spin');
+              }, 400);
+            }
+          });
+        }
 
         // Gestion des notifications
         if ('Notification' in window && Notification.permission === 'default') {
