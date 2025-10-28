@@ -2767,23 +2767,34 @@ app.get('/api/messages', authenticateToken, async (req, res) => {
     if (!conversation_id) {
       // Compat: retourner les messages récents de l'utilisateur (toutes conversations)
       // Récupérer les conversations où l'utilisateur est participant
-      const { data: parts, error: partsErr } = await supabaseClient
-        .from('conversation_participants')
-        .select('conversation_id')
-        .eq('user_id', userUuid);
-      if (partsErr) return res.status(500).json({ error: 'Erreur chargement conversations' });
-      const convIds = (parts || []).map(p => p.conversation_id);
-      if (convIds.length === 0) return res.json({ success: true, messages: [] });
+      try {
+        const { data: parts, error: partsErr } = await supabaseClient
+          .from('conversation_participants')
+          .select('conversation_id')
+          .eq('user_id', userUuid);
+        if (partsErr) {
+          console.warn('conversation_participants error:', partsErr.message);
+          return res.json({ success: true, messages: [] });
+        }
+        const convIds = (parts || []).map(p => p.conversation_id);
+        if (convIds.length === 0) return res.json({ success: true, messages: [] });
 
-      // Récupérer les derniers messages de ces conversations
-      const { data: msgs, error: msgsErr } = await supabaseClient
-        .from('messages')
-        .select('*')
-        .in('conversation_id', convIds)
-        .order('created_at', { ascending: false })
-        .limit(100);
-      if (msgsErr) return res.status(500).json({ error: 'Erreur chargement messages' });
-      return res.json({ success: true, messages: msgs || [] });
+        // Récupérer les derniers messages de ces conversations
+        const { data: msgs, error: msgsErr } = await supabaseClient
+          .from('messages')
+          .select('*')
+          .in('conversation_id', convIds)
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (msgsErr) {
+          console.warn('messages list error:', msgsErr.message);
+          return res.json({ success: true, messages: [] });
+        }
+        return res.json({ success: true, messages: msgs || [] });
+      } catch (e) {
+        console.warn('GET /api/messages fallback:', e?.message);
+        return res.json({ success: true, messages: [] });
+      }
     }
 
     console.log(`📬 Récupération messages - Conversation: ${conversation_id}`);
