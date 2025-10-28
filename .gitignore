@@ -95,6 +95,25 @@ database_export/
 database_export_*/
 02_SHP/
 
+# Media uploads generated in web app
+web/Media/uploads/
+
+# Android APK and build artifacts
+Presence CCRB.apk
+
+# Reduce repo noise from documentation and large text files
+# Ignore all markdown by default, keep core repo docs
+*.md
+!README.md
+!CHANGELOG.md
+!CONTRIBUTING.md
+!LICENSE
+
+# Office/PDF documents
+*.pdf
+*.docx
+*.doc
+
 # Fichiers de test avec données réelles
 test-data/
 sample-data/
