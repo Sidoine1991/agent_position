@@ -3151,7 +3151,7 @@ app.get('/api/admin/agents', authenticateToken, authenticateSupervisorOrAdmin, a
   try {
     const { data: agents, error } = await supabaseClient
       .from('users')
-      .select('*')
+      .select('*, auth_uuid')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -3159,6 +3159,7 @@ app.get('/api/admin/agents', authenticateToken, authenticateSupervisorOrAdmin, a
     // Enrichir avec les informations de localisation si disponibles
     const enrichedAgents = (agents || []).map(agent => ({
       ...agent,
+      auth_uuid: agent.auth_uuid || agent.auth_uuid, // ensure field is present
       // Ajouter des champs par défaut si manquants
       status: agent.status || 'active',
       project_name: agent.project_name || agent.project || '',
