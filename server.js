@@ -2774,6 +2774,7 @@ app.get('/api/messages', authenticateToken, async (req, res) => {
           .eq('user_id', userUuid);
         if (partsErr) {
           console.warn('conversation_participants error:', partsErr.message);
+          // fallback: retourner 0 message si la table n'existe pas
           return res.json({ success: true, messages: [] });
         }
         const convIds = (parts || []).map(p => p.conversation_id);
@@ -3157,13 +3158,23 @@ app.get('/api/admin/missions', authenticateToken, authenticateSupervisorOrAdmin,
   }
 });
 
-// Récupérer les agents
-// - Admin/Superviseur: liste complète enrichie
-// - Agent: liste limitée (contacts) pour la messagerie
-app.get('/api/admin/agents', authenticateToken, async (req, res) => {
+// Récupérer les agents (auth facultative)
+// - Admin/Superviseur (si token valide): liste complète enrichie
+// - Autres / sans token: liste limitée (contacts) pour la messagerie
+app.get('/api/admin/agents', async (req, res) => {
   try {
-    const role = (req.user && req.user.role) ? String(req.user.role).toLowerCase() : '';
-    const userId = Number(req.user && req.user.id);
+    // Décoder token si présent, sans bloquer
+    let role = '';
+    let userId = null;
+    try {
+      const authHeader = req.headers['authorization'];
+      const token = authHeader && authHeader.split(' ')[1];
+      if (token) {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        role = decoded && decoded.role ? String(decoded.role).toLowerCase() : '';
+        userId = decoded && decoded.id ? Number(decoded.id) : null;
+      }
+    } catch {}
     const isPrivileged = role === 'admin' || role === 'superviseur' || role === 'supervisor';
 
     if (isPrivileged) {
@@ -3201,7 +3212,7 @@ app.get('/api/admin/agents', authenticateToken, async (req, res) => {
     const { data: contacts, error: contactsErr } = await supabaseClient
       .from('users')
       .select('id, name, email, role, auth_uuid, phone, project_name, departement, commune, arrondissement, village')
-      .neq('id', userId)
+      .neq('id', userId || -1)
       .order('name', { ascending: true })
       .limit(200);
     if (contactsErr) throw contactsErr;
