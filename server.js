@@ -2639,25 +2639,85 @@ app.post('/api/messages', authenticateToken, async (req, res) => {
       return res.status(500).json({ error: 'Supabase non configuré' });
     }
 
-    const { conversation_id, content, message_type = 'text' } = req.body;
+    const { conversation_id, recipient_id, content, message_type = 'text' } = req.body;
     const userId = Number(req.user.id);
     const userUuid = req.user.auth_uuid;
 
-    if (!conversation_id) {
-      return res.status(400).json({ error: 'ID de conversation requis' });
+    let convId = conversation_id;
+    // Compatibilité front: si recipient_id est fourni, créer/trouver une conversation directe
+    if (!convId && recipient_id) {
+      // Récupérer l'uuid auth du destinataire
+      const { data: recipientUser, error: recipientErr } = await supabaseClient
+        .from('users')
+        .select('id, auth_uuid')
+        .eq('id', Number(recipient_id))
+        .single();
+      if (recipientErr || !recipientUser) {
+        return res.status(400).json({ error: 'Destinataire invalide' });
+      }
+      const recipientUuid = recipientUser.auth_uuid;
+
+      // Chercher une conversation directe existante entre les deux UUID
+      let foundConv = null;
+      try {
+        const { data: convs, error: convErr } = await supabaseClient
+          .from('conversations')
+          .select('id')
+          .eq('type', 'direct')
+          .limit(200);
+        if (!convErr && convs && convs.length) {
+          for (const c of convs) {
+            const { data: parts } = await supabaseClient
+              .from('conversation_participants')
+              .select('user_id')
+              .eq('conversation_id', c.id);
+            const ids = (parts || []).map(p => p.user_id);
+            if (ids.includes(userUuid) && ids.includes(recipientUuid) && ids.length === 2) {
+              foundConv = c.id;
+              break;
+            }
+          }
+        }
+      } catch {}
+
+      if (!foundConv) {
+        // Créer la conversation et ajouter les participants
+        const { data: newConv, error: createConvErr } = await supabaseClient
+          .from('conversations')
+          .insert({ type: 'direct', created_by: userUuid })
+          .select('id')
+          .single();
+        if (createConvErr) return res.status(500).json({ error: 'Création conversation échouée' });
+
+        const convIdNew = newConv.id;
+        const { error: partErr1 } = await supabaseClient
+          .from('conversation_participants')
+          .insert({ conversation_id: convIdNew, user_id: userUuid });
+        const { error: partErr2 } = await supabaseClient
+          .from('conversation_participants')
+          .insert({ conversation_id: convIdNew, user_id: recipientUuid });
+        if (partErr1 || partErr2) return res.status(500).json({ error: 'Ajout participants échoué' });
+        convId = convIdNew;
+      } else {
+        convId = foundConv;
+      }
+    }
+
+    if (!convId) {
+      return res.status(400).json({ error: 'ID de conversation ou destinataire requis' });
     }
 
     if (!content || !content.trim()) {
       return res.status(400).json({ error: 'Contenu du message requis' });
     }
 
-    console.log(`📤 Envoi message - Conversation: ${conversation_id}, User: ${userId}, Type: ${message_type}`);
+    console.log(`📤 Envoi message - Conversation: ${convId}, User: ${userId}, Type: ${message_type}`);
 
     // Insérer le message dans la base de données
     const { data: message, error } = await supabaseClient
       .from('messages')
       .insert({
-        conversation_id,
+        conversation_id: convId,
         content: content.trim(),
         message_type,
         sender_id: userUuid,
@@ -2678,7 +2738,7 @@ app.post('/api/messages', authenticateToken, async (req, res) => {
     await supabaseClient
       .from('conversations')
       .update({ updated_at: new Date().toISOString() })
-      .eq('id', conversation_id);
+      .eq('id', convId);
 
     // Diffuser en temps réel aux clients WebSocket
     try {
@@ -2702,9 +2762,28 @@ app.get('/api/messages', authenticateToken, async (req, res) => {
     }
 
     const { conversation_id } = req.query;
+    const userUuid = req.user.auth_uuid;
 
     if (!conversation_id) {
-      return res.status(400).json({ error: 'ID de conversation requis' });
+      // Compat: retourner les messages récents de l'utilisateur (toutes conversations)
+      // Récupérer les conversations où l'utilisateur est participant
+      const { data: parts, error: partsErr } = await supabaseClient
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', userUuid);
+      if (partsErr) return res.status(500).json({ error: 'Erreur chargement conversations' });
+      const convIds = (parts || []).map(p => p.conversation_id);
+      if (convIds.length === 0) return res.json({ success: true, messages: [] });
+
+      // Récupérer les derniers messages de ces conversations
+      const { data: msgs, error: msgsErr } = await supabaseClient
+        .from('messages')
+        .select('*')
+        .in('conversation_id', convIds)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (msgsErr) return res.status(500).json({ error: 'Erreur chargement messages' });
+      return res.json({ success: true, messages: msgs || [] });
     }
 
     console.log(`📬 Récupération messages - Conversation: ${conversation_id}`);
