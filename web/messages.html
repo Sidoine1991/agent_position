@@ -804,10 +804,10 @@
             
             <!-- Onglets Contacts/Forum -->
             <div class="tabs">
-              <div class="tab active" data-tab="contacts">
+              <div class="tab active" data-tab="contacts" id="tab-contacts">
                 <i class="bi bi-people"></i> Contacts
               </div>
-              <div class="tab" data-tab="forum">
+              <div class="tab" data-tab="forum" id="tab-forum">
                 <i class="bi bi-chat-square-dots"></i> Forum
               </div>
             </div>
@@ -841,6 +841,21 @@
                   <span class="visually-hidden">Chargement des forums...</span>
                 </div>
                 <p class="mt-2 text-muted">Chargement des forums en cours...</p>
+              </div>
+            </div>
+            <div id="forum-thread" style="display:none">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <button class="btn btn-sm btn-outline-secondary" id="forum-back-btn"><i class="bi bi-arrow-left"></i> Retour</button>
+                <button class="btn btn-sm btn-outline-secondary" id="forum-refresh-btn" title="Rafraîchir"><i class="bi bi-arrow-clockwise"></i></button>
+              </div>
+              <div class="messages-container" id="forum-messages"></div>
+              <div class="message-input-area">
+                <div class="input-container">
+                  <textarea class="message-input" id="forum-input" placeholder="Écrire un message au forum..." rows="1"></textarea>
+                  <div class="input-actions">
+                    <button class="input-btn primary" id="forum-send-btn" title="Envoyer"><i class="bi bi-send"></i></button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1451,6 +1466,87 @@
             console.warn('Update read UI failed:', e);
           }
         });
+
+        // Tabs Contacts/Forum
+        const tabContacts = document.getElementById('tab-contacts');
+        const tabForum = document.getElementById('tab-forum');
+        const forumSection = document.getElementById('forum-section');
+        const contactsList = document.getElementById('contacts-list');
+        function activateTab(tab) {
+          if (tab === 'forum') {
+            tabContacts?.classList.remove('active');
+            tabForum?.classList.add('active');
+            forumSection.style.display = 'block';
+            contactsList.style.display = 'none';
+            loadForumCategories();
+          } else {
+            tabForum?.classList.remove('active');
+            tabContacts?.classList.add('active');
+            forumSection.style.display = 'none';
+            contactsList.style.display = 'block';
+          }
+        }
+        tabContacts?.addEventListener('click', ()=>activateTab('contacts'));
+        tabForum?.addEventListener('click', ()=>activateTab('forum'));
+
+        // Forum UI events
+        const forumThread = document.getElementById('forum-thread');
+        const forumCategoriesEl = document.getElementById('forum-categories');
+        const forumBackBtn = document.getElementById('forum-back-btn');
+        const forumRefreshBtn = document.getElementById('forum-refresh-btn');
+        const forumMessages = document.getElementById('forum-messages');
+        const forumInput = document.getElementById('forum-input');
+        const forumSendBtn = document.getElementById('forum-send-btn');
+        let currentForumCategoryId = null;
+
+        window.openForumCategory = async function(categoryId) {
+          currentForumCategoryId = categoryId;
+          forumCategoriesEl.style.display = 'none';
+          forumThread.style.display = 'block';
+          await loadForumMessages();
+        };
+
+        forumBackBtn?.addEventListener('click', ()=>{
+          forumThread.style.display = 'none';
+          forumCategoriesEl.style.display = 'block';
+          currentForumCategoryId = null;
+        });
+        forumRefreshBtn?.addEventListener('click', ()=> loadForumMessages(true));
+        forumSendBtn?.addEventListener('click', async ()=>{
+          const text = (forumInput?.value || '').trim();
+          if (!text || !currentForumCategoryId) return;
+          try {
+            const resp = await fetch('/api/forum/messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...authHeaders() },
+              body: JSON.stringify({ category_id: currentForumCategoryId, content: text })
+            });
+            if (resp.ok) {
+              forumInput.value = '';
+              await loadForumMessages(true);
+            }
+          } catch(e) { console.warn('send forum msg failed', e); }
+        });
+
+        async function loadForumMessages(force=false) {
+          if (!currentForumCategoryId) return;
+          try {
+            const resp = await fetch(`/api/forum/messages?category_id=${encodeURIComponent(currentForumCategoryId)}`, { headers: authHeaders(), cache: force ? 'reload' : 'default' });
+            const data = await resp.json();
+            const msgs = data?.messages || [];
+            forumMessages.innerHTML = '';
+            msgs.forEach(m => {
+              const div = document.createElement('div');
+              const mine = m.sender_user_id === getCurrentUserId();
+              div.className = 'message ' + (mine ? 'sent' : 'received');
+              div.innerHTML = `<div class="message-content"><div class="message-text">${(m.content||'')}</div><div class="message-time">${new Date(m.created_at).toLocaleString()}</div></div>`;
+              forumMessages.appendChild(div);
+            });
+            forumMessages.scrollTop = forumMessages.scrollHeight;
+          } catch (e) {
+            console.warn('loadForumMessages failed', e);
+          }
+        }
       }
       
       function handleRealtimeMessage(message) {

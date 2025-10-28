@@ -2857,6 +2857,139 @@ app.get('/api/settings', async (req, res) => {
   }
 });
 
+// ===== FORUM ENDPOINTS =====
+// Liste des catégories de forum (table optionnelle, sinon valeurs par défaut)
+app.get('/api/forum/categories', async (req, res) => {
+  try {
+    let categories = [];
+    try {
+      const { data, error } = await supabaseClient
+        .from('forum_categories')
+        .select('id, name, description, icon, order_index')
+        .order('order_index', { ascending: true });
+      if (!error && Array.isArray(data)) categories = data;
+    } catch {}
+
+    if (!categories || categories.length === 0) {
+      categories = [
+        { id: 'general', name: 'Général', description: 'Discussions générales', icon: '💬' },
+        { id: 'annonces', name: 'Annonces', description: 'Informations officielles', icon: '📢' },
+        { id: 'entraide', name: 'Entraide', description: 'Aide et conseils', icon: '🤝' }
+      ];
+    }
+    return res.json({ success: true, categories });
+  } catch (e) {
+    console.error('Erreur /api/forum/categories:', e);
+    return res.status(200).json({ success: true, categories: [] });
+  }
+});
+
+// Récupérer messages d'une catégorie de forum (utilise conversations type=forum)
+app.get('/api/forum/messages', authenticateToken, async (req, res) => {
+  try {
+    const categoryId = String(req.query.category_id || '').trim();
+    if (!categoryId) return res.status(400).json({ success: false, error: 'category_id requis' });
+
+    // Trouver ou créer la conversation forum
+    let convId = null;
+    try {
+      const { data: conv, error: convErr } = await supabaseClient
+        .from('conversations')
+        .select('id')
+        .eq('type', 'forum')
+        .eq('name', categoryId)
+        .single();
+      if (!convErr && conv) convId = conv.id;
+    } catch {}
+    if (!convId) {
+      const { data: newConv, error: createErr } = await supabaseClient
+        .from('conversations')
+        .insert({ type: 'forum', name: categoryId, created_by: req.user.auth_uuid || null })
+        .select('id')
+        .single();
+      if (createErr) return res.json({ success: true, messages: [] });
+      convId = newConv.id;
+    }
+
+    const { data: messages, error: msgsErr } = await supabaseClient
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', convId)
+      .order('created_at', { ascending: true });
+    if (msgsErr) return res.json({ success: true, messages: [] });
+    return res.json({ success: true, conversation_id: convId, messages: messages || [] });
+  } catch (e) {
+    console.error('Erreur /api/forum/messages:', e);
+    return res.status(200).json({ success: true, messages: [] });
+  }
+});
+
+// Envoyer message forum
+app.post('/api/forum/messages', authenticateToken, async (req, res) => {
+  try {
+    const { category_id, content } = req.body || {};
+    if (!category_id || !content || !String(content).trim()) {
+      return res.status(400).json({ success: false, error: 'category_id et content requis' });
+    }
+    const userId = Number(req.user.id);
+    const userUuid = req.user.auth_uuid;
+
+    // Trouver ou créer conversation forum
+    let convId = null;
+    try {
+      const { data: conv, error: convErr } = await supabaseClient
+        .from('conversations')
+        .select('id')
+        .eq('type', 'forum')
+        .eq('name', category_id)
+        .single();
+      if (!convErr && conv) convId = conv.id;
+    } catch {}
+    if (!convId) {
+      const { data: newConv } = await supabaseClient
+        .from('conversations')
+        .insert({ type: 'forum', name: category_id, created_by: userUuid })
+        .select('id')
+        .single();
+      convId = newConv?.id;
+    }
+    if (!convId) return res.status(500).json({ success: false, error: 'conversation forum introuvable' });
+
+    // Insérer message
+    const { data: message, error } = await supabaseClient
+      .from('messages')
+      .insert({
+        conversation_id: convId,
+        content: String(content).trim(),
+        message_type: 'text',
+        sender_id: userUuid,
+        sender_user_id: userId,
+        created_at: new Date().toISOString()
+      })
+      .select('*')
+      .single();
+    if (error) throw error;
+
+    // Broadcast temps réel
+    try {
+      broadcastRealtime({ type: 'message', payload: {
+        id: message.id,
+        conversation_id: message.conversation_id,
+        content: message.content,
+        message_type: message.message_type,
+        sender_id: message.sender_id,
+        sender_user_id: message.sender_user_id,
+        created_at: message.created_at
+      }});
+    } catch {}
+
+    return res.json({ success: true, message, conversation_id: convId });
+  } catch (e) {
+    console.error('Erreur POST /api/forum/messages:', e);
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
 // Routes manquantes pour Render
 app.get('/api/admin-units', async (req, res) => {
   try {
