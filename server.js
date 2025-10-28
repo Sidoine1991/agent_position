@@ -1209,7 +1209,7 @@ app.post('/api/register', async (req, res) => {
       email, 
       password, 
       name, 
-      role = 'agent',
+        role = 'agent',
       phone,
       departement,
       commune,
@@ -1225,6 +1225,8 @@ app.post('/api/register', async (req, res) => {
       contract_end_date,
       years_of_service
     } = req.body;
+      // Normaliser le rôle pour correspondre au CHECK de la base ('admin', 'superviseur', 'agent')
+      const role_db = role === 'supervisor' ? 'superviseur' : role;
     
     if (!email || !password || !name) {
       return res.status(400).json({ error: 'Email, mot de passe et nom requis' });
@@ -1259,7 +1261,7 @@ app.post('/api/register', async (req, res) => {
         email,
         password_hash: passwordHash,
         name,
-        role,
+        role: role_db,
         phone,
         departement,
         commune,
@@ -1292,7 +1294,7 @@ app.post('/api/register', async (req, res) => {
     if ((process.env.SEND_VERIFICATION_EMAIL || 'true').toLowerCase() === 'true') {
       try {
         const superAdmin = 'syebadokpo@gmail.com';
-        const recipient = (role === 'admin') ? superAdmin : email;
+        const recipient = (role_db === 'admin') ? superAdmin : email;
         await sendVerificationEmail(recipient, verificationCode, email);
         console.log('✅ Email de vérification envoyé à:', recipient, '(pour compte:', email, ')');
       } catch (emailError) {
@@ -2672,6 +2674,13 @@ app.post('/api/messages', authenticateToken, async (req, res) => {
       .from('conversations')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', conversation_id);
+
+    // Diffuser en temps réel aux clients WebSocket
+    try {
+      broadcastRealtime({ type: 'message', payload: message });
+    } catch (e) {
+      console.warn('Broadcast message failed:', e?.message);
+    }
 
     return res.json({ success: true, message });
   } catch (error) {
@@ -5436,6 +5445,23 @@ const server = app.listen(PORT, () => {
 // WebSocket Server (for real-time features like messaging)
 const WebSocket = require('ws');
 const wss = new WebSocket.Server({ server: server });
+// Expose instance for other handlers
+let wssInstance = wss;
+
+// Simple broadcast helper
+function broadcastRealtime(event) {
+  try {
+    if (!wssInstance) return;
+    const payload = JSON.stringify(event);
+    wssInstance.clients.forEach(client => {
+      if (client && client.readyState === WebSocket.OPEN) {
+        try { client.send(payload); } catch {}
+      }
+    });
+  } catch (e) {
+    console.error('Broadcast error:', e);
+  }
+}
 
 wss.on('connection', ws => {
   console.log('Client connecté via WebSocket');
