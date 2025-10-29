@@ -712,6 +712,15 @@ async function applyFilters() {
       console.error('Erreur lors du rechargement du tableau de planification:', error);
     }
     
+    // Recharger le récapitulatif mensuel des présences avec les filtres
+    try {
+      if (typeof window.updatePresenceSummary === 'function') {
+        await window.updatePresenceSummary();
+      }
+    } catch (error) {
+      console.error('Erreur lors du rechargement du récapitulatif mensuel:', error);
+    }
+    
     // Mettre à jour les statistiques
     try { 
       await generateReport(); 
@@ -782,6 +791,15 @@ async function resetFilters() {
       }
     } catch (error) {
       console.error('Erreur lors du rechargement du tableau de planification:', error);
+    }
+    
+    // Recharger le récapitulatif mensuel des présences avec les filtres réinitialisés
+    try {
+      if (typeof window.updatePresenceSummary === 'function') {
+        await window.updatePresenceSummary();
+      }
+    } catch (error) {
+      console.error('Erreur lors du rechargement du récapitulatif mensuel:', error);
     }
     
   } catch (error) {

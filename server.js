@@ -1476,9 +1476,10 @@ app.get('/api/presence-summary', (req, res, next) => {
   next();
 }, authenticateToken, async (req, res) => {
   try {
-    const { month, year } = req.query;
+    const { month, year, project_name } = req.query;
     const monthNum = parseInt(month) || new Date().getMonth() + 1;
     const yearNum = parseInt(year) || new Date().getFullYear();
+    const projectFilter = project_name && project_name !== 'all' ? project_name : null;
     
     // Calculer les dates de début et fin du mois
     const startDate = new Date(yearNum, monthNum - 1, 1);
@@ -1526,13 +1527,7 @@ app.get('/api/presence-summary', (req, res, next) => {
 
     console.log(`✅ ${presences?.length || 0} presences trouvées`);
 
-    // Vérifier que les données de présence sont valides
-    if (!presences || !Array.isArray(presences)) {
-      console.log('Aucune donnée de présence valide trouvée');
-      return res.json({ success: true, data: [] });
-    }
-
-    // 2. Récupérer les jours fériés pour la période
+    // 2. Récupérer les présences validées depuis la table presence_validations
     let holidays = [];
     try {
       const holidaysResult = await supabaseClient
@@ -1558,10 +1553,68 @@ app.get('/api/presence-summary', (req, res, next) => {
     const statsByUser = {};
     const userCache = new Map();
 
-    // 4. Traiter les presences
+    // 4. Traiter les presences (skip if presences is empty to use presence_validations instead)
+    if (!presences || presences.length === 0) {
+      console.log('Table presences vide, utilisation de presence_validations...');
+      
+      // Query presence_validations for validated presences
+      let presenceDaysMap = {};
+      try {
+        const validationsResult = await supabaseClient
+          .from('presence_validations')
+          .select('user_id, checkin_timestamp')
+          .eq('validation_status', 'validated')
+          .gte('checkin_timestamp', startDateStr)
+          .lte('checkin_timestamp', endDateStr);
+
+        if (validationsResult.data && Array.isArray(validationsResult.data)) {
+          validationsResult.data.forEach(validation => {
+            const userId = validation.user_id;
+            const date = new Date(validation.checkin_timestamp).toISOString().split('T')[0];
+            if (!presenceDaysMap[userId]) {
+              presenceDaysMap[userId] = new Set();
+            }
+            presenceDaysMap[userId].add(date);
+          });
+          console.log(`✅ ${validationsResult.data.length} validations trouvées`);
+        }
+      } catch (error) {
+        console.error('Erreur lors de la récupération des présences validées:', error);
+      }
+
+      // Get all users and build stats from presence_validations
+      try {
+        let usersQuery = supabaseClient
+          .from('users')
+          .select('id, name, first_name, last_name, email, role, project_name, departement, commune')
+          .in('role', ['agent', 'field_agent', 'supervisor', 'superviseur']);
+        
+        // Appliquer le filtre projet si fourni
+        if (projectFilter) {
+          usersQuery = usersQuery.eq('project_name', projectFilter);
+        }
+        
+        const usersResult = await usersQuery;
+        const users = usersResult.data || [];
+        users.forEach(user => {
+          const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.name || user.email || `Agent ${user.id}`;
+          statsByUser[user.id] = {
+            name: fullName,
+            email: user.email,
+            project: user.project_name,
+            departement: user.departement,
+            commune: user.commune,
+            present_days: presenceDaysMap[user.id] ? presenceDaysMap[user.id].size : 0
+          };
+        });
+        console.log(`✅ Stats construites depuis presence_validations pour ${users.length} utilisateurs (agents et superviseurs)`);
+      } catch (error) {
+        console.error('Erreur lors de la récupération des utilisateurs:', error);
+      }
+    } else {
     presences?.forEach(presence => {
       const user = presence.users;
-      if (!user || !['agent', 'field_agent'].includes(user.role)) return;
+      if (!user || !['agent', 'field_agent', 'supervisor', 'superviseur'].includes(user.role)) return;
 
       const userId = user.id;
       const date = new Date(presence.start_time).toISOString().split('T')[0];
@@ -1612,11 +1665,18 @@ app.get('/api/presence-summary', (req, res, next) => {
         }
       }
     });
+    } // End else block for presences processing
 
     // 5. Récupérer les jours planifiés pour chaque agent depuis la table planifications
-    const plannedDaysByUser = {};
+    const plannedDaysByUser = {}; // Tous les jours planifiés du mois
+    const plannedPastDaysByUser = {}; // Seulement les jours planifiés qui sont déjà passés
     
-    console.log('🔍 Tentative de récupération des planifications...');
+    console.log('🔍 Récupération des planifications...');
+    
+    // Obtenir la date d'aujourd'hui pour séparer passé et futur
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0]; // Format YYYY-MM-DD
+    
     try {
       // Récupérer les planifications pour la période
       const planificationsResult = await supabaseClient
@@ -1633,10 +1693,19 @@ app.get('/api/presence-summary', (req, res, next) => {
           const userId = plan.user_id;
           const date = plan.date;
           
+          // Tous les jours planifiés (pour l'affichage)
           if (!plannedDaysByUser[userId]) {
             plannedDaysByUser[userId] = new Set();
           }
           plannedDaysByUser[userId].add(date);
+          
+          // Seulement les jours planifiés qui sont dans le passé (pour calcul absences)
+          if (date < todayStr) {
+            if (!plannedPastDaysByUser[userId]) {
+              plannedPastDaysByUser[userId] = new Set();
+            }
+            plannedPastDaysByUser[userId].add(date);
+          }
         });
         console.log(`✅ ${planificationsResult.data.length} planifications trouvées`);
       } else {
@@ -1649,22 +1718,17 @@ app.get('/api/presence-summary', (req, res, next) => {
     // 6. Calculer les statistiques finales
     const DAYS_REQUIRED = 20; // Nombre de jours requis par mois
     
-    // Vérifier qu'il y a des données à traiter
-    if (!statsByUser || Object.keys(statsByUser).length === 0) {
-      console.log('Aucune donnée de présence trouvée pour cette période');
-      return res.json({ success: true, data: [] });
-    }
-    
     const result = Object.entries(statsByUser)
       .map(([userId, data]) => {
-        const plannedDays = plannedDaysByUser[userId] ? plannedDaysByUser[userId].size : 0;
+        const plannedDays = plannedDaysByUser[userId] ? plannedDaysByUser[userId].size : 0; // Tous les jours planifiés du mois
+        const plannedPastDays = plannedPastDaysByUser[userId] ? plannedPastDaysByUser[userId].size : 0; // Seulement les jours planifiés dans le passé
         
-        // Calculer le taux de présence par rapport aux 20 jours attendus du mois
-        // Si l'agent a planifié moins de 20 jours, on utilise les jours planifiés comme base
-        const baseDays = Math.max(plannedDays, DAYS_REQUIRED);
-        const presenceRate = baseDays > 0 
-          ? Math.round((data.present_days / baseDays) * 100) 
-          : 0;
+        // Calculer les absences: jours planifiés passés - présences validées
+        // On ne compte comme absents que les jours planifiés dans le passé où l'agent n'était pas présent
+        const absentDays = Math.max(plannedPastDays - data.present_days, 0);
+        
+        // Calculer le taux de présence global mensuel: (nombre de jours présents / 20 jours attendus) × 100
+        const presenceRate = Math.round((data.present_days / DAYS_REQUIRED) * 100);
           
         return {
           user_id: parseInt(userId),
@@ -1674,9 +1738,10 @@ app.get('/api/presence-summary', (req, res, next) => {
           departement: data.departement,
           commune: data.commune,
           present_days: data.present_days,
-          absent_days: data.absent_days,
-          planned_days: plannedDays,
-          total_days: data.total_days,
+          absent_days: absentDays,
+          planned_days: plannedDays, // Nombre de jours planifiés enregistrés (sans /20)
+          expected_days: DAYS_REQUIRED, // Nombre de jours attendus par mois (20)
+          total_days: data.present_days,
           presence_rate: presenceRate,
           status: getStatusFromPresenceRate(presenceRate)
         };

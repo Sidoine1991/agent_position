@@ -132,6 +132,38 @@
       }
       
       /* Impression: masquer la navbar et libérer l'espace pour les graphiques */
+      /* Styles pour les boutons de filtre des tableaux */
+      .table th .btn-group {
+        vertical-align: middle;
+      }
+      
+      .table th .btn-group .btn {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+      }
+      
+      .table th .btn-group .dropdown-toggle::after {
+        margin-left: 0.25rem;
+      }
+      
+      .table th .btn-group .btn i {
+        font-size: 0.875rem;
+      }
+      
+      /* Style pour les en-têtes avec filtres */
+      .table th {
+        position: relative;
+        vertical-align: middle;
+      }
+      
+      .table th .btn-group {
+        position: absolute;
+        right: 0.5rem;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+      
       @media print {
         .navbar { display: none !important; }
         .circle-actions { display: none !important; }
@@ -320,7 +352,17 @@
                   <tr>
                     <th>#</th>
                     <th>Nom</th>
-                    <th>Projet</th>
+                    <th>
+                      Projet
+                      <div class="btn-group ms-2" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" id="planning-project-filter-btn">
+                          <i class="bi bi-funnel"></i>
+                        </button>
+                        <ul class="dropdown-menu" id="planning-project-filter-menu">
+                          <li><a class="dropdown-item" href="#" data-project="all">Tous les projets</a></li>
+                        </ul>
+                      </div>
+                    </th>
                     <th>Rôle</th>
                     <th class="text-center">Planification</th>
                     <th>Détails</th>
@@ -413,15 +455,26 @@
               <thead class="table-dark">
                 <tr>
                   <th>Agent</th>
-                  <th>Jours planifiés</th>
+                  <th>
+                    Projet
+                    <div class="btn-group ms-2" role="group">
+                      <button type="button" class="btn btn-sm btn-outline-light dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" id="summary-project-filter-btn">
+                        <i class="bi bi-funnel"></i>
+                      </button>
+                      <ul class="dropdown-menu" id="summary-project-filter-menu">
+                        <li><a class="dropdown-item" href="#" data-project="all">Tous les projets</a></li>
+                      </ul>
+                    </div>
+                  </th>
+                  <th>Nbre de jour attendu dans le mois</th>
+                  <th>Jour planifié</th>
                   <th>Présences</th>
-                  <th>Absences</th>
-                  <th>Taux de présence</th>
+                  <th>Taux de présence global mensuel</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td colspan="5" class="text-center py-4">
+                  <td colspan="6" class="text-center py-4">
                     <div class="spinner-border text-primary" role="status">
                       <span class="visually-hidden">Chargement...</span>
                     </div>

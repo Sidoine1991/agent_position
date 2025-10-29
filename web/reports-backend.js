@@ -461,6 +461,7 @@ async function renderValidations(rows) {
         <th>Distance (m)</th>
         <th>Statut</th>
         <th>Planification</th>
+        <th>Observations</th>
         <th>Actions</th>
       </tr>
     `;
@@ -474,6 +475,8 @@ async function renderValidations(rows) {
     const agentName = user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || `Agent ${row.agent_id}`;
     const projectName = user.project_name || user.projet || user.project || row.projet || 'Non défini';
     
+    const obsValue = (row.validation_notes || row.notes || row.note || '').toString();
+    const safeId = String(row.id || `${row.agent_id || ''}-${row.ts || ''}`);
     return `
       <tr>
         <td>${cell(agentName)}</td>
@@ -486,6 +489,13 @@ async function renderValidations(rows) {
         <td>${cell(row.distance_m)}</td>
         <td>${cell(row.statut)}</td>
         <td class="text-center">${hasPlanning ? '✅ Oui' : '❌ Non'}</td>
+        <td>
+          <input 
+            class="form-control form-control-sm obs-input" 
+            data-rowid="${safeId}"
+            value="${obsValue.replace(/"/g, '&quot;')}"
+            placeholder="Ajouter une observation" />
+        </td>
         <td class="text-center">
           <button class="btn btn-sm btn-outline-primary" onclick="downloadValidationReport('${row.id}')" title="Télécharger le rapport">
             <i class="bi bi-download"></i>
@@ -496,6 +506,15 @@ async function renderValidations(rows) {
   })).then(rows => rows.join('') || `<tr><td colspan="11">Aucune donnée</td></tr>`);
   window.__lastRows = rows;
   window.__filteredRows = filteredRows;
+  // Initialiser le cache des observations et les écouteurs
+  if (!window.__obsByRow) window.__obsByRow = {};
+  document.querySelectorAll('#validations-table .obs-input').forEach(input => {
+    const id = input.getAttribute('data-rowid');
+    window.__obsByRow[id] = input.value || '';
+    input.addEventListener('input', (e) => {
+      window.__obsByRow[id] = e.target.value;
+    });
+  });
 }
 
 /**
@@ -636,7 +655,26 @@ async function loadUsersPlanning() {
     try {
       const from = `${date}T00:00:00.000Z`;
       const to = `${date}T23:59:59.999Z`;
-      const planningRes = await fetch(`${apiBase}/planifications?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { headers });
+      
+      // Construire l'URL avec tous les filtres
+      let planningUrl = `${apiBase}/planifications?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+      
+      // Ajouter les filtres si ils sont définis
+      if (filters.project && filters.project !== 'all') {
+        planningUrl += `&project_name=${encodeURIComponent(filters.project)}`;
+      }
+      if (filters.agentId && filters.agentId !== 'all') {
+        planningUrl += `&agent_id=${encodeURIComponent(filters.agentId)}`;
+      }
+      if (filters.department && filters.department !== 'all') {
+        planningUrl += `&departement=${encodeURIComponent(filters.department)}`;
+      }
+      if (filters.commune && filters.commune !== 'all') {
+        planningUrl += `&commune=${encodeURIComponent(filters.commune)}`;
+      }
+      
+      console.log('URL de chargement des planifications:', planningUrl);
+      const planningRes = await fetch(planningUrl, { headers });
       if (!planningRes.ok) {
         const errorText = await planningRes.text();
         console.error('Erreur lors du chargement des planifications:', planningRes.status, errorText);
@@ -656,59 +694,9 @@ async function loadUsersPlanning() {
       console.error('Erreur lors du chargement des planifications:', error);
     }
     
-    console.log(`${planningItems.length} planifications chargées au total avant filtrage`);
+    console.log(`${planningItems.length} planifications chargées au total (déjà filtrées côté serveur)`);
     
-    // Filtrer les planifications selon tous les filtres sélectionnés
-    if (filters.project && filters.project !== 'all') {
-      // Créer un Set des IDs des utilisateurs du projet sélectionné
-      const projectUserIds = new Set(users.map(user => user.id));
-      // Filtrer les planifications pour ne garder que celles des utilisateurs du projet
-      planningItems = planningItems.filter(planning => projectUserIds.has(planning.user_id));
-      console.log(`Planifications filtrées par projet "${filters.project}": ${planningItems.length} planifications`);
-    }
-    
-    // Filtrer les planifications selon les autres filtres (agent, département, commune, superviseur)
-    if (filters.agentId && filters.agentId !== 'all') {
-      planningItems = planningItems.filter(planning => planning.user_id == filters.agentId);
-      console.log(`Planifications filtrées par agent "${filters.agentId}": ${planningItems.length} planifications`);
-    }
-    
-    if (filters.department && filters.department !== 'all') {
-      // Le filtre département utilise des IDs, mapper vers le nom
-      const departmentNames = {
-        '1': 'Atacora',
-        '2': 'Atacora-Donga', 
-        '3': 'Collines',
-        '4': 'Couffo',
-        '5': 'Donga',
-        '6': 'Littoral',
-        '7': 'Mono',
-        '8': 'Ouémé',
-        '9': 'Plateau',
-        '10': 'Zou'
-      };
-      const departmentName = departmentNames[filters.department];
-      if (departmentName) {
-        // Filtrer les planifications selon le département des utilisateurs
-        const departmentUserIds = new Set(users.filter(user => user.department === departmentName).map(user => user.id));
-        planningItems = planningItems.filter(planning => departmentUserIds.has(planning.user_id));
-        console.log(`Planifications filtrées par département "${departmentName}" (ID: ${filters.department}): ${planningItems.length} planifications`);
-      }
-    }
-    
-    if (filters.commune && filters.commune !== 'all') {
-      // Filtrer les planifications selon la commune des utilisateurs
-      const communeUserIds = new Set(users.filter(user => user.commune === filters.commune).map(user => user.id));
-      planningItems = planningItems.filter(planning => communeUserIds.has(planning.user_id));
-      console.log(`Planifications filtrées par commune "${filters.commune}": ${planningItems.length} planifications`);
-    }
-    
-    if (filters.supervisorId && filters.supervisorId !== 'all') {
-      // Filtrer les planifications selon le superviseur des utilisateurs
-      const supervisorUserIds = new Set(users.filter(user => String(user.supervisor_id) === String(filters.supervisorId)).map(user => user.id));
-      planningItems = planningItems.filter(planning => supervisorUserIds.has(planning.user_id));
-      console.log(`Planifications filtrées par superviseur "${filters.supervisorId}": ${planningItems.length} planifications`);
-    }
+    // Les filtres sont maintenant appliqués côté serveur, plus besoin de filtrage côté client
     
     const usersWithPlanning = new Set(planningItems.map(p => p.user_id));
     let withPlanning = 0;
@@ -737,9 +725,12 @@ async function loadUsersPlanning() {
       }
       // Récupérer le numéro de projet de l'utilisateur
       const projectNumber = user.project_name || user.projet || user.project || '—';
+      const cleanedProject = (typeof cleanProjectName === 'function') 
+        ? (cleanProjectName(projectNumber) || '') 
+        : String(projectNumber || '').trim();
       
       const row = `
-        <tr>
+        <tr data-project="${cleanedProject}">
           <td>${index + 1}</td>
           <td>${displayName}</td>
           <td>${projectNumber}</td>
@@ -762,6 +753,9 @@ async function loadUsersPlanning() {
         <span class="text-danger">${withoutPlanning} sans</span>
       `;
     }
+    
+    // Extraire les projets uniques du tableau de planification et mettre à jour le filtre
+    updatePlanningProjectFilter(users);
   } catch (error) {
     console.error('Erreur lors du chargement des planifications:', error);
     const tbody = document.getElementById('users-planning-body');
@@ -1363,10 +1357,17 @@ window.printReport = function() {
 
 window.exportReport = function() {
   const rows = window.__lastRows || [];
-  const cols = ['Agent', 'Projet', 'Localisation', 'Rayon (m)', 'Ref (lat, lon)', 'Actuel (lat, lon)', 'Date', 'Distance (m)', 'Statut'];
+  const cols = ['Agent', 'Projet', 'Localisation', 'Rayon (m)', 'Ref (lat, lon)', 'Actuel (lat, lon)', 'Date', 'Distance (m)', 'Statut', 'Observations'];
   const fmt = d => new Date(d).toLocaleString('fr-FR');
   const esc = s => String(s ?? '').replace(/[\n\r;,]/g, ' ').trim();
   const lines = [cols.join(';')].concat(rows.map(r => {
+    const safeId = String(r.id || `${r.agent_id || ''}-${r.ts || ''}`);
+    const obsFromDom = (() => {
+      const el = document.querySelector(`#validations-table .obs-input[data-rowid="${CSS.escape(safeId)}"]`);
+      if (el && typeof el.value === 'string') return el.value;
+      if (window.__obsByRow && window.__obsByRow[safeId] != null) return window.__obsByRow[safeId];
+      return r.validation_notes || r.notes || r.note || '';
+    })();
     return [
       esc(r.agent),
       esc(r.projet),
@@ -1376,7 +1377,8 @@ window.exportReport = function() {
       (r.lat != null && r.lon != null) ? `${r.lat}, ${r.lon}` : '—',
       r.ts ? fmt(r.ts) : '—',
       esc(r.distance_m),
-      esc(r.statut)
+      esc(r.statut),
+      esc(obsFromDom)
     ].join(';');
   }));
   const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
@@ -1596,8 +1598,10 @@ window.exportAsHtml = async function() {
     // Récupérer les conteneurs des tableaux
     const reportsContainer = document.getElementById('report-results');
     const validationsSection = document.querySelector('.card:has(#validations-table)');
+    const planningSection = document.querySelector('.card:has(#users-planning-table)') || document.getElementById('users-planning-table')?.closest('.card');
+    const presenceSummarySection = document.querySelector('.card:has(#presence-summary)') || document.getElementById('presence-summary')?.closest('.card');
     
-    if (!reportsContainer && !validationsSection) {
+    if (!reportsContainer && !validationsSection && !planningSection && !presenceSummarySection) {
       throw new Error('Aucune donnée à exporter. Veuillez générer un rapport d\'abord.');
     }
     
@@ -1701,9 +1705,20 @@ window.exportAsHtml = async function() {
       }
     }
     
-    // Ajouter la section des validations si elle existe
+    // Ordre d'export souhaité après le rapport principal:
+    // 1) Validations, 2) Planifications, 3) Récapitulatif mensuel des présences
+
+    // 1) Ajouter la section des validations si elle existe
     if (validationsSection && validationsSection.textContent.trim() !== '') {
       const validationsClone = validationsSection.cloneNode(true);
+      // Remplacer les champs d'observation par leur valeur texte pour l'export
+      validationsClone.querySelectorAll('input.obs-input').forEach(inp => {
+        const span = validationsClone.ownerDocument.createElement('span');
+        span.textContent = inp.value || '';
+        const td = inp.parentElement;
+        inp.remove();
+        if (td) td.appendChild(span);
+      });
       
       // Nettoyer les éléments interactifs de la section des validations
       const validationButtons = validationsClone.querySelectorAll('button, .btn, .no-print');
@@ -1725,6 +1740,45 @@ window.exportAsHtml = async function() {
       }
       
       exportContainer.appendChild(validationsClone);
+    }
+
+    // 2) Ajouter la section des planifications si elle existe
+    if (planningSection && planningSection.textContent.trim() !== '') {
+      const planningClone = planningSection.cloneNode(true);
+      // Retirer les boutons et filtres interactifs
+      planningClone.querySelectorAll('button, .btn, .no-print').forEach(el => el.remove());
+      // Mise en forme
+      const tbl = planningClone.querySelector('table');
+      if (tbl) {
+        tbl.style.width = '100%';
+        tbl.style.borderCollapse = 'collapse';
+        tbl.style.marginBottom = '1.5rem';
+      }
+      // Espacement
+      if (exportContainer.children.length > 0) {
+        const spacer = document.createElement('div');
+        spacer.style.marginTop = '40px';
+        exportContainer.appendChild(spacer);
+      }
+      exportContainer.appendChild(planningClone);
+    }
+
+    // 3) Ajouter la section du récapitulatif mensuel de présence si elle existe
+    if (presenceSummarySection && presenceSummarySection.textContent.trim() !== '') {
+      const summaryClone = presenceSummarySection.cloneNode(true);
+      summaryClone.querySelectorAll('button, .btn, .no-print').forEach(el => el.remove());
+      const tbl = summaryClone.querySelector('table');
+      if (tbl) {
+        tbl.style.width = '100%';
+        tbl.style.borderCollapse = 'collapse';
+        tbl.style.marginBottom = '1.5rem';
+      }
+      if (exportContainer.children.length > 0) {
+        const spacer = document.createElement('div');
+        spacer.style.marginTop = '40px';
+        exportContainer.appendChild(spacer);
+      }
+      exportContainer.appendChild(summaryClone);
     }
     // Créer le contenu HTML complet
     const htmlContent = `
@@ -2135,8 +2189,18 @@ window.exportAsImage = async function() {
     // Étape 3: Générer le canvas
     loading.innerHTML = '🎨 Génération du canvas...';
     
+    // Étendre temporairement pour capturer toute la largeur/hauteur
+    const prevOverflow = targetElement.style.overflow;
+    const prevWidth = targetElement.style.width;
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevBodyWidth = document.body.style.width;
+    document.body.style.overflow = 'visible';
+    document.body.style.width = document.body.scrollWidth + 'px';
+    targetElement.style.overflow = 'visible';
+    targetElement.style.width = targetElement.scrollWidth + 'px';
+
     const canvas = await window.html2canvas(targetElement, {
-      scale: 1.5,
+      scale: 2,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
@@ -2145,6 +2209,10 @@ window.exportAsImage = async function() {
       height: targetElement.scrollHeight,
       scrollX: 0,
       scrollY: 0,
+      windowWidth: targetElement.scrollWidth,
+      windowHeight: targetElement.scrollHeight,
+      pixelRatio: 2,
+      foreignObjectRendering: true,
       onclone: (clonedDoc) => {
         // Forcer la visibilité de tous les éléments importants
         const allCards = clonedDoc.querySelectorAll('.card');
@@ -2184,6 +2252,11 @@ window.exportAsImage = async function() {
     });
     
     console.log('✅ Canvas généré:', canvas.width, 'x', canvas.height);
+    // Restaurer les styles
+    targetElement.style.overflow = prevOverflow;
+    targetElement.style.width = prevWidth;
+    document.body.style.overflow = prevBodyOverflow;
+    document.body.style.width = prevBodyWidth;
     
     // Étape 4: Créer et télécharger l'image PNG
     loading.innerHTML = '💾 Génération PNG...';
@@ -2241,8 +2314,10 @@ window.exportAsImageSimple = async function() {
     
     // Exporter directement le body
     const canvas = await window.html2canvas(document.body, {
-      scale: 1,
-      backgroundColor: '#ffffff'
+      scale: 2,
+      backgroundColor: '#ffffff',
+      pixelRatio: 2,
+      foreignObjectRendering: true
     });
     
     // Télécharger
@@ -3651,7 +3726,7 @@ async function updatePresenceSummary() {
     const tbody = document.querySelector('#presence-summary tbody');
     tbody.innerHTML = `
       <tr>
-        <td colspan="5" class="text-center py-4">
+        <td colspan="6" class="text-center py-4">
           <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Chargement...</span>
           </div>
@@ -3663,7 +3738,12 @@ async function updatePresenceSummary() {
     
     let summaryResponse;
     try {
-      summaryResponse = await api(`/presence-summary?month=${month}&year=${year}`);
+      // Construire l'URL avec le filtre projet
+      let apiUrl = `/presence-summary?month=${month}&year=${year}`;
+      if (projectFilter && projectFilter !== 'all') {
+        apiUrl += `&project_name=${encodeURIComponent(projectFilter)}`;
+      }
+      summaryResponse = await api(apiUrl);
       console.log('Réponse API presence-summary:', summaryResponse);
     } catch (error) {
       console.error('Erreur avec /api/presence-summary:', error);
@@ -3730,7 +3810,7 @@ async function updatePresenceSummary() {
       
       tbody.innerHTML = `
         <tr>
-          <td colspan="5" class="text-center py-4">
+          <td colspan="6" class="text-center py-4">
             Aucune donnée de présence disponible pour cette période avec les filtres actuels.
             ${debugInfo}
           </td>
@@ -3748,34 +3828,39 @@ async function updatePresenceSummary() {
     if (filteredResult.length === 0) {
       tableContent = `
         <tr>
-          <td colspan="5" class="text-center py-4">
+          <td colspan="6" class="text-center py-4">
             Aucune donnée de présence disponible pour cette période avec les filtres actuels.
           </td>
         </tr>`;
     } else {
       filteredResult.forEach(agent => {
-        // Le taux de présence est maintenant calculé par rapport aux 20 jours attendus du mois
+        const expectedDays = agent.expected_days || 20; // Nbre de jours attendus
+        const plannedDays = agent.planned_days || 0; // Jours planifiés enregistrés
+        const presentDays = agent.present_days || 0;
+        // Taux global mensuel par rapport aux 20 jours attendus
+        const presenceRate = agent.presence_rate ?? Math.min(100, Math.round((presentDays / expectedDays) * 100));
         
         // Déterminer la classe de la barre de progression
         let progressClass = 'bg-success';
-        if (agent.presence_rate < 50) progressClass = 'bg-danger';
-        else if (agent.presence_rate < 80) progressClass = 'bg-warning';
+        if (presenceRate < 50) progressClass = 'bg-danger';
+        else if (presenceRate < 80) progressClass = 'bg-warning';
 
         tableContent += `
           <tr>
             <td>${agent.name}</td>
-            <td>${agent.planned_days || 0} / ${DAYS_REQUIRED}</td>
-            <td>${agent.present_days}</td>
-            <td>${agent.absent_days}</td>
+            <td>${agent.project || '-'}</td>
+            <td>${expectedDays}</td>
+            <td>${plannedDays}</td>
+            <td>${presentDays}</td>
             <td>
               <div class="progress" style="height: 20px;">
                 <div class="progress-bar ${progressClass}" 
                      role="progressbar" 
-                     style="width: ${agent.presence_rate}%" 
-                     aria-valuenow="${agent.presence_rate}" 
+                     style="width: ${presenceRate}%" 
+                     aria-valuenow="${presenceRate}" 
                      aria-valuemin="0" 
                      aria-valuemax="100">
-                  ${agent.presence_rate}%
+                  ${presenceRate}%
                 </div>
               </div>
             </td>
@@ -3784,13 +3869,16 @@ async function updatePresenceSummary() {
     }
 
     tbody.innerHTML = tableContent;
+    
+    // Extraire les projets uniques du récapitulatif mensuel (depuis le DOM) et mettre à jour le filtre
+    updateSummaryProjectFilter();
 
   } catch (error) {
     console.error('Erreur lors de la mise à jour du récapitulatif:', error);
     const tbody = document.querySelector('#presence-summary tbody');
     tbody.innerHTML = `
       <tr>
-        <td colspan="5" class="text-center text-danger py-4">
+        <td colspan="6" class="text-center text-danger py-4">
           Erreur lors du chargement des données. Veuillez réessayer.
           ${window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? `<br><small>${error.message}</small>` : ''}
         </td>
@@ -3937,6 +4025,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   
+  // Initialiser les filtres de projet des tableaux
+  initializeTableProjectFilters();
+  
   window.updateDateInputs();
   window.loadUsersPlanning = loadUsersPlanning; // Exposer la fonction au scope global
   const dateInput = document.getElementById('date');
@@ -3952,3 +4043,318 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   console.log('✅ Reports.js initialisé avec succès');
 });
+
+/**
+ * Initialise les filtres de projet pour les tableaux
+ */
+async function initializeTableProjectFilters() {
+  try {
+    // Ajouter les gestionnaires d'événements
+    setupTableProjectFilterHandlers();
+    
+    // Les projets seront chargés dynamiquement quand les tableaux seront remplis
+    console.log('✅ Filtres de projet des tableaux initialisés');
+    
+  } catch (error) {
+    console.error('Erreur lors de l\'initialisation des filtres de projet des tableaux:', error);
+  }
+}
+
+/**
+ * Récupère la liste des projets depuis l'API
+ */
+async function getProjectsList() {
+  try {
+    const headers = await authHeaders();
+    const response = await fetch(`${apiBase}/projects`, { headers });
+    if (!response.ok) {
+      throw new Error(`Erreur ${response.status} lors du chargement des projets`);
+    }
+    const data = await response.json();
+    const projects = data.items || data.projects || data || [];
+    return projects.map(project => project.name || project).filter(Boolean);
+  } catch (error) {
+    console.error('Erreur lors du chargement des projets:', error);
+    return [];
+  }
+}
+
+/**
+ * Remplit un menu déroulant de filtres de projet
+ */
+function populateProjectFilterMenu(menuId, projects) {
+  const menu = document.getElementById(menuId);
+  if (!menu) {
+    console.warn(`Menu ${menuId} non trouvé`);
+    return;
+  }
+  
+  // Vider le menu et ajouter l'option "Tous les projets"
+  menu.innerHTML = `
+    <li><a class="dropdown-item" href="#" data-project="all">
+      <i class="bi bi-funnel"></i> Tous les projets
+    </a></li>
+  `;
+  
+  // Trier les projets par ordre alphabétique et supprimer les doublons
+  const sortedProjects = [...new Set(projects)].sort();
+  
+  // Ajouter les projets
+  sortedProjects.forEach(project => {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.className = 'dropdown-item';
+    a.href = '#';
+    a.setAttribute('data-project', project);
+    a.innerHTML = `<i class="bi bi-diagram-3"></i> ${project}`;
+    li.appendChild(a);
+    menu.appendChild(li);
+  });
+  
+  console.log(`Menu ${menuId} mis à jour avec ${sortedProjects.length} projets:`, sortedProjects);
+  
+  // Test de débogage : vérifier que les projets sont bien détectés
+  if (sortedProjects.length === 0) {
+    console.warn(`Aucun projet détecté pour le menu ${menuId}`);
+  } else {
+    console.log(`✅ Projets détectés pour ${menuId}:`, sortedProjects);
+  }
+}
+
+/**
+ * Configure les gestionnaires d'événements pour les filtres de projet des tableaux
+ */
+function setupTableProjectFilterHandlers() {
+  // Filtre pour le tableau de planification
+  const planningMenu = document.getElementById('planning-project-filter-menu');
+  if (planningMenu) {
+    planningMenu.addEventListener('click', (e) => {
+      e.preventDefault();
+      const item = e.target.closest('a.dropdown-item');
+      if (!item) return;
+      const project = item.getAttribute('data-project');
+      filterPlanningTableByProject(project);
+      updatePlanningFilterButton(project);
+    });
+  }
+  
+  // Filtre pour le tableau de récapitulatif mensuel
+  const summaryMenu = document.getElementById('summary-project-filter-menu');
+  if (summaryMenu) {
+    summaryMenu.addEventListener('click', (e) => {
+      e.preventDefault();
+      const item = e.target.closest('a.dropdown-item');
+      if (!item) return;
+      const project = item.getAttribute('data-project');
+      filterSummaryTableByProject(project);
+      updateSummaryFilterButton(project);
+    });
+  }
+}
+
+/**
+ * Filtre le tableau de planification par projet
+ */
+function filterPlanningTableByProject(project) {
+  const tbody = document.getElementById('users-planning-body');
+  if (!tbody) return;
+  
+  const rows = tbody.querySelectorAll('tr');
+  let visibleCount = 0;
+  
+  const selected = (project || '').trim();
+  rows.forEach(row => {
+    // Ignorer uniquement les lignes d'état (chargement/erreur) avec un colspan explicite
+    if (row.querySelector('td[colspan]')) {
+      return;
+    }
+    
+    const rowProject = (row.getAttribute('data-project') || '').trim();
+    let shouldShow = false;
+    
+    if (selected === 'all' || selected === '') {
+      shouldShow = true;
+    } else {
+      // Comparaison exacte du nom du projet (normalisé)
+      shouldShow = rowProject === selected;
+    }
+    
+    row.style.display = shouldShow ? '' : 'none';
+    if (shouldShow) visibleCount++;
+  });
+  
+  console.log(`Tableau de planification filtré par projet "${project}": ${visibleCount} lignes visibles`);
+  
+  // Mettre à jour le compteur si disponible
+  updatePlanningCount();
+}
+
+/**
+ * Filtre le tableau de récapitulatif mensuel par projet
+ */
+function filterSummaryTableByProject(project) {
+  const tbody = document.querySelector('#presence-summary tbody');
+  if (!tbody) return;
+  
+  const rows = tbody.querySelectorAll('tr');
+  let visibleCount = 0;
+  
+  rows.forEach(row => {
+    // Ignorer les lignes d'erreur ou de chargement
+    if (row.querySelector('.text-center') && row.querySelector('.text-center').colSpan) {
+      return;
+    }
+    
+    const projectCell = row.querySelector('td:nth-child(2)'); // Colonne Projet
+    if (!projectCell) return;
+    
+    const projectText = projectCell.textContent.trim();
+    let shouldShow = false;
+    
+    if (project === 'all') {
+      shouldShow = true;
+    } else {
+      // Comparaison exacte du nom du projet
+      shouldShow = projectText === project;
+    }
+    
+    row.style.display = shouldShow ? '' : 'none';
+    if (shouldShow) visibleCount++;
+  });
+  
+  console.log(`Tableau de récapitulatif filtré par projet "${project}": ${visibleCount} lignes visibles`);
+}
+
+/**
+ * Met à jour l'apparence du bouton de filtre de planification
+ */
+function updatePlanningFilterButton(project) {
+  const btn = document.getElementById('planning-project-filter-btn');
+  if (!btn) return;
+  
+  if (project === 'all') {
+    btn.innerHTML = '<i class="bi bi-funnel"></i>';
+    btn.classList.remove('btn-primary');
+    btn.classList.add('btn-outline-secondary');
+  } else {
+    btn.innerHTML = `<i class="bi bi-funnel-fill"></i> ${project}`;
+    btn.classList.remove('btn-outline-secondary');
+    btn.classList.add('btn-primary');
+  }
+}
+
+/**
+ * Met à jour l'apparence du bouton de filtre de récapitulatif
+ */
+function updateSummaryFilterButton(project) {
+  const btn = document.getElementById('summary-project-filter-btn');
+  if (!btn) return;
+  
+  if (project === 'all') {
+    btn.innerHTML = '<i class="bi bi-funnel"></i>';
+    btn.classList.remove('btn-primary');
+    btn.classList.add('btn-outline-light');
+  } else {
+    btn.innerHTML = `<i class="bi bi-funnel-fill"></i> ${project}`;
+    btn.classList.remove('btn-outline-light');
+    btn.classList.add('btn-primary');
+  }
+}
+
+/**
+ * Met à jour le filtre de projet du tableau de planification avec les projets uniques
+ */
+function updatePlanningProjectFilter(users) {
+  try {
+    // Extraire les projets uniques des utilisateurs
+    const uniqueProjects = [...new Set(users.map(user => {
+      const project = user.project_name || user.projet || user.project || '';
+      const cleaned = (typeof cleanProjectName === 'function') 
+        ? (cleanProjectName(project) || '') 
+        : String(project || '').trim();
+      return cleaned;
+    }).filter(project => project && project !== '—' && project !== '-' && project !== ''))];
+    
+    console.log('Projets uniques du tableau de planification:', uniqueProjects);
+    
+    // Mettre à jour le menu déroulant
+    populateProjectFilterMenu('planning-project-filter-menu', uniqueProjects);
+    
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du filtre de projet de planification:', error);
+  }
+}
+
+/**
+ * Met à jour le filtre de projet du récapitulatif mensuel avec les projets uniques
+ */
+function updateSummaryProjectFilter(summaryData) {
+  try {
+    let uniqueProjects = [];
+    if (Array.isArray(summaryData) && summaryData.length) {
+      // Extraire depuis les données si fournies
+      uniqueProjects = [...new Set(summaryData.map(agent => {
+        const project = agent.project || '';
+        return project.trim();
+      }).filter(project => project && project !== '—' && project !== '-' && project !== ''))];
+    } else {
+      // Extraire depuis le DOM rendu
+      const tbody = document.querySelector('#presence-summary tbody');
+      const projects = new Set();
+      if (tbody) {
+        tbody.querySelectorAll('tr').forEach(row => {
+          const cell = row.querySelector('td:nth-child(2)');
+          if (!cell) return;
+          const value = (cell.textContent || '').trim();
+          if (value && value !== '-' && value !== '—') projects.add(value);
+        });
+      }
+      uniqueProjects = Array.from(projects).sort();
+    }
+    
+    console.log('Projets uniques du récapitulatif mensuel:', uniqueProjects);
+    
+    // Mettre à jour le menu déroulant
+    populateProjectFilterMenu('summary-project-filter-menu', uniqueProjects);
+    
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du filtre de projet du récapitulatif:', error);
+  }
+}
+
+/**
+ * Met à jour le compteur de planification après filtrage
+ */
+function updatePlanningCount() {
+  const tbody = document.getElementById('users-planning-body');
+  if (!tbody) return;
+  
+  const visibleRows = tbody.querySelectorAll('tr:not([style*="display: none"])');
+  let withPlanning = 0;
+  let withoutPlanning = 0;
+  
+  visibleRows.forEach(row => {
+    // Ignorer uniquement les lignes d'état (chargement/erreur) avec un colspan explicite
+    if (row.querySelector('td[colspan]')) {
+      return;
+    }
+    
+    const planningCell = row.querySelector('td:nth-child(5)'); // Colonne Planification
+    if (!planningCell) return;
+    
+    const planningText = planningCell.textContent.trim();
+    if (planningText === 'Oui') {
+      withPlanning++;
+    } else if (planningText === 'Non') {
+      withoutPlanning++;
+    }
+  });
+  
+  const countElement = document.getElementById('planning-count');
+  if (countElement) {
+    countElement.innerHTML = `
+      <span class="text-success">${withPlanning} avec</span> /
+      <span class="text-danger">${withoutPlanning} sans</span>
+    `;
+  }
+}
