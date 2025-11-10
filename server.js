@@ -63,6 +63,39 @@ try {
   }
 })();
 
+// Fonction utilitaire pour récupérer toutes les pages d'une requête Supabase
+// Supabase limite par défaut à 1000 résultats, cette fonction parcourt toutes les pages
+async function fetchAllPages(queryBuilder, pageSize = 1000) {
+  const allData = [];
+  let page = 0;
+  let hasMore = true;
+  
+  while (hasMore) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+    
+    const { data, error } = await queryBuilder.range(from, to);
+    
+    if (error) {
+      console.error(`❌ Erreur lors de la récupération de la page ${page}:`, error);
+      throw error;
+    }
+    
+    if (data && data.length > 0) {
+      allData.push(...data);
+      // Si on a récupéré moins que pageSize, c'est la dernière page
+      hasMore = data.length === pageSize;
+      page++;
+      console.log(`📄 Page ${page} récupérée: ${data.length} enregistrements (total: ${allData.length})`);
+    } else {
+      hasMore = false;
+    }
+  }
+  
+  console.log(`✅ Total récupéré: ${allData.length} enregistrements sur ${page} page(s)`);
+  return allData;
+}
+
 // Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -378,9 +411,49 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
   try {
     console.log('🔍 API /api/reports appelée');
     
+    // Extraire les paramètres de requête
+    const { from, to, page, limit, agent_id } = req.query;
+    const currentPage = parseInt(page) || 1;
+    const pageLimit = parseInt(limit) || 2000;
+    const offset = (currentPage - 1) * pageLimit;
+    
+    console.log('📋 Paramètres de requête:', { from, to, page, limit, agent_id });
+    
     // 1. Récupérer les validations avec leurs checkins
     console.log('📊 Récupération des validations...');
-    const { data: validations, error: validationsError } = await supabaseClient
+    
+    // Construire la requête de base avec filtres
+    let baseQuery = supabaseClient
+      .from('checkin_validations')
+      .select('*', { count: 'exact', head: true });
+    
+    // Appliquer les filtres de date sur created_at (approximation)
+    // Note: Le filtrage exact par timestamp du checkin sera fait après
+    if (from) {
+      baseQuery = baseQuery.gte('created_at', from);
+    }
+    if (to) {
+      baseQuery = baseQuery.lte('created_at', to);
+    }
+    
+    // Filtrer par agent_id si fourni
+    if (agent_id) {
+      baseQuery = baseQuery.eq('agent_id', agent_id);
+    }
+    
+    // Compter le total avant la pagination
+    const { count, error: countError } = await baseQuery;
+    
+    if (countError) {
+      console.error('❌ Erreur lors du comptage:', countError);
+      throw countError;
+    }
+    
+    const totalCount = count || 0;
+    console.log('📊 Total de validations:', totalCount);
+    
+    // Construire la requête de données avec les mêmes filtres
+    let dataQuery = supabaseClient
       .from('checkin_validations')
       .select(`
         id,
@@ -401,9 +474,25 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
           note,
           photo_path
         )
-      `)
+      `);
+    
+    // Appliquer les mêmes filtres
+    if (from) {
+      dataQuery = dataQuery.gte('created_at', from);
+    }
+    if (to) {
+      dataQuery = dataQuery.lte('created_at', to);
+    }
+    if (agent_id) {
+      dataQuery = dataQuery.eq('agent_id', agent_id);
+    }
+    
+    // Appliquer le tri et la pagination
+    dataQuery = dataQuery
       .order('created_at', { ascending: false })
-      .limit(100);
+      .range(offset, offset + pageLimit - 1);
+    
+    const { data: validations, error: validationsError } = await dataQuery;
     
     console.log('📊 Validations trouvées:', validations?.length || 0);
     console.log('📋 Erreur validations:', validationsError);
@@ -415,7 +504,20 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
 
     if (!validations || validations.length === 0) {
       console.log('⚠️ Aucune validation trouvée');
-      return res.json({ success: true, data: [] });
+      return res.json({ 
+        success: true, 
+        data: [],
+        pagination: {
+          current_page: currentPage,
+          total_pages: 0,
+          total_items: 0,
+          items_per_page: pageLimit,
+          has_next_page: false,
+          has_prev_page: false,
+          next_page: null,
+          prev_page: null
+        }
+      });
     }
 
     // 2. Récupérer les informations des utilisateurs
@@ -460,63 +562,95 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
     });
 
     // 3. Filtrer les validations selon les agents autorisés
-    const filteredValidations = validations.filter(validation => 
+    let filteredValidations = validations.filter(validation => 
       filteredAgentIds.includes(validation.agent_id)
     );
     console.log(`🔍 Validations filtrées: ${filteredValidations.length} sur ${validations.length}`);
 
-    // 4. Construire les rapports
+    // 4. Filtrer par timestamp du checkin si from/to sont fournis (filtrage précis)
+    if (from || to) {
+      filteredValidations = filteredValidations.filter(validation => {
+        const checkinTimestamp = validation.checkins?.timestamp || validation.created_at;
+        if (!checkinTimestamp) return false;
+        
+        const timestamp = new Date(checkinTimestamp);
+        if (from && timestamp < new Date(from)) return false;
+        if (to && timestamp > new Date(to)) return false;
+        return true;
+      });
+      console.log(`🔍 Validations filtrées par timestamp: ${filteredValidations.length}`);
+    }
+
+    // 5. Construire les rapports
     console.log('🔄 Construction des rapports...');
-           const reports = filteredValidations.map(validation => {
-             const checkin = validation.checkins;
-             const user = usersMap.get(validation.agent_id);
-             
-             // Calculer la distance si elle n'est pas déjà calculée
-             let distance_m = validation.distance_m;
-             const refLat = validation.reference_lat || user?.reference_lat;
-             const refLon = validation.reference_lon || user?.reference_lon;
-             
-             if ((distance_m === null || distance_m === undefined) && refLat && refLon && checkin?.lat && checkin?.lon) {
-               distance_m = calculateDistance(refLat, refLon, checkin.lat, checkin.lon);
-             }
-             
-             // Déterminer le statut - utiliser uniquement le rayon de tolérance de l'utilisateur
-             const tolerance = user?.tolerance_radius_meters || 5000; // Valeur par défaut si non définie
-             const isWithinTolerance = distance_m ? distance_m <= tolerance : validation.valid;
-             
-             // Calculer la durée de mission si disponible
-             let mission_duration = null;
-             if (checkin?.mission_duration !== null && checkin?.mission_duration !== undefined) {
-               mission_duration = checkin.mission_duration;
-             } else if (checkin?.timestamp) {
-               // Si pas de durée stockée, on peut essayer de calculer approximativement
-               // Pour l'instant, on laisse null jusqu'à ce que la colonne soit ajoutée
-               mission_duration = null;
-             }
-             
-             return {
-               agent_id: validation.agent_id,
-               agent: user?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || `Agent #${validation.agent_id}`,
-               projet: user?.project_name || 'Non spécifié',
-               localisation: `${user?.departement || ''} ${user?.commune || ''} ${user?.arrondissement || ''} ${user?.village || ''}`.trim() || 'Non spécifié',
-               rayon_m: tolerance,
-               ref_lat: validation.reference_lat || user?.reference_lat,
-               ref_lon: validation.reference_lon || user?.reference_lon,
-               lat: checkin?.lat,
-               lon: checkin?.lon,
-               ts: checkin?.timestamp || validation.created_at,
-               distance_m: distance_m,
-               mission_duration: mission_duration,
-               statut: isWithinTolerance ? 'Présent' : 'Hors zone'
-             };
-           });
+    const reports = filteredValidations.map(validation => {
+      const checkin = validation.checkins;
+      const user = usersMap.get(validation.agent_id);
+      
+      // Calculer la distance si elle n'est pas déjà calculée
+      let distance_m = validation.distance_m;
+      const refLat = validation.reference_lat || user?.reference_lat;
+      const refLon = validation.reference_lon || user?.reference_lon;
+      
+      if ((distance_m === null || distance_m === undefined) && refLat && refLon && checkin?.lat && checkin?.lon) {
+        distance_m = calculateDistance(refLat, refLon, checkin.lat, checkin.lon);
+      }
+      
+      // Déterminer le statut - utiliser uniquement le rayon de tolérance de l'utilisateur
+      const tolerance = user?.tolerance_radius_meters || 5000; // Valeur par défaut si non définie
+      const isWithinTolerance = distance_m ? distance_m <= tolerance : validation.valid;
+      
+      // Calculer la durée de mission si disponible
+      let mission_duration = null;
+      if (checkin?.mission_duration !== null && checkin?.mission_duration !== undefined) {
+        mission_duration = checkin.mission_duration;
+      } else if (checkin?.timestamp) {
+        // Si pas de durée stockée, on peut essayer de calculer approximativement
+        // Pour l'instant, on laisse null jusqu'à ce que la colonne soit ajoutée
+        mission_duration = null;
+      }
+      
+      return {
+        agent_id: validation.agent_id,
+        agent: user?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || `Agent #${validation.agent_id}`,
+        projet: user?.project_name || 'Non spécifié',
+        localisation: `${user?.departement || ''} ${user?.commune || ''} ${user?.arrondissement || ''} ${user?.village || ''}`.trim() || 'Non spécifié',
+        rayon_m: tolerance,
+        ref_lat: validation.reference_lat || user?.reference_lat,
+        ref_lon: validation.reference_lon || user?.reference_lon,
+        lat: checkin?.lat,
+        lon: checkin?.lon,
+        ts: checkin?.timestamp || validation.created_at,
+        distance_m: distance_m,
+        mission_duration: mission_duration,
+        statut: isWithinTolerance ? 'Présent' : 'Hors zone'
+      };
+    });
 
     console.log('📊 Rapports construits:', reports.length);
     if (reports.length > 0) {
       console.log('📋 Premier rapport:', reports[0]);
     }
 
-    res.json({ success: true, data: reports });
+    // Calculer les métadonnées de pagination
+    const totalPages = Math.ceil(totalCount / pageLimit);
+    const hasNextPage = currentPage < totalPages;
+    const hasPrevPage = currentPage > 1;
+
+    res.json({ 
+      success: true, 
+      data: reports,
+      pagination: {
+        current_page: currentPage,
+        total_pages: totalPages,
+        total_items: totalCount,
+        items_per_page: pageLimit,
+        has_next_page: hasNextPage,
+        has_prev_page: hasPrevPage,
+        next_page: hasNextPage ? currentPage + 1 : null,
+        prev_page: hasPrevPage ? currentPage - 1 : null
+      }
+    });
   } catch (error) {
     console.error('❌ Erreur API reports:', error);
     res.status(500).json({ error: 'Erreur interne du serveur' });
@@ -1497,7 +1631,7 @@ app.get('/api/presence-summary', (req, res, next) => {
     let presencesError = null;
     
     try {
-      const presencesResult = await supabaseClient
+      const presencesQuery = supabaseClient
       .from('presences')
       .select(`
         id,
@@ -1512,14 +1646,7 @@ app.get('/api/presence-summary', (req, res, next) => {
       .lte('start_time', endDateStr)
       .order('start_time', { ascending: false });
 
-      presences = presencesResult.data || [];
-      presencesError = presencesResult.error;
-      
-    if (presencesError) {
-      console.error('Erreur lors de la récupération des presences:', presencesError);
-        // Ne pas throw l'erreur, continuer avec un tableau vide
-        presences = [];
-      }
+      presences = await fetchAllPages(presencesQuery);
     } catch (error) {
       console.error('Erreur inattendue lors de la récupération des presences:', error);
       presences = [];
@@ -1551,121 +1678,234 @@ app.get('/api/presence-summary', (req, res, next) => {
     
     // 3. Initialiser les statistiques par utilisateur
     const statsByUser = {};
-    const userCache = new Map();
 
-    // 4. Traiter les presences (skip if presences is empty to use presence_validations instead)
-    if (!presences || presences.length === 0) {
-      console.log('Table presences vide, utilisation de presence_validations...');
-      
-      // Query presence_validations for validated presences
-      let presenceDaysMap = {};
+    // 4. Construire une map unifiée des jours de présence depuis toutes les sources
+    // On combine presences, presence_validations et checkin_validations pour avoir un comptage complet
+    let presenceDaysMap = {}; // Map: userId -> Set de dates (YYYY-MM-DD)
+    
+    // 4a. Traiter les presences de la table presences
+    if (presences && presences.length > 0) {
+      console.log(`📊 Traitement de ${presences.length} presences depuis la table presences...`);
+      presences.forEach(presence => {
+        const user = presence.users;
+        if (!user || !['agent', 'field_agent', 'supervisor', 'superviseur'].includes(user.role)) return;
+
+        const userId = user.id;
+        const date = new Date(presence.start_time).toISOString().split('T')[0];
+        
+        if (!presenceDaysMap[userId]) {
+          presenceDaysMap[userId] = new Set();
+        }
+        
+        // Utiliser checkin_type pour déterminer le statut
+        const checkinType = presence.checkin_type ? String(presence.checkin_type).toLowerCase().trim() : '';
+        const isValidated = checkinType === 'validated' || 
+                           (presence.within_tolerance === true || presence.status === 'present' || presence.status === 'completed');
+        
+        if (isValidated) {
+          presenceDaysMap[userId].add(date);
+        }
+      });
+      console.log(`✅ Jours de présence extraits depuis presences pour ${Object.keys(presenceDaysMap).length} utilisateurs`);
+    }
+    
+    // 4b. Ajouter les validations depuis presence_validations (combine avec les données existantes)
+    try {
+      console.log('🔍 Récupération de toutes les pages de presence_validations...');
+      const validationsQuery = supabaseClient
+        .from('presence_validations')
+        .select('user_id, checkin_timestamp')
+        .eq('validation_status', 'validated')
+        .gte('checkin_timestamp', startDateStr)
+        .lte('checkin_timestamp', endDateStr);
+
+      const validationsData = await fetchAllPages(validationsQuery);
+
+      if (validationsData && Array.isArray(validationsData)) {
+        let addedCount = 0;
+        validationsData.forEach(validation => {
+          const userId = validation.user_id;
+          if (!userId) return;
+          const date = new Date(validation.checkin_timestamp).toISOString().split('T')[0];
+          if (!presenceDaysMap[userId]) {
+            presenceDaysMap[userId] = new Set();
+          }
+          const wasNew = !presenceDaysMap[userId].has(date);
+          presenceDaysMap[userId].add(date);
+          if (wasNew) addedCount++;
+        });
+        console.log(`✅ ${validationsData.length} validations trouvées dans presence_validations, ${addedCount} nouveaux jours ajoutés`);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la récupération des présences validées depuis presence_validations:', error);
+    }
+    
+    // 4c. Ajouter les validations depuis checkin_validations (combine avec les données existantes)
+    // IMPORTANT: Utiliser le timestamp du check-in, pas created_at de la validation
+    try {
+      console.log('🔍 Récupération de toutes les pages de checkin_validations avec timestamp des check-ins...');
+      const checkinValidationsQuery = supabaseClient
+        .from('checkin_validations')
+        .select('agent_id, created_at, checkins(timestamp)')
+        .eq('valid', true)
+        .gte('created_at', startDateStr)
+        .lte('created_at', endDateStr);
+
+      const checkinValidationsData = await fetchAllPages(checkinValidationsQuery);
+
+      if (checkinValidationsData && Array.isArray(checkinValidationsData)) {
+        let addedCount = 0;
+        let skippedCount = 0;
+        let debugSample = null; // Pour déboguer la structure
+        
+        checkinValidationsData.forEach((validation, index) => {
+          const userId = validation.agent_id;
+          if (!userId) {
+            skippedCount++;
+            return;
+          }
+          
+          // Utiliser le timestamp du check-in si disponible, sinon created_at de la validation
+          // Note: checkins peut être un objet ou un tableau selon Supabase
+          let checkinTimestamp = null;
+          if (validation.checkins) {
+            if (Array.isArray(validation.checkins) && validation.checkins.length > 0) {
+              checkinTimestamp = validation.checkins[0].timestamp;
+            } else if (validation.checkins.timestamp) {
+              checkinTimestamp = validation.checkins.timestamp;
+            }
+          }
+          
+          // Fallback sur created_at si pas de timestamp de check-in
+          if (!checkinTimestamp) {
+            checkinTimestamp = validation.created_at;
+          }
+          
+          if (!checkinTimestamp) {
+            skippedCount++;
+            if (index === 0) {
+              debugSample = { validation, structure: 'no_timestamp' };
+            }
+            return;
+          }
+          
+          const date = new Date(checkinTimestamp).toISOString().split('T')[0];
+          
+          // Vérifier que la date est dans la période (au cas où created_at et timestamp diffèrent)
+          if (date < startDateStr.split('T')[0] || date > endDateStr.split('T')[0]) {
+            skippedCount++;
+            return;
+          }
+          
+          if (!presenceDaysMap[userId]) {
+            presenceDaysMap[userId] = new Set();
+          }
+          const wasNew = !presenceDaysMap[userId].has(date);
+          presenceDaysMap[userId].add(date);
+          if (wasNew) addedCount++;
+          
+          // Log de débogage pour les premiers enregistrements
+          if (index < 3 && !debugSample) {
+            debugSample = {
+              userId,
+              checkinTimestamp,
+              date,
+              checkinsStructure: Array.isArray(validation.checkins) ? 'array' : typeof validation.checkins,
+              wasNew
+            };
+          }
+        });
+        
+        if (debugSample) {
+          console.log(`🔍 [DEBUG checkin_validations] Échantillon:`, JSON.stringify(debugSample, null, 2));
+        }
+        
+        console.log(`✅ ${checkinValidationsData.length} validations trouvées dans checkin_validations, ${addedCount} nouveaux jours ajoutés, ${skippedCount} ignorés`);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la récupération des présences validées depuis checkin_validations:', error);
+      // Fallback: essayer sans la jointure si la jointure échoue
       try {
-        const validationsResult = await supabaseClient
-          .from('presence_validations')
-          .select('user_id, checkin_timestamp')
-          .eq('validation_status', 'validated')
-          .gte('checkin_timestamp', startDateStr)
-          .lte('checkin_timestamp', endDateStr);
+        console.log('⚠️ Tentative de récupération sans jointure checkins...');
+        const checkinValidationsQueryFallback = supabaseClient
+          .from('checkin_validations')
+          .select('agent_id, created_at')
+          .eq('valid', true)
+          .gte('created_at', startDateStr)
+          .lte('created_at', endDateStr);
 
-        if (validationsResult.data && Array.isArray(validationsResult.data)) {
-          validationsResult.data.forEach(validation => {
-            const userId = validation.user_id;
-            const date = new Date(validation.checkin_timestamp).toISOString().split('T')[0];
+        const checkinValidationsDataFallback = await fetchAllPages(checkinValidationsQueryFallback);
+        
+        if (checkinValidationsDataFallback && Array.isArray(checkinValidationsDataFallback)) {
+          let addedCount = 0;
+          checkinValidationsDataFallback.forEach(validation => {
+            const userId = validation.agent_id;
+            if (!userId) return;
+            const date = new Date(validation.created_at).toISOString().split('T')[0];
             if (!presenceDaysMap[userId]) {
               presenceDaysMap[userId] = new Set();
             }
+            const wasNew = !presenceDaysMap[userId].has(date);
             presenceDaysMap[userId].add(date);
+            if (wasNew) addedCount++;
           });
-          console.log(`✅ ${validationsResult.data.length} validations trouvées`);
+          console.log(`✅ [Fallback] ${checkinValidationsDataFallback.length} validations trouvées, ${addedCount} nouveaux jours ajoutés`);
         }
-      } catch (error) {
-        console.error('Erreur lors de la récupération des présences validées:', error);
+      } catch (fallbackError) {
+        console.error('Erreur lors du fallback checkin_validations:', fallbackError);
       }
+    }
 
-      // Get all users and build stats from presence_validations
-      try {
-        let usersQuery = supabaseClient
-          .from('users')
-          .select('id, name, first_name, last_name, email, role, project_name, departement, commune')
-          .in('role', ['agent', 'field_agent', 'supervisor', 'superviseur']);
-        
-        // Appliquer le filtre projet si fourni
-        if (projectFilter) {
-          usersQuery = usersQuery.eq('project_name', projectFilter);
-        }
-        
-        const usersResult = await usersQuery;
-        const users = usersResult.data || [];
-        users.forEach(user => {
-          const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.name || user.email || `Agent ${user.id}`;
-          statsByUser[user.id] = {
-            name: fullName,
-            email: user.email,
-            project: user.project_name,
-            departement: user.departement,
-            commune: user.commune,
-            present_days: presenceDaysMap[user.id] ? presenceDaysMap[user.id].size : 0
-          };
-        });
-        console.log(`✅ Stats construites depuis presence_validations pour ${users.length} utilisateurs (agents et superviseurs)`);
-      } catch (error) {
-        console.error('Erreur lors de la récupération des utilisateurs:', error);
-      }
-    } else {
-    presences?.forEach(presence => {
-      const user = presence.users;
-      if (!user || !['agent', 'field_agent', 'supervisor', 'superviseur'].includes(user.role)) return;
-
-      const userId = user.id;
-      const date = new Date(presence.start_time).toISOString().split('T')[0];
+    // 4d. Construire les stats pour tous les utilisateurs
+    try {
+      console.log('🔍 Récupération de toutes les pages de users...');
+      let usersQuery = supabaseClient
+        .from('users')
+        .select('id, name, first_name, last_name, email, role, project_name, departement, commune')
+        .in('role', ['agent', 'field_agent', 'supervisor', 'superviseur']);
       
-      if (!statsByUser[userId]) {
-        const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.name || user.email || `Agent ${userId}`;
+      // Appliquer le filtre projet si fourni
+      if (projectFilter) {
+        usersQuery = usersQuery.eq('project_name', projectFilter);
+      }
+      
+      const users = await fetchAllPages(usersQuery);
+      users.forEach(user => {
+        const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.name || user.email || `Agent ${user.id}`;
+        const presentDays = presenceDaysMap[user.id] ? presenceDaysMap[user.id].size : 0;
         
-        statsByUser[userId] = {
+        // Log de débogage pour les agents avec peu de jours de présence ou pour le débogage
+        if (presentDays > 0 && presentDays < 10) {
+          const dates = Array.from(presenceDaysMap[user.id] || []).sort();
+          console.log(`🔍 Agent ${user.id} (${fullName}): ${presentDays} jour(s) de présence: ${dates.join(', ')}`);
+        }
+        
+        // Log supplémentaire pour les agents avec un nom spécifique (débogage)
+        if (fullName && (fullName.includes('AGBANI') || fullName.includes('BABATOUNDE') || fullName.includes('KOTCHIKPA') || fullName.includes('EPHREM') || fullName.includes('CONSTANTIN'))) {
+          const dates = Array.from(presenceDaysMap[user.id] || []).sort();
+          console.log(`\n🔍 [DEBUG] ===== Agent ${user.id} (${fullName}) =====`);
+          console.log(`🔍 [DEBUG] Jours de présence: ${presentDays}`);
+          console.log(`🔍 [DEBUG] Dates de présence: ${dates.length > 0 ? dates.join(', ') : 'Aucune'}`);
+          console.log(`🔍 [DEBUG] Projet: ${user.project_name}`);
+          console.log(`🔍 [DEBUG] Email: ${user.email}`);
+          console.log(`🔍 [DEBUG] Période: ${startDateStr.split('T')[0]} à ${endDateStr.split('T')[0]}`);
+          console.log(`🔍 [DEBUG] ===========================================\n`);
+        }
+        
+        statsByUser[user.id] = {
           name: fullName,
           email: user.email,
           project: user.project_name,
           departement: user.departement,
           commune: user.commune,
-          present_days: 0,
-          absent_days: 0,
-          total_days: 0,
-          validated_dates: new Set()
+          present_days: presentDays
         };
-        
-        userCache.set(userId, statsByUser[userId]);
-      }
-      
-      const userStats = statsByUser[userId];
-      
-      // Ne pas compter plusieurs presences pour le même jour
-      if (userStats.validated_dates.has(date)) return;
-      
-      userStats.validated_dates.add(date);
-      userStats.total_days++;
-      
-      // Utiliser checkin_type pour déterminer le statut
-      const checkinType = presence.checkin_type ? String(presence.checkin_type).toLowerCase().trim() : '';
-      
-      if (checkinType === 'validated') {
-        userStats.present_days++;
-        console.log(`✅ Agent ${userId} présent le ${date} (checkin_type: ${checkinType})`);
-      } else if (checkinType === 'rejected') {
-        userStats.absent_days++;
-        console.log(`❌ Agent ${userId} absent le ${date} (checkin_type: ${checkinType})`);
-      } else {
-        // Fallback vers l'ancienne logique si checkin_type n'est pas défini
-        if (presence.within_tolerance === true || presence.status === 'present' || presence.status === 'completed') {
-          userStats.present_days++;
-          console.log(`✅ Agent ${userId} présent le ${date} (fallback: within_tolerance=${presence.within_tolerance})`);
-        } else {
-          userStats.absent_days++;
-          console.log(`❌ Agent ${userId} absent le ${date} (fallback: within_tolerance=${presence.within_tolerance})`);
-        }
-      }
-    });
-    } // End else block for presences processing
+      });
+      console.log(`✅ Stats construites pour ${users.length} utilisateurs (agents et superviseurs)`);
+    } catch (error) {
+      console.error('Erreur lors de la récupération des utilisateurs:', error);
+    }
+    
 
     // 5. Récupérer les jours planifiés pour chaque agent depuis la table planifications
     const plannedDaysByUser = {}; // Tous les jours planifiés du mois
@@ -1678,18 +1918,19 @@ app.get('/api/presence-summary', (req, res, next) => {
     const todayStr = today.toISOString().split('T')[0]; // Format YYYY-MM-DD
     
     try {
-      // Récupérer les planifications pour la période
-      const planificationsResult = await supabaseClient
+      // Récupérer les planifications pour la période avec pagination complète
+      console.log('🔍 Récupération de toutes les pages de planifications...');
+      const planificationsQuery = supabaseClient
         .from('planifications')
         .select('user_id, date')
         .gte('date', startDateStr.split('T')[0])
         .lte('date', endDateStr.split('T')[0]);
 
-      if (planificationsResult.error) {
-        console.error('Erreur lors de la récupération des planifications:', planificationsResult.error);
-      } else if (planificationsResult.data && Array.isArray(planificationsResult.data)) {
+      const planificationsData = await fetchAllPages(planificationsQuery);
+
+      if (planificationsData && Array.isArray(planificationsData)) {
         // Compter les jours planifiés distincts par utilisateur
-        planificationsResult.data.forEach(plan => {
+        planificationsData.forEach(plan => {
           const userId = plan.user_id;
           const date = plan.date;
           
@@ -1707,7 +1948,7 @@ app.get('/api/presence-summary', (req, res, next) => {
             plannedPastDaysByUser[userId].add(date);
           }
         });
-        console.log(`✅ ${planificationsResult.data.length} planifications trouvées`);
+        console.log(`✅ ${planificationsData.length} planifications trouvées`);
       } else {
         console.log('Aucune planification trouvée ou données invalides');
       }
@@ -1723,13 +1964,18 @@ app.get('/api/presence-summary', (req, res, next) => {
         const plannedDays = plannedDaysByUser[userId] ? plannedDaysByUser[userId].size : 0; // Tous les jours planifiés du mois
         const plannedPastDays = plannedPastDaysByUser[userId] ? plannedPastDaysByUser[userId].size : 0; // Seulement les jours planifiés dans le passé
         
+        // S'assurer que present_days est toujours un nombre
+        const presentDays = (data.present_days !== undefined && data.present_days !== null) 
+          ? parseInt(data.present_days) || 0 
+          : 0;
+        
         // Calculer les absences: jours planifiés passés - présences validées
         // On ne compte comme absents que les jours planifiés dans le passé où l'agent n'était pas présent
-        const absentDays = Math.max(plannedPastDays - data.present_days, 0);
+        const absentDays = Math.max(plannedPastDays - presentDays, 0);
         
         // Calculer le taux de présence global mensuel: (nombre de jours présents / 20 jours attendus) × 100
-        const presenceRate = Math.round((data.present_days / DAYS_REQUIRED) * 100);
-          
+        const presenceRate = Math.round((presentDays / DAYS_REQUIRED) * 100);
+        
         return {
           user_id: parseInt(userId),
           name: data.name,
@@ -1737,11 +1983,11 @@ app.get('/api/presence-summary', (req, res, next) => {
           project: data.project,
           departement: data.departement,
           commune: data.commune,
-          present_days: data.present_days,
+          present_days: presentDays,
           absent_days: absentDays,
           planned_days: plannedDays, // Nombre de jours planifiés enregistrés (sans /20)
           expected_days: DAYS_REQUIRED, // Nombre de jours attendus par mois (20)
-          total_days: data.present_days,
+          total_days: presentDays,
           presence_rate: presenceRate,
           status: getStatusFromPresenceRate(presenceRate)
         };
@@ -1933,30 +2179,39 @@ app.get('/api/admin/attendance', authenticateToken, authenticateSupervisorOrAdmi
       .lt('date_start', toISO);
     if (missionsErr) throw missionsErr;
 
-    // Récupérer les planifications (jours planifiés) dans l'intervalle
+    // Récupérer les planifications (jours planifiés) dans l'intervalle avec pagination complète
     // On sélectionne toutes les colonnes pour être tolérant aux variations de schéma
     // Utilise le schéma fourni: id, agent_id, date
     let plans = null;
     {
-      const { data: plansTry, error: plansErr } = await supabaseClient
-        .from('planifications')
-        .select('id, agent_id, date')
-        .gte('date', from)
-        .lte('date', to);
-      if (!plansErr) {
-        plans = plansTry;
-      } else {
-        // Fallback tolérant si la colonne 'date' a un autre nom
-        const { data: plansAll, error: plansAllErr } = await supabaseClient
+      try {
+        console.log('🔍 Récupération de toutes les pages de planifications pour /api/admin/attendance...');
+        const plansQuery = supabaseClient
           .from('planifications')
-          .select('*');
-        if (plansAllErr) throw plansAllErr;
-        plans = Array.isArray(plansAll) ? plansAll.filter(p => {
-          const raw = p.date || p.date_planned || p.planned_date || p.date_start || p.jour || p.day;
-          if (!raw) return false;
-          const day = (raw + '').slice(0, 10);
-          return day >= from && day <= to;
-        }) : [];
+          .select('id, agent_id, date')
+          .gte('date', from)
+          .lte('date', to);
+        
+        plans = await fetchAllPages(plansQuery);
+      } catch (plansErr) {
+        // Fallback tolérant si la colonne 'date' a un autre nom
+        console.log('⚠️ Tentative avec fallback pour planifications...');
+        try {
+          const plansQueryAll = supabaseClient
+            .from('planifications')
+            .select('*');
+          
+          const plansAll = await fetchAllPages(plansQueryAll);
+          plans = Array.isArray(plansAll) ? plansAll.filter(p => {
+            const raw = p.date || p.date_planned || p.planned_date || p.date_start || p.jour || p.day;
+            if (!raw) return false;
+            const day = (raw + '').slice(0, 10);
+            return day >= from && day <= to;
+          }) : [];
+        } catch (plansAllErr) {
+          console.error('❌ Erreur lors de la récupération des planifications:', plansAllErr);
+          throw plansAllErr;
+        }
       }
     }
 

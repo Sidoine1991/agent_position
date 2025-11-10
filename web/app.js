@@ -1594,12 +1594,28 @@ async function init() {
       let startStr = '-';
       let endStr = '-';
       let distanceStr = null;
+      let startMs = null;
+      let endMs = null;
       try {
-        if (m.start_time) startStr = new Date(m.start_time).toLocaleString();
-        let startMs = null;
-        let endMs = null;
-        if (m.start_time) { const d = new Date(m.start_time); startStr = d.toLocaleString(); startMs = d.getTime(); }
-        if (m.end_time) { const d = new Date(m.end_time); endStr = d.toLocaleString(); endMs = d.getTime(); }
+        // Vérifier les deux formats possibles : start_time/end_time ou date_start/date_end
+        const startTime = m.start_time || m.date_start;
+        const endTime = m.end_time || m.date_end;
+        
+        if (startTime) {
+          const d = new Date(startTime);
+          if (!isNaN(d.getTime())) {
+            startStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            startMs = d.getTime();
+          }
+        }
+        
+        if (endTime) {
+          const d = new Date(endTime);
+          if (!isNaN(d.getTime())) {
+            endStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            endMs = d.getTime();
+          }
+        }
         // Distance: depuis mission si présent, sinon depuis cache, sinon calcul
         if (typeof m.total_distance_m !== 'undefined' && m.total_distance_m !== null) {
           const d = Number(m.total_distance_m);
@@ -1616,8 +1632,20 @@ async function init() {
           const rows = Array.isArray(resp) ? resp : (resp.items || resp.checkins || (resp.data && (resp.data.items || resp.data.checkins)) || []);
           if (rows && rows.length) {
             const sorted = rows.slice().sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
-            if (startStr === '-' && sorted[0] && sorted[0].timestamp) { const d0 = new Date(sorted[0].timestamp); startStr = d0.toLocaleString(); startMs = d0.getTime(); }
-            if (endStr === '-' && sorted[sorted.length-1] && sorted[sorted.length-1].timestamp) { const dl = new Date(sorted[sorted.length-1].timestamp); endStr = dl.toLocaleString(); endMs = dl.getTime(); }
+            if (startStr === '-' && sorted[0] && sorted[0].timestamp) {
+              const d0 = new Date(sorted[0].timestamp);
+              if (!isNaN(d0.getTime())) {
+                startStr = d0.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                startMs = d0.getTime();
+              }
+            }
+            if (endStr === '-' && sorted[sorted.length-1] && sorted[sorted.length-1].timestamp) {
+              const dl = new Date(sorted[sorted.length-1].timestamp);
+              if (!isNaN(dl.getTime())) {
+                endStr = dl.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                endMs = dl.getTime();
+              }
+            }
             if (!distanceStr) {
               try { await computeAndStoreDailyDistance(m.id); } catch {}
               try {
@@ -1649,11 +1677,23 @@ async function init() {
           if (!endMs && String(m.status || '').toLowerCase() !== 'completed') durationStr += ' (en cours)';
         }
       } catch {}
+      
+      // Formater l'affichage : "Heure début - Heure fin (durée)"
+      let timeDisplay = '';
+      if (startStr !== '-' && endStr !== '-') {
+        timeDisplay = `${startStr} - ${endStr}${durationStr ? ` (${durationStr})` : ''}`;
+      } else if (startStr !== '-') {
+        timeDisplay = `Début: ${startStr}${durationStr ? ` (${durationStr})` : ''}`;
+      } else if (endStr !== '-') {
+        timeDisplay = `Fin: ${endStr}`;
+      } else {
+        timeDisplay = 'Heure non disponible';
+      }
+      
       li.innerHTML = `
         <div class="list-item">
           <div><strong>Mission #${m.id}</strong> — ${m.status}</div>
-          <div>Début: ${startStr} • Fin: ${endStr}</div>
-          ${durationStr ? `<div>Durée sur le terrain: ${durationStr}</div>` : ''}
+          <div><strong>${timeDisplay}</strong></div>
           <div>Département: ${depName || '-'} • Commune: ${comName || '-'}</div>
           ${arrText ? `<div>Arrondissement: ${arrText}</div>` : ''}
           ${vilText ? `<div>Village: ${vilText}</div>` : ''}

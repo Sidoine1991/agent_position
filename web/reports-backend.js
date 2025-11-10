@@ -552,7 +552,7 @@ async function loadUsersPlanning() {
       console.error('ERREUR: L\'élément avec l\'ID users-planning-body est introuvable dans le DOM');
       return;
     }
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center">Chargement des données...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center">Chargement des données...</td></tr>';
     let allUsers = [];
     let users = [];
     let page = 1;
@@ -653,11 +653,14 @@ async function loadUsersPlanning() {
     }
     let planningItems = [];
     try {
+      // Utiliser la date au format YYYY-MM-DD pour la requête
+      // L'API peut accepter soit un format ISO complet, soit juste la date
       const from = `${date}T00:00:00.000Z`;
       const to = `${date}T23:59:59.999Z`;
       
       // Construire l'URL avec tous les filtres
-      let planningUrl = `${apiBase}/planifications?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+      // Essayer d'abord avec la date au format simple YYYY-MM-DD
+      let planningUrl = `${apiBase}/planifications?from=${encodeURIComponent(date)}&to=${encodeURIComponent(date)}`;
       
       // Ajouter les filtres si ils sont définis
       if (filters.project && filters.project !== 'all') {
@@ -673,11 +676,41 @@ async function loadUsersPlanning() {
         planningUrl += `&commune=${encodeURIComponent(filters.commune)}`;
       }
       
-      console.log('URL de chargement des planifications:', planningUrl);
+      console.log('📅 Date utilisée pour les planifications:', date);
+      console.log('🔗 URL de chargement des planifications:', planningUrl);
       const planningRes = await fetch(planningUrl, { headers });
       if (!planningRes.ok) {
         const errorText = await planningRes.text();
-        console.error('Erreur lors du chargement des planifications:', planningRes.status, errorText);
+        console.error('❌ Erreur lors du chargement des planifications:', planningRes.status, errorText);
+        
+        // Essayer avec le format ISO complet en cas d'échec
+        console.log('🔄 Tentative avec format ISO complet...');
+        planningUrl = `${apiBase}/planifications?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+        if (filters.project && filters.project !== 'all') {
+          planningUrl += `&project_name=${encodeURIComponent(filters.project)}`;
+        }
+        if (filters.agentId && filters.agentId !== 'all') {
+          planningUrl += `&agent_id=${encodeURIComponent(filters.agentId)}`;
+        }
+        if (filters.department && filters.department !== 'all') {
+          planningUrl += `&departement=${encodeURIComponent(filters.department)}`;
+        }
+        if (filters.commune && filters.commune !== 'all') {
+          planningUrl += `&commune=${encodeURIComponent(filters.commune)}`;
+        }
+        
+        const planningResRetry = await fetch(planningUrl, { headers });
+        if (planningResRetry.ok) {
+          const planningDataRetry = await planningResRetry.json();
+          if (planningDataRetry && planningDataRetry.items && Array.isArray(planningDataRetry.items)) {
+            planningItems = planningDataRetry.items;
+          } else if (Array.isArray(planningDataRetry)) {
+            planningItems = planningDataRetry;
+          } else if (planningDataRetry && planningDataRetry.data && Array.isArray(planningDataRetry.data)) {
+            planningItems = planningDataRetry.data;
+          }
+          console.log('✅ Planifications récupérées avec format ISO');
+        }
       } else {
         const planningData = await planningRes.json();
         if (planningData && planningData.items && Array.isArray(planningData.items)) {
@@ -689,29 +722,182 @@ async function loadUsersPlanning() {
         } else {
           planningItems = [];
         }
+        console.log('✅ Planifications récupérées avec format date simple');
       }
     } catch (error) {
-      console.error('Erreur lors du chargement des planifications:', error);
+      console.error('❌ Erreur lors du chargement des planifications:', error);
     }
     
-    console.log(`${planningItems.length} planifications chargées au total (déjà filtrées côté serveur)`);
+    console.log(`📊 ${planningItems.length} planifications chargées au total pour la date ${date}`);
     
     // Les filtres sont maintenant appliqués côté serveur, plus besoin de filtrage côté client
     
-    const usersWithPlanning = new Set(planningItems.map(p => p.user_id));
+    // Récupérer les validations de présence pour la date sélectionnée
+    let validatedUserIds = [];
+    let validationData = [];
+    try {
+      // Utiliser une plage de dates pour couvrir toute la journée (de minuit à minuit le lendemain)
+      const startDate = new Date(date);
+      const endDate = new Date(date);
+      endDate.setDate(endDate.getDate() + 1);
+      const fromDate = startDate.toISOString().split('T')[0];
+      const toDate = endDate.toISOString().split('T')[0];
+      
+      const validationsUrl = `${apiBase}/reports/validations?from=${fromDate}&to=${toDate}`;
+      console.log('🔍 Récupération des validations pour la date:', date, 'URL:', validationsUrl);
+      const validationsRes = await fetch(validationsUrl, { headers });
+      if (validationsRes.ok) {
+        const validationsData = await validationsRes.json();
+        validationData = Array.isArray(validationsData?.items) 
+          ? validationsData.items 
+          : Array.isArray(validationsData) 
+            ? validationsData 
+            : [];
+        
+        console.log('📋 Données brutes des validations:', validationData.length, 'validations trouvées');
+        if (validationData.length > 0) {
+          console.log('📝 Premier exemple de validation:', JSON.stringify(validationData[0], null, 2));
+        }
+            
+        // Extraire les IDs des agents qui ont validé leur présence
+        // Gérer différents formats possibles pour l'ID agent
+        validatedUserIds = [...new Set(
+          validationData
+            .map(v => {
+              // Essayer différents noms de champs possibles
+              const agentId = v.agent_id || v.agentId || v.user_id || v.userId || v.id;
+              return agentId ? String(agentId) : null;
+            })
+            .filter(id => id !== null && id !== 'undefined' && id !== 'null')
+        )];
+        console.log(`✅ ${validatedUserIds.length} utilisateurs uniques ont validé leur présence. IDs:`, validatedUserIds);
+      } else {
+        const errorText = await validationsRes.text();
+        console.error('❌ Erreur lors de la récupération des validations:', validationsRes.status, errorText);
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des validations:', error);
+    }
+
+    // Créer un Set des IDs des utilisateurs avec planification (en s'assurant que les IDs sont des strings)
+    console.log('📋 Planifications brutes reçues:', planningItems.length);
+    if (planningItems.length > 0) {
+      console.log('📝 Exemple de planification:', JSON.stringify(planningItems[0], null, 2));
+      console.log('📝 Clés disponibles dans la planification:', Object.keys(planningItems[0]));
+    }
+    
+    const usersWithPlanning = new Set();
+    planningItems.forEach((p, idx) => {
+      // Gérer différents noms de champs possibles pour l'ID utilisateur
+      const userId = p.user_id || p.userId || p.agent_id || p.agentId || p.user?.id || p.agent?.id;
+      if (userId) {
+        const userIdStr = String(userId).trim();
+        usersWithPlanning.add(userIdStr);
+        if (idx < 5) {
+          console.log(`📌 Planification ${idx + 1}: userId=${userIdStr} (type: ${typeof userId}, brut: ${userId})`);
+        }
+      } else {
+        console.warn(`⚠️ Planification sans ID utilisateur trouvé:`, p);
+      }
+    });
+    
+    console.log(`✅ Set usersWithPlanning créé avec ${usersWithPlanning.size} IDs uniques`);
+    console.log('📋 IDs dans usersWithPlanning:', Array.from(usersWithPlanning).slice(0, 10));
     let withPlanning = 0;
     let withoutPlanning = 0;
     tbody.innerHTML = '';
     const rows = [];
+    
+    // Convertir validatedUserIds en Set pour une recherche plus rapide et fiable
+    const validatedUserIdsSet = new Set(validatedUserIds.map(id => String(id).trim()));
+    
+    // Afficher les IDs pour le débogage
+    console.log('📋 IDs des utilisateurs avec planification:', [...usersWithPlanning]);
+    console.log('✅ IDs des utilisateurs avec validation:', [...validatedUserIdsSet]);
+    console.log(`📊 Comparaison: ${usersWithPlanning.size} planifiés, ${validatedUserIdsSet.size} validés`);
+    
+    // D'abord, on récupère tous les IDs des utilisateurs qui sont à la fois planifiés et absents
+    const absentUserIds = [];
+    users.forEach(user => {
+      const userIdStr = String(user.id || user.user_id || user.userId || '').trim();
+      if (!userIdStr) return;
+      
+      const isPlanned = usersWithPlanning.has(userIdStr);
+      const isPresent = validatedUserIdsSet.has(userIdStr);
+      
+      if (isPlanned && !isPresent) {
+        absentUserIds.push(userIdStr);
+      }
+    });
+    
+    console.log('📊 IDs des utilisateurs absents (planifiés mais pas de validation):', absentUserIds);
+    
     await Promise.all(users.map(async (user, index) => {
-      const hasPlanning = await checkPlanningForAgent(user.id, date);
-      if (hasPlanning) {
+      const userIdStr = String(user.id || user.user_id || user.userId || '').trim();
+      if (!userIdStr) {
+        console.warn(`⚠️ Utilisateur sans ID valide:`, user);
+        return;
+      }
+      
+      // Vérifier si l'utilisateur est planifié avec plusieurs méthodes de comparaison
+      let isPlanned = usersWithPlanning.has(userIdStr);
+      
+      // Si pas trouvé, essayer avec différents formats de l'ID
+      if (!isPlanned) {
+        // Essayer avec l'ID numérique
+        const userIdNum = parseInt(userIdStr);
+        if (!isNaN(userIdNum)) {
+          isPlanned = usersWithPlanning.has(String(userIdNum)) || usersWithPlanning.has(userIdNum.toString());
+        }
+        
+        // Essayer avec l'ID original de l'utilisateur
+        const originalUserId = user.id || user.user_id || user.userId;
+        if (originalUserId) {
+          isPlanned = isPlanned || usersWithPlanning.has(String(originalUserId)) || usersWithPlanning.has(originalUserId.toString());
+        }
+      }
+      
+      // Log de débogage pour les utilisateurs qui devraient être planifiés mais ne le sont pas
+      if (!isPlanned && index < 10) {
+        const userDisplayName = user.name || user.first_name || user.email || userIdStr;
+        console.log(`🔍 Agent ${userDisplayName} (ID: ${userIdStr}):`, {
+          userIdStr,
+          userIdType: typeof userIdStr,
+          userOriginalId: user.id,
+          userOriginalIdType: typeof user.id,
+          inSet: usersWithPlanning.has(userIdStr),
+          setContents: Array.from(usersWithPlanning).slice(0, 5),
+          planningItemsForUser: planningItems.filter(p => {
+            const pUserId = String(p.user_id || p.userId || p.agent_id || p.agentId || '').trim();
+            return pUserId === userIdStr || pUserId === String(user.id);
+          }).length
+        });
+      }
+      
+      const isPresent = validatedUserIdsSet.has(userIdStr);
+      
+      // Un agent est considéré comme absent UNIQUEMENT s'il est planifié ET n'a pas validé sa présence
+      const isAbsent = isPlanned && !isPresent;
+      
+      // Log détaillé pour le débogage
+      if (isPlanned) {
+        console.log(`👤 Agent ${user.name || user.first_name || user.id} (ID: ${userIdStr}):`, { 
+          isPlanned, 
+          isPresent, 
+          isAbsent,
+          userIdType: typeof userIdStr,
+          validatedUserIds: validatedUserIds.slice(0, 5).join(', ') + (validatedUserIds.length > 5 ? '...' : '')
+        });
+      }
+      
+      if (isPlanned) {
         withPlanning++;
       } else {
         withoutPlanning++;
       }
-      const planningCell = hasPlanning ? 'Oui' : 'Non';
-      const planningClass = hasPlanning ? 'text-success' : 'text-danger';
+      
+      const planningCell = isPlanned ? 'Oui' : 'Non';
+      const planningClass = isPlanned ? 'text-success' : 'text-danger';
       // Construire le nom d'affichage selon la structure de la table users
       let displayName = '';
       if (user.name && user.name.trim()) {
@@ -723,19 +909,57 @@ async function loadUsersPlanning() {
       } else {
         displayName = user.email || 'Non renseigné';
       }
+      
+      // Ajouter un indicateur d'absence avant le nom si l'agent est planifié mais n'a pas encore validé sa présence
+      // Un agent est absent s'il a une planification pour ce jour ET qu'il n'a pas validé sa présence
+      // Condition: isPlanned = true ET isPresent = false
+      if (isPlanned) {
+        // Vérification finale avec le Set pour s'assurer de la cohérence
+        const finalCheckPresent = validatedUserIdsSet.has(userIdStr);
+        
+        if (!finalCheckPresent) {
+          // L'agent est planifié mais absent (pas de validation)
+          // IMPORTANT: Ajouter le badge AVANT le nom
+          const absentBadge = '<span class="badge bg-danger text-white me-2" title="Planifié mais absent (pas de validation de présence)">❌</span>';
+          displayName = absentBadge + displayName;
+          console.log(`❌ Agent absent: ${displayName} (ID: ${userIdStr}) - Planifié: ${isPlanned}, Présent dans validations: ${finalCheckPresent}`);
+        } else {
+          // L'agent est planifié ET présent (a validé sa présence) - pas de badge
+          console.log(`✅ Agent présent: ${displayName} (ID: ${userIdStr}) - Planifié: ${isPlanned}, Présent: ${finalCheckPresent}`);
+        }
+      } else {
+        // L'agent n'est pas planifié - pas de badge d'absence
+        console.log(`ℹ️ Agent non planifié: ${displayName} (ID: ${userIdStr})`);
+      }
       // Récupérer le numéro de projet de l'utilisateur
       const projectNumber = user.project_name || user.projet || user.project || '—';
       const cleanedProject = (typeof cleanProjectName === 'function') 
         ? (cleanProjectName(projectNumber) || '') 
         : String(projectNumber || '').trim();
       
+      // Déterminer si l'agent est absent pour la classe CSS
+      const isAgentAbsent = isPlanned && !isPresent && !validatedUserIdsSet.has(userIdStr);
+      
+      // Récupérer l'observation depuis le localStorage
+      const observationKey = `planning_observation_${user.id}_${date}`;
+      const savedObservation = localStorage.getItem(observationKey) || '';
+      
       const row = `
-        <tr data-project="${cleanedProject}">
+        <tr data-project="${cleanedProject}" class="${isAgentAbsent ? 'table-warning' : ''}">
           <td>${index + 1}</td>
           <td>${displayName}</td>
           <td>${projectNumber}</td>
           <td>${user.role || '—'}</td>
           <td class="${planningClass} text-center">${planningCell}</td>
+          <td>
+            <input type="text" 
+                   class="form-control form-control-sm planning-observation" 
+                   data-user-id="${user.id}" 
+                   data-date="${date}"
+                   placeholder="Ajouter une observation..."
+                   value="${savedObservation.replace(/"/g, '&quot;')}"
+                   style="min-width: 200px;">
+          </td>
           <td class="text-center">
             <button class="btn btn-sm btn-outline-info" onclick="viewPlanningDetails('${user.id}', '${date}')">
               <i class="bi bi-eye"></i> Voir
@@ -745,7 +969,57 @@ async function loadUsersPlanning() {
       `;
       rows.push(row);
     }));
-    tbody.innerHTML = rows.join('') || '<tr><td colspan="6" class="text-center">Aucun utilisateur trouvé</td></tr>';
+    // Ajouter la légende explicative
+    let legendHtml = '';
+    // Le nombre d'absents est simplement la longueur du tableau des IDs absents
+    const absentCount = absentUserIds.length;
+
+    if (absentCount > 0) {
+      legendHtml = `
+        <div class="mt-2 small text-muted">
+          <span class="badge bg-danger text-white">❌</span> : Agent planifié mais absent (pas de validation de présence)
+        </div>
+      `;
+    }
+
+    tbody.innerHTML = `
+      ${rows.join('')}
+      ${rows.length > 0 ? `
+        <tr>
+          <td colspan="7" class="small text-muted">
+            <div class="mt-2">
+              <span class="badge bg-danger text-white">❌</span> : Agent planifié mais absent (pas de validation de présence)
+            </div>
+          </td>
+        </tr>
+      ` : '<tr><td colspan="7" class="text-center">Aucun utilisateur trouvé</td></tr>'}
+    `;
+    
+    // Ajouter les event listeners pour sauvegarder les observations
+    tbody.querySelectorAll('.planning-observation').forEach(input => {
+      input.addEventListener('blur', function() {
+        const userId = this.getAttribute('data-user-id');
+        const date = this.getAttribute('data-date');
+        const observation = this.value.trim();
+        const key = `planning_observation_${userId}_${date}`;
+        
+        if (observation) {
+          localStorage.setItem(key, observation);
+          console.log(`Observation sauvegardée pour l'agent ${userId} le ${date}:`, observation);
+        } else {
+          localStorage.removeItem(key);
+          console.log(`Observation supprimée pour l'agent ${userId} le ${date}`);
+        }
+      });
+      
+      // Sauvegarder aussi lors de la pression de Enter
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.blur();
+        }
+      });
+    });
     const countElement = document.getElementById('planning-count');
     if (countElement) {
       countElement.innerHTML = `
@@ -762,7 +1036,7 @@ async function loadUsersPlanning() {
     if (tbody) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="6" class="text-center text-danger">
+          <td colspan="7" class="text-center text-danger">
             Erreur lors du chargement des données: ${error.message}
           </td>
         </tr>
@@ -1345,7 +1619,13 @@ window.generateReport = async function() {
   set('attendance-rate', rate + '%');
   const rr = document.getElementById('report-results');
   if (rr) rr.style.display = 'block';
-  try { renderCharts(filteredRows); } catch (e) { console.warn('Charts render failed:', e?.message || e); }
+  try { 
+    renderCharts(filteredRows);
+    // Charger les personnes planifiées mais absentes
+    await loadPlannedButAbsent();
+  } catch (e) { 
+    console.warn('Erreur lors du rendu des graphiques ou du chargement des absents:', e?.message || e); 
+  }
 };
 
 /**
@@ -1668,8 +1948,9 @@ window.exportAsHtml = async function() {
       
       // Si les graphiques existent, les convertir en images
       if (chartsContainer) {
-        const charts = chartsContainer.querySelectorAll('canvas');
-        charts.forEach((chart, index) => {
+        // 1) Traiter les canvas (Chart.js)
+        const canvasCharts = chartsContainer.querySelectorAll('canvas');
+        canvasCharts.forEach((chart) => {
           try {
             const imageUrl = chart.toDataURL('image/png');
             const img = document.createElement('img');
@@ -1680,17 +1961,62 @@ window.exportAsHtml = async function() {
             img.style.border = '1px solid #eee';
             img.style.borderRadius = '8px';
             img.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-            
-            // Remplacer le canvas par l'image
             const container = chart.closest('.chart-container');
             if (container) {
               container.innerHTML = '';
               container.appendChild(img);
             }
           } catch (e) {
-            console.error('Erreur lors de la conversion du graphique en image:', e);
+            console.error('Erreur lors de la conversion du graphique en image (canvas):', e);
           }
         });
+
+        // 2) Traiter les graphiques HTML (placeholders/div-based)
+        const htmlCharts = chartsContainer.querySelectorAll('.chart-placeholder, .chart-bar-container');
+        if (htmlCharts.length > 0) {
+          // Charger html2canvas si nécessaire
+          const ensureHtml2Canvas = async () => {
+            if (window.html2canvas) return;
+            await new Promise((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+              script.onload = resolve;
+              script.onerror = () => reject(new Error('Erreur chargement html2canvas pour export HTML'));
+              document.head.appendChild(script);
+            });
+          };
+
+          try {
+            await ensureHtml2Canvas();
+            for (const chartEl of Array.from(htmlCharts)) {
+              try {
+                const container = chartEl.closest('.chart-container') || chartEl;
+                const canvas = await window.html2canvas(container, {
+                  backgroundColor: '#ffffff',
+                  scale: Math.min(2, window.devicePixelRatio || 1.5),
+                  useCORS: true
+                });
+                const imageUrl = canvas.toDataURL('image/png');
+                const img = document.createElement('img');
+                img.src = imageUrl;
+                img.style.maxWidth = '100%';
+                img.style.height = 'auto';
+                img.style.marginTop = '20px';
+                img.style.border = '1px solid #eee';
+                img.style.borderRadius = '8px';
+                img.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+                if (container) {
+                  container.innerHTML = '';
+                  container.appendChild(img);
+                }
+              } catch (e) {
+                console.error('Erreur snapshot html2canvas du graphique HTML:', e);
+              }
+            }
+          } catch (e) {
+            console.error('Impossible de charger/ utiliser html2canvas pour les graphiques HTML:', e);
+          }
+        }
       }
       
       exportContainer.appendChild(reportsClone);
@@ -1747,6 +2073,70 @@ window.exportAsHtml = async function() {
       const planningClone = planningSection.cloneNode(true);
       // Retirer les boutons et filtres interactifs
       planningClone.querySelectorAll('button, .btn, .no-print').forEach(el => el.remove());
+      
+      // Remplacer les champs d'observation par leur valeur texte pour l'export
+      // Récupérer aussi les observations depuis localStorage au cas où elles ne seraient pas dans le DOM
+      planningClone.querySelectorAll('input.planning-observation').forEach(inp => {
+        const userId = inp.getAttribute('data-user-id');
+        const date = inp.getAttribute('data-date');
+        let observationValue = inp.value || '';
+        
+        // Si pas de valeur dans l'input, essayer de récupérer depuis localStorage
+        if (!observationValue && userId && date) {
+          const key = `planning_observation_${userId}_${date}`;
+          observationValue = localStorage.getItem(key) || '';
+        }
+        
+        const span = planningClone.ownerDocument.createElement('span');
+        span.textContent = observationValue || '—';
+        span.style.display = 'inline-block';
+        span.style.padding = '4px 8px';
+        span.style.whiteSpace = 'pre-wrap';
+        span.style.wordBreak = 'break-word';
+        const td = inp.parentElement;
+        if (td) {
+          inp.remove();
+          td.appendChild(span);
+        }
+      });
+      
+      // Si des observations ne sont pas dans les inputs (lignes non chargées), les ajouter depuis localStorage
+      const allRows = planningClone.querySelectorAll('#users-planning-body tr');
+      allRows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length >= 6) {
+          // Chercher le bouton "Voir" pour extraire userId et date
+          const viewButton = row.querySelector('button[onclick*="viewPlanningDetails"]');
+          if (viewButton) {
+            const onclickAttr = viewButton.getAttribute('onclick');
+            const match = onclickAttr.match(/viewPlanningDetails\('(\d+)',\s*'([^']+)'\)/);
+            if (match) {
+              const userId = match[1];
+              const date = match[2];
+              const key = `planning_observation_${userId}_${date}`;
+              const observation = localStorage.getItem(key);
+              
+              // Si on trouve une observation et qu'il n'y a pas déjà une cellule observation
+              if (observation && cells.length === 6) {
+                // Insérer une cellule observation avant la dernière cellule (Détails)
+                const observationCell = planningClone.ownerDocument.createElement('td');
+                observationCell.textContent = observation;
+                observationCell.style.padding = '4px 8px';
+                observationCell.style.whiteSpace = 'pre-wrap';
+                observationCell.style.wordBreak = 'break-word';
+                row.insertBefore(observationCell, cells[cells.length - 1]);
+              } else if (observation && cells.length === 7) {
+                // Mettre à jour la cellule observation existante
+                const observationCell = cells[5];
+                if (observationCell && !observationCell.textContent.trim()) {
+                  observationCell.textContent = observation;
+                }
+              }
+            }
+          }
+        }
+      });
+      
       // Mise en forme
       const tbl = planningClone.querySelector('table');
       if (tbl) {
@@ -3762,6 +4152,20 @@ async function updatePresenceSummary() {
         console.log('Premier agent:', summaryData[0]);
         console.log('Clés du premier agent:', Object.keys(summaryData[0]));
       }
+      
+      // Chercher l'agent FAKOUNDE Constantin pour le débogage
+      const fakounde = summaryData.find(agent => 
+        agent.name && (agent.name.includes('FAKOUNDE') || agent.name.includes('Fakounde') || agent.name.includes('Constantin'))
+      );
+      if (fakounde) {
+        console.log('🔍 Agent FAKOUNDE Constantin trouvé:', fakounde);
+        console.log('   - present_days:', fakounde.present_days);
+        console.log('   - planned_days:', fakounde.planned_days);
+        console.log('   - expected_days:', fakounde.expected_days);
+        console.log('   - presence_rate:', fakounde.presence_rate);
+      } else {
+        console.warn('⚠️ Agent FAKOUNDE Constantin non trouvé dans les données de l\'API');
+      }
     }
     
     // Utiliser les données du récapitulatif directement
@@ -3834,11 +4238,21 @@ async function updatePresenceSummary() {
         </tr>`;
     } else {
       filteredResult.forEach(agent => {
-        const expectedDays = agent.expected_days || 20; // Nbre de jours attendus
-        const plannedDays = agent.planned_days || 0; // Jours planifiés enregistrés
-        const presentDays = agent.present_days || 0;
+        // S'assurer que toutes les valeurs sont définies et numériques
+        const expectedDays = (agent.expected_days !== undefined && agent.expected_days !== null) ? parseInt(agent.expected_days) : 20;
+        const plannedDays = (agent.planned_days !== undefined && agent.planned_days !== null) ? parseInt(agent.planned_days) : 0;
+        const presentDays = (agent.present_days !== undefined && agent.present_days !== null) ? parseInt(agent.present_days) : 0;
+        
+        // Log pour déboguer les agents avec des valeurs manquantes
+        if (agent.present_days === undefined || agent.present_days === null) {
+          console.warn(`⚠️ Agent ${agent.name} (ID: ${agent.user_id}) n'a pas de present_days défini. Valeur brute:`, agent.present_days);
+          console.log('Données complètes de l\'agent:', agent);
+        }
+        
         // Taux global mensuel par rapport aux 20 jours attendus
-        const presenceRate = agent.presence_rate ?? Math.min(100, Math.round((presentDays / expectedDays) * 100));
+        const presenceRate = (agent.presence_rate !== undefined && agent.presence_rate !== null) 
+          ? parseInt(agent.presence_rate) 
+          : Math.min(100, Math.round((presentDays / expectedDays) * 100));
         
         // Déterminer la classe de la barre de progression
         let progressClass = 'bg-success';
@@ -3847,7 +4261,7 @@ async function updatePresenceSummary() {
 
         tableContent += `
           <tr>
-            <td>${agent.name}</td>
+            <td>${agent.name || 'Non renseigné'}</td>
             <td>${agent.project || '-'}</td>
             <td>${expectedDays}</td>
             <td>${plannedDays}</td>
@@ -3895,7 +4309,8 @@ function getActiveFilters() {
   };
 }
 
-function getSelectedFilters() {
+// Récupère les filtres sélectionnés sur la page Rapports
+window.getSelectedFilters = function() {
   // Filtres de date
   const dateRange = document.getElementById('date-range')?.value || 'today';
   const preciseDate = document.getElementById('date-filter')?.value || '';
@@ -4357,4 +4772,303 @@ function updatePlanningCount() {
       <span class="text-danger">${withoutPlanning} sans</span>
     `;
   }
+}
+
+/**
+ * Affiche la liste des agents qui ont planifié mais n'ont pas envoyé de check-ins
+ */
+async function loadPlannedButAbsent() {
+  const tbody = document.getElementById('planned-absent-body');
+  if (!tbody) return;
+
+  // Afficher un indicateur de chargement
+  tbody.innerHTML = '<tr><td class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Chargement...</span></div></td></tr>';
+
+  try {
+    // Vérifier si l'utilisateur est authentifié
+    const jwt = localStorage.getItem('jwt');
+    if (!jwt) {
+      throw new Error('Non authentifié. Veuillez vous reconnecter.');
+    }
+    
+    const apiBase = '/api';
+    const targetDate = document.getElementById('date-filter')?.value || new Date().toISOString().split('T')[0];
+    
+    // Configuration de la requête
+    const fetchOptions = {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwt}`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      },
+      credentials: 'include',
+      cache: 'no-store'
+    };
+    
+    // 1. Récupérer TOUTES les planifications (sans filtre de date d'abord pour le débogage)
+    console.log('🔍 [DEBUG] Début de la récupération des planifications');
+    console.log('📅 Date cible:', targetDate);
+    
+    // Vérifier que la date est valide
+    if (!targetDate || isNaN(new Date(targetDate).getTime())) {
+      const errorMsg = `❌ Date invalide: ${targetDate}`;
+      console.error(errorMsg);
+      tbody.innerHTML = `
+        <tr>
+          <td class="text-center">Erreur: Date invalide (${targetDate})</td>
+        </tr>`;
+      return;
+    }
+    
+    // Formater la date pour l'API (YYYY-MM-DD)
+    const formattedDate = new Date(targetDate).toISOString().split('T')[0];
+    console.log('📆 Date formatée pour la requête:', formattedDate);
+    
+    // 1. D'abord, on récupère TOUTES les planifications pour le débogage
+    const allPlanningsUrl = new URL(`${apiBase}/planifications`, window.location.origin);
+    allPlanningsUrl.searchParams.append('select', 'id,user_id,date_planification,planifie,created_at,updated_at,projet,localisation,users(id,first_name,last_name,role)');
+    allPlanningsUrl.searchParams.append('limit', '1000');
+    allPlanningsUrl.searchParams.append('_t', Date.now());
+    
+    console.log('🔗 URL de requête complète (sans filtre de date):', allPlanningsUrl.toString());
+    
+    // 2. Ensuite, on fait la requête avec le filtre de date
+    const planningUrl = new URL(`${apiBase}/planifications`, window.location.origin);
+    planningUrl.searchParams.append('date', `eq.${formattedDate}`);
+    planningUrl.searchParams.append('select', 'id,user_id,users(first_name,last_name,role),planifie,date_planification,projet,localisation,created_at,updated_at');
+    planningUrl.searchParams.append('_t', Date.now());
+    
+    console.log('🔗 URL de requête avec filtre de date:', planningUrl.toString());
+    
+    // Options de requête avec gestion du cache
+    const requestOptions = {
+      ...fetchOptions,
+      cache: 'no-store',
+      headers: {
+        ...fetchOptions.headers,
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    };
+    
+    let allPlanifications = [];
+    let planifications = [];
+    
+    try {
+      console.log('🔄 1/2 - Récupération de TOUTES les planifications...');
+      const allResponse = await fetch(allPlanningsUrl.toString(), requestOptions);
+      if (allResponse.ok) {
+        const allData = await allResponse.json();
+        console.log('📋 Toutes les planifications disponibles (premiers 5):', 
+          Array.isArray(allData) 
+            ? allData.slice(0, 5).map(p => ({
+                id: p.id,
+                user_id: p.user_id,
+                date: p.date_planification,
+                planifie: p.planifie,
+                user: p.users ? `${p.users.first_name} ${p.users.last_name}` : 'N/A'
+              }))
+            : 'Format de réponse inattendu'
+        );
+      } else {
+        console.error('⚠️ Impossible de récupérer toutes les planifications:', await allResponse.text());
+      }
+      
+      console.log(`🔄 2/2 - Récupération des planifications pour le ${formattedDate}...`);
+      const planningResponse = await fetch(planningUrl.toString(), requestOptions);
+      console.log('✅ Réponse reçue, statut:', planningResponse.status);
+      
+      if (!planningResponse.ok) {
+        const errorText = await planningResponse.text();
+        throw new Error(`Erreur ${planningResponse.status}: ${errorText}`);
+      }
+      
+      const responseData = await planningResponse.json();
+      console.log('📦 Réponse brute de l\'API planifications:', responseData);
+      
+      // Gérer différents formats de réponse
+      if (Array.isArray(responseData)) {
+        allPlanifications = responseData;
+      } else if (responseData && Array.isArray(responseData.items)) {
+        allPlanifications = responseData.items;
+      } else if (responseData && responseData.data && Array.isArray(responseData.data)) {
+        allPlanifications = responseData.data;
+      } else if (responseData) {
+        // Essayer d'extraire un tableau de la réponse
+        const possibleArrays = Object.values(responseData).filter(Array.isArray);
+        allPlanifications = possibleArrays.length > 0 ? possibleArrays[0] : [];
+      }
+      
+      console.log(`📊 ${allPlanifications.length} planifications trouvées au total pour la date ${formattedDate}`);
+      
+      if (allPlanifications.length > 0) {
+        console.log('📝 Exemple de planification:', JSON.stringify(allPlanifications[0], null, 2));
+      }
+      
+      // Filtrer les planifications avec planifie = 'Oui' ou true
+      planifications = allPlanifications.filter(planning => {
+        const isPlanned = planning.planifie === 'Oui' || planning.planifie === true || planning.planifie === 'OUI';
+        console.log(`🔍 Planification de ${planning.users?.first_name || 'N/A'} ${planning.users?.last_name || 'N/A'}: ` +
+                   `planifié = ${planning.planifie} (${typeof planning.planifie})`);
+        return isPlanned;
+      });
+      
+      console.log(`✅ ${planifications.length} planifications actives trouvées (${allPlanifications.length} au total)`);
+      
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des planifications:', error);
+      tbody.innerHTML = `
+        <tr>
+          <td class="text-center">Erreur: ${escapeHtml(error.message)}</td>
+        </tr>`;
+      return;
+    }
+    
+    if (planifications.length === 0) {
+      console.warn('⚠️ Aucune planification active trouvée pour la date', formattedDate);
+      tbody.innerHTML = `
+        <tr>
+          <td class="text-center">Aucune planification active trouvée pour le ${new Date(targetDate).toLocaleDateString('fr-FR')}</td>
+        </tr>`;
+      return;
+    }
+    
+    // 3. Récupérer les validations de présence pour la même date
+    console.log('🔍 Récupération des validations de présence...');
+    const validationsUrl = new URL(`${apiBase}/reports/validations`, window.location.origin);
+    
+    // Ajouter la plage de dates (du jour sélectionné à minuit à minuit le lendemain)
+    const startDate = new Date(targetDate);
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 1);
+    
+    validationsUrl.searchParams.append('from', startDate.toISOString().split('T')[0]);
+    validationsUrl.searchParams.append('to', endDate.toISOString().split('T')[0]);
+    
+    console.log('URL de la requête des validations:', validationsUrl.toString());
+    
+    let validatedUserIds = [];
+    try {
+      const validationsResponse = await fetch(validationsUrl.toString(), {
+        ...fetchOptions,
+        headers: {
+          ...fetchOptions.headers,
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+      
+      if (validationsResponse.ok) {
+        const responseData = await validationsResponse.json();
+        const validations = Array.isArray(responseData?.items) 
+          ? responseData.items 
+          : Array.isArray(responseData) 
+            ? responseData 
+            : [];
+        
+        console.log('📋 Données brutes des validations:', validations);
+        
+        // Extraire les user_id uniques des validations
+        validatedUserIds = [...new Set(validations
+          .filter(v => v.agent_id) // Filtrer les validations avec un agent_id valide
+          .map(v => v.agent_id.toString()) // Convertir en chaîne pour la comparaison
+        )];
+        
+        console.log(`✅ ${validatedUserIds.length} utilisateurs uniques avec validation trouvés:`, validatedUserIds);
+      } else {
+        const errorText = await validationsResponse.text();
+        console.warn('⚠️ Impossible de récupérer les validations de présence:', {
+          status: validationsResponse.status,
+          statusText: validationsResponse.statusText,
+          error: errorText
+        });
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des validations de présence:', error);
+    }
+    
+    // 4. Filtrer les agents planifiés mais absents
+    console.log('🔍 Filtrage des agents planifiés mais absents...');
+    const plannedButAbsent = planifications.filter(planning => {
+      const userId = planning.user_id?.toString();
+      const isAbsent = !validatedUserIds.includes(userId);
+      console.log(`- ${planning.users?.first_name || 'N/A'} ${planning.users?.last_name || 'N/A'}: ` +
+                 `planifié=${planning.planifie}, validé=${!isAbsent}`);
+      return isAbsent;
+    });
+    
+    console.log(`📊 ${plannedButAbsent.length} agents planifiés mais absents trouvés`);
+    
+    // 5. Afficher les résultats dans le tableau
+    if (plannedButAbsent.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td class="text-center">Tous les agents planifiés sont présents pour le ${new Date(targetDate).toLocaleDateString('fr-FR')}</td>
+        </tr>`;
+      return;
+    }
+    
+    // Trier par nom de famille puis par prénom
+    plannedButAbsent.sort((a, b) => {
+      const nameA = `${a.users?.last_name || ''} ${a.users?.first_name || ''}`.toLowerCase();
+      const nameB = `${b.users?.last_name || ''} ${b.users?.first_name || ''}`.toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+    
+    // Générer les lignes du tableau
+    tbody.innerHTML = plannedButAbsent.map(planning => {
+      const user = planning.users || {};
+      return `
+        <tr>
+          <td>${escapeHtml(user.first_name || '')} ${escapeHtml(user.last_name || '')}</td>
+          <td>${escapeHtml(planning.projet || 'Non spécifié')}</td>
+          <td>${escapeHtml(planning.localisation || 'Non spécifiée')}</td>
+          <td>${planning.date_planification ? new Date(planning.date_planification).toLocaleDateString('fr-FR') : 'Non spécifiée'}</td>
+        </tr>`;
+    }).join('');
+    
+    console.log('✅ Affichage des agents planifiés mais absents terminé');
+  } catch (error) {
+    console.error('❌ Erreur inattendue dans loadPlannedButAbsent:', error);
+    tbody.innerHTML = `
+      <tr>
+        <td class="text-center">Une erreur est survenue: ${escapeHtml(error.message)}</td>
+      </tr>`;
+  }
+}
+
+// Gestionnaire d'erreur global pour la fonction
+function handlePlannedAbsentError(error) {
+  console.error('❌ Erreur lors du chargement des absents planifiés:', error);
+  const tbody = document.getElementById('planned-absent-body');
+  if (tbody) {
+    tbody.innerHTML = `
+      <tr>
+        <td class="text-center text-danger">
+          Erreur lors du chargement des absents planifiés: ${escapeHtml(error.message)}
+        </td>
+      </tr>`;
+  }
+}
+
+/**
+ * Fonction utilitaire pour échapper le HTML
+ * @param {string|any} unsafe - La chaîne à échapper
+ * @returns {string} La chaîne échappée
+ */
+function escapeHtml(unsafe) {
+  if (typeof unsafe !== 'string') return String(unsafe || '');
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
