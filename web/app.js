@@ -12,6 +12,38 @@ let userProfileCache = null;
 let lastProfileCall = 0;
 const PROFILE_CACHE_DURATION = 30000; // 30 secondes
 
+// Cache des check-ins par mission (évite les requêtes répétées dans l'historique)
+const missionCheckinCache = new Map();
+
+async function getMissionCheckinsCached(missionId) {
+  if (!missionId && missionId !== 0) return [];
+  const key = Number(missionId);
+  if (missionCheckinCache.has(key)) {
+    return missionCheckinCache.get(key);
+  }
+  try {
+    const resp = await api(`/missions/${key}/checkins`);
+    const rows = Array.isArray(resp)
+      ? resp
+      : resp?.checkins || resp?.items || resp?.data?.items || resp?.data?.checkins || [];
+    missionCheckinCache.set(key, rows || []);
+    return rows || [];
+  } catch (error) {
+    console.warn(`⚠️ Impossible de récupérer les check-ins de la mission ${missionId}:`, error);
+    missionCheckinCache.set(key, []);
+    return [];
+  }
+}
+
+function invalidateMissionCheckins(missionId) {
+  if (!missionId && missionId !== 0) return;
+  missionCheckinCache.delete(Number(missionId));
+}
+
+function invalidateAllMissionCheckins() {
+  missionCheckinCache.clear();
+}
+
 // Fonction optimisée pour récupérer le profil avec cache
 async function getCachedProfile(email) {
   const now = Date.now();
@@ -1206,6 +1238,7 @@ async function init() {
       if (missionIdFromResp) {
         currentMissionId = missionIdFromResp;
         try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch {}
+        invalidateMissionCheckins(currentMissionId);
       } else {
         try {
           const missionsResponse = await api('/me/missions');
@@ -1213,7 +1246,11 @@ async function init() {
             ? missionsResponse
             : (missionsResponse.missions || (missionsResponse.data && missionsResponse.data.missions) || []);
           const active = missions.find(m => m.status === 'active');
-          if (active) { currentMissionId = active.id; try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch {} }
+          if (active) { 
+            currentMissionId = active.id; 
+            try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch {}
+            invalidateMissionCheckins(currentMissionId);
+          }
         } catch {}
       }
       
@@ -1368,6 +1405,7 @@ async function init() {
       // Inclure mission_id si connu (éviter doublon)
       if (missionId && !fd.has('mission_id')) fd.append('mission_id', String(missionId));
       await api('/presence/end', { method: 'POST', body: fd });
+      invalidateMissionCheckins(missionId);
 
       status.textContent = 'Position signalée - Mission terminée';
       animateElement(status, 'bounce');
@@ -1558,6 +1596,7 @@ async function init() {
       addLoadingState(btn, 'Enregistrement...');
       try {
         await api(`/missions/${currentMissionId}/complete`, { method: 'POST', body: { note: $('note').value || '' } });
+        invalidateMissionCheckins(currentMissionId);
         status.textContent = 'Mission enregistrée';
           animateElement(status, 'bounce');
         showNotification('Mission de la journée enregistrée et clôturée.', 'success');
@@ -1627,35 +1666,63 @@ async function init() {
             if (cached && Number.isFinite(Number(cached))) distanceStr = `${Math.round(Number(cached))} m`;
           } catch {}
         }
-        if (startStr === '-' || endStr === '-') {
-          const resp = await api(`/missions/${m.id}/checkins`);
-          const rows = Array.isArray(resp) ? resp : (resp.items || resp.checkins || (resp.data && (resp.data.items || resp.data.checkins)) || []);
-          if (rows && rows.length) {
-            const sorted = rows.slice().sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
-            if (startStr === '-' && sorted[0] && sorted[0].timestamp) {
-              const d0 = new Date(sorted[0].timestamp);
-              if (!isNaN(d0.getTime())) {
-                startStr = d0.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-                startMs = d0.getTime();
-              }
+
+        const checkinRows = await getMissionCheckinsCached(m.id);
+        if (checkinRows && checkinRows.length) {
+          const normalized = checkinRows
+            .map(row => {
+              const ts = row.timestamp || row.created_at || row.date || row.checked_at;
+              return { row, ts };
+            })
+            .filter(entry => entry.ts && !isNaN(new Date(entry.ts).getTime()))
+            .sort((a, b) => new Date(a.ts) - new Date(b.ts));
+
+          if (normalized.length) {
+            const firstDate = new Date(normalized[0].ts);
+            if (!isNaN(firstDate.getTime())) {
+              startMs = firstDate.getTime();
+              startStr = firstDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
             }
-            if (endStr === '-' && sorted[sorted.length-1] && sorted[sorted.length-1].timestamp) {
-              const dl = new Date(sorted[sorted.length-1].timestamp);
-              if (!isNaN(dl.getTime())) {
-                endStr = dl.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-                endMs = dl.getTime();
-              }
+
+            const lastDate = new Date(normalized[normalized.length - 1].ts);
+            const missionCompleted = String(m.status || '').toLowerCase() === 'completed';
+            if (missionCompleted && !isNaN(lastDate.getTime())) {
+              endMs = lastDate.getTime();
+              endStr = lastDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
             }
+
             if (!distanceStr) {
-              try { await computeAndStoreDailyDistance(m.id); } catch {}
-              try {
-                const cached2 = localStorage.getItem(`mission:${m.id}:total_distance_m`);
-                if (cached2 && Number.isFinite(Number(cached2))) distanceStr = `${Math.round(Number(cached2))} m`;
-        } catch {}
-      }
+              const points = normalized
+                .map(({ row, ts }) => ({
+                  lat: Number(row.lat),
+                  lon: Number(row.lon),
+                  ts: new Date(ts).getTime()
+                }))
+                .filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon) && Number.isFinite(p.ts));
+
+              if (points.length >= 2) {
+                const toRad = (v) => (v * Math.PI) / 180;
+                const R = 6371000;
+                let total = 0;
+                for (let i = 1; i < points.length; i++) {
+                  const a = points[i - 1];
+                  const b = points[i];
+                  const dLat = toRad(b.lat - a.lat);
+                  const dLon = toRad(b.lon - a.lon);
+                  const lat1 = toRad(a.lat);
+                  const lat2 = toRad(b.lat);
+                  const hav = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+                  const c = 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1 - hav));
+                  total += R * c;
+                }
+                const totalMeters = Math.round(total);
+                distanceStr = `${totalMeters} m`;
+                try { localStorage.setItem(`mission:${m.id}:total_distance_m`, String(totalMeters)); } catch {}
+              }
+            }
           }
         }
-  } catch {}
+      } catch {}
       const li = document.createElement('li');
       const depName = getDepartementNameById(m.departement);
       // Préférer champs manuels si lookups manquent
@@ -1712,6 +1779,7 @@ async function init() {
       if (!missionId) return;
       const resp = await api(`/missions/${missionId}/checkins`);
       const rows = Array.isArray(resp) ? resp : (resp.items || resp.checkins || (resp.data && (resp.data.items || resp.data.checkins)) || []);
+      missionCheckinCache.set(Number(missionId), rows || []);
       if (!rows || rows.length < 2) return; // besoin d'au moins deux points
       const points = rows
         .filter(r => Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon)))
@@ -1829,7 +1897,10 @@ async function refreshCheckins() {
   const list = $('checkins');
   list.innerHTML = '';
   const response = await api(`/missions/${currentMissionId}/checkins`);
-  const items = response.checkins || [];
+  const items = Array.isArray(response)
+    ? response
+    : response?.checkins || response?.items || response?.data?.items || response?.data?.checkins || [];
+  missionCheckinCache.set(Number(currentMissionId), items || []);
   
   for (let i = 0; i < items.length; i++) {
     const c = items[i];

@@ -5,6 +5,200 @@ let presenceLineChart = null;
 let rolePieChart = null;
 let statusPieChart = null;
 const apiBase = '/api';
+let cachedSupabaseConfig = null;
+
+function getSupabaseConfig() {
+  if (cachedSupabaseConfig) return cachedSupabaseConfig;
+  try {
+    const metaUrl = document.querySelector('meta[name="supabase-url"]')?.content || '';
+    const metaKey = document.querySelector('meta[name="supabase-anon-key"]')?.content || '';
+    const lsUrl = localStorage.getItem('SUPABASE_URL') || '';
+    const lsKey = localStorage.getItem('SUPABASE_ANON_KEY') || '';
+    const url = ((typeof window !== 'undefined' && window.SUPABASE_URL) || metaUrl || lsUrl || '').trim().replace(/\/+$/, '');
+    const key = ((typeof window !== 'undefined' && window.SUPABASE_ANON_KEY) || metaKey || lsKey || '').trim();
+    if (url && key) {
+      cachedSupabaseConfig = { url, key };
+      return cachedSupabaseConfig;
+    }
+  } catch (error) {
+    console.warn('Impossible de récupérer la configuration Supabase:', error?.message || error);
+  }
+  return null;
+}
+
+async function fetchPlanificationsFromSupabase(date, filters = {}, userList = []) {
+  const cfg = getSupabaseConfig();
+  if (!cfg) {
+    console.warn('⚠️ Aucun accès direct à Supabase pour le fallback des planifications.');
+    return [];
+  }
+
+  const { url, key } = cfg;
+  const search = new URLSearchParams();
+  const selectColumns = [
+    'id',
+    'user_id',
+    'agent_id',
+    'date',
+    'date_planification',
+    'planned_date',
+    'planned_start_time',
+    'planned_end_time',
+    'planifie',
+    'project_name',
+    'projet',
+    'departement',
+    'commune',
+    'description',
+    'description_activite',
+    'notes',
+    'resultat_journee',
+    'supervisor_id',
+    'created_at',
+    'updated_at'
+  ];
+
+  search.set(
+    'select',
+    `${selectColumns.join(',')},users(id,name,first_name,last_name,email,role,project_name,departement,commune,supervisor_id,supervisor)`
+  );
+  search.set('limit', '1000');
+  search.set('order', 'date.desc');
+
+  if (date) {
+    search.append('date', `gte.${date}`);
+    search.append('date', `lte.${date}`);
+  }
+
+  const requestOptions = {
+    headers: {
+      apikey: key,
+      Authorization: 'Bearer ' + key,
+      'Cache-Control': 'no-cache'
+    }
+  };
+
+  try {
+    const response = await fetch(`${url}/rest/v1/planifications?${search.toString()}`, requestOptions);
+    if (!response.ok) {
+      console.warn('⚠️ Fallback Supabase planifications échoué:', response.status, response.statusText);
+      return [];
+    }
+
+    const payload = await response.json().catch(() => []);
+    const rows = Array.isArray(payload)
+      ? payload
+      : (payload?.items && Array.isArray(payload.items) ? payload.items : []);
+
+    if (!rows.length) {
+      return [];
+    }
+
+    const userMap = new Map();
+    (userList || []).forEach(u => {
+      if (!u) return;
+      const identifier = u.id ?? u.user_id ?? u.userId;
+      if (identifier != null) {
+        userMap.set(String(identifier), u);
+      }
+    });
+
+    const normalized = rows
+      .map(row => {
+        const rawId =
+          row.user_id ??
+          row.agent_id ??
+          row.users?.id ??
+          row.userId ??
+          row.agentId ??
+          null;
+        if (rawId == null) return null;
+        const idStr = String(rawId);
+        const associatedUser =
+          row.users ||
+          row.user ||
+          userMap.get(idStr) ||
+          null;
+
+        return {
+          ...row,
+          user_id: row.user_id ?? rawId,
+          agent_id: row.agent_id ?? rawId,
+          date: row.date || row.date_planification || row.planned_date || date,
+          project_name: row.project_name || row.projet || associatedUser?.project_name || null,
+          departement: row.departement || associatedUser?.departement || null,
+          commune: row.commune || associatedUser?.commune || null,
+          user: associatedUser
+        };
+      })
+      .filter(Boolean);
+
+    const departmentNames = {
+      '1': 'Atacora',
+      '2': 'Atacora-Donga',
+      '3': 'Collines',
+      '4': 'Couffo',
+      '5': 'Donga',
+      '6': 'Littoral',
+      '7': 'Mono',
+      '8': 'Ouémé',
+      '9': 'Plateau',
+      '10': 'Zou'
+    };
+
+    const normalize = value =>
+      value ? String(value).trim().toLowerCase() : '';
+
+    return normalized.filter(row => {
+      const rowIdStr = String(row.user_id ?? row.agent_id ?? '');
+      if (!rowIdStr) return false;
+
+      if (filters.agentId && filters.agentId !== 'all') {
+        const agentFilter = String(filters.agentId);
+        if (rowIdStr !== agentFilter) return false;
+      }
+
+      if (filters.project && filters.project !== 'all') {
+        const planProject = cleanProjectName(row.project_name);
+        const filterProject = cleanProjectName(filters.project);
+        if (filterProject && (!planProject || planProject.toLowerCase() !== filterProject.toLowerCase())) {
+          return false;
+        }
+      }
+
+      if (filters.department && filters.department !== 'all') {
+        const expectedDept = departmentNames[filters.department] || filters.department;
+        const rowDept = row.departement || row.department;
+        if (normalize(rowDept) !== normalize(expectedDept)) {
+          return false;
+        }
+      }
+
+      if (filters.commune && filters.commune !== 'all') {
+        const rowCommune = row.commune || row.user?.commune;
+        if (normalize(rowCommune) !== normalize(filters.commune)) {
+          return false;
+        }
+      }
+
+      if (filters.supervisorId && filters.supervisorId !== 'all') {
+        const supervisor =
+          row.supervisor_id ??
+          row.user?.supervisor_id ??
+          row.user?.supervisor ??
+          row.user?.supervisorId;
+        if (supervisor && String(supervisor) !== String(filters.supervisorId)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  } catch (error) {
+    console.error('❌ Erreur lors du fallback Supabase planifications:', error);
+    return [];
+  }
+}
 
 function getQueryParam(name) {
   const params = new URLSearchParams(window.location.search);
@@ -399,21 +593,60 @@ async function fetchReportsFromBackend() {
   }
 }
 
+// Cache pour les vérifications de planification (évite les requêtes multiples pour le même agent/date)
+const planningCheckCache = new Map();
+
 /**
  * Vérifie si une planification existe pour un agent à une date donnée
+ * Utilise un cache pour éviter les requêtes multiples
  */
 async function checkPlanningForAgent(agentId, date) {
   if (!agentId || !date) return false;
+  
+  // Créer une clé de cache
+  const cacheKey = `${agentId}_${date}`;
+  
+  // Vérifier le cache d'abord
+  if (planningCheckCache.has(cacheKey)) {
+    return planningCheckCache.get(cacheKey);
+  }
+  
   try {
     const headers = await authHeaders();
     const response = await fetch(`${apiBase}/planifications?agent_id=${agentId}&date=${date}`, { headers });
-    if (!response.ok) return false;
+    
+    // Si erreur 401, ne pas logger d'erreur (token peut avoir expiré, mais ce n'est pas critique pour l'affichage)
+    if (response.status === 401) {
+      console.warn(`⚠️ Token expiré ou invalide pour la vérification de planification (agent ${agentId}, date ${date})`);
+      planningCheckCache.set(cacheKey, false);
+      return false;
+    }
+    
+    if (!response.ok) {
+      planningCheckCache.set(cacheKey, false);
+      return false;
+    }
+    
     const result = await response.json();
-    return result && result.items && result.items.length > 0;
+    const hasPlanning = result && result.items && result.items.length > 0;
+    
+    // Mettre en cache le résultat
+    planningCheckCache.set(cacheKey, hasPlanning);
+    return hasPlanning;
   } catch (error) {
-    console.error('Erreur lors de la vérification de la planification:', error);
+    // Ne pas logger d'erreur pour les erreurs réseau (peut être dû à un token expiré)
+    // C'est une vérification optionnelle pour l'affichage
+    planningCheckCache.set(cacheKey, false);
     return false;
   }
+}
+
+/**
+ * Vide le cache des vérifications de planification
+ * Utile si on veut forcer une nouvelle vérification
+ */
+function clearPlanningCheckCache() {
+  planningCheckCache.clear();
 }
 
 /**
@@ -466,44 +699,56 @@ async function renderValidations(rows) {
       </tr>
     `;
   }
-  tbody.innerHTML = await Promise.all(filteredRows.map(async row => {
-    const date = new Date(row.ts).toISOString().split('T')[0];
-    const hasPlanning = await checkPlanningForAgent(row.agent_id, date);
-    
-    // Récupérer les informations de l'utilisateur
-    const user = row.user || {};
-    const agentName = user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || `Agent ${row.agent_id}`;
-    const projectName = user.project_name || user.projet || user.project || row.projet || 'Non défini';
-    
-    const obsValue = (row.validation_notes || row.notes || row.note || '').toString();
-    const safeId = String(row.id || `${row.agent_id || ''}-${row.ts || ''}`);
-    return `
-      <tr>
-        <td>${cell(agentName)}</td>
-        <td>${cell(projectName)}</td>
-        <td>${cell(row.localisation)}</td>
-        <td>${cell(row.rayon_m)}</td>
-        <td>${(row.ref_lat != null && row.ref_lon != null) ? `${row.ref_lat}, ${row.ref_lon}` : '—'}</td>
-        <td>${(row.lat != null && row.lon != null) ? `${row.lat}, ${row.lon}` : '—'}</td>
-        <td>${row.ts ? fmt(row.ts) : '—'}</td>
-        <td>${cell(row.distance_m)}</td>
-        <td>${cell(row.statut)}</td>
-        <td class="text-center">${hasPlanning ? '✅ Oui' : '❌ Non'}</td>
-        <td>
-          <input 
-            class="form-control form-control-sm obs-input" 
-            data-rowid="${safeId}"
-            value="${obsValue.replace(/"/g, '&quot;')}"
-            placeholder="Ajouter une observation" />
-        </td>
-        <td class="text-center">
-          <button class="btn btn-sm btn-outline-primary" onclick="downloadValidationReport('${row.id}')" title="Télécharger le rapport">
-            <i class="bi bi-download"></i>
-          </button>
-        </td>
-      </tr>
-    `;
-  })).then(rows => rows.join('') || `<tr><td colspan="11">Aucune donnée</td></tr>`);
+  // Limiter le nombre de requêtes simultanées pour éviter de surcharger l'API
+  // Traiter les lignes par lots de 10 pour éviter trop de requêtes en parallèle
+  const batchSize = 10;
+  const rowsHtml = [];
+  
+  for (let i = 0; i < filteredRows.length; i += batchSize) {
+    const batch = filteredRows.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(async row => {
+      const date = new Date(row.ts).toISOString().split('T')[0];
+      // Utiliser le cache pour éviter les requêtes multiples
+      const hasPlanning = await checkPlanningForAgent(row.agent_id, date);
+      
+      // Récupérer les informations de l'utilisateur
+      const user = row.user || {};
+      const agentName = user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || `Agent ${row.agent_id}`;
+      const projectName = user.project_name || user.projet || user.project || row.projet || 'Non défini';
+      
+      const obsValue = (row.validation_notes || row.notes || row.note || '').toString();
+      const safeId = String(row.id || `${row.agent_id || ''}-${row.ts || ''}`);
+      return `
+        <tr>
+          <td>${cell(agentName)}</td>
+          <td>${cell(projectName)}</td>
+          <td>${cell(row.localisation)}</td>
+          <td>${cell(row.rayon_m)}</td>
+          <td>${(row.ref_lat != null && row.ref_lon != null) ? `${row.ref_lat}, ${row.ref_lon}` : '—'}</td>
+          <td>${(row.lat != null && row.lon != null) ? `${row.lat}, ${row.lon}` : '—'}</td>
+          <td>${row.ts ? fmt(row.ts) : '—'}</td>
+          <td>${cell(row.distance_m)}</td>
+          <td>${cell(row.statut)}</td>
+          <td class="text-center">${hasPlanning ? '✅ Oui' : '❌ Non'}</td>
+          <td>
+            <input 
+              class="form-control form-control-sm obs-input" 
+              data-rowid="${safeId}"
+              value="${obsValue.replace(/"/g, '&quot;')}"
+              placeholder="Ajouter une observation" />
+          </td>
+          <td class="text-center">
+            <button class="btn btn-sm btn-outline-primary" onclick="downloadValidationReport('${row.id}')" title="Télécharger le rapport">
+              <i class="bi bi-download"></i>
+            </button>
+          </td>
+        </tr>
+      `;
+    }));
+    rowsHtml.push(...batchResults);
+  }
+  
+  tbody.innerHTML = rowsHtml.join('') || `<tr><td colspan="11">Aucune donnée</td></tr>`;
   window.__lastRows = rows;
   window.__filteredRows = filteredRows;
   // Initialiser le cache des observations et les écouteurs
@@ -546,6 +791,28 @@ async function loadUsersPlanning() {
       if (dateInput) dateInput.value = date;
     }
     console.log('Date utilisée pour le filtre:', date);
+
+    // Utilitaire: normaliser une valeur de date vers un format YYYY-MM-DD
+    const normalizeDateValue = (value) => {
+      if (!value) return null;
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+          return trimmed.slice(0, 10);
+        }
+      }
+      try {
+        const parsed = new Date(value);
+        if (isNaN(parsed.getTime())) return null;
+        return parsed.toISOString().split('T')[0];
+      } catch {
+        return null;
+      }
+    };
+
+    const matchesSelectedDate = (value) => normalizeDateValue(value) === date;
+
     const headers = await authHeaders();
     const tbody = document.getElementById('users-planning-body');
     if (!tbody) {
@@ -728,52 +995,262 @@ async function loadUsersPlanning() {
       console.error('❌ Erreur lors du chargement des planifications:', error);
     }
     
-    console.log(`📊 ${planningItems.length} planifications chargées au total pour la date ${date}`);
+    console.log(`📊 ${planningItems.length} planifications chargées (API) pour la date ${date}`);
+
+    // Toujours tenter un fallback Supabase pour compléter les données manquantes
+    try {
+      const fallbackPlans = await fetchPlanificationsFromSupabase(date, filters, users);
+      if (fallbackPlans.length) {
+        const planKey = (plan) => {
+          const planId = plan.id || plan.uuid || '';
+          const userIdentifier = plan.user_id || plan.userId || plan.agent_id || plan.agentId || plan.user?.id || plan.agent?.id || '';
+          const planDate = normalizeDateValue(
+            plan.date ||
+            plan.date_planification ||
+            plan.datePlanification ||
+            plan.planned_date ||
+            plan.plannedDate ||
+            plan.planned_day ||
+            plan.planning_date
+          ) || date;
+          return `${planId}_${userIdentifier}_${planDate}`;
+        };
+
+        const existingKeys = new Set();
+        planningItems.forEach(plan => existingKeys.add(planKey(plan)));
+
+        const newPlans = fallbackPlans.filter(plan => {
+          const key = planKey(plan);
+          if (existingKeys.has(key)) return false;
+          existingKeys.add(key);
+          return true;
+        });
+
+        if (newPlans.length) {
+          planningItems = [...planningItems, ...newPlans];
+          console.log(`➕ ${newPlans.length} planifications supplémentaires ajoutées depuis Supabase (total ${planningItems.length})`);
+        } else {
+          console.log('ℹ️ Aucune planification supplémentaire depuis Supabase (toutes déjà présentes)');
+        }
+      } else {
+        console.log('ℹ️ Supabase n\'a retourné aucune planification supplémentaire pour cette date.');
+      }
+    } catch (fallbackError) {
+      console.warn('⚠️ Fallback Supabase indisponible:', fallbackError?.message || fallbackError);
+    }
+
+    // Filtrer explicitement les planifications pour ne garder que celles de la date sélectionnée
+    const filteredPlanningItems = planningItems.filter(plan => {
+      const planDates = [
+        plan.date,
+        plan.date_planification,
+        plan.datePlanification,
+        plan.planned_date,
+        plan.plannedDate,
+        plan.planned_day,
+        plan.planning_date,
+        plan.created_at,
+        plan.updated_at
+      ].filter(Boolean);
+
+      if (!planDates.length) {
+        // Pas d'information de date exploitable, on conserve par défaut
+        return true;
+      }
+      return planDates.some(field => matchesSelectedDate(field));
+    });
+
+    if (filteredPlanningItems.length !== planningItems.length) {
+      console.log(`📅 Filtrage: ${planningItems.length} planifications → ${filteredPlanningItems.length} pour la date ${date}`);
+    }
+    planningItems = filteredPlanningItems;
     
     // Les filtres sont maintenant appliqués côté serveur, plus besoin de filtrage côté client
     
     // Récupérer les validations de présence pour la date sélectionnée
+    // Vérifier directement dans le DOM du second tableau pour garantir la cohérence avec ce qui est affiché
     let validatedUserIds = [];
+    let validatedAgentNames = new Set(); // Set des noms d'agents présents dans le second tableau
     let validationData = [];
+    
     try {
-      // Utiliser une plage de dates pour couvrir toute la journée (de minuit à minuit le lendemain)
-      const startDate = new Date(date);
-      const endDate = new Date(date);
-      endDate.setDate(endDate.getDate() + 1);
-      const fromDate = startDate.toISOString().split('T')[0];
-      const toDate = endDate.toISOString().split('T')[0];
+      // Méthode 1: Vérifier directement dans le DOM du second tableau (validations-body)
+      // IMPORTANT: Filtrer par date pour ne garder que les validations de la date sélectionnée
+      const validationsBody = document.getElementById('validations-body');
+      if (validationsBody) {
+        const validationRows = validationsBody.querySelectorAll('tr');
+        validationRows.forEach(row => {
+          // Vérifier la date dans la colonne Date/Heure (généralement la 7ème colonne, index 6)
+          const dateCell = row.querySelectorAll('td')[6]; // Colonne Date/Heure
+          if (dateCell) {
+            const dateText = dateCell.textContent.trim();
+            if (dateText) {
+              // Parser la date depuis le format affiché (ex: "13/11/2025 10:30:00")
+              try {
+                const parsedDate = new Date(dateText);
+                if (!isNaN(parsedDate.getTime())) {
+                  const validationDateStr = parsedDate.toISOString().split('T')[0];
+                  // Ne considérer que les validations de la date sélectionnée
+                  if (validationDateStr === date) {
+                    const firstCell = row.querySelector('td');
+                    if (firstCell) {
+                      // Extraire le nom de l'agent depuis la première cellule (colonne Agent)
+                      const agentName = firstCell.textContent.trim();
+                      if (agentName && agentName !== 'Aucune donnée' && !agentName.includes('Erreur') && !agentName.includes('Chargement')) {
+                        // Normaliser le nom (enlever les espaces multiples, mettre en minuscules pour comparaison)
+                        const normalizedName = agentName.replace(/\s+/g, ' ').trim().toLowerCase();
+                        validatedAgentNames.add(normalizedName);
+                        console.log(`📋 Agent trouvé dans le DOM du second tableau (date ${date}): ${agentName}`);
+                      }
+                    }
+                  }
+                }
+              } catch (e) {
+                // Si le parsing échoue, ignorer cette ligne
+                console.warn(`⚠️ Impossible de parser la date: ${dateText}`);
+              }
+            }
+          }
+        });
+        console.log(`✅ ${validatedAgentNames.size} agents trouvés dans le DOM du second tableau pour la date ${date}`);
+      }
       
-      const validationsUrl = `${apiBase}/reports/validations?from=${fromDate}&to=${toDate}`;
-      console.log('🔍 Récupération des validations pour la date:', date, 'URL:', validationsUrl);
-      const validationsRes = await fetch(validationsUrl, { headers });
-      if (validationsRes.ok) {
-        const validationsData = await validationsRes.json();
-        validationData = Array.isArray(validationsData?.items) 
-          ? validationsData.items 
-          : Array.isArray(validationsData) 
-            ? validationsData 
-            : [];
-        
-        console.log('📋 Données brutes des validations:', validationData.length, 'validations trouvées');
-        if (validationData.length > 0) {
-          console.log('📝 Premier exemple de validation:', JSON.stringify(validationData[0], null, 2));
+      // Méthode 1b: Vérifier aussi dans les données stockées globalement par renderValidations()
+      // IMPORTANT: Filtrer par date pour ne garder que les validations de la date sélectionnée
+      if (window.__lastRows && Array.isArray(window.__lastRows) && window.__lastRows.length > 0) {
+        window.__lastRows.forEach(row => {
+          // Vérifier que la validation correspond à la date sélectionnée
+          if (row.ts && matchesSelectedDate(row.ts)) {
+            if (row.user) {
+              const user = row.user;
+              let agentName = '';
+              if (user.name && user.name.trim()) {
+                agentName = user.name.trim();
+              } else if (user.first_name || user.last_name) {
+                agentName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+              }
+              if (agentName) {
+                const normalizedName = agentName.replace(/\s+/g, ' ').trim().toLowerCase();
+                validatedAgentNames.add(normalizedName);
+                console.log(`📋 Agent trouvé dans window.__lastRows (date ${date}): ${agentName}`);
+              }
+            }
+          }
+        });
+        console.log(`✅ ${validatedAgentNames.size} agents trouvés au total (DOM + window.__lastRows) pour la date ${date}`);
+      }
+      
+      // Méthode 2: Récupérer aussi via fetchReportsFromBackend pour les IDs
+      const filters = (typeof getSelectedFilters === 'function') ? getSelectedFilters() : {
+        dateRange: 'today',
+        preciseDate: date,
+        agentId: 'all',
+        project: 'all',
+        department: 'all',
+        commune: 'all',
+        supervisorId: 'all'
+      };
+      
+      // Récupérer les validations via fetchReportsFromBackend pour obtenir les IDs
+      // IMPORTANT: Les filtres incluent déjà la date via preciseDate, mais on filtre aussi côté client pour être sûr
+      const validationRows = await fetchReportsFromBackend(
+        filters.agentId !== 'all' ? filters.agentId : null,
+        filters.project !== 'all' ? filters.project : null,
+        filters.department !== 'all' ? filters.department : null,
+        filters.commune !== 'all' ? filters.commune : null,
+        filters.supervisorId !== 'all' ? filters.supervisorId : null
+      );
+      
+      // Filtrer les validations pour ne garder que celles de la date sélectionnée
+      const filteredValidationRows = validationRows.filter(row => {
+        if (!row.ts) return false;
+        return matchesSelectedDate(row.ts);
+      });
+      
+      console.log(`📅 ${filteredValidationRows.length} validations filtrées pour la date ${date} (sur ${validationRows.length} au total)`);
+      
+      // Extraire les IDs uniques des agents qui ont validé leur présence (uniquement pour la date sélectionnée)
+      const validatedIdsSet = new Set();
+      filteredValidationRows.forEach(row => {
+        if (row.agent_id) {
+          const agentIdStr = String(row.agent_id).trim();
+          validatedIdsSet.add(agentIdStr);
+          
+          if (row.user && row.user.id) {
+            const userIdStr = String(row.user.id).trim();
+            validatedIdsSet.add(userIdStr);
+          }
+          
+          // Aussi extraire le nom de l'agent depuis les données
+          if (row.user) {
+            const user = row.user;
+            let agentName = '';
+            if (user.name && user.name.trim()) {
+              agentName = user.name.trim();
+            } else if (user.first_name || user.last_name) {
+              agentName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+            }
+            if (agentName) {
+              const normalizedName = agentName.replace(/\s+/g, ' ').trim().toLowerCase();
+              validatedAgentNames.add(normalizedName);
+            }
+          }
         }
-            
-        // Extraire les IDs des agents qui ont validé leur présence
-        // Gérer différents formats possibles pour l'ID agent
-        validatedUserIds = [...new Set(
-          validationData
-            .map(v => {
-              // Essayer différents noms de champs possibles
-              const agentId = v.agent_id || v.agentId || v.user_id || v.userId || v.id;
-              return agentId ? String(agentId) : null;
-            })
-            .filter(id => id !== null && id !== 'undefined' && id !== 'null')
-        )];
-        console.log(`✅ ${validatedUserIds.length} utilisateurs uniques ont validé leur présence. IDs:`, validatedUserIds);
-      } else {
-        const errorText = await validationsRes.text();
-        console.error('❌ Erreur lors de la récupération des validations:', validationsRes.status, errorText);
+      });
+      
+      validatedUserIds = Array.from(validatedIdsSet);
+      validationData = filteredValidationRows; // Utiliser les données filtrées par date
+      
+      console.log(`✅ ${validatedUserIds.length} utilisateurs uniques ont validé leur présence (via fetchReportsFromBackend) pour la date ${date}. IDs:`, validatedUserIds);
+      console.log(`✅ ${validatedAgentNames.size} noms d'agents uniques trouvés au total pour la date ${date}`);
+      
+      // Fallback: si aucune validation n'est trouvée, essayer l'API directe
+      if (validatedUserIds.length === 0 && validatedAgentNames.size === 0) {
+        console.log('🔄 Aucune validation trouvée, tentative avec l\'API directe...');
+        const startDate = new Date(date);
+        const endDate = new Date(date);
+        endDate.setDate(endDate.getDate() + 1);
+        const fromDate = startDate.toISOString().split('T')[0];
+        const toDate = endDate.toISOString().split('T')[0];
+        
+        const validationsUrl = `${apiBase}/reports/validations?from=${fromDate}&to=${toDate}`;
+        const validationsRes = await fetch(validationsUrl, { headers });
+        if (validationsRes.ok) {
+          const validationsData = await validationsRes.json();
+          const apiValidationData = Array.isArray(validationsData?.items) 
+            ? validationsData.items 
+            : Array.isArray(validationsData) 
+              ? validationsData 
+              : [];
+          
+          // Filtrer par date pour ne garder que les validations de la date sélectionnée
+          const filteredApiValidationData = apiValidationData.filter(v => {
+            const vDate = v.date || v.ts || v.created_at;
+            return vDate && matchesSelectedDate(vDate);
+          });
+          
+          console.log(`📅 ${filteredApiValidationData.length} validations filtrées pour la date ${date} (sur ${apiValidationData.length} au total via API directe)`);
+          
+          validatedUserIds = [...new Set(
+            filteredApiValidationData
+              .map(v => {
+                const agentId = v.agent_id || v.agentId || v.user_id || v.userId || v.id;
+                return agentId ? String(agentId).trim() : null;
+              })
+              .filter(id => id !== null && id !== 'undefined' && id !== 'null')
+          )];
+          
+          // Extraire aussi les noms depuis l'API (uniquement pour la date sélectionnée)
+          filteredApiValidationData.forEach(v => {
+            if (v.agent_name) {
+              const normalizedName = v.agent_name.replace(/\s+/g, ' ').trim().toLowerCase();
+              validatedAgentNames.add(normalizedName);
+            }
+          });
+          
+          validationData = filteredApiValidationData; // Utiliser les données filtrées par date
+          console.log(`✅ ${validatedUserIds.length} utilisateurs uniques trouvés via l'API directe pour la date ${date}. IDs:`, validatedUserIds);
+        }
       }
     } catch (error) {
       console.error('❌ Erreur lors de la récupération des validations:', error);
@@ -809,7 +1286,20 @@ async function loadUsersPlanning() {
     const rows = [];
     
     // Convertir validatedUserIds en Set pour une recherche plus rapide et fiable
+    // Normaliser tous les IDs pour garantir une comparaison cohérente
     const validatedUserIdsSet = new Set(validatedUserIds.map(id => String(id).trim()));
+    
+    // Créer aussi un Set avec les IDs numériques pour une comparaison plus robuste
+    const validatedUserIdsNumericSet = new Set();
+    validatedUserIds.forEach(id => {
+      const idStr = String(id).trim();
+      validatedUserIdsNumericSet.add(idStr);
+      // Ajouter aussi la version numérique si applicable
+      const idNum = parseInt(idStr);
+      if (!isNaN(idNum)) {
+        validatedUserIdsNumericSet.add(String(idNum));
+      }
+    });
     
     // Afficher les IDs pour le débogage
     console.log('📋 IDs des utilisateurs avec planification:', [...usersWithPlanning]);
@@ -823,8 +1313,81 @@ async function loadUsersPlanning() {
       if (!userIdStr) return;
       
       const isPlanned = usersWithPlanning.has(userIdStr);
-      const isPresent = validatedUserIdsSet.has(userIdStr);
       
+      // Construire le nom d'affichage pour la comparaison
+      let userDisplayName = '';
+      if (user.name && user.name.trim()) {
+        userDisplayName = user.name.trim();
+      } else if (user.first_name || user.last_name) {
+        const firstName = user.first_name || '';
+        const lastName = user.last_name || '';
+        userDisplayName = `${firstName} ${lastName}`.trim();
+      } else {
+        userDisplayName = user.email || 'Non renseigné';
+      }
+      
+      // Normaliser le nom pour la comparaison
+      const normalizedUserDisplayName = userDisplayName.replace(/\s+/g, ' ').trim().toLowerCase();
+      
+      // LOGIQUE SIMPLIFIÉE : Un agent est présent s'il apparaît dans le second tableau
+      // Priorité 1: Vérifier par nom dans le DOM du second tableau (source de vérité)
+      let isPresent = false;
+      
+      if (validatedAgentNames && validatedAgentNames.size > 0) {
+        if (validatedAgentNames.has(normalizedUserDisplayName)) {
+          isPresent = true;
+        }
+      }
+      
+      // Priorité 2: Si pas trouvé par nom, vérifier par ID dans les données
+      if (!isPresent) {
+        isPresent = validatedUserIdsSet.has(userIdStr) || validatedUserIdsNumericSet.has(userIdStr);
+        
+        // Si pas trouvé, essayer avec la version numérique
+        if (!isPresent) {
+          const userIdNum = parseInt(userIdStr);
+          if (!isNaN(userIdNum)) {
+            isPresent = validatedUserIdsSet.has(String(userIdNum)) || validatedUserIdsNumericSet.has(String(userIdNum));
+          }
+        }
+      }
+      
+      // Priorité 3: Vérification finale dans validationData (par ID et nom)
+      if (!isPresent && validationData && validationData.length > 0) {
+        const foundInValidations = validationData.some(v => {
+          const vAgentId = String(v.agent_id || v.agentId || v.user_id || v.userId || '').trim();
+          const vUserId = v.user && v.user.id ? String(v.user.id).trim() : null;
+          
+          // Vérifier par ID
+          const idMatch = vAgentId === userIdStr || 
+                 (vUserId && vUserId === userIdStr) ||
+                 (vAgentId && !isNaN(parseInt(vAgentId)) && parseInt(vAgentId) === parseInt(userIdStr)) ||
+                 (vUserId && !isNaN(parseInt(vUserId)) && parseInt(vUserId) === parseInt(userIdStr));
+          
+          // Vérifier par nom
+          let nameMatch = false;
+          if (v.user) {
+            const vUser = v.user;
+            let vAgentName = '';
+            if (vUser.name && vUser.name.trim()) {
+              vAgentName = vUser.name.trim();
+            } else if (vUser.first_name || vUser.last_name) {
+              vAgentName = `${vUser.first_name || ''} ${vUser.last_name || ''}`.trim();
+            }
+            if (vAgentName) {
+              const vNormalizedName = vAgentName.replace(/\s+/g, ' ').trim().toLowerCase();
+              nameMatch = vNormalizedName === normalizedUserDisplayName;
+            }
+          }
+          
+          return idMatch || nameMatch;
+        });
+        if (foundInValidations) {
+          isPresent = true;
+        }
+      }
+      
+      // RÈGLE FINALE : Un agent est absent SEULEMENT s'il est planifié ET qu'il n'apparaît PAS dans le second tableau
       if (isPlanned && !isPresent) {
         absentUserIds.push(userIdStr);
       }
@@ -874,9 +1437,83 @@ async function loadUsersPlanning() {
         });
       }
       
-      const isPresent = validatedUserIdsSet.has(userIdStr);
+      // Construire le nom d'affichage pour la comparaison
+      let displayName = '';
+      if (user.name && user.name.trim()) {
+        displayName = user.name.trim();
+      } else if (user.first_name || user.last_name) {
+        const firstName = user.first_name || '';
+        const lastName = user.last_name || '';
+        displayName = `${firstName} ${lastName}`.trim();
+      } else {
+        displayName = user.email || 'Non renseigné';
+      }
       
-      // Un agent est considéré comme absent UNIQUEMENT s'il est planifié ET n'a pas validé sa présence
+      // Normaliser le nom pour la comparaison (enlever les espaces multiples, mettre en minuscules)
+      const normalizedDisplayName = displayName.replace(/\s+/g, ' ').trim().toLowerCase();
+      
+      // LOGIQUE SIMPLIFIÉE : Un agent est présent s'il apparaît dans le second tableau
+      // Priorité 1: Vérifier par nom dans le DOM du second tableau (source de vérité)
+      let isPresent = false;
+      
+      if (validatedAgentNames && validatedAgentNames.size > 0) {
+        if (validatedAgentNames.has(normalizedDisplayName)) {
+          isPresent = true;
+          console.log(`✅ Agent trouvé par nom dans le second tableau: ${displayName}`);
+        }
+      }
+      
+      // Priorité 2: Si pas trouvé par nom, vérifier par ID dans les données
+      if (!isPresent) {
+        isPresent = validatedUserIdsSet.has(userIdStr) || validatedUserIdsNumericSet.has(userIdStr);
+        
+        // Si pas trouvé, essayer avec la version numérique
+        if (!isPresent) {
+          const userIdNum = parseInt(userIdStr);
+          if (!isNaN(userIdNum)) {
+            isPresent = validatedUserIdsSet.has(String(userIdNum)) || validatedUserIdsNumericSet.has(String(userIdNum));
+          }
+        }
+      }
+      
+      // Priorité 3: Vérification finale dans validationData (par ID et nom)
+      if (!isPresent && validationData && validationData.length > 0) {
+        const foundInValidations = validationData.some(v => {
+          const vAgentId = String(v.agent_id || v.agentId || v.user_id || v.userId || '').trim();
+          const vUserId = v.user && v.user.id ? String(v.user.id).trim() : null;
+          
+          // Vérifier par ID
+          const idMatch = vAgentId === userIdStr || 
+                 (vUserId && vUserId === userIdStr) ||
+                 (vAgentId && !isNaN(parseInt(vAgentId)) && parseInt(vAgentId) === parseInt(userIdStr)) ||
+                 (vUserId && !isNaN(parseInt(vUserId)) && parseInt(vUserId) === parseInt(userIdStr));
+          
+          // Vérifier par nom
+          let nameMatch = false;
+          if (v.user) {
+            const vUser = v.user;
+            let vAgentName = '';
+            if (vUser.name && vUser.name.trim()) {
+              vAgentName = vUser.name.trim();
+            } else if (vUser.first_name || vUser.last_name) {
+              vAgentName = `${vUser.first_name || ''} ${vUser.last_name || ''}`.trim();
+            }
+            if (vAgentName) {
+              const vNormalizedName = vAgentName.replace(/\s+/g, ' ').trim().toLowerCase();
+              nameMatch = vNormalizedName === normalizedDisplayName;
+            }
+          }
+          
+          return idMatch || nameMatch;
+        });
+        if (foundInValidations) {
+          isPresent = true;
+          console.log(`✅ Agent trouvé dans validationData: ${displayName}`);
+        }
+      }
+      
+      // RÈGLE FINALE : Un agent est absent SEULEMENT s'il est planifié ET qu'il n'apparaît PAS dans le second tableau
+      // Si l'agent apparaît dans le second tableau (même par nom), il est considéré comme présent
       const isAbsent = isPlanned && !isPresent;
       
       // Log détaillé pour le débogage
@@ -898,54 +1535,19 @@ async function loadUsersPlanning() {
       
       const planningCell = isPlanned ? 'Oui' : 'Non';
       const planningClass = isPlanned ? 'text-success' : 'text-danger';
-      // Construire le nom d'affichage selon la structure de la table users
-      let displayName = '';
-      if (user.name && user.name.trim()) {
-        displayName = user.name.trim();
-      } else if (user.first_name || user.last_name) {
-        const firstName = user.first_name || '';
-        const lastName = user.last_name || '';
-        displayName = `${firstName} ${lastName}`.trim();
-      } else {
-        displayName = user.email || 'Non renseigné';
-      }
-      
-      // Ajouter un indicateur d'absence avant le nom si l'agent est planifié mais n'a pas encore validé sa présence
-      // Un agent est absent s'il a une planification pour ce jour ET qu'il n'a pas validé sa présence
-      // Condition: isPlanned = true ET isPresent = false
-      if (isPlanned) {
-        // Vérification finale avec le Set pour s'assurer de la cohérence
-        const finalCheckPresent = validatedUserIdsSet.has(userIdStr);
-        
-        if (!finalCheckPresent) {
-          // L'agent est planifié mais absent (pas de validation)
-          // IMPORTANT: Ajouter le badge AVANT le nom
-          const absentBadge = '<span class="badge bg-danger text-white me-2" title="Planifié mais absent (pas de validation de présence)">❌</span>';
-          displayName = absentBadge + displayName;
-          console.log(`❌ Agent absent: ${displayName} (ID: ${userIdStr}) - Planifié: ${isPlanned}, Présent dans validations: ${finalCheckPresent}`);
-        } else {
-          // L'agent est planifié ET présent (a validé sa présence) - pas de badge
-          console.log(`✅ Agent présent: ${displayName} (ID: ${userIdStr}) - Planifié: ${isPlanned}, Présent: ${finalCheckPresent}`);
-        }
-      } else {
-        // L'agent n'est pas planifié - pas de badge d'absence
-        console.log(`ℹ️ Agent non planifié: ${displayName} (ID: ${userIdStr})`);
-      }
+      // displayName a déjà été construit plus haut pour la comparaison
       // Récupérer le numéro de projet de l'utilisateur
       const projectNumber = user.project_name || user.projet || user.project || '—';
       const cleanedProject = (typeof cleanProjectName === 'function') 
         ? (cleanProjectName(projectNumber) || '') 
         : String(projectNumber || '').trim();
       
-      // Déterminer si l'agent est absent pour la classe CSS
-      const isAgentAbsent = isPlanned && !isPresent && !validatedUserIdsSet.has(userIdStr);
-      
       // Récupérer l'observation depuis le localStorage
       const observationKey = `planning_observation_${user.id}_${date}`;
       const savedObservation = localStorage.getItem(observationKey) || '';
       
       const row = `
-        <tr data-project="${cleanedProject}" class="${isAgentAbsent ? 'table-warning' : ''}">
+        <tr data-project="${cleanedProject}">
           <td>${index + 1}</td>
           <td>${displayName}</td>
           <td>${projectNumber}</td>
@@ -969,31 +1571,7 @@ async function loadUsersPlanning() {
       `;
       rows.push(row);
     }));
-    // Ajouter la légende explicative
-    let legendHtml = '';
-    // Le nombre d'absents est simplement la longueur du tableau des IDs absents
-    const absentCount = absentUserIds.length;
-
-    if (absentCount > 0) {
-      legendHtml = `
-        <div class="mt-2 small text-muted">
-          <span class="badge bg-danger text-white">❌</span> : Agent planifié mais absent (pas de validation de présence)
-        </div>
-      `;
-    }
-
-    tbody.innerHTML = `
-      ${rows.join('')}
-      ${rows.length > 0 ? `
-        <tr>
-          <td colspan="7" class="small text-muted">
-            <div class="mt-2">
-              <span class="badge bg-danger text-white">❌</span> : Agent planifié mais absent (pas de validation de présence)
-            </div>
-          </td>
-        </tr>
-      ` : '<tr><td colspan="7" class="text-center">Aucun utilisateur trouvé</td></tr>'}
-    `;
+    tbody.innerHTML = rows.join('') || '<tr><td colspan="7" class="text-center">Aucun utilisateur trouvé</td></tr>';
     
     // Ajouter les event listeners pour sauvegarder les observations
     tbody.querySelectorAll('.planning-observation').forEach(input => {
