@@ -25930,15 +25930,13 @@ document.addEventListener('DOMContentLoaded', function() {
           });
           const user = await response.json();
           
-          // Afficher le bouton de sync uniquement pour les agents et superviseurs
-          if (user.role === 'agent' || user.role === 'supervisor') {
-            const syncBtn = document.getElementById('sync-offline-btn');
-            if (syncBtn) {
-              syncBtn.style.display = 'block';
-              
-              // Vérifier s'il y a des checkins hors-ligne
-              checkOfflineCheckins();
-            }
+          // Afficher le bouton de sync pour tous les utilisateurs
+          const syncBtn = document.getElementById('sync-offline-btn');
+          if (syncBtn) {
+            syncBtn.style.display = 'block';
+            
+            // Vérifier s'il y a des checkins hors-ligne
+            checkOfflineCheckins();
           }
         } catch (error) {
           console.error('Erreur vérification profil:', error);
