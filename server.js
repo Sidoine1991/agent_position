@@ -4117,6 +4117,44 @@ app.post('/api/checkins', authenticateToken, async (req, res) => {
 
     const { data, error } = await supabaseClient.from('checkins').insert([row]).select().single();
     if (error) throw error;
+    
+    // Créer automatiquement une présence dans la table presences
+    try {
+      const presenceData = {
+        user_id: req.user.id,
+        start_time: row.start_time,
+        end_time: null,
+        location_lat: row.lat,
+        location_lng: row.lon,
+        location_name: commune || null,
+        notes: row.note || 'Checkin mobile',
+        photo_url: null,
+        status: 'completed',
+        checkin_type: type,
+        created_at: row.start_time,
+        zone_id: null,
+        within_tolerance: true,
+        distance_from_reference_m: null,
+        tolerance_meters: 500
+      };
+      
+      const { data: presenceResult, error: presenceError } = await supabaseClient
+        .from('presences')
+        .insert(presenceData)
+        .select()
+        .single();
+      
+      if (presenceError) {
+        console.error('⚠️ Erreur création présence:', presenceError);
+        // Ne pas échouer le checkin si la présence échoue
+      } else {
+        console.log('✅ Présence créée:', presenceResult.id);
+      }
+    } catch (presenceErr) {
+      console.error('⚠️ Erreur traitement présence:', presenceErr);
+      // Ne pas échouer le checkin si la présence échoue
+    }
+    
     return res.json({ success: true, checkin: data });
   } catch (err) {
     console.error('Erreur enregistrement checkin:', err);
