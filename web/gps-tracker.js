@@ -22,7 +22,13 @@ class GPSTracker {
 
   async loadWorkZones() {
     try {
-      const response = await fetch('/api/work-zones');
+      const token = localStorage.getItem('jwt');
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch('/api/work-zones', { headers });
       if (response.ok) {
         this.workZones = await response.json();
       }
