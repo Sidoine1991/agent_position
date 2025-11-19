@@ -28,7 +28,7 @@ async function loadCheckinsOnMap() {
             return {
               lat: Number(checkin.lat),
               lon: Number(checkin.lon),
-              timestamp: checkin.timestamp || checkin.created_at,
+              timestamp: checkin.created_at,
               agent_name: agentName,
               user_id: checkin.missions?.agent_id || checkin.mission_id,
               type: 'checkin',
@@ -54,7 +54,7 @@ async function loadCheckinsOnMap() {
           .map(checkin => ({
             lat: Number(checkin.lat),
             lon: Number(checkin.lon),
-            timestamp: checkin.timestamp,
+            timestamp: checkin.created_at,
             agent_name: currentProfile?.name || 'Moi',
             user_id: currentProfile?.id,
             type: 'checkin',
@@ -118,7 +118,7 @@ async function loadCheckinsOnMap() {
             marker.bindPopup(`
               <b>${checkin.agent_name}</b><br>
               ${checkin.note}<br>
-              <small>${new Date(checkin.timestamp).toLocaleString('fr-FR')}</small>
+              <small>${new Date(checkin.created_at).toLocaleString('fr-FR')}</small>
             `);
             
             checkinMarkers.push(marker);

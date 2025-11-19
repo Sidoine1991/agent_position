@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synchronisation des Checkins Hors-ligne</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        .btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+        .login-form {
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Synchronisation des Checkins Hors-ligne</h1>
+        
+        <div id="loginSection" class="login-form">
+            <h3>Connexion requise</h3>
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" value="kolasidoine@gmail.com" placeholder="Entrez votre email">
+            </div>
+            <div class="form-group">
+                <label for="password">Mot de passe:</label>
+                <input type="password" id="password" value="123456" placeholder="Entrez votre mot de passe">
+            </div>
+            <button class="btn" onclick="login()">Se connecter</button>
+        </div>
+        
+        <div id="syncSection" style="display: none;">
+            <div class="status info">
+                <p>Cet outil permet de synchroniser les checkins stockés dans le cache du navigateur (IndexedDB) vers la base de données Supabase.</p>
+                <p>Cliquez sur le bouton ci-dessous pour lancer la synchronisation.</p>
+            </div>
+            
+            <button class="btn" onclick="triggerSync()">🚀 Lancer la synchronisation</button>
+            <button class="btn" onclick="checkOfflineData()">🔍 Vérifier les données hors-ligne</button>
+            <button class="btn" onclick="clearOfflineData()">🗑️ Effacer les données hors-ligne</button>
+            
+            <div id="status" class="status" style="display: none;"></div>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = null;
+        
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+        }
+        
+        function addLog(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.textContent += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                updateStatus('Veuillez remplir tous les champs', 'error');
+                return;
+            }
+            
+            try {
+                updateStatus('Connexion en cours...', 'info');
+                addLog(`Tentative de connexion avec ${email}`);
+                
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    authToken = result.token;
+                    localStorage.setItem('jwt', authToken);
+                    updateStatus('Connexion réussie!', 'success');
+                    addLog('Connexion réussie');
+                    
+                    // Afficher la section de synchronisation
+                    document.getElementById('loginSection').style.display = 'none';
+                    document.getElementById('syncSection').style.display = 'block';
+                } else {
+                    updateStatus(`Erreur de connexion: ${result.message}`, 'error');
+                    addLog(`Erreur de connexion: ${result.message}`);
+                }
+            } catch (error) {
+                updateStatus(`Erreur de connexion: ${error.message}`, 'error');
+                addLog(`Erreur de connexion: ${error.message}`);
+            }
+        }
+        
+        async function triggerSync() {
+            if (!authToken) {
+                updateStatus('Veuillez vous connecter d\'abord', 'error');
+                return;
+            }
+            
+            try {
+                updateStatus('Récupération du script de synchronisation...', 'info');
+                addLog('Début de la synchronisation...');
+                
+                // Charger et exécuter le script de synchronisation
+                const response = await fetch('/api/sync/get-offline-checkins', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const scriptText = await response.text();
+                updateStatus('Exécution du script de synchronisation...', 'info');
+                addLog('Script récupéré, exécution en cours...');
+                
+                // Exécuter le script
+                const result = eval(scriptText);
+                
+                // Si le script retourne une promesse, attendre le résultat
+                if (result && typeof result.then === 'function') {
+                    const syncResult = await result;
+                    handleSyncResult(syncResult);
+                } else {
+                    addLog('Script exécuté');
+                }
+                
+            } catch (error) {
+                updateStatus(`Erreur de synchronisation: ${error.message}`, 'error');
+                addLog(`Erreur: ${error.message}`);
+            }
+        }
+        
+        function handleSyncResult(result) {
+            if (result.success) {
+                updateStatus(result.message, 'success');
+                addLog(`✅ ${result.message}`);
+                if (result.synced !== undefined) {
+                    addLog(`📊 ${result.synced}/${result.total} checkins synchronisés`);
+                }
+            } else {
+                updateStatus(`Erreur: ${result.error || result.message}`, 'error');
+                addLog(`❌ Erreur: ${result.error || result.message}`);
+            }
+        }
+        
+        async function checkOfflineData() {
+            try {
+                addLog('Vérification des données hors-ligne...');
+                
+                // Ouvrir IndexedDB
+                const dbName = 'offlineDB';
+                const dbVersion = 1;
+                
+                const db = await new Promise((resolve, reject) => {
+                    const request = indexedDB.open(dbName, dbVersion);
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onupgradeneeded = () => resolve(request.result);
+                });
+                
+                if (!db.objectStoreNames.contains('checkins')) {
+                    addLog('ℹ️ Aucune table checkins trouvée dans IndexedDB');
+                    return;
+                }
+                
+                // Récupérer tous les checkins
+                const transaction = db.transaction(['checkins'], 'readonly');
+                const store = transaction.objectStore('checkins');
+                
+                const allCheckins = await new Promise((resolve, reject) => {
+                    const request = store.getAll();
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve(request.result || []);
+                });
+                
+                const unsyncedCheckins = allCheckins.filter(c => !c.synced);
+                
+                addLog(`📊 Total checkins en cache: ${allCheckins.length}`);
+                addLog(`📊 Checkins non synchronisés: ${unsyncedCheckins.length}`);
+                
+                if (unsyncedCheckins.length > 0) {
+                    addLog('📋 Détails des checkins non synchronisés:');
+                    unsyncedCheckins.forEach((checkin, index) => {
+                        addLog(`  ${index + 1}. ID: ${checkin.id}, Lat: ${checkin.lat}, Lon: ${checkin.lon}, Date: ${checkin.created_at || checkin.start_time}`);
+                    });
+                }
+                
+            } catch (error) {
+                addLog(`❌ Erreur vérification: ${error.message}`);
+            }
+        }
+        
+        async function clearOfflineData() {
+            if (!confirm('Êtes-vous sûr de vouloir effacer toutes les données hors-ligne?')) {
+                return;
+            }
+            
+            try {
+                addLog('Suppression des données hors-ligne...');
+                
+                const dbName = 'offlineDB';
+                const dbVersion = 1;
+                
+                const db = await new Promise((resolve, reject) => {
+                    const request = indexedDB.open(dbName, dbVersion);
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onupgradeneeded = () => resolve(request.result);
+                });
+                
+                if (!db.objectStoreNames.contains('checkins')) {
+                    addLog('ℹ️ Aucune donnée à supprimer');
+                    return;
+                }
+                
+                const transaction = db.transaction(['checkins'], 'readwrite');
+                const store = transaction.objectStore('checkins');
+                
+                await new Promise((resolve, reject) => {
+                    const request = store.clear();
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve();
+                });
+                
+                addLog('✅ Données hors-ligne supprimées');
+                updateStatus('Données hors-ligne supprimées avec succès', 'success');
+                
+            } catch (error) {
+                addLog(`❌ Erreur suppression: ${error.message}`);
+                updateStatus(`Erreur suppression: ${error.message}`, 'error');
+            }
+        }
+        
+        // Vérifier si déjà connecté au chargement
+        window.addEventListener('load', () => {
+            const token = localStorage.getItem('jwt');
+            if (token) {
+                authToken = token;
+                document.getElementById('loginSection').style.display = 'none';
+                document.getElementById('syncSection').style.display = 'block';
+                updateStatus('Déjà connecté', 'info');
+                addLog('Utilisateur déjà connecté');
+            }
+        });
+    </script>
+</body>
+</html>

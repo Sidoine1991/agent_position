@@ -270,27 +270,27 @@ async function fetchCheckinsFromSupabase(params) {
 
   // Build query
   const search = new URLSearchParams();
-  search.set('select', 'id,agent_id,agent_name,lat,lon,timestamp,mission_id,user_id,commune');
-  search.set('order', 'timestamp.desc');
+  search.set('select', 'id,agent_id,agent_name,lat,lon,created_at,mission_id,user_id,commune');
+  search.set('order', 'created_at.desc');
   if (params?.agentId) search.set('agent_id', 'eq.' + Number(params.agentId));
   // Time filter: support single day or range [from, to]
   if (params?.from || params?.to) {
     try {
       if (params.from) {
         const f = new Date(params.from + 'T00:00:00');
-        search.set('timestamp', `gte.${f.toISOString()}`);
+        search.set('created_at', `gte.${f.toISOString()}`);
       }
       if (params.to) {
         const t = new Date(params.to + 'T23:59:59');
-        search.set('timestamp', `lte.${t.toISOString()}`);
+        search.set('created_at', `lte.${t.toISOString()}`);
       }
     } catch {}
   } else if (params?.date) {
     try {
       const from = new Date(params.date + 'T00:00:00');
       const to = new Date(from); to.setDate(to.getDate() + 1);
-      search.set('timestamp', `gte.${from.toISOString()}`);
-      search.set('timestamp', `lt.${to.toISOString()}`);
+      search.set('created_at', `gte.${from.toISOString()}`);
+      search.set('created_at', `lt.${to.toISOString()}`);
     } catch {}
   }
   if (params?.villageId) search.set('village_id', 'eq.' + Number(params.villageId));
@@ -503,7 +503,7 @@ async function updateMonthlySummary() {
             const fromDate = new Date(from + 'T00:00:00');
             const toDate = new Date(to + 'T23:59:59');
             list = all.filter(c => {
-              const t = c.timestamp || c.created_at;
+              const t = c.created_at;
               if (!t) return false;
               const d = new Date(t);
               return d >= fromDate && d <= toDate;
@@ -522,7 +522,7 @@ async function updateMonthlySummary() {
           }
           list.forEach(c => {
             const agentName = c.agent_name || c.missions?.users?.name || 'Agent';
-            const t = c.timestamp || c.created_at;
+            const t = c.created_at;
             if (!agentName || !t) return;
             const day = new Date(t).toISOString().slice(0, 10);
             if (!perAgentDay.has(agentName)) perAgentDay.set(agentName, new Map());
@@ -669,7 +669,7 @@ async function updateMonthlySummary() {
     });
     
     const filteredCheckins = allCheckins.filter(c => {
-      const t = c.timestamp || c.created_at;
+      const t = c.created_at;
       if (!t) return false;
       const checkinDate = new Date(t);
       return checkinDate >= fromDate && checkinDate <= toDate;
@@ -756,7 +756,7 @@ async function updateMonthlySummary() {
     const keyAD = (aid, day) => aid + '|' + day;
     filteredCheckins.forEach(checkin => {
       const agentId = checkin.missions?.agent_id || checkin.agent_id || checkin.user_id;
-      const t = checkin.timestamp || checkin.created_at;
+      const t = checkin.created_at;
       if (!agentId || !t) return;
         const day = new Date(t).toISOString().slice(0, 10);
       const k = keyAD(agentId, day);
@@ -1110,7 +1110,7 @@ async function loadCheckinsOnMap() {
             const cid = checkin.missions?.agent_id || checkin.user_id || checkin.agent_id;
             if (String(cid) !== String(agentFilter)) return false;
           }
-          const d = String(checkin.timestamp || checkin.created_at || '').slice(0,10);
+          const d = String(checkin.created_at || '').slice(0,10);
           if (selectedDate) {
             if (d !== selectedDate) return false;
             return matchWeekOfMonth(d, weekStr);
@@ -1162,8 +1162,8 @@ async function loadCheckinsOnMap() {
 
           // Ordonner pour trouver le premier check-in si pas de start explicite
           const sortedByTime = [...checkins].sort((a, b) => {
-            const timeA = new Date(a.timestamp || a.created_at);
-            const timeB = new Date(b.timestamp || b.created_at);
+            const timeA = new Date(a.created_at);
+            const timeB = new Date(b.created_at);
             return timeA - timeB;
           });
 
@@ -1177,8 +1177,8 @@ async function loadCheckinsOnMap() {
           let note = `Mission ${group.mission_id} - ${group.agent_name}`;
           
           if (checkins.length > 1) {
-            const duration = new Date(latestCheckin.timestamp || latestCheckin.token) - 
-                           new Date(representativeCheckin.timestamp || representativeCheckin.created_at);
+            const duration = new Date(latestCheckin.created_at) - 
+                           new Date(representativeCheckin.created_at);
             const hours = Math.round(duration / (1000 * 60 * 60));
             note = `${note} (${checkins.length} check-ins, ${hours}h)`;
             pointType = 'mission_active';
@@ -1187,7 +1187,7 @@ async function loadCheckinsOnMap() {
           presencePoints.push({
             lat: Number(representativeCheckin.lat),
             lon: Number(representativeCheckin.lon),
-            timestamp: representativeCheckin.timestamp || representativeCheckin.created_at,
+            timestamp: representativeCheckin.created_at,
             agent_name: group.agent_name,
             user_id: group.agent_id,
             mission_id: group.mission_id,
@@ -1195,7 +1195,7 @@ async function loadCheckinsOnMap() {
             note: note,
             checkins_count: checkins.length,
             checkin_id: representativeCheckin.id,
-            last_checkin_time: latestCheckin.timestamp || latestCheckin.created_at
+            last_checkin_time: latestCheckin.created_at
           });
         });
         
@@ -1215,7 +1215,7 @@ async function loadCheckinsOnMap() {
             .map(c => ({
               lat: Number(c.lat),
               lon: Number(c.lon),
-              timestamp: c.timestamp || c.created_at,
+              timestamp: c.created_at,
               agent_name: c.missions?.users?.name || 'Agent',
               user_id: c.missions?.agent_id || c.user_id,
               mission_id: c.mission_id || c.missions?.id,
@@ -1233,7 +1233,7 @@ async function loadCheckinsOnMap() {
           rows = filteredCheckins.map(c => ({
             lat: Number(c.lat),
             lon: Number(c.lon),
-            timestamp: c.timestamp || c.created_at,
+            timestamp: c.created_at,
             agent_name: c.missions?.users?.name || 'Agent',
             user_id: c.missions?.agent_id || c.user_id,
             mission_id: c.mission_id || c.missions?.id,
@@ -1265,7 +1265,7 @@ async function loadCheckinsOnMap() {
           .map(checkin => ({
             lat: Number(checkin.lat),
             lon: Number(checkin.lon),
-            timestamp: checkin.timestamp,
+            timestamp: checkin.created_at,
             agent_name: currentProfile?.name || 'Moi',
             user_id: currentProfile?.id,
             type: 'start_mission',
@@ -1334,7 +1334,7 @@ async function loadCheckinsOnMap() {
               <h6 style="color: ${color};"><strong>${checkin.agent_name || 'Agent'}</strong></h6>
               <p><strong>Type:</strong> ${typeLabel}</p>
               <p><strong>Mission:</strong> ${checkin.mission_id || 'N/A'}</p>
-              <p><strong>Date:</strong> ${new Date(checkin.timestamp).toLocaleString('fr-FR')}</p>
+              <p><strong>Date:</strong> ${new Date(checkin.created_at).toLocaleString('fr-FR')}</p>
               <p><strong>Check-ins:</strong> ${checkin.checkins_count || 1}</p>
               <p><strong>Note:</strong> ${note}</p>
               ${checkin.last_checkin_time ? `<p><strong>Dernier check-in:</strong> ${new Date(checkin.last_checkin_time).toLocaleString('fr-FR')}</p>` : ''}
@@ -2008,7 +2008,7 @@ async function refresh() {
         return {
           lat: Number(checkin.lat),
           lon: Number(checkin.lon),
-          timestamp: checkin.timestamp || checkin.created_at,
+          timestamp: checkin.created_at,
           agent_name: agentName,
           user_id: checkin.missions?.agent_id || checkin.mission_id,
           type: checkinType,
@@ -2046,7 +2046,7 @@ async function refresh() {
           rows = items.map(r => ({
             lat: typeof r.lat === 'number' ? r.lat : Number(r.lat),
             lon: typeof r.lon === 'number' ? r.lon : Number(r.lon),
-            timestamp: r.timestamp,
+            timestamp: r.created_at || r.timestamp,
             agent_name: r.agent_name || (currentProfile?.name || 'Moi'),
           })).filter(x => isFinite(x.lat) && isFinite(x.lon));
         }
@@ -2064,7 +2064,7 @@ async function refresh() {
           rows = sbRows.map(r => ({
             lat: r.lat,
             lon: r.lon,
-            timestamp: r.timestamp,
+            timestamp: r.created_at || r.timestamp,
             agent_name: r.agent_name || r.user_id,
           }));
         }

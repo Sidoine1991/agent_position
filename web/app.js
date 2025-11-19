@@ -1671,7 +1671,7 @@ async function init() {
         if (checkinRows && checkinRows.length) {
           const normalized = checkinRows
             .map(row => {
-              const ts = row.timestamp || row.created_at || row.date || row.checked_at;
+              const ts = row.created_at || row.date || row.checked_at;
               return { row, ts };
             })
             .filter(entry => entry.ts && !isNaN(new Date(entry.ts).getTime()))
@@ -1783,7 +1783,7 @@ async function init() {
       if (!rows || rows.length < 2) return; // besoin d'au moins deux points
       const points = rows
         .filter(r => Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon)))
-        .map(r => ({ lat: Number(r.lat), lon: Number(r.lon), t: new Date(r.timestamp).getTime() }))
+        .map(r => ({ lat: Number(r.lat), lon: Number(r.lon), t: new Date(r.created_at).getTime() }))
         .sort((a,b)=> a.t - b.t);
       if (points.length < 2) return;
       const toRad = (v) => (v * Math.PI) / 180;
@@ -1908,12 +1908,12 @@ async function refreshCheckins() {
     li.className = 'list-item';
     li.style.animationDelay = `${i * 0.1}s`;
     
-    const when = new Date(c.timestamp + 'Z').toLocaleString();
+    const when = new Date(c.created_at + 'Z').toLocaleString();
     // Durée jusqu'au prochain check-in (ou en cours)
     let durationStr = '';
     try {
-      const curTs = new Date(c.timestamp).getTime();
-      const nextTs = (i < items.length - 1) ? new Date(items[i+1].timestamp).getTime() : NaN;
+      const curTs = new Date(c.created_at).getTime();
+      const nextTs = (i < items.length - 1) ? new Date(items[i+1].created_at).getTime() : NaN;
       let endTs = Number.isFinite(nextTs) ? nextTs : NaN;
       if (!Number.isFinite(endTs)) {
         // si pas de prochain point, utiliser maintenant (mission en cours)
@@ -2606,8 +2606,8 @@ async function loadPresenceData() {
     
     // 2) Marquer aussi les jours avec des check-ins (même sans mission complète)
     checkins.forEach(checkin => {
-      if (checkin.timestamp) {
-        const checkinDate = new Date(checkin.timestamp);
+      if (checkin.created_at) {
+        const checkinDate = new Date(checkin.created_at);
         const dateKey = formatDateKey(checkinDate.getFullYear(), checkinDate.getMonth(), checkinDate.getDate());
         
         // Si pas déjà marqué par une mission, marquer comme présent
@@ -3022,7 +3022,7 @@ async function loadDashboardMetrics() {
 
       // Tentative 1: colonne created_at
       const s1 = new URLSearchParams();
-      s1.set('select', 'id,user_id,lat,lon,created_at,timestamp');
+      s1.set('select', 'id,user_id,lat,lon,created_at');
       s1.set('user_id', 'eq.' + Number(userId));
       s1.set('created_at', 'gte.' + fromIso);
       s1.set('created_at', 'lte.' + toIso);
@@ -3031,16 +3031,16 @@ async function loadDashboardMetrics() {
       if (!res.ok) {
         // Tentative 2: colonne timestamp
         const s2 = new URLSearchParams();
-        s2.set('select', 'id,user_id,lat,lon,timestamp,created_at');
+        s2.set('select', 'id,user_id,lat,lon,created_at');
         s2.set('user_id', 'eq.' + Number(userId));
-        s2.set('timestamp', 'gte.' + fromIso);
-        s2.set('timestamp', 'lte.' + toIso);
-        s2.set('order', 'timestamp.desc');
+        s2.set('created_at', 'gte.' + fromIso);
+        s2.set('created_at', 'lte.' + toIso);
+        s2.set('order', 'created_at.desc');
         res = await fetch(`${sbUrl}/rest/v1/checkins?${s2.toString()}`, { headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey } });
         if (!res.ok) {
           // Tentative 3: sans filtre de date (limite + tri), on filtrera côté client
           const s3 = new URLSearchParams();
-          s3.set('select', 'id,user_id,lat,lon,created_at,timestamp,date');
+          s3.set('select', 'id,user_id,lat,lon,created_at');
           s3.set('user_id', 'eq.' + Number(userId));
           s3.set('order', 'id.desc');
           s3.set('limit', '1000');

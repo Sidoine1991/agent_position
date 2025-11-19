@@ -266,6 +266,10 @@
           <a href="/reports.html" class="circle-action" id="reports-link"><div class="icon">📈</div><div class="label">Rapports</div></a>
           <a href="/admin.html" class="circle-action" id="admin-link"><div class="icon">⚙️</div><div class="label">Administration</div></a>
           <a href="/help.html" class="circle-action" id="help-link"><div class="icon">❓</div><div class="label">Aide</div></a>
+          <button class="circle-action" id="sync-offline-btn" onclick="syncOfflineCheckins()" style="display:none; background: linear-gradient(135deg, #f59e0b, #ef4444); border: none; cursor: pointer;">
+            <div class="icon">🔄</div>
+            <div class="label">Sync</div>
+          </button>
         </div>
         
         <!-- Image hero de parcelle de riz -->
@@ -25911,6 +25915,165 @@ document.addEventListener('DOMContentLoaded', function() {
       if (typeof exports === 'undefined') {
         window.exports = {};
       }
+    </script>
+    
+    <!-- Script de synchronisation hors-ligne -->
+    <script>
+      // Fonction pour vérifier si l'utilisateur est un agent et afficher le bouton de sync
+      async function checkAndShowSyncButton() {
+        const token = localStorage.getItem('jwt');
+        if (!token) return;
+        
+        try {
+          const response = await fetch('/api/profile', {
+            headers: { 'Authorization': 'Bearer ' + token }
+          });
+          const user = await response.json();
+          
+          // Afficher le bouton de sync uniquement pour les agents et superviseurs
+          if (user.role === 'agent' || user.role === 'supervisor') {
+            const syncBtn = document.getElementById('sync-offline-btn');
+            if (syncBtn) {
+              syncBtn.style.display = 'block';
+              
+              // Vérifier s'il y a des checkins hors-ligne
+              checkOfflineCheckins();
+            }
+          }
+        } catch (error) {
+          console.error('Erreur vérification profil:', error);
+        }
+      }
+      
+      // Fonction pour vérifier les checkins hors-ligne
+      async function checkOfflineCheckins() {
+        try {
+          const db = await openIndexedDB();
+          const checkins = await getAllOfflineCheckins(db);
+          const syncBtn = document.getElementById('sync-offline-btn');
+          
+          if (checkins.length > 0 && syncBtn) {
+            // Ajouter un indicateur de nombre de checkins en attente
+            syncBtn.innerHTML = `
+              <div class="icon">🔄</div>
+              <div class="label">Sync (${checkins.length})</div>
+            `;
+            syncBtn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+          }
+        } catch (error) {
+          console.log('Pas de checkins hors-ligne ou IndexedDB non disponible');
+        }
+      }
+      
+      // Fonction pour ouvrir IndexedDB
+      function openIndexedDB() {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open('offlineDB', 1);
+          
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+          
+          request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('checkins')) {
+              db.createObjectStore('checkins', { keyPath: 'id', autoIncrement: true });
+            }
+          };
+        });
+      }
+      
+      // Fonction pour récupérer tous les checkins hors-ligne
+      async function getAllOfflineCheckins(db) {
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction(['checkins'], 'readonly');
+          const store = transaction.objectStore('checkins');
+          const request = store.getAll();
+          
+          request.onsuccess = () => resolve(request.result || []);
+          request.onerror = () => reject(request.error);
+        });
+      }
+      
+      // Fonction principale de synchronisation
+      async function syncOfflineCheckins() {
+        const token = localStorage.getItem('jwt');
+        if (!token) {
+          alert('Veuillez vous connecter pour synchroniser vos checkins.');
+          return;
+        }
+        
+        const syncBtn = document.getElementById('sync-offline-btn');
+        const originalContent = syncBtn.innerHTML;
+        
+        try {
+          // Afficher l'état de synchronisation
+          syncBtn.innerHTML = '<div class="icon">⏳</div><div class="label">Sync...</div>';
+          syncBtn.disabled = true;
+          
+          // Récupérer les checkins hors-ligne
+          const db = await openIndexedDB();
+          const checkins = await getAllOfflineCheckins(db);
+          
+          if (checkins.length === 0) {
+            alert('Aucun checkin à synchroniser.');
+            return;
+          }
+          
+          console.log(`Synchronisation de ${checkins.length} checkins...`);
+          
+          // Envoyer les checkins au serveur
+          const response = await fetch('/api/sync/offline-checkins', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({ checkins })
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            // Marquer les checkins comme synchronisés dans IndexedDB
+            const transaction = db.transaction(['checkins'], 'readwrite');
+            const store = transaction.objectStore('checkins');
+            
+            for (const checkin of checkins) {
+              checkin.synced = true;
+              checkin.syncedAt = new Date().toISOString();
+              store.put(checkin);
+            }
+            
+            alert(`✅ ${result.synced} checkins synchronisés avec succès !`);
+            
+            // Mettre à jour le bouton
+            syncBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+            syncBtn.innerHTML = '<div class="icon">✅</div><div class="label">Sync OK</div>';
+            
+            setTimeout(() => {
+              checkOfflineCheckins(); // Vérifier s'il en reste
+              syncBtn.disabled = false;
+            }, 2000);
+            
+          } else {
+            throw new Error(result.message || 'Erreur lors de la synchronisation');
+          }
+          
+        } catch (error) {
+          console.error('Erreur synchronisation:', error);
+          alert(`❌ Erreur lors de la synchronisation: ${error.message}`);
+          
+          // Restaurer le bouton
+          syncBtn.innerHTML = originalContent;
+          syncBtn.disabled = false;
+        }
+      }
+      
+      // Lancer la vérification au chargement de la page
+      document.addEventListener('DOMContentLoaded', checkAndShowSyncButton);
+      
+      // Vérifier périodiquement les checkins hors-ligne
+      setInterval(checkOfflineCheckins, 30000); // Toutes les 30 secondes
     </script>
   </body>
 </html>

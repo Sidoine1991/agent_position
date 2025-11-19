@@ -1477,7 +1477,7 @@
       });
       
       console.log(`🗺️ PlansByDate créé avec ${plansByDate.size} entrées:`, Array.from(plansByDate.keys()));
-      const checkinDates = new Set(checkins.map(c => String(c.timestamp).slice(0, 10)));
+      const checkinDates = new Set(checkins.map(c => String(c.created_at).slice(0, 10)));
       const validatedDates = new Set(validations.filter(v => v.valid && v.created_at).map(v => toISODate(new Date(v.created_at))));
       
       const gantt = $('week-gantt');

@@ -236,7 +236,7 @@ async function loadCheckins(missionId) {
                 }).addTo(map);
                 marker.bindPopup(`
                     <b>Check-in</b><br>
-                    ${new Date(checkin.timestamp || checkin.checkin_time).toLocaleString('fr-FR')}<br>
+                    ${new Date(checkin.created_at || checkin.checkin_time).toLocaleString('fr-FR')}<br>
                     ${checkin.accuracy ? `<small>Précision: ${checkin.accuracy}m</small>` : ''}
                 `);
                 checkinMarkers.push(marker);

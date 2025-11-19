@@ -3,6 +3,8 @@
  * Gère le cache local, la synchronisation et les actions en attente
  */
 
+// Prevent redeclaration of OfflineManager
+if (typeof OfflineManager === 'undefined') {
 class OfflineManager {
   constructor() {
     this.dbName = 'CCRB_Offline';
@@ -52,7 +54,7 @@ class OfflineManager {
         // Store pour les check-ins
         if (!db.objectStoreNames.contains('checkins')) {
           const checkinsStore = db.createObjectStore('checkins', { keyPath: 'id', autoIncrement: true });
-          checkinsStore.createIndex('timestamp', 'timestamp', { unique: false });
+          checkinsStore.createIndex('created_at', 'created_at', { unique: false });
           checkinsStore.createIndex('user_id', 'user_id', { unique: false });
           checkinsStore.createIndex('synced', 'synced', { unique: false });
         }
@@ -362,3 +364,5 @@ window.offlineManager = new OfflineManager();
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = OfflineManager;
 }
+
+} // Close the if block preventing redeclaration

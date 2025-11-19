@@ -411,13 +411,47 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
   try {
     console.log('🔍 API /api/reports appelée');
     
+    // Fonction pour normaliser les dates au format YYYY-MM-DD
+    const normalizeDate = (dateString) => {
+      if (!dateString) return dateString;
+      
+      // Si la date est déjà au format YYYY-MM-DD, la retourner telle quelle
+      if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return dateString;
+      }
+      
+      // Si la date est au format ISO complet, extraire YYYY-MM-DD
+      if (dateString.includes('T')) {
+        return dateString.split('T')[0];
+      }
+      
+      // Sinon, essayer de parser et formater
+      try {
+        const date = new Date(dateString);
+        return date.toISOString().split('T')[0];
+      } catch (e) {
+        return dateString; // En cas d'erreur, retourner l'original
+      }
+    };
+    
     // Extraire les paramètres de requête
     const { from, to, page, limit, agent_id } = req.query;
+    
+    // Normaliser les dates
+    const normalizedFrom = normalizeDate(from);
+    const normalizedTo = normalizeDate(to);
+    
     const currentPage = parseInt(page) || 1;
     const pageLimit = parseInt(limit) || 2000;
     const offset = (currentPage - 1) * pageLimit;
     
-    console.log('📋 Paramètres de requête:', { from, to, page, limit, agent_id });
+    console.log('📋 Paramètres de requête:', { 
+      from: normalizedFrom, 
+      to: normalizedTo, 
+      page, 
+      limit, 
+      agent_id 
+    });
     
     // 1. Récupérer les validations avec leurs checkins
     console.log('📊 Récupération des validations...');
@@ -429,11 +463,11 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
     
     // Appliquer les filtres de date sur created_at (approximation)
     // Note: Le filtrage exact par timestamp du checkin sera fait après
-    if (from) {
-      baseQuery = baseQuery.gte('created_at', from);
+    if (normalizedFrom) {
+      baseQuery = baseQuery.gte('created_at', new Date(normalizedFrom + 'T00:00:00.000Z').toISOString());
     }
-    if (to) {
-      baseQuery = baseQuery.lte('created_at', to);
+    if (normalizedTo) {
+      baseQuery = baseQuery.lte('created_at', new Date(normalizedTo + 'T23:59:59.999Z').toISOString());
     }
     
     // Filtrer par agent_id si fourni
@@ -452,6 +486,250 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
     const totalCount = count || 0;
     console.log('📊 Total de validations:', totalCount);
     
+    // Si aucune validation trouvée, essayer les tables checkins et presences
+    if (totalCount === 0) {
+      console.log('⚠️ Aucune validation dans checkin_validations, recherche dans checkins/presences...');
+      
+      try {
+        // Essayer la table presences d'abord
+        let presencesQuery = supabaseClient
+          .from('presences')
+          .select('*', { count: 'exact', head: true });
+        
+        if (normalizedFrom) {
+          presencesQuery = presencesQuery.gte('created_at', new Date(normalizedFrom + 'T00:00:00.000Z').toISOString());
+        }
+        if (normalizedTo) {
+          presencesQuery = presencesQuery.lte('created_at', new Date(normalizedTo + 'T23:59:59.999Z').toISOString());
+        }
+        if (agent_id) {
+          presencesQuery = presencesQuery.eq('user_id', agent_id);
+        }
+        
+        const { count: presencesCount, error: presencesCountError } = await presencesQuery;
+        
+        if (!presencesCountError && presencesCount > 0) {
+          console.log(`📊 ${presencesCount} presences trouvées, utilisation de cette table...`);
+          
+          // Récupérer les données des presences
+          let presencesDataQuery = supabaseClient
+            .from('presences')
+            .select(`
+              id,
+              user_id,
+              start_time,
+              end_time,
+              location_lat,
+              location_lng,
+              location_name,
+              notes,
+              photo_url,
+              created_at,
+              users!left(
+                id,
+                name,
+                email,
+                phone,
+                role,
+                project_name,
+                supervisor_id,
+                reference_lat,
+                reference_lon,
+                tolerance_radius_meters
+              )
+            `);
+          
+          if (normalizedFrom) {
+            presencesDataQuery = presencesDataQuery.gte('created_at', new Date(normalizedFrom + 'T00:00:00.000Z').toISOString());
+          }
+          if (normalizedTo) {
+            presencesDataQuery = presencesDataQuery.lte('created_at', new Date(normalizedTo + 'T23:59:59.999Z').toISOString());
+          }
+          if (agent_id) {
+            presencesDataQuery = presencesDataQuery.eq('user_id', agent_id);
+          }
+          
+          const { data: presencesData, error: presencesDataError } = await presencesDataQuery;
+          
+          console.log('🔍 Debug presences:');
+          console.log('  - Error:', presencesDataError);
+          console.log('  - Data length:', presencesData?.length || 0);
+          console.log('  - Data sample:', presencesData?.[0] ? 'ID: ' + presencesData[0].id + ', User: ' + presencesData[0].user_id : 'None');
+          
+          if (!presencesDataError && presencesData && presencesData.length > 0) {
+            console.log(`📊 ${presencesData.length} presences récupérées`);
+            
+            // Transformer les données de presences en format de rapports
+            const reports = presencesData.map(presence => {
+              const user = presence.users || {};
+              return {
+                id: presence.id,
+                agent_id: presence.user_id,
+                agent: user.name || 'Agent inconnu',
+                role: user.role || 'agent',
+                projet: user.project_name || 'Non spécifié',
+                localisation: presence.location_name || 'Non spécifiée',
+                date: new Date(presence.start_time || presence.created_at).toLocaleDateString('fr-FR'),
+                heure_arrivee: presence.start_time ? new Date(presence.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+                heure_depart: presence.end_time ? new Date(presence.end_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+                mission_duration: presence.start_time && presence.end_time ? 
+                  Math.round((new Date(presence.end_time) - new Date(presence.start_time)) / 60000) : null,
+                status_presence: 'Présent',
+                distance_m: presence.location_lat && presence.location_lng && user.reference_lat && user.reference_lon ?
+                  calculateDistance(presence.location_lat, presence.location_lng, user.reference_lat, user.reference_lon) : null,
+                tolerance_m: user.tolerance_radius_meters || 500,
+                note: presence.notes || '',
+                photo_url: presence.photo_url,
+                validation_id: presence.id,
+                checkin_id: presence.id,
+                created_at: presence.created_at,
+                lat: presence.location_lat,
+                lon: presence.location_lng,
+                ref_lat: user.reference_lat,
+                ref_lon: user.reference_lon,
+                user: user
+              };
+            });
+            
+            console.log(`📊 ${reports.length} rapports générés depuis presences`);
+            
+            // Pagination
+            const startIndex = (page - 1) * limit;
+            const paginatedReports = reports.slice(startIndex, startIndex + limit);
+            
+            return res.json({
+              success: true,
+              data: paginatedReports,
+              pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total: reports.length,
+                totalPages: Math.ceil(reports.length / limit)
+              }
+            });
+          }
+        }
+        
+        // Si pas de presences, essayer checkins
+        console.log('⚠️ Pas de presences, recherche dans checkins...');
+        
+        let checkinsQuery = supabaseClient
+          .from('checkins')
+          .select('*', { count: 'exact', head: true });
+        
+        if (normalizedFrom) {
+          checkinsQuery = checkinsQuery.gte('created_at', new Date(normalizedFrom + 'T00:00:00.000Z').toISOString());
+        }
+        if (normalizedTo) {
+          checkinsQuery = checkinsQuery.lte('created_at', new Date(normalizedTo + 'T23:59:59.999Z').toISOString());
+        }
+        if (agent_id) {
+          checkinsQuery = checkinsQuery.eq('user_id', agent_id);
+        }
+        
+        const { count: checkinsCount, error: checkinsCountError } = await checkinsQuery;
+        
+        if (!checkinsCountError && checkinsCount > 0) {
+          console.log(`📊 ${checkinsCount} checkins trouvés, utilisation de cette table...`);
+          
+          // Récupérer les données des checkins
+          let checkinsDataQuery = supabaseClient
+            .from('checkins')
+            .select(`
+              id,
+              user_id,
+              lat,
+              lng,
+              timestamp,
+              photo_url,
+              mission_id,
+              created_at,
+              users!left(
+                id,
+                full_name,
+                email,
+                phone,
+                role,
+                project_name,
+                supervisor_id,
+                reference_lat,
+                reference_lon,
+                tolerance_radius_meters
+              )
+            `);
+          
+          if (normalizedFrom) {
+            checkinsDataQuery = checkinsDataQuery.gte('created_at', new Date(normalizedFrom + 'T00:00:00.000Z').toISOString());
+          }
+          if (normalizedTo) {
+            checkinsDataQuery = checkinsDataQuery.lte('created_at', new Date(normalizedTo + 'T23:59:59.999Z').toISOString());
+          }
+          if (agent_id) {
+            checkinsDataQuery = checkinsDataQuery.eq('user_id', agent_id);
+          }
+          
+          const { data: checkinsData, error: checkinsDataError } = await checkinsDataQuery;
+          
+          if (!checkinsDataError && checkinsData.length > 0) {
+            console.log(`📊 ${checkinsData.length} checkins récupérés`);
+            
+            // Transformer les données de checkins en format de rapports
+            const reports = checkinsData.map(checkin => {
+              const user = checkin.users || {};
+              return {
+                id: checkin.id,
+                agent_id: checkin.user_id,
+                agent: user.full_name || 'Agent inconnu',
+                role: user.role || 'agent',
+                projet: user.project_name || 'Non spécifié',
+                localisation: 'Non spécifiée',
+                date: new Date(checkin.timestamp || checkin.created_at).toLocaleDateString('fr-FR'),
+                heure_arrivee: checkin.timestamp ? new Date(checkin.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+                heure_depart: 'N/A',
+                mission_duration: null,
+                status_presence: 'Présent',
+                distance_m: checkin.lat && checkin.lng && user.reference_lat && user.reference_lon ?
+                  calculateDistance(checkin.lat, checkin.lng, user.reference_lat, user.reference_lon) : null,
+                tolerance_m: user.tolerance_radius_meters || 500,
+                note: '',
+                photo_url: checkin.photo_url,
+                validation_id: checkin.id,
+                checkin_id: checkin.id,
+                created_at: checkin.created_at,
+                lat: checkin.lat,
+                lon: checkin.lng,
+                ref_lat: user.reference_lat,
+                ref_lon: user.reference_lon,
+                user: user
+              };
+            });
+            
+            console.log(`📊 ${reports.length} rapports générés depuis checkins`);
+            
+            // Pagination
+            const startIndex = (page - 1) * limit;
+            const paginatedReports = reports.slice(startIndex, startIndex + limit);
+            
+            return res.json({
+              success: true,
+              data: paginatedReports,
+              pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total: reports.length,
+                totalPages: Math.ceil(reports.length / limit)
+              }
+            });
+          }
+        }
+        
+        console.log('❌ Aucune donnée trouvée dans checkins ou presences');
+        
+      } catch (fallbackError) {
+        console.error('❌ Erreur dans le fallback checkins/presences:', fallbackError);
+      }
+    }
+    
     // Construire la requête de données avec les mêmes filtres
     let dataQuery = supabaseClient
       .from('checkin_validations')
@@ -465,23 +743,24 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
         reference_lat,
         reference_lon,
         created_at,
-        checkins(
+        checkins!left(
           id,
           mission_id,
+          user_id,
           lat,
           lon,
-          timestamp,
+          start_time,
           note,
-          photo_path
+          photo_url
         )
       `);
     
     // Appliquer les mêmes filtres
-    if (from) {
-      dataQuery = dataQuery.gte('created_at', from);
+    if (normalizedFrom) {
+      dataQuery = dataQuery.gte('created_at', new Date(normalizedFrom + 'T00:00:00.000Z').toISOString());
     }
-    if (to) {
-      dataQuery = dataQuery.lte('created_at', to);
+    if (normalizedTo) {
+      dataQuery = dataQuery.lte('created_at', new Date(normalizedTo + 'T23:59:59.999Z').toISOString());
     }
     if (agent_id) {
       dataQuery = dataQuery.eq('agent_id', agent_id);
@@ -532,6 +811,7 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
         .from('users')
         .select('id')
         .eq('supervisor_id', req.user.id)
+        .eq('role', 'agent') // Ne récupérer que les agents supervisés
         .in('id', agentIds);
       
       if (supervisedError) {
@@ -541,11 +821,26 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
       
       filteredAgentIds = (supervisedAgents || []).map(a => a.id);
       console.log(`🔍 Superviseur ${req.user.id}: ${filteredAgentIds.length} agents supervisés sur ${agentIds.length} agents`);
+    } else {
+      // Pour les admins, filtrer pour ne garder que les agents et superviseurs (rôles 'agent' et 'superviseur')
+      const { data: fieldUsers, error: fieldError } = await supabaseClient
+        .from('users')
+        .select('id')
+        .in('role', ['agent', 'superviseur'])
+        .in('id', agentIds);
+      
+      if (fieldError) {
+        console.error('❌ Erreur lors de la récupération des agents/superviseurs:', fieldError);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des agents/superviseurs' });
+      }
+      
+      filteredAgentIds = (fieldUsers || []).map(a => a.id);
+      console.log(`🔍 Admin: ${filteredAgentIds.length} agents/superviseurs sur ${agentIds.length} utilisateurs`);
     }
     
     const { data: users, error: usersError } = await supabaseClient
       .from('users')
-      .select('id, name, first_name, last_name, project_name, departement, commune, arrondissement, village, reference_lat, reference_lon, tolerance_radius_meters')
+      .select('id, name, first_name, last_name, project_name, departement, commune, arrondissement, village, reference_lat, reference_lon, tolerance_radius_meters, role')
       .in('id', filteredAgentIds);
     
     console.log('👥 Utilisateurs trouvés:', users?.length || 0);
@@ -568,24 +863,42 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
     console.log(`🔍 Validations filtrées: ${filteredValidations.length} sur ${validations.length}`);
 
     // 4. Filtrer par timestamp du checkin si from/to sont fournis (filtrage précis)
-    if (from || to) {
+    if (normalizedFrom || normalizedTo) {
       filteredValidations = filteredValidations.filter(validation => {
-        const checkinTimestamp = validation.checkins?.timestamp || validation.created_at;
-        if (!checkinTimestamp) return false;
+        const checkinTimestamp = validation.checkins?.start_time || validation.created_at;
+        // Si pas de timestamp, on garde la validation (pour ne pas perdre de données)
+        if (!checkinTimestamp) {
+          console.log(`⚠️ Validation ${validation.id} sans timestamp, conservée par défaut`);
+          return true;
+        }
         
         const timestamp = new Date(checkinTimestamp);
-        if (from && timestamp < new Date(from)) return false;
-        if (to && timestamp > new Date(to)) return false;
+        if (normalizedFrom && timestamp < new Date(normalizedFrom + 'T00:00:00.000Z')) return false;
+        if (normalizedTo && timestamp > new Date(normalizedTo + 'T23:59:59.999Z')) return false;
         return true;
       });
       console.log(`🔍 Validations filtrées par timestamp: ${filteredValidations.length}`);
     }
 
-    // 5. Construire les rapports
     console.log('🔄 Construction des rapports...');
+    console.log('📊 filteredValidations length:', filteredValidations.length);
+    console.log('👥 usersMap size:', usersMap.size);
+    if (filteredValidations.length > 0) {
+      console.log('🔍 Sample validation ID:', filteredValidations[0].id, 'agent_id:', filteredValidations[0].agent_id);
+      console.log('🔍 Sample validation checkins:', filteredValidations[0].checkins);
+    }
+    
     const reports = filteredValidations.map(validation => {
       const checkin = validation.checkins;
       const user = usersMap.get(validation.agent_id);
+      
+      // Log de débogage pour chaque validation
+      console.log(`🔍 Validation ${validation.id}: agent_id=${validation.agent_id}, user_found=${!!user}, checkin_found=${!!checkin}`);
+      
+      if (!user) {
+        console.log(`⚠️ Utilisateur non trouvé pour agent_id ${validation.agent_id}`);
+        return null;
+      }
       
       // Calculer la distance si elle n'est pas déjà calculée
       let distance_m = validation.distance_m;
@@ -604,7 +917,7 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
       let mission_duration = null;
       if (checkin?.mission_duration !== null && checkin?.mission_duration !== undefined) {
         mission_duration = checkin.mission_duration;
-      } else if (checkin?.timestamp) {
+      } else if (checkin?.start_time) {
         // Si pas de durée stockée, on peut essayer de calculer approximativement
         // Pour l'instant, on laisse null jusqu'à ce que la colonne soit ajoutée
         mission_duration = null;
@@ -613,23 +926,30 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
       return {
         agent_id: validation.agent_id,
         agent: user?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || `Agent #${validation.agent_id}`,
+        role: user?.role || 'non-spécifié',
         projet: user?.project_name || 'Non spécifié',
         localisation: `${user?.departement || ''} ${user?.commune || ''} ${user?.arrondissement || ''} ${user?.village || ''}`.trim() || 'Non spécifié',
-        rayon_m: tolerance,
-        ref_lat: validation.reference_lat || user?.reference_lat,
-        ref_lon: validation.reference_lon || user?.reference_lon,
-        lat: checkin?.lat,
-        lon: checkin?.lon,
-        ts: checkin?.timestamp || validation.created_at,
-        distance_m: distance_m,
+        date: checkin?.start_time ? new Date(checkin.start_time).toLocaleDateString('fr-FR') : new Date(validation.created_at).toLocaleDateString('fr-FR'),
+        heure_arrivee: checkin?.start_time ? new Date(checkin.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+        heure_depart: checkin?.end_time ? new Date(checkin.end_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
         mission_duration: mission_duration,
-        statut: isWithinTolerance ? 'Présent' : 'Hors zone'
+        status_presence: isWithinTolerance ? 'Présent' : 'Absent',
+        distance_m: distance_m,
+        tolerance_m: tolerance,
+        note: checkin?.note || validation.reason || '',
+        photo_url: checkin?.photo_url || null,
+        validation_id: validation.id,
+        checkin_id: checkin?.id || null,
+        created_at: validation.created_at
       };
     });
 
-    console.log('📊 Rapports construits:', reports.length);
-    if (reports.length > 0) {
-      console.log('📋 Premier rapport:', reports[0]);
+    // Filtrer les rapports null (où l'utilisateur n'a pas été trouvé)
+    const validReports = reports.filter(report => report !== null);
+    console.log('📊 Rapports valides après filtrage:', validReports.length, 'sur', reports.length);
+    
+    if (validReports.length > 0) {
+      console.log('📋 Premier rapport valide:', validReports[0]);
     }
 
     // Calculer les métadonnées de pagination
@@ -639,7 +959,7 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
 
     res.json({ 
       success: true, 
-      data: reports,
+      data: validReports,
       pagination: {
         current_page: currentPage,
         total_pages: totalPages,
@@ -721,7 +1041,7 @@ app.use((req, res, next) => {
 });
 
 // Middleware d'authentification
-function authenticateToken(req, res, next) {
+async function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -729,12 +1049,49 @@ function authenticateToken(req, res, next) {
     return res.status(401).json({ error: 'Token d\'accès requis' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, async (err, decoded) => {
     if (err) {
       return res.status(403).json({ error: 'Token invalide' });
     }
-    req.user = user;
-    next();
+    
+    // Chercher l'utilisateur par auth_uuid (pour Supabase Auth) ou par ID (pour ancien système)
+    let user = null;
+    
+    try {
+      if (decoded.auth_uuid) {
+        // Recherche par auth_uuid (nouveau système Supabase Auth)
+        const { data, error } = await supabaseClient
+          .from('users')
+          .select('*')
+          .eq('auth_uuid', decoded.auth_uuid)
+          .single();
+        
+        if (!error && data) {
+          user = data;
+        }
+      } else if (decoded.id) {
+        // Recherche par ID (ancien système)
+        const { data, error } = await supabaseClient
+          .from('users')
+          .select('*')
+          .eq('id', decoded.id)
+          .single();
+        
+        if (!error && data) {
+          user = data;
+        }
+      }
+      
+      if (!user) {
+        return res.status(403).json({ error: 'Utilisateur non trouvé' });
+      }
+      
+      req.user = user;
+      next();
+    } catch (dbErr) {
+      console.error('Erreur base de données auth:', dbErr);
+      return res.status(500).json({ error: 'Erreur serveur' });
+    }
   });
 }
 
@@ -784,9 +1141,9 @@ app.get('/api/admin/export/presence.csv', authenticateToken, authenticateSupervi
     // Récupérer checkins + missions + users + profiles
     let checkinsQuery = supabaseClient
       .from('checkins')
-      .select('id, mission_id, lat, lon, note, photo_path, timestamp');
-    if (from) checkinsQuery = checkinsQuery.gte('timestamp', from.toISOString());
-    if (to) checkinsQuery = checkinsQuery.lte('timestamp', to.toISOString());
+      .select('id, mission_id, lat, lon, note, photo_url, created_at');
+    if (from) checkinsQuery = checkinsQuery.gte('created_at', from.toISOString());
+    if (to) checkinsQuery = checkinsQuery.lte('created_at', to.toISOString());
     const { data: checkins, error: cErr } = await checkinsQuery;
     if (cErr) throw cErr;
 
@@ -818,7 +1175,7 @@ app.get('/api/admin/export/presence.csv', authenticateToken, authenticateSupervi
       const m = missionById.get(c.mission_id) || {};
       const agentId = m.agent_id;
       if (!agentId) continue;
-      const day = new Date(c.timestamp);
+      const day = new Date(c.created_at);
       const dayKey = day.toISOString().slice(0,10);
       const key = agentId + '|' + dayKey;
       if (!byAgentDay.has(key)) byAgentDay.set(key, []);
@@ -874,7 +1231,7 @@ app.get('/api/admin/export/presence.csv', authenticateToken, authenticateSupervi
         new Date(first.timestamp).toLocaleTimeString('fr-FR', { hour12:false }),
         new Date(last.timestamp).toLocaleTimeString('fr-FR', { hour12:false }),
         last.note || '',
-        last.photo_path || '',
+        last.photo_url || '',
         status,
         String(dist ?? '')
       ]);
@@ -1269,6 +1626,78 @@ app.get('/api/supabase-health', async (req, res) => {
         SUPABASE_ANON_KEY: !!process.env.SUPABASE_ANON_KEY
       }
     });
+  }
+});
+
+// Échanger le token Supabase contre notre JWT
+app.post('/api/auth/exchange', async (req, res) => {
+  try {
+    const { supabase_token } = req.body;
+    
+    if (!supabase_token) {
+      return res.status(400).json({ error: 'Token Supabase requis' });
+    }
+
+    // Vérifier le token Supabase
+    const { data: { user }, error } = await supabaseClient.auth.getUser(supabase_token);
+    
+    if (error || !user) {
+      return res.status(401).json({ error: 'Token Supabase invalide' });
+    }
+
+    // Chercher l'utilisateur dans notre table par auth_uuid (des métadonnées)
+    const authUuid = user.user_metadata?.auth_uuid || user.id;
+    
+    const { data: users, error: userError } = await supabaseClient
+      .from('users')
+      .select('*')
+      .eq('auth_uuid', authUuid)
+      .limit(1);
+
+    if (userError) throw userError;
+    if (!users || users.length === 0) {
+      return res.status(401).json({ error: 'Utilisateur non trouvé dans la base de données' });
+    }
+
+    const dbUser = users[0];
+    
+    // VÉRIFICATION OBLIGATOIRE : L'utilisateur doit être vérifié
+    if (!dbUser.is_verified) {
+      return res.status(403).json({ 
+        error: 'Compte non vérifié',
+        message: 'Veuillez vérifier votre compte avant de vous connecter',
+        requires_verification: true
+      });
+    }
+
+    // Générer notre token JWT
+    const token = jwt.sign(
+      { 
+        id: dbUser.id, 
+        auth_uuid: dbUser.auth_uuid,
+        email: dbUser.email, 
+        role: dbUser.role,
+        name: dbUser.name 
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: dbUser.id,
+        email: dbUser.email,
+        role: dbUser.role,
+        name: dbUser.name,
+        project_name: dbUser.project_name
+      }
+    });
+    
+  } catch (error) {
+    console.error('Erreur exchange token:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -1746,7 +2175,7 @@ app.get('/api/presence-summary', (req, res, next) => {
       console.log('🔍 Récupération de toutes les pages de checkin_validations avec timestamp des check-ins...');
       const checkinValidationsQuery = supabaseClient
         .from('checkin_validations')
-        .select('agent_id, created_at, checkins(timestamp)')
+        .select('agent_id, created_at, checkins(created_at)')
         .eq('valid', true)
         .gte('created_at', startDateStr)
         .lte('created_at', endDateStr);
@@ -1770,9 +2199,9 @@ app.get('/api/presence-summary', (req, res, next) => {
           let checkinTimestamp = null;
           if (validation.checkins) {
             if (Array.isArray(validation.checkins) && validation.checkins.length > 0) {
-              checkinTimestamp = validation.checkins[0].timestamp;
-            } else if (validation.checkins.timestamp) {
-              checkinTimestamp = validation.checkins.timestamp;
+              checkinTimestamp = validation.checkins[0].created_at;
+            } else if (validation.checkins.created_at) {
+              checkinTimestamp = validation.checkins.created_at;
             }
           }
           
@@ -2135,12 +2564,12 @@ app.get('/api/presence', authenticateToken, authenticateSupervisorOrAdmin, async
     const { data: presences, error } = await supabaseClient
       .from('checkins')
       .select(`
-        id, mission_id, lat, lon, timestamp, note, photo_path,
+        id, mission_id, lat, lon, created_at, note, photo_url,
         missions!inner(id, agent_id, status, date_start, date_end,
           users!inner(id, email, name)
         )
       `)
-      .order('timestamp', { ascending: false })
+      .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
     
     if (error) {
@@ -2218,9 +2647,9 @@ app.get('/api/admin/attendance', authenticateToken, authenticateSupervisorOrAdmi
     // Récupérer les check-ins liés à ces missions (via join) dans l'intervalle
     const { data: checkins, error: checkinsErr } = await supabaseClient
       .from('checkins')
-      .select('id, timestamp, missions!inner(id, agent_id, users!inner(id, name, project_name))')
-      .gte('timestamp', fromISO)
-      .lt('timestamp', toISO);
+      .select('id, created_at, missions!inner(id, agent_id, users!inner(id, name, project_name))')
+      .gte('created_at', fromISO)
+      .lt('created_at', toISO);
     if (checkinsErr) throw checkinsErr;
 
     // Agréger par agent
@@ -2271,8 +2700,8 @@ app.get('/api/admin/attendance', authenticateToken, authenticateSupervisorOrAdmi
       const name = c.missions?.users?.name;
       const project = c.missions?.users?.project_name || '';
       ensureAgent(agentId, name, project);
-      if (c.timestamp) {
-        const day = new Date(c.timestamp).toISOString().slice(0, 10);
+      if (c.created_at) {
+        const day = new Date(c.created_at).toISOString().slice(0, 10);
         byAgent.get(agentId).presenceDays.add(day);
       }
     }
@@ -2345,9 +2774,9 @@ app.get('/api/admin/project-summary', authenticateToken, authenticateSupervisorO
     // Checkins liés à la période (via mission)
     const { data: checkins, error: checkinsErr } = await supabaseClient
       .from('checkins')
-      .select('id, mission_id, timestamp')
-      .gte('timestamp', fromISO)
-      .lt('timestamp', toISO);
+      .select('id, mission_id, created_at')
+      .gte('created_at', fromISO)
+      .lt('created_at', toISO);
     if (checkinsErr) throw checkinsErr;
 
     // Planifications (jours planifiés) sur la période (tolérant au schéma)
@@ -2429,7 +2858,7 @@ app.get('/api/admin/project-summary', authenticateToken, authenticateSupervisorO
       amissions.forEach(m => {
         const cks = checkinsByMission.get(m.id) || [];
         cks.forEach(ck => {
-          const day = new Date(ck.timestamp).toISOString().slice(0,10);
+          const day = new Date(ck.created_at).toISOString().slice(0,10);
           presentDays.add(day);
         });
       });
@@ -3468,6 +3897,174 @@ app.post('/api/profile/photo', async (req, res) => {
   }
 });
 
+// ===== OFFLINE SYNC =====
+
+// Endpoint pour synchroniser les checkins en cache depuis le client
+app.post('/api/sync/offline-checkins', authenticateToken, async (req, res) => {
+  try {
+    const { checkins } = req.body || {};
+    
+    if (!Array.isArray(checkins) || checkins.length === 0) {
+      return res.json({ success: true, message: 'Aucun checkin à synchroniser', synced: 0 });
+    }
+    
+    console.log(`🔄 Synchronisation de ${checkins.length} checkins hors-ligne pour user ${req.user.id}...`);
+    
+    let syncedCount = 0;
+    const errors = [];
+    
+    for (const checkin of checkins) {
+      try {
+        // Préparer les données pour Supabase
+        const checkinData = {
+          user_id: req.user.id,
+          lat: Number(checkin.lat),
+          lon: Number(checkin.lon),
+          type: checkin.type || 'checkin',
+          start_time: checkin.start_time || checkin.timestamp || new Date().toISOString(),
+          accuracy: checkin.accuracy ? Number(checkin.accuracy) : null,
+          note: checkin.note || null,
+          photo_url: checkin.photo_url || checkin.photo_path || null,
+          mission_id: checkin.mission_id || null
+        };
+        
+        // Insérer dans Supabase
+        const { data, error } = await supabaseClient
+          .from('checkins')
+          .insert([checkinData])
+          .select()
+          .single();
+        
+        if (error) {
+          console.error(`❌ Erreur insertion checkin ${checkin.id || 'unknown'}:`, error);
+          errors.push({ checkin: checkin.id || 'unknown', error: error.message });
+        } else {
+          console.log(`✅ Checkin synchronisé: ID ${data.id}`);
+          syncedCount++;
+        }
+      } catch (e) {
+        console.error(`❌ Erreur traitement checkin:`, e);
+        errors.push({ checkin: checkin.id || 'unknown', error: e.message });
+      }
+    }
+    
+    console.log(`🎉 Synchronisation terminée: ${syncedCount}/${checkins.length} checkins synchronisés`);
+    
+    return res.json({
+      success: true,
+      message: `${syncedCount} checkins synchronisés avec succès`,
+      synced: syncedCount,
+      total: checkins.length,
+      errors: errors.length > 0 ? errors : undefined
+    });
+    
+  } catch (error) {
+    console.error('❌ Erreur générale synchronisation checkins:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la synchronisation',
+      error: error.message
+    });
+  }
+});
+
+// Endpoint pour récupérer les checkins en cache depuis IndexedDB (via un script client)
+app.get('/api/sync/get-offline-checkins', authenticateToken, async (req, res) => {
+  try {
+    // Cet endpoint retourne un script JavaScript qui sera exécuté côté client
+    // pour récupérer les checkins depuis IndexedDB et les envoyer à /api/sync/offline-checkins
+    
+    const syncScript = `
+(async function() {
+  try {
+    console.log('🔍 Récupération des checkins hors-ligne depuis IndexedDB...');
+    
+    // Ouvrir la base de données IndexedDB
+    const dbName = 'offlineDB';
+    const dbVersion = 1;
+    
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open(dbName, dbVersion);
+      
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+      
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains('checkins')) {
+          const store = db.createObjectStore('checkins', { keyPath: 'id', autoIncrement: true });
+          store.createIndex('user_id', 'user_id', { unique: false });
+          store.createIndex('synced', 'synced', { unique: false });
+          store.createIndex('created_at', 'created_at', { unique: false });
+        }
+      };
+    });
+    
+    // Récupérer tous les checkins non synchronisés
+    const transaction = db.transaction(['checkins'], 'readonly');
+    const store = transaction.objectStore('checkins');
+    const index = store.index('synced');
+    
+    const checkins = await new Promise((resolve, reject) => {
+      const request = index.getAll(false); // false = non synchronisés
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result || []);
+    });
+    
+    console.log(\`📊 Trouvé \${checkins.length} checkins non synchronisés\`);
+    
+    if (checkins.length > 0) {
+      // Envoyer les checkins au serveur
+      const response = await fetch('/api/sync/offline-checkins', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + localStorage.getItem('jwt')
+        },
+        body: JSON.stringify({ checkins })
+      });
+      
+      const result = await response.json();
+      console.log('📤 Résultat de la synchronisation:', result);
+      
+      // Marquer comme synchronisés si succès
+      if (result.success && result.synced > 0) {
+        const syncTransaction = db.transaction(['checkins'], 'readwrite');
+        const syncStore = syncTransaction.objectStore('checkins');
+        
+        for (const checkin of checkins) {
+          await new Promise((resolve, reject) => {
+            const updateRequest = syncStore.put({ ...checkin, synced: true });
+            updateRequest.onerror = () => reject(updateRequest.error);
+            updateRequest.onsuccess = () => resolve();
+          });
+        }
+        
+        console.log(\`✅ \${result.synced} checkins marqués comme synchronisés\`);
+      }
+      
+      return result;
+    } else {
+      console.log('ℹ️ Aucun checkin à synchroniser');
+      return { success: true, message: 'Aucun checkin à synchroniser' };
+    }
+    
+  } catch (error) {
+    console.error('❌ Erreur synchronisation automatique:', error);
+    return { success: false, error: error.message };
+  }
+})();
+`;
+    
+    res.setHeader('Content-Type', 'application/javascript');
+    res.send(syncScript);
+    
+  } catch (error) {
+    console.error('❌ Erreur génération script sync:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ===== CHECKINS (SUPABASE) =====
 
 // Enregistrer un check-in (agent authentifié)
@@ -3489,17 +4086,33 @@ app.post('/api/checkins', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Latitude et longitude requis' });
     }
 
+    // Vérifier que l'utilisateur existe
+    const { data: userExists, error: userCheckError } = await supabaseClient
+      .from('users')
+      .select('id, name, role')
+      .eq('id', req.user.id)
+      .single();
+    
+    if (userCheckError || !userExists) {
+      console.error('❌ Utilisateur inexistant pour checkin:', req.user.id);
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Utilisateur non trouvé. Veuillez vous reconnecter avec vos vrais identifiants.' 
+      });
+    }
+
     const row = {
       user_id: req.user.id,
       lat: Number(lat),
       lon: Number(lon),
       type,
-      accuracy_m: accuracy_m ? Number(accuracy_m) : null,
+      start_time: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString(),
+      accuracy: accuracy_m ? Number(accuracy_m) : null,
+      note: notes || null,
+      // Keep these for compatibility but they're not in the schema
       commune: commune || null,
       arrondissement: arrondissement || null,
       village: village || null,
-      notes: notes || null,
-      timestamp: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString(),
     };
 
     const { data, error } = await supabaseClient.from('checkins').insert([row]).select().single();
@@ -3521,12 +4134,12 @@ app.get('/api/admin/checkins/latest', authenticateToken, authenticateSupervisorO
     const { data, error } = await supabaseClient
       .from('checkins')
       .select(`
-        id, mission_id, lat, lon, timestamp, note, photo_path,
+        id, mission_id, lat, lon, created_at, note, photo_url,
         missions!inner(id, agent_id, status, date_start, date_end,
           users!inner(id, email, name)
         )
       `)
-      .order('timestamp', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(limit);
     
     if (error) {
@@ -3556,19 +4169,19 @@ app.get('/api/admin/checkins', authenticateToken, authenticateSupervisorOrAdmin,
     let query = supabaseClient
       .from('checkins')
       .select(`
-        id, mission_id, lat, lon, timestamp, note, photo_path,
+        id, mission_id, lat, lon, created_at, note, photo_url,
         missions!inner(id, agent_id, status, date_start, date_end,
           users!inner(id, email, name)
         )
       `)
-      .order('timestamp', { ascending: false })
+      .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
     
     if (from) {
-      query = query.gte('timestamp', from.toISOString());
+      query = query.gte('created_at', from.toISOString());
     }
     if (to) {
-      query = query.lte('timestamp', to.toISOString());
+      query = query.lte('created_at', to.toISOString());
     }
     
     const { data, error } = await query;
@@ -3863,9 +4476,9 @@ app.get('/api/map/presences', authenticateToken, async (req, res) => {
     for (const m of missionList) {
       const { data: firstCheck, error: checkErr } = await supabaseClient
         .from('checkins')
-        .select('lat, lon, timestamp')
+        .select('lat, lon, created_at')
         .eq('mission_id', m.id)
-        .order('timestamp', { ascending: true })
+        .order('created_at', { ascending: true })
         .limit(1)
         .single();
       if (checkErr || !firstCheck) continue;
@@ -3875,7 +4488,7 @@ app.get('/api/map/presences', authenticateToken, async (req, res) => {
         agent_name: agentMap.get(m.agent_id) || 'Agent',
         lat: firstCheck.lat,
         lon: firstCheck.lon,
-        timestamp: firstCheck.timestamp,
+        timestamp: firstCheck.created_at,
         status: m.status
       });
     }
@@ -3934,7 +4547,7 @@ app.get('/api/debug/checkins', authenticateToken, authenticateSupervisorOrAdmin,
     const { data, error } = await supabaseClient
       .from('checkins')
       .select('*')
-      .order('timestamp', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(limit);
     if (error) throw error;
     const { count: total } = await supabaseClient.from('checkins').select('*', { count: 'exact', head: true });
@@ -4257,13 +4870,13 @@ app.get('/api/checkins/mine', authenticateToken, async (req, res) => {
     try {
     let q = supabaseClient
       .from('checkins')
-        .select('id, mission_id, lat, lon, timestamp')
+        .select('id, mission_id, lat, lon, created_at')
       .in('mission_id', missionIds)
-      .order('timestamp', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(500);
       
-    if (from) q = q.gte('timestamp', new Date(String(from)).toISOString());
-    if (to) q = q.lte('timestamp', new Date(String(to)).toISOString());
+    if (from) q = q.gte('created_at', new Date(String(from)).toISOString());
+    if (to) q = q.lte('created_at', new Date(String(to)).toISOString());
       
     const { data, error } = await q;
       if (error) {
@@ -4279,9 +4892,9 @@ app.get('/api/checkins/mine', authenticateToken, async (req, res) => {
       // Fallback: essayer avec encore moins de colonnes
       const { data: fallbackData, error: fallbackError } = await supabaseClient
         .from('checkins')
-        .select('id, lat, lon, timestamp')
+        .select('id, lat, lon, created_at')
         .in('mission_id', missionIds)
-        .order('timestamp', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(500);
       
       if (fallbackError) throw fallbackError;
@@ -4301,28 +4914,41 @@ app.get('/api/missions/:id/checkins', authenticateToken, async (req, res) => {
     const missionId = Number(req.params.id);
     if (!Number.isFinite(missionId)) return res.status(400).json({ success: false, message: 'mission_id invalide' });
 
+    console.log(`🔍 Checkins mission ${missionId} demandé par user ${req.user.id} (role: ${req.user.role})`);
+
     // Vérifier accès: admin/superviseur ou mission appartenant à l'utilisateur
     let allowed = false;
     try {
-      if (req.user && (req.user.role === 'admin' || req.user.role === 'supervisor')) {
+      if (req.user && (req.user.role === 'admin' || req.user.role === 'supervisor' || req.user.role === 'superviseur')) {
         allowed = true;
+        console.log(`✅ Accès autorisé pour ${req.user.role}`);
       } else {
+        console.log(`🔍 Vérification propriété mission pour user ${req.user.id}`);
         const { data: m } = await supabaseClient
           .from('missions')
           .select('agent_id')
           .eq('id', missionId)
           .single();
-        if (m && m.agent_id === req.user.id) allowed = true;
+        if (m && m.agent_id === req.user.id) {
+          allowed = true;
+          console.log(`✅ Mission appartient à l'utilisateur ${req.user.id}`);
+        }
       }
-    } catch {}
-    if (!allowed) return res.status(403).json({ success: false, message: 'Accès refusé' });
+    } catch (e) {
+      console.error('❌ Erreur vérification accès:', e);
+    }
+    if (!allowed) {
+      console.log(`❌ Accès refusé pour user ${req.user.id} (role: ${req.user.role})`);
+      return res.status(403).json({ success: false, message: 'Accès refusé' });
+    }
 
     // Utiliser seulement les colonnes essentielles pour éviter les erreurs
+    console.log(`📊 Requête checkins pour mission ${missionId}`);
     let q = supabaseClient
       .from('checkins')
-      .select('id, mission_id, lat, lon, timestamp')
+      .select('id, mission_id, lat, lon, created_at')
       .eq('mission_id', missionId)
-      .order('timestamp', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(500);
     
     const { data, error } = await q;
@@ -4420,8 +5046,8 @@ app.get('/api/reports/validations', authenticateToken, authenticateSupervisorOrA
       vq = vq.eq('agent_id', Number(agent_id));
     }
     
-    if (from) vq = vq.gte('created_at', new Date(String(from)).toISOString());
-    if (to) vq = vq.lte('created_at', new Date(String(to)).toISOString());
+    if (from) vq = vq.gte('created_at', new Date(String(from) + 'T00:00:00.000Z').toISOString());
+    if (to) vq = vq.lte('created_at', new Date(String(to) + 'T23:59:59.999Z').toISOString());
     
     const { data: validations, error: vErr } = await vq;
     if (vErr) throw vErr;
@@ -4453,7 +5079,7 @@ app.get('/api/reports/validations', authenticateToken, authenticateSupervisorOrA
     if (checkinIds.length) {
       const { data: checkins } = await supabaseClient
         .from('checkins')
-        .select('id, mission_id, lat, lon, note, photo_path, timestamp')
+        .select('id, mission_id, lat, lon, note, photo_url, created_at')
         .in('id', checkinIds);
       (checkins || []).forEach(c => checkinsMap.set(c.id, c));
     }
@@ -4492,7 +5118,7 @@ app.get('/api/reports/validations', authenticateToken, authenticateSupervisorOrA
         day_start_time: v.planned_start_time || null,
         day_end_time: v.planned_end_time || null,
         note: c.note || '',
-        photo_path: c.photo_path || '',
+        photo_url: c.photo_url || '',
         status: v.valid ? 'present' : 'absent',
         within_tolerance: v.valid,
         distance_from_reference_m: v.distance_m ?? null,
@@ -4585,8 +5211,8 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
           lat: latitude,
           lon: longitude,
           note: note || 'Début de mission',
-          photo_path: startPhotoUrl || null,
-          timestamp: start_time
+          photo_url: startPhotoUrl || null,
+          start_time: start_time
         }])
         .select('id')
         .single();
@@ -4776,8 +5402,8 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
           lat: latitude,
           lon: longitude,
           note: note || 'Fin de mission',
-          photo_path: endPhotoUrl || null,
-          timestamp: end_time
+          photo_url: endPhotoUrl || null,
+          start_time: end_time
         }]);
       } catch (e) {
         console.warn('Insertion checkin end échouée (non bloquant):', e?.message);
@@ -4844,7 +5470,7 @@ app.post('/api/missions/:id/complete', authenticateToken, async (req, res) => {
         lat: latitude,
         lon: longitude,
         note: note || 'Fin de mission (forcée)',
-        timestamp: end_time
+        start_time: end_time
       }]);
     }
 
@@ -5929,7 +6555,7 @@ app.post('/api/sync/presences', authenticateToken, async (req, res) => {
           lat,
           lon,
           note,
-          photo_path,
+          photo_url,
           timestamp
         )
       `)

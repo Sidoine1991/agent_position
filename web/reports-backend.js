@@ -368,9 +368,13 @@ async function fetchReportsFromBackend() {
       ? usersResult 
       : (usersResult?.items || usersResult?.data || []);
       
+    // Filtrer pour ne garder que les agents et superviseurs (rôles 'agent' et 'superviseur')
+    const fieldUsersOnly = users.filter(user => user.role === 'agent' || user.role === 'superviseur');
+    console.log(`✅ ${fieldUsersOnly.length} agents/superviseurs chargés sur ${users.length} utilisateurs totaux`);
+      
     // S'assurer que les clés de la map sont des chaînes pour éviter les erreurs de type
-    const usersById = new Map(users.map(u => [String(u.id), u]));
-    console.log(`✅ ${users.length} utilisateurs chargés`);
+    const usersById = new Map(fieldUsersOnly.map(u => [String(u.id), u]));
+    console.log(`✅ ${fieldUsersOnly.length} agents/superviseurs chargés`);
     console.log(`🔑 User IDs disponibles: ${Array.from(usersById.keys()).slice(0, 10).join(', ')}...`);
 
     // 2. Charger tous les rapports pour la période donnée avec pagination
@@ -2096,7 +2100,15 @@ function applyValidationsFilters(validations, filters) {
 
     // Filtre par date
     if (filters.startDate || filters.endDate) {
-      const validationDate = new Date(validation.date || validation.ts || validation.created_at);
+      // Convertir la date de validation (format DD/MM/YYYY) vers Date
+      let validationDate;
+      if (validation.date && validation.date.includes('/')) {
+        // Format DD/MM/YYYY
+        const parts = validation.date.split('/');
+        validationDate = new Date(parts[2], parts[1] - 1, parts[0]);
+      } else {
+        validationDate = new Date(validation.date || validation.ts || validation.created_at);
+      }
       
       if (filters.startDate) {
         const startDate = new Date(filters.startDate);
@@ -2150,8 +2162,8 @@ window.loadValidations = async function() {
     // Récupérer les valeurs des filtres
     const filters = {
       status: document.getElementById('validation-status-filter')?.value,
-      startDate: document.getElementById('date-from')?.value,
-      endDate: document.getElementById('date-to')?.value,
+      startDate: document.getElementById('date-filter')?.value,
+      endDate: document.getElementById('date-filter')?.value,
       agentId: document.getElementById('agent-filter')?.value,
       project: document.getElementById('project-filter')?.value
     };
