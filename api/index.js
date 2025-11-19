@@ -2334,8 +2334,7 @@ module.exports = async (req, res) => {
 
     // Endpoint pour les zones de travail
     if (path === '/api/work-zones' && method === 'GET') {
-      authenticateToken(req, res, async () => {
-        try {
+      try {
           // Retourner des zones de travail fictives pour l'instant
           const workZones = [
             { id: 1, name: 'Zone Nord', description: 'Zone de travail au nord' },
@@ -2348,8 +2347,6 @@ module.exports = async (req, res) => {
           console.error('Erreur récupération zones de travail:', error);
           return res.status(500).json({ success: false, error: 'Erreur serveur' });
         }
-      });
-      return;
     }
 
     // Endpoint pour les contacts

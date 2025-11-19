@@ -5260,6 +5260,7 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
         .from('checkins')
         .insert([{ 
           mission_id: missionId,
+          user_id: userId,
           lat: latitude,
           lon: longitude,
           note: note || 'Début de mission',
@@ -5451,6 +5452,7 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
       try {
         await supabaseClient.from('checkins').insert([{ 
           mission_id: targetMissionId,
+          user_id: userId,
           lat: latitude,
           lon: longitude,
           note: note || 'Fin de mission',
@@ -5519,6 +5521,7 @@ app.post('/api/missions/:id/complete', authenticateToken, async (req, res) => {
     if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
       await supabaseClient.from('checkins').insert([{ 
         mission_id: missionId,
+        user_id: req.user.id,
         lat: latitude,
         lon: longitude,
         note: note || 'Fin de mission (forcée)',
