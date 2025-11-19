@@ -4074,12 +4074,14 @@ app.post('/api/checkins', authenticateToken, async (req, res) => {
       lat,
       lon,
       type = 'checkin',
-      accuracy_m,
-      commune,
-      arrondissement,
-      village,
-      notes,
-      timestamp
+      accuracy,
+      note,
+      photo_url,
+      battery_level,
+      network_type,
+      device_info,
+      start_time,
+      mission_id
     } = req.body || {};
 
     if (!lat || !lon) {
@@ -4105,14 +4107,17 @@ app.post('/api/checkins', authenticateToken, async (req, res) => {
       user_id: req.user.id,
       lat: Number(lat),
       lon: Number(lon),
-      type,
-      start_time: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString(),
-      accuracy: accuracy_m ? Number(accuracy_m) : null,
-      note: notes || null,
-      // Keep these for compatibility but they're not in the schema
-      commune: commune || null,
-      arrondissement: arrondissement || null,
-      village: village || null,
+      type: type || 'checkin',
+      start_time: start_time ? new Date(start_time).toISOString() : new Date().toISOString(),
+      end_time: null,
+      accuracy: accuracy ? Number(accuracy) : null,
+      note: note || null,
+      photo_url: photo_url || null,
+      battery_level: battery_level ? Number(battery_level) : null,
+      network_type: network_type || null,
+      device_info: device_info || null,
+      mission_id: mission_id || null,
+      created_at: new Date().toISOString()
     };
 
     const { data, error } = await supabaseClient.from('checkins').insert([row]).select().single();
