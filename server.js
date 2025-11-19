@@ -4081,7 +4081,10 @@ app.post('/api/checkins', authenticateToken, async (req, res) => {
       network_type,
       device_info,
       start_time,
-      mission_id
+      mission_id,
+      commune,
+      arrondissement,
+      village
     } = req.body || {};
 
     if (!lat || !lon) {
@@ -4115,7 +4118,13 @@ app.post('/api/checkins', authenticateToken, async (req, res) => {
       photo_url: photo_url || null,
       battery_level: battery_level ? Number(battery_level) : null,
       network_type: network_type || null,
-      device_info: device_info || null,
+      device_info: {
+        ...device_info,
+        // Champs de compatibilité géographique stockés dans device_info
+        commune: commune || null,
+        arrondissement: arrondissement || null,
+        village: village || null
+      },
       mission_id: mission_id || null,
       created_at: new Date().toISOString()
     };
