@@ -4575,7 +4575,7 @@ async function syncOfflineDataIndex() {
         syncBtn.classList.remove('btn-success');
         syncBtn.classList.add('btn-info');
         
-        setTimeout(() => {
+        setTimeout(async () => {
           await checkOfflineData(); // Revérifier après synchronisation
         }, 4000);
       }
@@ -4589,7 +4589,7 @@ async function syncOfflineDataIndex() {
     syncBtn.classList.add('btn-danger');
   } finally {
     // Réactiver le bouton après 4 secondes
-    setTimeout(() => {
+    setTimeout(async () => {
       syncBtn.disabled = false;
       await checkOfflineData();
     }, 4000);
