@@ -830,109 +830,261 @@ async function init() {
   const loginFormEl = document.getElementById('login-form');
   if (loginFormEl && typeof loginFormEl.addEventListener === 'function') loginFormEl.addEventListener('submit', async (ev) => {
     ev.preventDefault();
+    
+    // Afficher un indicateur de chargement rapide
+    const loginBtn = $('login-btn');
+    const originalText = loginBtn.textContent;
+    loginBtn.disabled = true;
+    loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Connexion...';
+    
     try {
       const email = $('email').value.trim();
       const password = $('password').value.trim();
       
-      console.log('Tentative de connexion avec:', { email, password: password ? '***' : 'missing' });
+      console.log('🔐 Tentative de connexion rapide avec:', { email, password: password ? '***' : 'missing' });
       
-      const data = await api('/login', { method: 'POST', body: { email, password } });
+      // Timeout plus court pour la connexion (5 secondes au lieu de 30)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       
-      console.log('Réponse de l\'API:', data);
-      
-      jwt = data.token; 
-      localStorage.setItem('jwt', jwt);
-      localStorage.setItem('loginData', JSON.stringify(data.user));
-      localStorage.setItem('userProfile', JSON.stringify(data.user));
-      localStorage.setItem('userEmail', data.user.email || email);
-      localStorage.setItem('lastUserEmail', data.user.email || email);
-      
-      hide(authSection); show(appSection);
-      // Vérifier l'onboarding immédiatement après connexion
       try {
-        const prof = normalizeProfileResponse(await api(`/profile?email=${encodeURIComponent(data.user.email || email)}`));
-        if (!isProfileComplete(prof)) {
-          // Ne plus rediriger automatiquement. Informer l'utilisateur.
+        const data = await api('/login', { 
+          method: 'POST', 
+          body: { email, password },
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
+        console.log('✅ Connexion réussie, stockage des données...');
+        
+        // Stocker les infos utilisateur immédiatement
+        jwt = data.token; 
+        localStorage.setItem('jwt', jwt);
+        localStorage.setItem('loginData', JSON.stringify(data.user));
+        localStorage.setItem('userProfile', JSON.stringify(data.user));
+        localStorage.setItem('userEmail', data.user.email || email);
+        localStorage.setItem('lastUserEmail', data.user.email || email);
+        
+        // Afficher l'application immédiatement
+        hide(authSection); 
+        show(appSection);
+        
+        // Afficher message de succès rapide
+        showNotification('Connexion réussie !', 'success', 2000);
+        
+        // Charger les données lourdes en arrière-plan après l'affichage
+        setTimeout(async () => {
           try {
-            showNotification('Profil incomplet: cliquez sur « Mon Profil » pour terminer', 'warning', 6000);
-            const profileNav = document.querySelector('a[href="/profile.html"]');
-            if (profileNav) {
-              profileNav.style.boxShadow = '0 0 0 3px rgba(245, 158, 11, 0.6)';
-              profileNav.style.transform = 'scale(1.02)';
-              setTimeout(() => {
-                profileNav.style.boxShadow = '';
-                profileNav.style.transform = '';
-              }, 3000);
+            // Vérifier l'onboarding en arrière-plan
+            const prof = normalizeProfileResponse(await api(`/profile?email=${encodeURIComponent(data.user.email || email)}`));
+            if (!isProfileComplete(prof)) {
+              showNotification('Profil incomplet: cliquez sur « Mon Profil » pour terminer', 'warning', 6000);
+              const profileNav = document.querySelector('a[href="/profile.html"]');
+              if (profileNav) {
+                profileNav.style.boxShadow = '0 0 0 3px rgba(245, 158, 11, 0.6)';
+                profileNav.style.transform = 'scale(1.02)';
+                setTimeout(() => {
+                  profileNav.style.boxShadow = '';
+                  profileNav.style.transform = '';
+                }, 3000);
+              }
             }
-          } catch {}
-          // Ne pas interrompre le flux de la page d'accueil
-        }
-      } catch {}
-
-      await loadAgentProfile();
-      
-  // Charger les données après connexion en parallèle pour améliorer les performances
-  await Promise.all([
-    loadPresenceData(),
-    loadDashboardMetrics()
-  ]);
-  
-  // Bouton unique: rien à mettre à jour dynamiquement
-  
-  // Forcer le rendu du calendrier
-  renderCalendar();
-      
-      // Initialiser les sélecteurs géographiques après connexion
-      setTimeout(() => {
-        if (typeof initGeoSelectors === 'function') {
-          console.log('🌍 Initialisation des sélecteurs géographiques après connexion...');
-          initGeoSelectors();
+          } catch (profileError) {
+            console.warn('⚠️ Erreur vérification profil (non critique):', profileError);
+          }
+        }, 500);
+        
+        // Charger les données essentielles immédiatement
+        await loadAgentProfile();
+        
+        // Forcer le rendu du calendrier immédiatement
+        renderCalendar();
+        
+        // Initialiser les sélecteurs géographiques rapidement
+        setTimeout(() => {
+          if (typeof initGeoSelectors === 'function') {
+            console.log('🌍 Initialisation des sélecteurs géographiques...');
+            initGeoSelectors();
+          }
+        }, 100);
+        
+        // Mettre à jour la navbar
+        await updateNavbar();
+        
+        // Rendre les actions circulaires
+        try { updateCircleActionsVisibility(); } catch {}
+        
+        // Charger les données de présence et métriques en arrière-plan (non bloquant)
+        setTimeout(async () => {
+          try {
+            await Promise.all([
+              loadPresenceData(),
+              loadDashboardMetrics()
+            ]);
+            console.log('📊 Données de présence et métriques chargées');
+          } catch (dataError) {
+            console.warn('⚠️ Erreur chargement données (non critique):', dataError);
+          }
+        }, 1000);
+        
+      } catch (apiError) {
+        clearTimeout(timeoutId);
+        
+        if (apiError.name === 'AbortError') {
+          throw new Error('Timeout de connexion (5s). Vérifiez votre connexion.');
         } else {
-          console.error('❌ initGeoSelectors non disponible');
+          throw apiError;
         }
-      }, 100);
+      }
       
-      await updateNavbar(); // Mettre à jour la navbar après connexion
-      // Rendre immédiatement les actions circulaires
-      try { updateCircleActionsVisibility(); } catch {}
     } catch (e) { 
-      console.error('Erreur de connexion:', e);
+      console.error('❌ Erreur de connexion:', e);
       
-      // Gestion intelligente des erreurs de connexion
+      // Gestion intelligente des erreurs avec suggestions hors connexion
       let errorMessage = 'Erreur de connexion.';
       let suggestions = [];
       
-      if (e.message && e.message.includes('401')) {
-        errorMessage = 'Identifiants incorrects.';
-        suggestions = [
-          'Vérifiez votre email et mot de passe',
-          'Si vous avez oublié votre mot de passe, cliquez sur "Mot de passe oublié"',
-          'Si vous n\'avez pas encore de compte, cliquez sur "Inscription Agent"'
-        ];
-      } else if (e.message && e.message.includes('404')) {
-        errorMessage = 'Compte non trouvé.';
-        suggestions = [
-          'Vérifiez votre adresse email',
-          'Si vous n\'avez pas encore de compte, cliquez sur "Inscription Agent"',
-          'Contactez votre administrateur si vous pensez que c\'est une erreur'
-        ];
-      } else if (e.message && e.message.includes('429')) {
-        errorMessage = 'Trop de tentatives de connexion.';
-        suggestions = [
-          'Attendez quelques minutes avant de réessayer',
-          'Si le problème persiste, contactez votre administrateur'
-        ];
-      } else {
-        suggestions = [
-          'Vérifiez votre connexion internet',
-          'Réessayez dans quelques instants',
-          'Contactez votre administrateur si le problème persiste'
-        ];
+      if (e.message && e.message.includes('timeout')) {
+        errorMessage = 'Connexion trop lente ou impossible.';
+        suggestions.push('Vérifiez votre connexion Internet');
+        suggestions.push('Essayez de vous rapprocher du WiFi');
+      } else if (e.message && e.message.includes('network') || e.message && e.message.includes('fetch')) {
+        errorMessage = 'Pas de connexion Internet.';
+        suggestions.push('Vérifiez votre WiFi ou données mobiles');
+        suggestions.push('Utilisez le mode hors connexion si disponible');
+      } else if (e.status === 401) {
+        errorMessage = 'Email ou mot de passe incorrect.';
+        suggestions.push('Vérifiez votre email et mot de passe');
+        suggestions.push('Réinitialisez votre mot de passe si nécessaire');
+      } else if (e.status === 500) {
+        errorMessage = 'Erreur serveur temporaire.';
+        suggestions.push('Réessayez dans quelques instants');
+        suggestions.push('Contactez l\'administrateur si le problème persiste');
       }
       
-      showEnhancedErrorMessage(errorMessage, suggestions);
+      const fullMessage = suggestions.length > 0 
+        ? `${errorMessage}\n\nSuggestions:\n${suggestions.map(s => `• ${s}`).join('\n')}`
+        : errorMessage;
+        
+      alert(fullMessage);
+      
+      // Ajouter le bouton de mode hors connexion si erreur de réseau
+      if (e.message && (e.message.includes('network') || e.message.includes('fetch') || e.message.includes('timeout'))) {
+        addOfflineModeButton();
+      }
+      
+    } finally {
+      // Réactiver le bouton
+      loginBtn.disabled = false;
+      loginBtn.textContent = originalText;
     }
   });
+
+  // Fonction de connexion hors connexion (mode dégradé)
+  async function tryOfflineLogin(email, password) {
+    try {
+      console.log('📱 Tentative de connexion hors connexion...');
+      
+      // Vérifier si on a des données locales pour cet email
+      const storedEmail = localStorage.getItem('userEmail');
+      const storedProfile = localStorage.getItem('userProfile');
+      
+      if (storedEmail === email && storedProfile) {
+        const profile = JSON.parse(storedProfile);
+        
+        // Vérifier si le mot de passe correspond (hash simple pour offline)
+        const hashedPassword = btoa(password + 'salt'); // Simple hash pour démo
+        const storedHash = localStorage.getItem('passwordHash');
+        
+        if (!storedHash || storedHash === hashedPassword) {
+          // Créer un token temporaire pour offline
+          const tempToken = 'offline_' + Date.now() + '_' + btoa(email);
+          
+          // Stocker les infos
+          jwt = tempToken;
+          localStorage.setItem('jwt', tempToken);
+          localStorage.setItem('loginData', JSON.stringify(profile));
+          localStorage.setItem('userProfile', JSON.stringify(profile));
+          localStorage.setItem('userEmail', email);
+          localStorage.setItem('lastUserEmail', email);
+          localStorage.setItem('passwordHash', hashedPassword);
+          
+          console.log('✅ Connexion hors connexion réussie');
+          return { user: profile, token: tempToken, offline: true };
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.warn('⚠️ Erreur connexion hors connexion:', error);
+      return null;
+    }
+  }
+
+  // Ajouter un bouton de mode hors connexion si la connexion échoue
+  function addOfflineModeButton() {
+    const loginForm = document.getElementById('login-form');
+    if (!loginForm || document.getElementById('offline-mode-btn')) return;
+    
+    const offlineBtn = document.createElement('button');
+    offlineBtn.id = 'offline-mode-btn';
+    offlineBtn.type = 'button';
+    offlineBtn.className = 'btn-secondary';
+    offlineBtn.style.marginTop = '10px';
+    offlineBtn.innerHTML = '<i class="fas fa-wifi-slash me-2"></i>Mode hors connexion';
+    offlineBtn.onclick = async () => {
+      const email = $('email').value.trim();
+      const password = $('password').value.trim();
+      
+      if (!email || !password) {
+        alert('Veuillez entrer votre email et mot de passe');
+        return;
+      }
+      
+      const result = await tryOfflineLogin(email, password);
+      if (result) {
+        // Afficher l'application en mode hors connexion
+        hide(authSection);
+        show(appSection);
+        showNotification('Mode hors connexion - Fonctionnalités limitées', 'warning', 3000);
+        
+        // Charger les données essentielles
+        await loadAgentProfile();
+        renderCalendar();
+        await updateNavbar();
+        try { updateCircleActionsVisibility(); } catch {}
+        
+        // Afficher un avertissement
+        const warningDiv = document.createElement('div');
+        warningDiv.className = 'alert alert-warning';
+        warningDiv.style.marginTop = '10px';
+        warningDiv.innerHTML = `
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          <strong>Mode hors connexion</strong><br>
+          <small>Vous utilisez l'application sans connexion Internet. 
+          Certaines fonctionnalités seront limitées.</small>
+        `;
+        
+        const appSection = document.getElementById('app-section');
+        if (appSection) {
+          appSection.insertBefore(warningDiv, appSection.firstChild);
+          
+          // Masquer l'avertissement après 5 secondes
+          setTimeout(() => {
+            if (warningDiv.parentNode) {
+              warningDiv.parentNode.removeChild(warningDiv);
+            }
+          }, 5000);
+        }
+        
+      } else {
+        alert('Impossible de se connecter en mode hors connexion. 
+               \n\nVérifiez que vous vous êtes déjà connecté auparavant avec cet appareil.');
+      }
+    };
+    
+    loginForm.appendChild(offlineBtn);
+  }
 
   // Variables pour la récupération de mot de passe
   let recoveryEmail = '';
