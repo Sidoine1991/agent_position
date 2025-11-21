@@ -94,13 +94,25 @@
     
     if (!tbody) return;
     
-    if (!rawActivities || rawActivities.length === 0) {
+    // Obtenir tous les agents du projet sélectionné
+    const selectedProject = projectFilter ? projectFilter.value : null;
+    const projectAgents = selectedProject ? 
+      agents.filter(agent => agent.project_name === selectedProject) : 
+      agents;
+    
+    console.log('📊 Agents du projet:', {
+      selectedProject,
+      totalAgents: projectAgents.length,
+      agentsWithActivities: rawActivities ? rawActivities.length : 0
+    });
+    
+    if (!projectAgents || projectAgents.length === 0) {
       tbody.innerHTML = `
         <tr>
           <td colspan="9" class="text-center py-4">
             <div class="alert alert-info">
               <i class="bi bi-info-circle me-2"></i>
-              Aucune donnée trouvée pour la période sélectionnée
+              Aucun agent trouvé pour ce projet
             </div>
           </td>
         </tr>
@@ -111,79 +123,96 @@
     // Grouper les activités par agent et calculer les statistiques
     const agentsStats = new Map();
     
-    rawActivities.forEach(activity => {
-      // Récupérer le nom de l'agent
-      let agentName = 'Agent inconnu';
-      let agentRole = 'agent';
-      let projectName = activity.project_name || 'Non spécifié';
+    // Initialiser tous les agents du projet avec des statistiques vides
+    projectAgents.forEach(agent => {
+      const agentName = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
+      const agentKey = `${agentName}|${selectedProject || agent.project_name}`;
       
-      // Si l'activité a des informations sur l'agent enrichies
-      if (activity.agent) {
-        agentName = activity.agent.name || `${activity.agent.first_name || ''} ${activity.agent.last_name || ''}`.trim() || activity.agent.email || `Agent ${activity.agent_id}`;
-        agentRole = activity.agent.role || 'agent';
-        projectName = activity.agent.project_name || activity.project_name || 'Non spécifié';
-      } else if (activity.user_id || activity.agent_id) {
-        // Chercher dans la liste des agents chargés
-        const agent = agents.find(a => a.id === (activity.user_id || activity.agent_id));
-        if (agent) {
-          agentName = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
-          agentRole = agent.role || 'agent';
-          projectName = agent.project_name || activity.project_name || 'Non spécifié';
-        }
-      }
-      
-      // Créer une clé unique pour l'agent (nom + projet)
-      const agentKey = `${agentName}|${projectName}`;
-      
-      // Initialiser les stats pour cet agent si nécessaire
-      if (!agentsStats.has(agentKey)) {
-        agentsStats.set(agentKey, {
-          agent_name: agentName,
-          role: agentRole,
-          project_name: projectName,
-          total_activities: 0,
-          realized_activities: 0,
-          not_realized_activities: 0,
-          in_progress_activities: 0,
-          partially_realized_activities: 0,
-          not_realized_list: []
-        });
-      }
-      
-      const stats = agentsStats.get(agentKey);
-      stats.total_activities++;
-      
-      // Compter par statut selon la logique spécifiée
-      const statut = activity.resultat_journee;
-      
-      if (statut === 'realise') {
-        stats.realized_activities++;
-      } else if (statut === 'non_realise') {
-        stats.not_realized_activities++;
-        // Ajouter à la liste des non réalisés
-        stats.not_realized_list.push({
-          name: activity.description_activite || 'Activité non spécifiée',
-          date: activity.date || 'Date non spécifiée',
-          project: activity.project_name || projectName,
-          id: activity.id
-        });
-      } else if (statut === 'en_cours') {
-        stats.in_progress_activities++;
-      } else if (statut === 'partiellement_realise') {
-        stats.partially_realized_activities++;
-      } else {
-        // Si pas de statut ou statut vide/null → automatiquement non réalisé
-        stats.not_realized_activities++;
-        // Ajouter à la liste des non réalisés
-        stats.not_realized_list.push({
-          name: activity.description_activite || 'Activité non spécifiée',
-          date: activity.date || 'Date non spécifiée',
-          project: activity.project_name || projectName,
-          id: activity.id
-        });
-      }
+      agentsStats.set(agentKey, {
+        agent_name: agentName,
+        agent_id: agent.id,
+        role: agent.role || 'agent',
+        project_name: selectedProject || agent.project_name,
+        total_activities: 0,
+        realized_activities: 0,
+        not_realized_activities: 0,
+        in_progress_activities: 0,
+        partially_realized_activities: 0,
+        not_realized_list: [],
+        has_activities: false,
+        last_activity_date: null
+      });
     });
     
+    // Traiter les activités existantes
+    if (rawActivities && rawActivities.length > 0) {
+      rawActivities.forEach(activity => {
+        // Récupérer le nom de l'agent
+        let agentName = 'Agent inconnu';
+        let agentRole = 'agent';
+        let projectName = activity.project_name || 'Non spécifié';
+      
+        // Si l'activité a des informations sur l'agent enrichies
+        if (activity.agent) {
+          agentName = activity.agent.name || `${activity.agent.first_name || ''} ${activity.agent.last_name || ''}`.trim() || activity.agent.email || `Agent ${activity.agent_id}`;
+          agentRole = activity.agent.role || 'agent';
+          projectName = activity.agent.project_name || activity.project_name || 'Non spécifié';
+        } else if (activity.user_id || activity.agent_id) {
+          // Chercher dans la liste des agents chargés
+          const agent = agents.find(a => a.id === (activity.user_id || activity.agent_id));
+          if (agent) {
+            agentName = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
+            agentRole = agent.role || 'agent';
+            projectName = agent.project_name || activity.project_name || 'Non spécifié';
+          }
+        }
+        
+        // Créer une clé unique pour l'agent (nom + projet)
+        const agentKey = `${agentName}|${projectName}`;
+        
+        // Mettre à jour les statistiques si l'agent existe dans notre liste
+        if (agentsStats.has(agentKey)) {
+          const stats = agentsStats.get(agentKey);
+          stats.total_activities++;
+          stats.has_activities = true;
+          
+          // Mettre à jour la date de dernière activité
+          if (activity.date) {
+            stats.last_activity_date = activity.date;
+          }
+          
+          // Compter par statut selon la logique spécifiée
+          const statut = activity.resultat_journee;
+          
+          if (statut === 'realise') {
+            stats.realized_activities++;
+          } else if (statut === 'non_realise') {
+            stats.not_realized_activities++;
+            // Ajouter à la liste des non réalisés
+            stats.not_realized_list.push({
+              name: activity.description_activite || 'Activité non spécifiée',
+              date: activity.date || 'Date non spécifiée',
+              project: activity.project_name || projectName,
+              id: activity.id
+            });
+          } else if (statut === 'en_cours') {
+            stats.in_progress_activities++;
+          } else if (statut === 'partiellement_realise') {
+            stats.partially_realized_activities++;
+          } else {
+            // Si pas de statut ou statut vide/null → automatiquement non réalisé
+            stats.not_realized_activities++;
+            // Ajouter à la liste des non réalisés
+            stats.not_realized_list.push({
+              name: activity.description_activite || 'Activité non spécifiée',
+              date: activity.date || 'Date non spécifiée',
+              project: activity.project_name || projectName,
+              id: activity.id
+            });
+          }
+        }
+      });
+    }
     // Extraire les projets uniques pour le filtre
     const uniqueProjects = [...new Set(Array.from(agentsStats.values()).map(a => a.project_name).filter(p => p))];
     updateProjectFilter(uniqueProjects);
@@ -233,26 +262,37 @@
       const sumCategories = stats.realized_activities + stats.not_realized_activities + stats.in_progress_activities + stats.partially_realized_activities;
       const isConsistent = sumCategories === stats.total_activities;
       
+      // Vérifier si l'agent a des activités
+      const hasNoActivities = !stats.has_activities || stats.total_activities === 0;
+      
+      // Générer le message pour les agents sans activité
+      const noActivityMessage = hasNoActivities ? 
+        `<div class="text-danger">
+          <small><strong>Rien n'est planifié</strong></small>
+          <br><small>depuis le ${new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</small>
+        </div>` : '';
+      
       return `
-        <tr class="${!isConsistent ? 'table-warning' : ''}">
+        <tr class="${hasNoActivities ? 'table-danger' : (!isConsistent ? 'table-warning' : '')}">
           <td>
             <div class="d-flex align-items-center">
-              <div class="avatar-sm bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px; font-size: 12px;">
+              <div class="avatar-sm ${hasNoActivities ? 'bg-danger' : 'bg-primary'} text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px; font-size: 12px;">
                 ${(stats.agent_name || 'Agent').charAt(0).toUpperCase()}
               </div>
               <div>
-                <div class="fw-semibold">${escapeHtml(stats.agent_name || 'N/A')}</div>
+                <div class="fw-semibold ${hasNoActivities ? 'text-danger' : ''}">${escapeHtml(stats.agent_name || 'N/A')}</div>
                 <small class="text-muted">${escapeHtml(stats.role || 'N/A')}</small>
-                ${!isConsistent ? '<br><small class="text-warning">⚠️ Incohérence</small>' : ''}
+                ${noActivityMessage}
+                ${!isConsistent && !hasNoActivities ? '<br><small class="text-warning">⚠️ Incohérence</small>' : ''}
               </div>
             </div>
           </td>
           <td>
-            <span class="badge bg-info">${escapeHtml(stats.project_name || 'N/A')}</span>
+            <span class="badge ${hasNoActivities ? 'bg-danger' : 'bg-info'}">${escapeHtml(stats.project_name || 'N/A')}</span>
           </td>
           <td class="text-center">
-            <span class="fw-bold text-primary">${stats.total_activities || 0}</span>
-            ${!isConsistent ? `<br><small class="text-warning">Σ=${sumCategories}</small>` : ''}
+            <span class="fw-bold ${hasNoActivities ? 'text-danger' : 'text-primary'}">${stats.total_activities || 0}</span>
+            ${!isConsistent && !hasNoActivities ? `<br><small class="text-warning">Σ=${sumCategories}</small>` : ''}
           </td>
           <td class="text-center">
             <span class="fw-bold text-success">${stats.realized_activities || 0}</span>
@@ -305,8 +345,9 @@
     // Ajouter la barre d'outils d'export pour le tableau principal
     addExportToolbar('activity-follow-up-body', filteredStats.length);
     
-    // Ajouter le tableau récapitulatif avec classement TEP
-    displayTEPRanking(filteredStats);
+    // Ajouter le tableau récapitulatif avec classement TEP (tous les projets)
+    const allStats = Array.from(agentsStats.values());
+    displayTEPRanking(allStats);
   }
 
   /**
@@ -348,11 +389,58 @@
    * Affiche le tableau récapitulatif avec classement par TEP décroissant
    */
   function displayTEPRanking(stats) {
+    // Créer une map complète avec tous les agents du projet
+    const allAgentsStats = new Map();
+    
+    // Initialiser avec les statistiques existantes
+    stats.forEach(stat => {
+      const key = `${stat.agent_name}|${stat.project_name}`;
+      allAgentsStats.set(key, {
+        ...stat,
+        has_activities: true
+      });
+    });
+    
+    // Ajouter tous les agents sans activité
+    agents.forEach(agent => {
+      const key = `${agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email}|${agent.project_name}`;
+      if (!allAgentsStats.has(key)) {
+        allAgentsStats.set(key, {
+          agent_name: agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email,
+          agent_id: agent.id,
+          role: agent.role || 'agent',
+          project_name: agent.project_name,
+          total_activities: 0,
+          realized_activities: 0,
+          not_realized_activities: 0,
+          in_progress_activities: 0,
+          partially_realized_activities: 0,
+          not_realized_list: [],
+          has_activities: false,
+          last_activity_date: null
+        });
+      }
+    });
+    
+    // Convertir en tableau et stocker globalement
+    const completeStats = Array.from(allAgentsStats.values());
+    window.tepRankingStats = completeStats;
+    
     // Trier par TEP décroissant
-    const sortedByTEP = [...stats].sort((a, b) => {
+    const sortedByTEP = [...completeStats].sort((a, b) => {
       const tepA = calculateExecutionRate(a.realized_activities, a.total_activities);
       const tepB = calculateExecutionRate(b.realized_activities, b.total_activities);
       return tepB - tepA; // Décroissant
+    });
+    
+    // Obtenir tous les projets disponibles depuis la variable globale projects
+    const availableProjects = projects.map(p => p.name);
+    
+    console.log('🏆 Initialisation tableau TEP:', {
+      totalAgents: completeStats.length,
+      availableProjects,
+      projectsInStats: [...new Set(completeStats.map(s => s.project_name))],
+      agentsWithoutActivities: completeStats.filter(s => !s.has_activities).length
     });
     
     // Créer le HTML du tableau récapitulatif
@@ -387,7 +475,7 @@
                 </label>
                 <select id="ranking-project-filter" class="form-select form-select-sm">
                   <option value="">Tous les projets</option>
-                  ${[...new Set(stats.map(s => s.project_name))].filter(p => p).map(project => 
+                  ${availableProjects.map(project => 
                     `<option value="${escapeHtml(project)}">${escapeHtml(project)}</option>`
                   ).join('')}
                 </select>
@@ -399,7 +487,7 @@
                     TEP = (Activités entièrement réalisées / Total planifié) × 100
                   </small>
                   <span id="ranking-count" class="badge bg-primary">
-                    ${stats.length} agents
+                    ${sortedByTEP.length} agents
                   </span>
                 </div>
               </div>
@@ -522,8 +610,10 @@
       const rankingFilter = document.getElementById('ranking-project-filter');
       if (rankingFilter) {
         rankingFilter.addEventListener('change', () => {
-          filterRankingTable(stats);
+          filterRankingTable(window.tepRankingStats); // Utiliser les stats globales
         });
+        // Appliquer le filtre initial (afficher tout)
+        filterRankingTable(window.tepRankingStats);
       }
     }
   }
@@ -541,10 +631,21 @@
     
     const selectedProject = filter.value;
     
+    console.log('🔍 Filtrage tableau TEP:', {
+      selectedProject,
+      totalStats: allStats.length,
+      availableProjects: [...new Set(allStats.map(s => s.project_name))]
+    });
+    
     // Filtrer les stats
     const filteredStats = selectedProject ? 
       allStats.filter(s => s.project_name === selectedProject) : 
       allStats;
+    
+    console.log('📊 Résultat filtrage:', {
+      filteredCount: filteredStats.length,
+      filteredProjects: [...new Set(filteredStats.map(s => s.project_name))]
+    });
     
     // Retrier par TEP décroissant
     const sortedStats = [...filteredStats].sort((a, b) => {
@@ -1206,6 +1307,17 @@
       });
     }
 
+    // Sync offline data button
+    const syncOfflineDataBtn = document.getElementById('sync-offline-data');
+    if (syncOfflineDataBtn) {
+      syncOfflineDataBtn.addEventListener('click', async () => {
+        await syncOfflineData();
+      });
+      
+      // Vérifier s'il y a des données en attente au chargement
+      checkPendingData();
+    }
+
     // Status filter
     document.getElementById('status-filter').addEventListener('change', () => {
       displayActivities(); // Mettre à jour le tableau d'évaluation
@@ -1505,6 +1617,8 @@
   // Charger les projets disponibles depuis la base de données
   async function loadAgentProject(user) {
     try {
+      console.log('🔍 Chargement des projets pour tous les utilisateurs...');
+      
       // Pour TOUS les utilisateurs (agents, superviseurs, admins), charger tous les projets disponibles
       const headers = await authHeaders();
       const res = await fetch(`${apiBase}/admin/agents`, { headers });
@@ -1513,11 +1627,14 @@
         const data = await res.json();
         const agents = data.data || data.agents || [];
         
+        console.log(`📋 ${agents.length} agents chargés depuis la base`);
+        
         // Extraire les projets uniques depuis tous les agents
         const uniqueProjects = new Set();
         agents.forEach(agent => {
           if (agent.project_name && agent.project_name.trim() !== '') {
             uniqueProjects.add(agent.project_name.trim());
+            console.log(`   - Agent: ${agent.name || agent.email}, Projet: ${agent.project_name}`);
           }
         });
         
@@ -1528,28 +1645,32 @@
           status: 'active'
         }));
         
-        console.log('Projets chargés depuis la base de données:', projects);
+        console.log('✅ Projets chargés depuis la base de données:', projects);
+        console.log(`📊 Total: ${projects.length} projets trouvés`);
+        
         updateProjectFilter();
         updateActivityProjectFilter();
       } else {
-        console.error('Erreur lors du chargement des agents:', res.status);
+        console.error('❌ Erreur lors du chargement des agents:', res.status);
         // Utiliser les projets par défaut en cas d'erreur
         projects = [
           { id: 1, name: 'PARSAD', status: 'active' },
           { id: 2, name: 'DELTA MONO', status: 'active' },
           { id: 3, name: 'PAVBio', status: 'active' }
         ];
+        console.log('🔄 Utilisation des projets par défaut:', projects);
         updateProjectFilter();
         updateActivityProjectFilter();
       }
     } catch (error) {
-      console.error('Erreur chargement projets:', error);
+      console.error('❌ Erreur chargement projets:', error);
       // Utiliser les projets par défaut en cas d'erreur
       projects = [
         { id: 1, name: 'PARSAD', status: 'active' },
         { id: 2, name: 'DELTA MONO', status: 'active' },
         { id: 3, name: 'PAVBio', status: 'active' }
       ];
+      console.log('🔄 Utilisation des projets par défaut:', projects);
       updateProjectFilter();
       updateActivityProjectFilter();
     }
@@ -2583,5 +2704,174 @@
   window.saveActivityRow = saveActivityRow;
   window.deleteActivityRow = deleteActivityRow;
   window.clearActivityFilters = clearActivityFilters;
+
+  // Synchroniser les données en attente
+  async function syncOfflineData() {
+    const syncBtn = document.getElementById('sync-offline-data');
+    if (!syncBtn) return;
+
+    try {
+      // Désactiver le bouton et montrer l'état de chargement
+      syncBtn.disabled = true;
+      syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Synchronisation...';
+
+      // Vérifier si l'offline manager est disponible
+      if (window.offlineManager) {
+        console.log('🔄 Début de la synchronisation des données en attente...');
+        
+        // Vérifier les données avant synchronisation
+        const unsyncedPresence = await window.offlineManager.getOfflineData('presence', { synced: false });
+        const unsyncedMissions = await window.offlineManager.getOfflineData('missions', { synced: false });
+        const unsyncedCheckins = await window.offlineManager.getOfflineData('checkins', { synced: false });
+        
+        console.log('📊 Données à synchroniser:', {
+          presence: unsyncedPresence.length,
+          missions: unsyncedMissions.length,
+          checkins: unsyncedCheckins.length,
+          total: unsyncedPresence.length + unsyncedMissions.length + unsyncedCheckins.length
+        });
+        
+        // Afficher les détails des checkins à synchroniser
+        if (unsyncedCheckins.length > 0) {
+          console.log('📍 Checkins à synchroniser:', unsyncedCheckins.map(checkin => ({
+            id: checkin.id,
+            mission_id: checkin.mission_id,
+            type: checkin.type,
+            timestamp: checkin.timestamp,
+            location: checkin.location
+          })));
+        }
+        
+        // Lancer la synchronisation
+        await window.offlineManager.syncPendingData();
+        
+        // Attendre un peu pour que la synchronisation se termine
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Vérifier les données après synchronisation
+        const remainingPresence = await window.offlineManager.getOfflineData('presence', { synced: false });
+        const remainingMissions = await window.offlineManager.getOfflineData('missions', { synced: false });
+        const remainingCheckins = await window.offlineManager.getOfflineData('checkins', { synced: false });
+        
+        const totalRemaining = remainingPresence.length + remainingMissions.length + remainingCheckins.length;
+        
+        console.log('✅ Résultat de la synchronisation:', {
+          presenceSynced: unsyncedPresence.length - remainingPresence.length,
+          missionsSynced: unsyncedMissions.length - remainingMissions.length,
+          checkinsSynced: unsyncedCheckins.length - remainingCheckins.length,
+          remaining: totalRemaining
+        });
+        
+        if (totalRemaining === 0) {
+          syncBtn.innerHTML = '<i class="fas fa-check me-1"></i>Terminé';
+          syncBtn.classList.remove('btn-warning');
+          syncBtn.classList.add('btn-success');
+          
+          // Recharger les activités pour afficher les données synchronisées
+          await loadActivities();
+          displayActivityFollowUp(activities);
+          
+          // Message de succès détaillé
+          const syncSummary = [];
+          if (unsyncedPresence.length > 0) syncSummary.push(`${unsyncedPresence.length} présence(s)`);
+          if (unsyncedMissions.length > 0) syncSummary.push(`${unsyncedMissions.length} mission(s)`);
+          if (unsyncedCheckins.length > 0) syncSummary.push(`${unsyncedCheckins.length} checkin(s)`);
+          
+          showSuccessMessage(`Synchronisation réussie ! ${syncSummary.join(', ')} envoyée(s) vers Supabase.`);
+          
+          setTimeout(() => {
+            syncBtn.innerHTML = '<i class="fas fa-sync me-1"></i>Synchroniser';
+            syncBtn.classList.remove('btn-success');
+            syncBtn.classList.add('btn-warning');
+            syncBtn.disabled = false;
+            checkPendingData(); // Revérifier après synchronisation
+          }, 3000);
+        } else {
+          syncBtn.innerHTML = `<i class="fas fa-exclamation-triangle me-1"></i>${totalRemaining} en attente`;
+          syncBtn.classList.remove('btn-warning');
+          syncBtn.classList.add('btn-info');
+          
+          // Message d'erreur détaillé
+          const errorSummary = [];
+          if (remainingPresence.length > 0) errorSummary.push(`${remainingPresence.length} présence(s)`);
+          if (remainingMissions.length > 0) errorSummary.push(`${remainingMissions.length} mission(s)`);
+          if (remainingCheckins.length > 0) errorSummary.push(`${remainingCheckins.length} checkin(s)`);
+          
+          showErrorMessage(`${totalRemaining} éléments n'ont pas pu être synchronisés: ${errorSummary.join(', ')}. Vérifiez votre connexion.`);
+          
+          setTimeout(() => {
+            syncBtn.innerHTML = '<i class="fas fa-sync me-1"></i>Synchroniser';
+            syncBtn.classList.remove('btn-info');
+            syncBtn.classList.add('btn-warning');
+            syncBtn.disabled = false;
+            checkPendingData(); // Revérifier après synchronisation
+          }, 4000);
+        }
+      } else {
+        console.warn('⚠️ Offline manager non disponible');
+        syncBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Indisponible';
+        syncBtn.classList.remove('btn-warning');
+        syncBtn.classList.add('btn-secondary');
+        
+        setTimeout(() => {
+          syncBtn.innerHTML = '<i class="fas fa-sync me-1"></i>Synchroniser';
+          syncBtn.classList.remove('btn-secondary');
+          syncBtn.classList.add('btn-warning');
+          syncBtn.disabled = false;
+        }, 2000);
+        
+        showErrorMessage('Service de synchronisation indisponible');
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la synchronisation:', error);
+      syncBtn.innerHTML = '<i class="fas fa-times me-1"></i>Erreur';
+      syncBtn.classList.remove('btn-warning');
+      syncBtn.classList.add('btn-danger');
+      
+      setTimeout(() => {
+        syncBtn.innerHTML = '<i class="fas fa-sync me-1"></i>Synchroniser';
+        syncBtn.classList.remove('btn-danger');
+        syncBtn.classList.add('btn-warning');
+        syncBtn.disabled = false;
+        checkPendingData(); // Revérifier après erreur
+      }, 2000);
+      
+      showErrorMessage('Erreur lors de la synchronisation: ' + error.message);
+    }
+  }
+
+  // Vérifier s'il y a des données en attente de synchronisation
+  async function checkPendingData() {
+    const syncBtn = document.getElementById('sync-offline-data');
+    if (!syncBtn || !window.offlineManager) return;
+
+    try {
+      const unsyncedPresence = await window.offlineManager.getOfflineData('presence', { synced: false });
+      const unsyncedMissions = await window.offlineManager.getOfflineData('missions', { synced: false });
+      const unsyncedCheckins = await window.offlineManager.getOfflineData('checkins', { synced: false });
+      
+      const totalUnsynced = unsyncedPresence.length + unsyncedMissions.length + unsyncedCheckins.length;
+      
+      if (totalUnsynced > 0) {
+        // Afficher le nombre d'éléments en attente
+        syncBtn.innerHTML = `<i class="fas fa-exclamation-circle me-1"></i>${totalUnsynced} à sync`;
+        syncBtn.classList.remove('btn-warning');
+        syncBtn.classList.add('btn-danger');
+        
+        console.log(`📊 ${totalUnsynced} éléments en attente de synchronisation:`, {
+          presence: unsyncedPresence.length,
+          missions: unsyncedMissions.length,
+          checkins: unsyncedCheckins.length
+        });
+      } else {
+        // Bouton normal
+        syncBtn.innerHTML = '<i class="fas fa-sync me-1"></i>Synchroniser';
+        syncBtn.classList.remove('btn-danger', 'btn-info');
+        syncBtn.classList.add('btn-warning');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification des données en attente:', error);
+    }
+  }
 
 })();
