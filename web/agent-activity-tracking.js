@@ -1208,24 +1208,25 @@
     const agentSelect = document.getElementById('agent-select');
     if (agentSelect) {
       agentSelect.addEventListener('change', () => {
-        filterActivities();
+        displayActivities(); // Mettre à jour le tableau d'évaluation
+        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
         updateStatistics();
         updateFilterIndicator();
-        // Recharger aussi le suivi des activités
-        displayActivityFollowUp(activities);
       });
     }
 
     // Project filter
     document.getElementById('project-filter').addEventListener('change', () => {
-      filterActivities();
+      displayActivities(); // Mettre à jour le tableau d'évaluation
+      displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
       updateStatistics();
       updateFilterIndicator();
     });
 
     // Status filter
     document.getElementById('status-filter').addEventListener('change', () => {
-      filterActivities();
+      displayActivities(); // Mettre à jour le tableau d'évaluation
+      displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
       updateStatistics();
       updateFilterIndicator();
     });
@@ -1234,7 +1235,8 @@
     const supervisorSelect = document.getElementById('supervisor-filter');
     if (supervisorSelect) {
       supervisorSelect.addEventListener('change', () => {
-        filterActivities();
+        displayActivities(); // Mettre à jour le tableau d'évaluation
+        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
         updateStatistics();
         updateFilterIndicator();
       });
@@ -1244,7 +1246,8 @@
     const weekFilter = document.getElementById('week-filter');
     if (weekFilter) {
       weekFilter.addEventListener('change', () => {
-        filterActivities();
+        displayActivities(); // Mettre à jour le tableau d'évaluation
+        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
         updateStatistics();
         updateFilterIndicator();
       });
@@ -2054,6 +2057,7 @@
   function updateStatistics() {
     // Utiliser les activités filtrées pour les statistiques
     const filteredActivities = filterActivities();
+
     const stats = {
       realise: filteredActivities.filter(a => a.resultat_journee === 'realise').length,
       partiellement_realise: filteredActivities.filter(a => a.resultat_journee === 'partiellement_realise').length,
