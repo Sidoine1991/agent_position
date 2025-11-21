@@ -1190,13 +1190,16 @@
       });
     }
 
-    // Project filter
-    document.getElementById('project-filter').addEventListener('change', () => {
-      displayActivities(); // Mettre à jour le tableau d'évaluation
-      displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
-      updateStatistics();
-      updateFilterIndicator();
-    });
+    // Project filter (uniquement pour les admins)
+    const projectFilter = document.getElementById('project-filter');
+    if (projectFilter) {
+      projectFilter.addEventListener('change', () => {
+        displayActivities(); // Mettre à jour le tableau d'évaluation
+        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
+        updateStatistics();
+        updateFilterIndicator();
+      });
+    }
 
     // Status filter
     document.getElementById('status-filter').addEventListener('change', () => {
@@ -1486,15 +1489,24 @@
   // Afficher le projet de l'utilisateur
   function displayUserProject(user) {
     const projectDisplay = document.getElementById('user-project-display');
+    const activityProjectDisplay = document.getElementById('activity-project-display');
+    
+    const projectName = user.project_name || user.project || 'Projet non spécifié';
+    
+    // Mettre à jour l'affichage principal
     if (projectDisplay) {
-      const projectName = user.project_name || user.project || 'Projet non spécifié';
       projectDisplay.textContent = projectName;
-      
-      // Stocker le projet pour le filtrage automatique
-      currentUserProject = projectName;
-      
-      console.log('Projet utilisateur affiché:', projectName);
     }
+    
+    // Mettre à jour l'affichage dans le tableau de suivi
+    if (activityProjectDisplay) {
+      activityProjectDisplay.textContent = projectName;
+    }
+    
+    // Stocker le projet pour le filtrage automatique
+    currentUserProject = projectName;
+    
+    console.log('Projet utilisateur affiché:', projectName);
   }
 
   // Charger les projets disponibles depuis la base de données
@@ -1555,15 +1567,34 @@
     }
   }
 
-  function updateProjectFilter() {
+  function updateProjectFilter(uniqueProjects = null) {
+    // Pour les agents, ne pas mettre à jour les filtres de projet
+    if (!isAdmin) {
+      return;
+    }
+    
     const select = document.getElementById('project-filter');
+    if (!select) return;
+    
     select.innerHTML = '<option value="">Tous les projets</option>';
-    projects.forEach(project => {
-      const option = document.createElement('option');
-      option.value = project.name; // Utiliser le nom du projet comme valeur pour la cohérence
-      option.textContent = project.name;
-      select.appendChild(option);
-    });
+    
+    if (uniqueProjects) {
+      // Utiliser les projets uniques fournis
+      uniqueProjects.forEach(projectName => {
+        const option = document.createElement('option');
+        option.value = projectName;
+        option.textContent = projectName;
+        select.appendChild(option);
+      });
+    } else {
+      // Utiliser la liste projects globale
+      projects.forEach(project => {
+        const option = document.createElement('option');
+        option.value = project.name;
+        option.textContent = project.name;
+        select.appendChild(option);
+      });
+    }
   }
 
   // Appliquer automatiquement le filtre projet pour un agent
@@ -1647,8 +1678,9 @@
       // Construire l'URL pour la période hebdomadaire, avec filtre agent si applicable
       let url = `${apiBase}/planifications?from=${fromStr}&to=${toStr}`;
       const agentSelect = document.getElementById('agent-select');
-      const selectedAgentId = agentSelect.value;
-      const projectFilterValue = document.getElementById('project-filter').value;
+      const selectedAgentId = agentSelect ? agentSelect.value : null;
+      const projectFilterElement = document.getElementById('project-filter');
+      const projectFilterValue = projectFilterElement ? projectFilterElement.value : null;
       const supervisorFilterValue = (document.getElementById('supervisor-filter') || {}).value || '';
       
       // Toujours filtrer par l'agent sélectionné si un agent est sélectionné
@@ -1659,8 +1691,12 @@
         url += `&agent_id=${currentUserId}`;
       }
 
-      // Appliquer le filtre projet au niveau API si présent
-      if (projectFilterValue) {
+      // Appliquer le filtre projet au niveau API
+      if (currentUserProject && !isAdmin) {
+        // Pour les agents, utiliser leur projet
+        url += `&project_name=${encodeURIComponent(currentUserProject)}`;
+      } else if (projectFilterValue) {
+        // Pour les admins, utiliser le filtre sélectionné
         url += `&project_name=${encodeURIComponent(projectFilterValue)}`;
       }
       
@@ -1689,18 +1725,10 @@
         
         // Appliquer automatiquement le filtre projet si c'est un agent
         if (!isAdmin) {
-          const projectFilter = document.getElementById('project-filter').value;
-          if (projectFilter) {
-            // Le filtre est déjà appliqué, on affiche directement les activités filtrées
-            displayActivities();
-            updateStatistics();
-            updateFilterIndicator();
-          } else {
-            // Pas de filtre, afficher toutes les activités
-            displayActivities();
-            updateStatistics();
-            updateFilterIndicator();
-          }
+          // Le filtre est déjà appliqué via currentUserProject, on affiche directement
+          displayActivities();
+          updateStatistics();
+          updateFilterIndicator();
         } else {
           // Pour les admins, afficher toutes les activités
           displayActivities();
@@ -1993,7 +2021,8 @@
 
   // Filtrer les activités
   function filterActivities() {
-    const projectFilter = document.getElementById('project-filter').value;
+    const projectFilterElement = document.getElementById('project-filter');
+    const projectFilter = projectFilterElement ? projectFilterElement.value : null;
     const statusFilter = document.getElementById('status-filter').value;
     const supervisorFilter = (document.getElementById('supervisor-filter') || {}).value || '';
     const weekFilter = (document.getElementById('week-filter') || {}).value || '';
@@ -2494,7 +2523,8 @@
 
   // Mettre à jour l'indicateur de filtres actifs
   function updateFilterIndicator() {
-    const projectFilter = document.getElementById('project-filter').value;
+    const projectFilterElement = document.getElementById('project-filter');
+    const projectFilter = projectFilterElement ? projectFilterElement.value : null;
     const statusFilter = document.getElementById('status-filter').value;
     const supervisorFilter = (document.getElementById('supervisor-filter') || {}).value || '';
     const activeFiltersDiv = document.getElementById('active-filters');
@@ -2537,7 +2567,10 @@
     if (!isAdmin) {
       document.getElementById('status-filter').value = '';
     } else {
-      document.getElementById('project-filter').value = '';
+      const projectFilterElement = document.getElementById('project-filter');
+      if (projectFilterElement) {
+        projectFilterElement.value = '';
+      }
       document.getElementById('status-filter').value = '';
     }
     filterActivities();
@@ -2547,57 +2580,14 @@
 
   // Effacer les filtres du suivi d'activités
   function clearActivityFilters() {
-    const projectFilter = document.getElementById('activity-project-filter');
-    if (projectFilter) {
-      projectFilter.value = '';
-    }
+    // Pour les agents, le projet est fixe, on ne fait rien
+    // Pour les admins, on pourrait ajouter la logique plus tard
     loadActivityFollowUp();
-  }
-
-  // Mettre à jour le filtre de projets
-  function updateProjectFilter(projects) {
-    const projectFilter = document.getElementById('activity-project-filter');
-    if (!projectFilter) return;
-    
-    // Vérifier que projects est un tableau
-    if (!projects || !Array.isArray(projects)) {
-      console.warn('updateProjectFilter: projects n\'est pas un tableau', projects);
-      return;
-    }
-    
-    const currentValue = projectFilter.value;
-    
-    // Garder seulement l'option "Tous les projets"
-    projectFilter.innerHTML = '<option value="">Tous les projets</option>';
-    
-    // Ajouter les projets uniques triés
-    projects.sort().forEach(project => {
-      const option = document.createElement('option');
-      option.value = project;
-      option.textContent = project;
-      projectFilter.appendChild(option);
-    });
-    
-    // Restaurer la sélection précédente si elle existe toujours
-    if (currentValue) {
-      projectFilter.value = currentValue;
-    }
   }
 
   // Fonctions globales pour les boutons du tableau
   window.saveActivityRow = saveActivityRow;
   window.deleteActivityRow = deleteActivityRow;
   window.clearActivityFilters = clearActivityFilters;
-
-  // Ajouter l'écouteur d'événement pour le filtre de projet
-  document.addEventListener('DOMContentLoaded', () => {
-    const projectFilter = document.getElementById('activity-project-filter');
-    if (projectFilter) {
-      projectFilter.addEventListener('change', () => {
-        // Recharger les données avec le filtre actuel
-        loadActivityFollowUp();
-      });
-    }
-  });
 
 })();
