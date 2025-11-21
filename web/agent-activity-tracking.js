@@ -7,6 +7,7 @@
   let currentUser = null;
   let isAdmin = false;
   let currentUserId = null;
+  let currentUserProject = null;
   let cachedActivityData = null; // Cache pour les données d'activités
   
   // Constantes pour l'authentification (déclarées au début)
@@ -187,9 +188,13 @@
     const uniqueProjects = [...new Set(Array.from(agentsStats.values()).map(a => a.project_name).filter(p => p))];
     updateProjectFilter(uniqueProjects);
     
-    // Filtrer par projet si un filtre est sélectionné
+    // Filtrer par projet - utiliser le projet de l'utilisateur connecté
     let filteredStats = Array.from(agentsStats.values());
-    if (projectFilter && projectFilter.value) {
+    if (currentUserProject && !isAdmin) {
+      // Pour les agents, filtrer automatiquement par leur projet
+      filteredStats = filteredStats.filter(a => a.project_name === currentUserProject);
+    } else if (projectFilter && projectFilter.value) {
+      // Pour les admins, utiliser le filtre sélectionné
       filteredStats = filteredStats.filter(a => a.project_name === projectFilter.value);
     }
     
@@ -1270,7 +1275,10 @@
         // Afficher le nom de l'utilisateur
         displayUserName(user);
         
-        console.log('Utilisateur:', user.email, 'Rôle:', user.role, 'Admin:', isAdmin);
+        // Afficher le projet de l'utilisateur
+        displayUserProject(user);
+        
+        console.log('Utilisateur:', user.email, 'Rôle:', user.role, 'Admin:', isAdmin, 'Projet:', user.project_name);
         
         // Charger les agents si c'est un admin
         if (isAdmin) {
@@ -1470,18 +1478,22 @@
     if (displayElement) {
       const firstName = user.first_name || '';
       const lastName = user.last_name || '';
-      const name = user.name || '';
+      const fullName = `${firstName} ${lastName}`.trim() || user.name || user.email;
+      displayElement.textContent = fullName;
+    }
+  }
+
+  // Afficher le projet de l'utilisateur
+  function displayUserProject(user) {
+    const projectDisplay = document.getElementById('user-project-display');
+    if (projectDisplay) {
+      const projectName = user.project_name || user.project || 'Projet non spécifié';
+      projectDisplay.textContent = projectName;
       
-      let displayName = '';
-      if (firstName && lastName) {
-        displayName = `${firstName} ${lastName}`;
-      } else if (name) {
-        displayName = name;
-      } else {
-        displayName = user.email;
-      }
+      // Stocker le projet pour le filtrage automatique
+      currentUserProject = projectName;
       
-      displayElement.textContent = displayName;
+      console.log('Projet utilisateur affiché:', projectName);
     }
   }
 
@@ -2010,8 +2022,15 @@
       console.log(`   Résultat: ${filtered.length} activités après filtre agent`);
     }
 
-    if (projectFilter) {
-      // Filtrer par nom de projet (cohérent avec updateProjectFilter)
+    // Filtrer par projet - utiliser le projet de l'utilisateur connecté
+    if (currentUserProject && !isAdmin) {
+      // Pour les agents, filtrer automatiquement par leur projet
+      filtered = filtered.filter(activity => {
+        const activityProjectName = activity.project_name || activity.projects?.name || '';
+        return activityProjectName === currentUserProject;
+      });
+    } else if (projectFilter) {
+      // Pour les admins, utiliser le filtre sélectionné
       filtered = filtered.filter(activity => {
         const activityProjectName = activity.project_name || activity.projects?.name || '';
         return activityProjectName === projectFilter;
