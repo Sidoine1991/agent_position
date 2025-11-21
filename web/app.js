@@ -3058,6 +3058,9 @@ async function loadDashboardMetrics() {
     try { const res = await api('/me'); me = res?.data?.user || res?.user || null; } catch {}
     const userId = me?.id;
 
+    // Mettre à jour la complétion du profil
+    await updateProfileCompletion(me);
+
     // Supabase config
     const metaUrl = document.querySelector('meta[name="supabase-url"]')?.content || localStorage.getItem('SUPABASE_URL') || window.SUPABASE_URL || '';
     const metaKey = document.querySelector('meta[name="supabase-anon-key"]')?.content || localStorage.getItem('SUPABASE_ANON_KEY') || window.SUPABASE_ANON_KEY || '';
@@ -3073,7 +3076,12 @@ async function loadDashboardMetrics() {
       await updateCurrentLocation();
     };
 
-    if (disableSb || !sbUrl || !sbKey || !userId) { await fallbackMetrics(); return; }
+    if (disableSb || !sbUrl || !sbKey || !userId) { 
+      await fallbackMetrics(); 
+      // Vérifier les données en attente même sans Supabase
+      await checkOfflineData();
+      return; 
+    }
 
     // 1) Référence et rayon depuis Supabase
     let refLat = null, refLon = null, tol = 500, expectedDays = null;
@@ -3214,7 +3222,7 @@ function calculateMetrics(missions, month, year) {
     return missionDate.getMonth() === month && missionDate.getFullYear() === year;
   });
   
-  // Calculer les jours travaillés
+  // Calculer les jours travaillés (basé sur les missions complétées)
   const uniqueDays = new Set();
   currentMonthMissions.forEach(mission => {
     if (mission.start_time) {
@@ -3223,24 +3231,54 @@ function calculateMetrics(missions, month, year) {
     }
   });
   
-  // Calculer les heures travaillées
+  // Calculer les heures travaillées avec les données réelles des missions
   let totalHours = 0;
+  let totalMinutes = 0;
+  
   currentMonthMissions.forEach(mission => {
+    let missionHours = 0;
+    
+    // Utiliser les heures réelles si disponibles
     if (mission.start_time && mission.end_time) {
       const start = new Date(mission.start_time);
       const end = new Date(mission.end_time);
-      const hours = (end - start) / (1000 * 60 * 60);
-      totalHours += Math.max(0, hours);
+      const duration = (end - start) / (1000 * 60); // en minutes
+      missionHours = duration / 60;
     }
+    // Sinon, utiliser la durée calculée depuis les checkins
+    else if (mission.checkins && mission.checkins.length >= 2) {
+      const firstCheckin = new Date(mission.checkins[0].checked_at || mission.checkins[0].created_at);
+      const lastCheckin = new Date(mission.checkins[mission.checkins.length - 1].checked_at || mission.checkins[mission.checkins.length - 1].created_at);
+      const duration = (lastCheckin - firstCheckin) / (1000 * 60); // en minutes
+      missionHours = duration / 60;
+    }
+    // Dernière option: estimation basée sur le type de mission
+    else if (mission.status === 'completed') {
+      missionHours = 8; // Estimation par défaut pour une journée complète
+    }
+    
+    totalHours += Math.max(0, missionHours);
+    totalMinutes += (missionHours % 1) * 60;
   });
+  
+  // Arrondir les heures correctement
+  totalHours += Math.floor(totalMinutes / 60);
+  const finalHours = Math.round(totalHours * 10) / 10;
   
   // Calculer le taux de présence
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const attendanceRate = Math.round((uniqueDays.size / daysInMonth) * 100);
   
+  console.log(`📊 Métriques calculées pour ${month + 1}/${year}:`, {
+    missions: currentMonthMissions.length,
+    daysWorked: uniqueDays.size,
+    hoursWorked: finalHours,
+    attendanceRate: Math.min(attendanceRate, 100)
+  });
+  
   return {
     daysWorked: uniqueDays.size,
-    hoursWorked: Math.round(totalHours * 10) / 10,
+    hoursWorked: finalHours,
     attendanceRate: Math.min(attendanceRate, 100)
   };
 }
@@ -4247,5 +4285,188 @@ document.addEventListener('DOMContentLoaded', async () => {
 window.getGeoValue = getGeoValue;
 window.validateGeoFields = validateGeoFields;
 window.setupManualGeoInputs = setupManualGeoInputs;
+
+// Mettre à jour la complétion du profil
+async function updateProfileCompletion(user) {
+  try {
+    if (!user) return;
+    
+    const profileEl = $('profile-completion');
+    if (!profileEl) return;
+    
+    // Calculer le pourcentage de complétion
+    const fields = [
+      user.email,
+      user.first_name,
+      user.last_name,
+      user.phone,
+      user.departement,
+      user.commune,
+      user.arrondissement,
+      user.village,
+      user.reference_lat,
+      user.reference_lon
+    ];
+    
+    const filledFields = fields.filter(field => 
+      field !== null && 
+      field !== undefined && 
+      field !== '' && 
+      String(field).trim() !== ''
+    ).length;
+    
+    const completion = Math.round((filledFields / fields.length) * 100);
+    
+    profileEl.textContent = `${completion}%`;
+    
+    // Mettre à jour la couleur selon le pourcentage
+    if (completion >= 80) {
+      profileEl.style.color = '#28a745'; // Vert
+    } else if (completion >= 60) {
+      profileEl.style.color = '#ffc107'; // Jaune
+    } else {
+      profileEl.style.color = '#dc3545'; // Rouge
+    }
+    
+    console.log(`📊 Complétion du profil: ${completion}% (${filledFields}/${fields.length} champs)`);
+  } catch (error) {
+    console.error('Erreur mise à jour complétion profil:', error);
+  }
+}
+
+// Vérifier les données en attente et afficher le bouton de synchronisation
+async function checkOfflineData() {
+  try {
+    const syncCard = $('sync-card');
+    const syncBtn = $('sync-offline-data-index');
+    
+    if (!syncCard || !syncBtn || !window.offlineManager) return;
+    
+    // Vérifier les données en attente
+    const unsyncedPresence = await window.offlineManager.getOfflineData('presence', { synced: false });
+    const unsyncedMissions = await window.offlineManager.getOfflineData('missions', { synced: false });
+    const unsyncedCheckins = await window.offlineManager.getOfflineData('checkins', { synced: false });
+    
+    const totalUnsynced = unsyncedPresence.length + unsyncedMissions.length + unsyncedCheckins.length;
+    
+    if (totalUnsynced > 0) {
+      // Afficher le bouton de synchronisation
+      syncCard.style.display = 'block';
+      syncBtn.innerHTML = `<i class="fas fa-exclamation-circle me-2"></i>Synchroniser ${totalUnsynced} donnée(s) en attente`;
+      syncBtn.classList.remove('btn-warning');
+      syncBtn.classList.add('btn-danger');
+      
+      console.log(`📊 ${totalUnsynced} données en attente de synchronisation:`, {
+        presence: unsyncedPresence.length,
+        missions: unsyncedMissions.length,
+        checkins: unsyncedCheckins.length
+      });
+    } else {
+      // Cacher le bouton si aucune donnée en attente
+      syncCard.style.display = 'none';
+    }
+  } catch (error) {
+    console.error('Erreur vérification données offline:', error);
+  }
+}
+
+// Synchroniser les données en attente (pour la page index)
+async function syncOfflineDataIndex() {
+  const syncBtn = $('sync-offline-data-index');
+  if (!syncBtn) return;
+
+  try {
+    // Désactiver le bouton et montrer l'état de chargement
+    syncBtn.disabled = true;
+    syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Synchronisation...';
+
+    // Vérifier si l'offline manager est disponible
+    if (window.offlineManager) {
+      console.log('🔄 Début de la synchronisation des données en attente...');
+      
+      // Vérifier les données avant synchronisation
+      const unsyncedPresence = await window.offlineManager.getOfflineData('presence', { synced: false });
+      const unsyncedMissions = await window.offlineManager.getOfflineData('missions', { synced: false });
+      const unsyncedCheckins = await window.offlineManager.getOfflineData('checkins', { synced: false });
+      
+      const totalUnsynced = unsyncedPresence.length + unsyncedMissions.length + unsyncedCheckins.length;
+      
+      // Lancer la synchronisation
+      await window.offlineManager.syncPendingData();
+      
+      // Attendre un peu pour que la synchronisation se termine
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Vérifier les données après synchronisation
+      const remainingPresence = await window.offlineManager.getOfflineData('presence', { synced: false });
+      const remainingMissions = await window.offlineManager.getOfflineData('missions', { synced: false });
+      const remainingCheckins = await window.offlineManager.getOfflineData('checkins', { synced: false });
+      
+      const totalRemaining = remainingPresence.length + remainingMissions.length + remainingCheckins.length;
+      
+      if (totalRemaining === 0) {
+        syncBtn.innerHTML = '<i class="fas fa-check me-2"></i>Synchronisation réussie !';
+        syncBtn.classList.remove('btn-danger');
+        syncBtn.classList.add('btn-success');
+        
+        // Recharger les métriques après synchronisation
+        setTimeout(async () => {
+          await loadDashboardMetrics();
+        }, 1000);
+        
+        // Cacher le bouton après 3 secondes
+        setTimeout(() => {
+          const syncCard = $('sync-card');
+          if (syncCard) syncCard.style.display = 'none';
+        }, 3000);
+      } else {
+        syncBtn.innerHTML = `<i class="fas fa-exclamation-triangle me-2"></i>${totalRemaining} donnée(s) n'ont pas pu être synchronisées`;
+        syncBtn.classList.remove('btn-success');
+        syncBtn.classList.add('btn-info');
+        
+        setTimeout(() => {
+          await checkOfflineData(); // Revérifier après synchronisation
+        }, 4000);
+      }
+    } else {
+      syncBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Service de synchronisation indisponible';
+      syncBtn.classList.add('btn-secondary');
+    }
+  } catch (error) {
+    console.error('❌ Erreur lors de la synchronisation:', error);
+    syncBtn.innerHTML = '<i class="fas fa-times me-2"></i>Erreur de synchronisation';
+    syncBtn.classList.add('btn-danger');
+  } finally {
+    // Réactiver le bouton après 4 secondes
+    setTimeout(() => {
+      syncBtn.disabled = false;
+      await checkOfflineData();
+    }, 4000);
+  }
+}
+
+// Ajouter l'event listener pour le bouton de synchronisation
+document.addEventListener('DOMContentLoaded', () => {
+  const syncBtn = $('sync-offline-data-index');
+  if (syncBtn) {
+    syncBtn.addEventListener('click', syncOfflineDataIndex);
+  }
+  
+  // Rafraîchir automatiquement les métriques toutes les 30 secondes
+  setInterval(async () => {
+    try {
+      console.log('🔄 Rafraîchissement automatique des métriques...');
+      await loadDashboardMetrics();
+      await checkOfflineData();
+    } catch (error) {
+      console.error('Erreur rafraîchissement automatique:', error);
+    }
+  }, 30000); // 30 secondes
+  
+  // Vérifier les données offline toutes les 10 secondes
+  setInterval(async () => {
+    await checkOfflineData();
+  }, 10000); // 10 secondes
+});
 
 
