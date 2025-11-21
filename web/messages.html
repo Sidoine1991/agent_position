@@ -197,11 +197,13 @@
       /* Interface moderne de messagerie */
       .messaging-container {
         height: calc(100vh - 120px);
+        max-height: calc(100vh - 120px);
         display: flex;
         background: #f8f9fa;
         border-radius: 15px;
         overflow: hidden;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        min-height: 500px; /* Hauteur minimale */
       }
       
       /* Sidebar gauche - Contacts et Forums */
@@ -405,6 +407,8 @@
         display: flex;
         flex-direction: column;
         background: white;
+        min-height: 0; /* Important pour flexbox */
+        height: 100%; /* Utiliser toute la hauteur disponible */
       }
       
       .chat-header {
@@ -477,11 +481,36 @@
       .messages-container {
         flex: 1;
         overflow-y: auto;
+        overflow-x: hidden;
         padding: 20px;
         background: #f8f9fa;
         background-image: 
           radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.1) 0%, transparent 50%),
           radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.1) 0%, transparent 50%);
+        min-height: 0; /* Important pour flexbox */
+        max-height: calc(100vh - 280px); /* Limite la hauteur pour forcer le scroll */
+        scrollbar-width: thin; /* Firefox */
+        scrollbar-color: #cbd5e0 #f7fafc; /* Firefox */
+      }
+      
+      /* Styles pour la barre de défilement (Webkit) */
+      .messages-container::-webkit-scrollbar {
+        width: 8px;
+      }
+      
+      .messages-container::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+      }
+      
+      .messages-container::-webkit-scrollbar-thumb {
+        background: #cbd5e0;
+        border-radius: 4px;
+        transition: background 0.3s ease;
+      }
+      
+      .messages-container::-webkit-scrollbar-thumb:hover {
+        background: #a0aec0;
       }
       
       .message {
@@ -772,6 +801,34 @@
         
         .messaging-container {
           height: calc(100vh - 80px);
+          max-height: calc(100vh - 80px);
+        }
+        
+        .messages-container {
+          max-height: calc(100vh - 200px); /* Plus d'espace sur mobile */
+          padding: 15px;
+        }
+        
+        /* Barre de défilement plus visible sur mobile */
+        .messages-container::-webkit-scrollbar {
+          width: 6px;
+        }
+        
+        .messages-container::-webkit-scrollbar-thumb {
+          background: #a0aec0;
+        }
+      }
+      
+      @media (max-width: 480px) {
+        .messaging-container {
+          height: calc(100vh - 60px);
+          max-height: calc(100vh - 60px);
+          min-height: 400px;
+        }
+        
+        .messages-container {
+          max-height: calc(100vh - 180px);
+          padding: 10px;
         }
       }
       
