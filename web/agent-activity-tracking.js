@@ -1410,6 +1410,9 @@
       const agentSelect = document.getElementById('agent-select');
       if (!agentSelect) return;
 
+      console.log('👥 Remplissage filtre agents:', agents.length, 'agents disponibles');
+      console.log('   Agents:', agents.map(a => ({ id: a.id, name: a.name, email: a.email })));
+
       // Vider le sélecteur sauf l'option par défaut
       agentSelect.innerHTML = '<option value="">Tous les agents</option>';
 
@@ -1421,9 +1424,9 @@
         agentSelect.appendChild(option);
       });
 
-      console.log(`Filtre agents rempli avec ${agents.length} agents`);
+      console.log(`✅ Filtre agents rempli avec ${agents.length} agents`);
     } catch (error) {
-      console.error('Erreur remplissage filtre agents:', error);
+      console.error('❌ Erreur remplissage filtre agents:', error);
     }
   }
 
@@ -1766,6 +1769,21 @@
 
     const filteredActivities = filterActivities();
     
+    // Vérifier si le filtre a retourné des résultats
+    if (filteredActivities.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" class="text-center text-muted py-4">
+            <div class="alert alert-warning mb-0">
+              <h6>Aucune activité trouvée</h6>
+              <p class="mb-0">Aucune activité ne correspond aux filtres sélectionnés. Essayez de modifier les filtres.</p>
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+    
     // Regrouper par date pour afficher toutes les journées planifiées de la semaine
     filteredActivities.sort((a,b) => String(a.date).localeCompare(String(b.date)));
     
@@ -1999,14 +2017,27 @@
     const weekFilter = (document.getElementById('week-filter') || {}).value || '';
     const agentFilter = (document.getElementById('agent-select') || {}).value || '';
 
+    console.log('🔍 Filtres appliqués:', {
+      agentFilter,
+      projectFilter,
+      statusFilter,
+      supervisorFilter,
+      weekFilter,
+      totalActivities: activities.length
+    });
+
     let filtered = activities;
 
     // Filtrer par agent
     if (agentFilter) {
+      console.log('👤 Filtrage par agent:', agentFilter);
       filtered = filtered.filter(activity => {
         const agentId = activity.user_id || activity.agent_id;
-        return agentId === agentFilter;
+        const match = agentId === agentFilter;
+        console.log(`   Activité ${activity.id}: agentId=${agentId}, match=${match}`);
+        return match;
       });
+      console.log(`   Résultat: ${filtered.length} activités après filtre agent`);
     }
 
     if (projectFilter) {
