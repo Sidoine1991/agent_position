@@ -188,13 +188,10 @@
     const uniqueProjects = [...new Set(Array.from(agentsStats.values()).map(a => a.project_name).filter(p => p))];
     updateProjectFilter(uniqueProjects);
     
-    // Filtrer par projet - utiliser le projet de l'utilisateur connecté
+    // Filtrer par projet - utiliser le filtre sélectionné
     let filteredStats = Array.from(agentsStats.values());
-    if (currentUserProject && !isAdmin) {
-      // Pour les agents, filtrer automatiquement par leur projet
-      filteredStats = filteredStats.filter(a => a.project_name === currentUserProject);
-    } else if (projectFilter && projectFilter.value) {
-      // Pour les admins, utiliser le filtre sélectionné
+    if (projectFilter && projectFilter.value) {
+      // Utiliser le filtre sélectionné par l'utilisateur
       filteredStats = filteredStats.filter(a => a.project_name === projectFilter.value);
     }
     
@@ -1201,6 +1198,14 @@
       });
     }
 
+    // Activity project filter (tableau de suivi)
+    const activityProjectFilter = document.getElementById('activity-project-filter');
+    if (activityProjectFilter) {
+      activityProjectFilter.addEventListener('change', () => {
+        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
+      });
+    }
+
     // Status filter
     document.getElementById('status-filter').addEventListener('change', () => {
       displayActivities(); // Mettre à jour le tableau d'évaluation
@@ -1488,91 +1493,69 @@
 
   // Afficher le projet de l'utilisateur
   function displayUserProject(user) {
-    const projectDisplay = document.getElementById('user-project-display');
-    const activityProjectDisplay = document.getElementById('activity-project-display');
-    
+    // Ne plus bloquer les filtres de projet - laisser les utilisateurs choisir
     const projectName = user.project_name || user.project || 'Projet non spécifié';
     
-    // Mettre à jour l'affichage principal
-    if (projectDisplay) {
-      projectDisplay.textContent = projectName;
-    }
-    
-    // Mettre à jour l'affichage dans le tableau de suivi
-    if (activityProjectDisplay) {
-      activityProjectDisplay.textContent = projectName;
-    }
-    
-    // Stocker le projet pour le filtrage automatique
+    // Stocker le projet pour référence si nécessaire
     currentUserProject = projectName;
     
-    console.log('Projet utilisateur affiché:', projectName);
+    console.log('Projet utilisateur:', projectName, '- Filtres de projet disponibles pour tous');
   }
 
   // Charger les projets disponibles depuis la base de données
   async function loadAgentProject(user) {
     try {
-      if (isAdmin) {
-        // Pour les admins, charger tous les projets
-        const headers = await authHeaders();
-        const res = await fetch(`${apiBase}/admin/agents`, { headers });
+      // Pour TOUS les utilisateurs (agents, superviseurs, admins), charger tous les projets disponibles
+      const headers = await authHeaders();
+      const res = await fetch(`${apiBase}/admin/agents`, { headers });
+      
+      if (res.ok) {
+        const data = await res.json();
+        const agents = data.data || data.agents || [];
         
-        if (res.ok) {
-          const data = await res.json();
-          const agents = data.data || data.agents || [];
-          
-          // Extraire les projets uniques depuis les agents
-          const uniqueProjects = new Set();
-          agents.forEach(agent => {
-            if (agent.project_name && agent.project_name.trim() !== '') {
-              uniqueProjects.add(agent.project_name.trim());
-            }
-          });
-          
-          // Créer la liste des projets
-          projects = Array.from(uniqueProjects).map((projectName, index) => ({
-            id: index + 1,
-            name: projectName,
-            status: 'active'
-          }));
-          
-          console.log('Projets chargés depuis la base de données:', projects);
-          updateProjectFilter();
-        } else {
-          console.error('Erreur lors du chargement des agents:', res.status);
-          // Utiliser le projet de l'agent actuel en cas d'erreur
-          const agentProject = user.project_name || user.project || 'Projet non spécifié';
-          projects = [
-            { id: 1, name: agentProject, status: 'active' }
-          ];
-          updateProjectFilter();
-        }
-      } else {
-        // Pour les agents, utiliser uniquement leur projet
-        const agentProject = user.project_name || user.project || 'Projet non spécifié';
-        projects = [
-          { id: 1, name: agentProject, status: 'active' }
-        ];
-        console.log('Projet de l\'agent:', agentProject);
+        // Extraire les projets uniques depuis tous les agents
+        const uniqueProjects = new Set();
+        agents.forEach(agent => {
+          if (agent.project_name && agent.project_name.trim() !== '') {
+            uniqueProjects.add(agent.project_name.trim());
+          }
+        });
+        
+        // Créer la liste des projets
+        projects = Array.from(uniqueProjects).map((projectName, index) => ({
+          id: index + 1,
+          name: projectName,
+          status: 'active'
+        }));
+        
+        console.log('Projets chargés depuis la base de données:', projects);
         updateProjectFilter();
+        updateActivityProjectFilter();
+      } else {
+        console.error('Erreur lors du chargement des agents:', res.status);
+        // Utiliser les projets par défaut en cas d'erreur
+        projects = [
+          { id: 1, name: 'PARSAD', status: 'active' },
+          { id: 2, name: 'DELTA MONO', status: 'active' },
+          { id: 3, name: 'PAVBio', status: 'active' }
+        ];
+        updateProjectFilter();
+        updateActivityProjectFilter();
       }
     } catch (error) {
       console.error('Erreur chargement projets:', error);
-      // Utiliser le projet de l'agent actuel en cas d'erreur
-      const agentProject = user.project_name || user.project || 'Projet non spécifié';
+      // Utiliser les projets par défaut en cas d'erreur
       projects = [
-        { id: 1, name: agentProject, status: 'active' }
+        { id: 1, name: 'PARSAD', status: 'active' },
+        { id: 2, name: 'DELTA MONO', status: 'active' },
+        { id: 3, name: 'PAVBio', status: 'active' }
       ];
       updateProjectFilter();
+      updateActivityProjectFilter();
     }
   }
 
   function updateProjectFilter(uniqueProjects = null) {
-    // Pour les agents, ne pas mettre à jour les filtres de projet
-    if (!isAdmin) {
-      return;
-    }
-    
     const select = document.getElementById('project-filter');
     if (!select) return;
     
@@ -1595,6 +1578,24 @@
         select.appendChild(option);
       });
     }
+  }
+
+  // Mettre à jour le filtre de projets du tableau de suivi
+  function updateActivityProjectFilter() {
+    const projectFilter = document.getElementById('activity-project-filter');
+    if (!projectFilter) return;
+    
+    // Garder seulement l'option "Tous les projets"
+    projectFilter.innerHTML = '<option value="">Tous les projets</option>';
+    
+    // Ajouter les projets uniques triés
+    const projectNames = projects.map(p => p.name).sort();
+    projectNames.forEach(projectName => {
+      const option = document.createElement('option');
+      option.value = projectName;
+      option.textContent = projectName;
+      projectFilter.appendChild(option);
+    });
   }
 
   // Appliquer automatiquement le filtre projet pour un agent
@@ -1692,11 +1693,8 @@
       }
 
       // Appliquer le filtre projet au niveau API
-      if (currentUserProject && !isAdmin) {
-        // Pour les agents, utiliser leur projet
-        url += `&project_name=${encodeURIComponent(currentUserProject)}`;
-      } else if (projectFilterValue) {
-        // Pour les admins, utiliser le filtre sélectionné
+      if (projectFilterValue) {
+        // Utiliser le filtre sélectionné par l'utilisateur
         url += `&project_name=${encodeURIComponent(projectFilterValue)}`;
       }
       
@@ -2051,15 +2049,9 @@
       console.log(`   Résultat: ${filtered.length} activités après filtre agent`);
     }
 
-    // Filtrer par projet - utiliser le projet de l'utilisateur connecté
-    if (currentUserProject && !isAdmin) {
-      // Pour les agents, filtrer automatiquement par leur projet
-      filtered = filtered.filter(activity => {
-        const activityProjectName = activity.project_name || activity.projects?.name || '';
-        return activityProjectName === currentUserProject;
-      });
-    } else if (projectFilter) {
-      // Pour les admins, utiliser le filtre sélectionné
+    // Filtrer par projet - utiliser le filtre sélectionné
+    if (projectFilter) {
+      // Utiliser le filtre sélectionné par l'utilisateur
       filtered = filtered.filter(activity => {
         const activityProjectName = activity.project_name || activity.projects?.name || '';
         return activityProjectName === projectFilter;
@@ -2580,8 +2572,10 @@
 
   // Effacer les filtres du suivi d'activités
   function clearActivityFilters() {
-    // Pour les agents, le projet est fixe, on ne fait rien
-    // Pour les admins, on pourrait ajouter la logique plus tard
+    const projectFilter = document.getElementById('activity-project-filter');
+    if (projectFilter) {
+      projectFilter.value = '';
+    }
     loadActivityFollowUp();
   }
 
