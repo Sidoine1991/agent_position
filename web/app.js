@@ -1078,8 +1078,7 @@ async function init() {
         }
         
       } else {
-        alert('Impossible de se connecter en mode hors connexion. 
-               \n\nVérifiez que vous vous êtes déjà connecté auparavant avec cet appareil.');
+        alert('Impossible de se connecter en mode hors connexion. \n\nVérifiez que vous vous êtes déjà connecté auparavant avec cet appareil.');
       }
     };
     
