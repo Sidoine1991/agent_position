@@ -1102,21 +1102,6 @@
     console.log('localStorage keys:', Object.keys(localStorage));
     console.log('sessionStorage keys:', Object.keys(sessionStorage));
     
-    // Vérifier la planification du jour et mettre à jour les boutons
-    updatePresenceButtons();
-    
-    // Continuer l'initialisation
-    loadCurrentUser();
-    loadProjects();
-    loadAgents();
-    loadSupervisors();
-    setupEventListeners();
-    
-    // Charger automatiquement le suivi des activités au chargement
-    setTimeout(() => {
-      loadActivityFollowUp();
-    }, 1000);
-    
     // Vérifier l'authentification d'abord
     const token = findToken();
     console.log('Token trouvé:', token ? 'OUI' : 'NON');
@@ -1150,8 +1135,18 @@
       dateInput.value = currentDate;
     }
     
-    // Charger les données utilisateur et agents
+    // Continuer l'initialisation
     loadUserInfo();
+    loadAgents();
+    setupEventListeners();
+    
+    // Vérifier la planification du jour et mettre à jour les boutons
+    updatePresenceButtons();
+    
+    // Charger automatiquement le suivi des activités au chargement
+    setTimeout(() => {
+      loadActivityFollowUp();
+    }, 1000);
   }
 
   function setupEventListeners() {
