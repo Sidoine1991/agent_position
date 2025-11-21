@@ -434,7 +434,9 @@
                     </div>
                 <div class="card-body p-0">
                     <div class="mb-2 small text-muted p-3" data-translate="planning.drag.info">Double-cliquez sur une tâche dans le Gantt pour l'éditer ci-dessus.</div>
-                    <div id="week-gantt" class="gantt" style="height: 600px; width: 100%;"></div>
+                    <div style="overflow: auto; max-height: 600px; width: 100%;">
+                        <div id="week-gantt" class="gantt" style="height: 600px; min-width: 1200px;"></div>
+                    </div>
                     <small id="week-summary" class="text-muted p-3 d-block"></small>
                 </div>
             </div>

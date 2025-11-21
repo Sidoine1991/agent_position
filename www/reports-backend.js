@@ -1,7 +1,8 @@
 // Script pour la page de rapports - Version Backend uniquement
-// Utilise /api/reports/validations au lieu de Supabase directement
-console.log('🔄 reports-backend.js v4 chargé - ' + new Date().toISOString());
+// Utilise le module de configuration pour les appels API
+console.log('🔄 reports-backend.js v5 chargé - ' + new Date().toISOString());
 
+// Charger la configuration de l'API
 let jwt = localStorage.getItem('jwt') || '';
 let currentUser = null;
 
@@ -16,46 +17,120 @@ function getEmailHint() {
 
 function $(id) { return document.getElementById(id); }
 
-const apiBase = '/api';
-
 async function api(path, opts = {}) {
-  const headers = opts.headers || {};
-  if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
-  if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
-  
-  console.log('API call:', apiBase + path, { method: opts.method || 'GET', headers, body: opts.body });
-  
-  const res = await fetch(apiBase + path, {
-    method: opts.method || 'GET',
-    headers,
-    body: opts.body instanceof FormData ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined),
-  });
-  
-  console.log('API response:', res.status, res.statusText);
-  
-  if (!res.ok) {
-    const errorText = await res.text();
-    console.error('API error:', errorText);
-    throw new Error(errorText || res.statusText);
+  try {
+    // Utiliser la configuration de l'API
+    const baseUrl = window.location.hostname === 'localhost'
+      ? 'http://localhost:3010/api'
+      : '/api';
+      
+    const url = `${baseUrl}${path}`;
+    
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(opts.headers || {})
+    };
+    
+    // Ajouter le token JWT s'il existe
+    if (jwt) {
+      headers['Authorization'] = `Bearer ${jwt}`;
+    }
+    
+    // Ne pas ajouter Content-Type pour FormData
+    if (opts.body instanceof FormData) {
+      delete headers['Content-Type'];
+    }
+    
+    console.log('API call:', url, { 
+      method: opts.method || 'GET', 
+      headers, 
+      body: opts.body 
+    });
+    
+    const res = await fetch(url, {
+      method: opts.method || 'GET',
+      headers,
+      body: opts.body instanceof FormData ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined),
+      credentials: 'include'
+    });
+    
+    console.log('API response:', res.status, res.statusText);
+    
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('API error:', errorText);
+      const error = new Error(errorText || res.statusText);
+      error.status = res.status;
+      throw error;
+    }
+    
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('application/json')) {
+      const result = await res.json();
+      console.log('API result (JSON):', result);
+      return result;
+    } else {
+      const text = await res.text();
+      console.log('API result (text):', text);
+      return text;
+    }
+  } catch (error) {
+    console.error('API request failed:', error);
+    if (error.status === 401) {
+      // Handle unauthorized error
+      console.warn('Session expired or invalid token. Redirecting to login...');
+      window.location.href = '/login.html';
+    }
+    throw error; // Re-throw to allow calling code to handle the error
   }
-  
-  const ct = res.headers.get('content-type') || '';
-  const result = ct.includes('application/json') ? await res.json() : await res.text();
-  console.log('API result:', result);
-  return result;
 }
 
 // Vérifier l'authentification et les permissions
 async function checkAuth() {
-  const emailHint = getEmailHint();
-  if (!emailHint) {
-    console.warn('Aucun email trouvé, redirection vers la page de connexion');
+  // Vérifier d'abord si nous avons un JWT valide
+  jwt = localStorage.getItem('jwt') || '';
+  
+  // Si pas de JWT, vérifier s'il y a un token dans l'URL
+  if (!jwt) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlToken = urlParams.get('token');
+    
+    if (urlToken && urlToken.length > 20) {
+      jwt = urlToken;
+      localStorage.setItem('jwt', jwt);
+      console.log('🔐 Token restauré depuis l\'URL');
+    }
+  }
+  
+  // Si toujours pas de JWT, rediriger vers la page de connexion
+  if (!jwt) {
+    console.warn('Aucun token JWT trouvé, redirection vers la page de connexion');
+    window.location.href = '/login.html';
+    return false;
+  }
+  
+  // Vérifier le format du token
+  if (jwt.split('.').length !== 3) {
+    console.error('Format de token JWT invalide');
+    localStorage.removeItem('jwt');
     window.location.href = '/login.html';
     return false;
   }
 
   try {
-    const result = await api('/profile?email=' + encodeURIComponent(emailHint));
+    // Récupérer l'email de l'utilisateur depuis le token ou le localStorage
+    const userEmail = localStorage.getItem('userEmail') || 
+                     localStorage.getItem('email') || 
+                     getQueryParam('email') ||
+                     '';
+    
+    if (!userEmail) {
+      console.warn('Aucun email utilisateur trouvé, redirection vers la page de connexion');
+      window.location.href = '/login.html';
+      return false;
+    }
+    
+    const result = await api(`/profile?email=${encodeURIComponent(userEmail)}`);
     if (result && result.user) {
       currentUser = result.user;
       console.log('Utilisateur connecté:', currentUser.name, currentUser.role);
@@ -128,31 +203,48 @@ window.updateDateInputs = function() {
 };
 
 async function fetchReportsFromBackend(agentId = null) {
-  const { start, end } = getRangeDatesFromUI();
-  const { fromISO, toISO } = periodToISO(start, end);
-  
-  const params = new URLSearchParams();
-  params.set('from', fromISO);
-  params.set('to', toISO);
-  if (agentId && agentId !== 'all') {
-    params.set('agent_id', agentId);
-  }
-  
   try {
-    console.log('🔍 Appel API /reports avec params:', params.toString());
-    const result = await api('/reports?' + params.toString());
-    console.log('📊 Résultat API /reports:', result);
+    // Ensure we have a valid JWT token
+    await checkAuth();
     
-    if (result && result.success && result.data) {
-      console.log('✅ Données trouvées:', result.data.length, 'rapports');
-      // Les données sont déjà dans le bon format
-      return result.data;
+    const params = new URLSearchParams();
+    
+    // Set date range (last 30 days by default)
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - 30);
+    
+    params.set('from', from.toISOString().split('T')[0]);
+    params.set('to', to.toISOString().split('T')[0]);
+    
+    if (agentId) {
+      params.set('agent_id', agentId);
+    }
+    
+    console.log('Fetching reports with params:', params.toString());
+    
+    // Make the API request with the JWT token
+    const result = await api(`/reports/validations?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${jwt}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // Handle different response formats
+    if (Array.isArray(result)) {
+      return result; // Direct array response
+    } else if (result && Array.isArray(result.data)) {
+      return result.data; // Response with data property
+    } else if (result && result.success && Array.isArray(result.data)) {
+      return result.data; // Response with success and data properties
     } else {
-      console.warn('⚠️ Aucune donnée dans /reports ou format inattendu:', result);
+      console.warn('Unexpected API response format:', result);
+      return [];
     }
     return [];
   } catch (error) {
-    console.error('❌ Erreur lors de la récupération des rapports:', error);
+    console.error('❌ Erreur lors de la récupération des rapports de validation:', error);
     return [];
   }
 }
@@ -167,32 +259,30 @@ function renderValidations(rows) {
     return;
   }
   
-  // Vérifier si on a des données
   if (!rows || rows.length === 0) {
-    console.warn('⚠️ Aucune donnée à afficher dans le tableau');
-    tbody.innerHTML = '<tr><td colspan="10">Aucune donnée</td></tr>';
+    console.warn('⚠️ Aucune donnée à afficher dans le tableau de validation');
+    tbody.innerHTML = '<tr><td colspan="9">Aucune donnée</td></tr>';
     return;
   }
   
   const cell = v => (v == null || v === '') ? '—' : v;
-  const fmt = d => new Date(d).toLocaleString('fr-FR');
+  const fmt = d => d ? new Date(d).toLocaleString('fr-FR') : '—';
   
   tbody.innerHTML = (rows || []).map(it => `
     <tr>
-      <td>${it.ts ? fmt(it.ts) : '—'}</td>
       <td>${cell(it.agent)}</td>
       <td>${cell(it.projet)}</td>
       <td>${cell(it.localisation)}</td>
       <td>${cell(it.rayon_m)}</td>
-      <td>${(it.ref_lat != null && it.ref_lon != null) ? `${it.ref_lat}, ${it.ref_lon}` : '—'}</td>
-      <td>${(it.lat != null && it.lon != null) ? `${it.lat}, ${it.lon}` : '—'}</td>
+      <td>${(it.ref_lat != null && it.ref_lon != null) ? `${it.ref_lat.toFixed(5)}, ${it.ref_lon.toFixed(5)}` : '—'}</td>
+      <td>${(it.lat != null && it.lon != null) ? `${it.lat.toFixed(5)}, ${it.lon.toFixed(5)}` : '—'}</td>
+      <td>${fmt(it.ts)}</td>
       <td>${cell(it.distance_m)}</td>
-      <td>${cell(it.mission_duration)}</td>
       <td>${cell(it.statut)}</td>
     </tr>
-  `).join('') || `<tr><td colspan="10">Aucune donnée</td></tr>`;
+  `).join('') || `<tr><td colspan="9">Aucune donnée</td></tr>`;
   
-  console.log('✅ Tableau rendu avec', (rows || []).length, 'lignes');
+  console.log('✅ Tableau de validation rendu avec', (rows || []).length, 'lignes');
   window.__lastRows = rows;
 }
 
@@ -615,7 +705,38 @@ async function loadAgentsForFilter() {
 // === Initialisation ===
 document.addEventListener('DOMContentLoaded', async function() {
   console.log('🚀 Initialisation de reports.js (version backend)');
-  
+
+  // NETTOYER IMMÉDIATEMENT TOUS LES MODALS RÉSIDUELS
+  console.log('🧹 Nettoyage des modals résiduels...');
+
+  // Supprimer tous les éléments avec position:fixed qui ne sont pas dans le HTML de base
+  const fixedElements = document.querySelectorAll('[style*="position: fixed"], [style*="position:fixed"]');
+  fixedElements.forEach(el => {
+    if (el.textContent.includes('Chargement') || el.textContent.includes('Détails') || el.textContent.includes('validation')) {
+      console.log('🗑️ Suppression de:', el.textContent.substring(0, 50));
+      el.remove();
+    }
+  });
+
+  // Supprimer tous les divs avec z-index élevé
+  const highZIndexElements = document.querySelectorAll('[style*="z-index: 9999"], [style*="z-index:9999"]');
+  highZIndexElements.forEach(el => {
+    console.log('🗑️ Suppression élément z-index élevé:', el.textContent.substring(0, 50));
+    el.remove();
+  });
+
+  // Supprimer tous les éléments avec classe ou id contenant "modal"
+  const modalElements = document.querySelectorAll('[id*="modal"], [class*="modal"], [id*="Modal"], [class*="Modal"]');
+  modalElements.forEach(el => {
+    // Ne pas supprimer les modals qui font partie du tableau
+    if (!el.closest('table') && !el.closest('thead') && !el.closest('tbody')) {
+      console.log('🗑️ Suppression modal:', el.id || el.className);
+      el.remove();
+    }
+  });
+
+  console.log('✅ Nettoyage terminé');
+
   // Vérifier l'authentification
   await checkAuth();
   

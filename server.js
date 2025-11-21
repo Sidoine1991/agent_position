@@ -63,6 +63,248 @@ try {
   }
 })();
 
+// Fonction utilitaire pour convertir des degrés en radians
+function toRad(deg) {
+  return deg * (Math.PI / 180);
+}
+
+// Fonction utilitaire pour calculer la distance
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  
+  const R = 6371e3; // Rayon de la Terre en mètres
+  const φ1 = toRad(lat1); // φ, λ en radians
+  const φ2 = toRad(lat2);
+  const Δφ = toRad(lat2-lat1);
+  const Δλ = toRad(lon2-lon1);
+
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return Math.round(R * c);
+}
+
+// Route pour récupérer les validations
+app.get('/api/reports/validations', authenticateToken, async (req, res) => {
+  console.log('🔍 /api/reports/validations called with query:', req.query);
+  
+  try {
+    console.log('🔍 Headers:', req.headers);
+    console.log('🔍 User from token:', req.user);
+    
+    const { from, to, agent_id, supervisor_id } = req.query;
+    
+    // Log the request details for debugging
+    console.log('📝 Request details:', {
+      from,
+      to,
+      agent_id,
+      supervisor_id,
+      user: req.user
+    });
+    
+    // Vérifier que Supabase est correctement initialisé
+    if (!supabaseClient) {
+      console.error('❌ Erreur: Supabase n\'est pas initialisé');
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Erreur de configuration du serveur',
+        details: 'Supabase non initialisé'
+      });
+    }
+
+    try {
+      // Construire la requête de base
+      let query = supabaseClient
+        .from('checkin_validations')
+        .select(`
+          id,
+          checkin_id,
+          agent_id,
+          valid,
+          distance_m,
+          reference_lat,
+          reference_lon,
+          tolerance_m,
+          created_at,
+          checkins!inner(
+            id,
+            mission_id,
+            user_id,
+            lat,
+            lon,
+            start_time,
+            end_time,
+            note,
+            photo_url
+          ),
+          users!inner(
+            id,
+            first_name,
+            last_name,
+            project_name,
+            departement,
+            commune,
+            arrondissement,
+            village,
+            tolerance_radius_meters,
+            reference_lat,
+            reference_lon
+          )
+        `)
+        .order('start_time', { ascending: false, referencedTable: 'checkins' });
+
+      console.log('🔍 Requête Supabase construite');
+
+      // Format date helper function
+      const formatDateForQuery = (dateStr, isEndOfDay = false) => {
+        try {
+          // Handle different date string formats
+          let date = new Date(dateStr);
+          
+          // If the date string is in format 'YYYY-MM-DD', parse it manually
+          if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+            const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+            date = new Date(Date.UTC(year, month - 1, day));
+          }
+          
+          if (isNaN(date.getTime())) {
+            console.warn(`⚠️ Format de date invalide: ${dateStr}`);
+            return null;
+          }
+          
+          if (isEndOfDay) {
+            date.setUTCHours(23, 59, 59, 999);
+          } else {
+            date.setUTCHours(0, 0, 0, 0);
+          }
+          
+          // Return ISO string without timezone (PostgreSQL will interpret as UTC)
+          return date.toISOString().replace('Z', '+00:00');
+        } catch (e) {
+          console.warn(`⚠️ Erreur de formatage de date (${dateStr}):`, e.message);
+          return null;
+        }
+      };
+
+      // Appliquer les filtres
+      if (from) {
+        const fromDateStr = formatDateForQuery(from);
+        if (fromDateStr) {
+          console.log(`📅 Filtre from: ${fromDateStr}`);
+          query = query.gte('checkins.start_time', fromDateStr);
+        }
+      }
+      
+      if (to) {
+        const toDateStr = formatDateForQuery(to, true); // true = end of day
+        if (toDateStr) {
+          console.log(`📅 Filtre to: ${toDateStr}`);
+          query = query.lte('checkins.start_time', toDateStr);
+        }
+      }
+      
+      if (agent_id) {
+        console.log(`👤 Filtre agent_id: ${agent_id}`);
+        query = query.eq('agent_id', agent_id);
+      }
+
+      // Si un superviseur est spécifié, filtrer les agents supervisés
+      if (supervisor_id) {
+        console.log(`👨‍💼 Filtre supervisor_id: ${supervisor_id}`);
+        // D'abord, récupérer la liste des agents supervisés
+        const { data: supervisedAgents, error: supervisedError } = await supabaseClient
+          .from('users')
+          .select('id')
+          .eq('supervisor_id', supervisor_id);
+
+        if (supervisedError) throw supervisedError;
+
+        const agentIds = supervisedAgents.map(a => a.id);
+        if (agentIds.length > 0) {
+          query = query.in('agent_id', agentIds);
+        } else {
+          // Aucun agent trouvé pour ce superviseur, retourner un tableau vide
+          console.log('ℹ️ Aucun agent trouvé pour ce superviseur');
+          return res.json([]);
+        }
+      }
+
+      console.log('⚡ Exécution de la requête Supabase...');
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('❌ Erreur Supabase:', error);
+        throw error;
+      }
+
+      console.log(`✅ ${data ? data.length : 0} enregistrements trouvés`);
+
+      // Formater la réponse
+      const formattedData = data.map(item => {
+        const distance = item.distance_m !== null 
+          ? item.distance_m 
+          : calculateDistance(
+              item.users.reference_lat,
+              item.users.reference_lon,
+              item.checkins.lat,
+              item.checkins.lon
+            );
+
+        const isWithinTolerance = distance <= (item.tolerance_m || item.users.tolerance_radius_meters || 0);
+
+        return {
+          id: item.id,
+          user_id: item.agent_id,
+          agent: `${item.users.first_name || ''} ${item.users.last_name || ''}`.trim() || `Utilisateur #${item.agent_id}`,
+          projet: item.users.project_name || 'Non spécifié',
+          localisation: [
+            item.users.departement,
+            item.users.commune,
+            item.users.arrondissement,
+            item.users.village
+          ].filter(Boolean).join(' / ') || 'Non spécifiée',
+          rayon_m: item.tolerance_m || item.users.tolerance_radius_meters || 0,
+          ref_lat: item.reference_lat || item.users.reference_lat,
+          ref_lon: item.reference_lon || item.users.reference_lon,
+          lat: item.checkins.lat,
+          lon: item.checkins.lon,
+          ts: item.checkins.start_time,
+          distance_m: distance,
+          statut: item.valid !== null 
+            ? (item.valid ? 'Présent' : 'Hors zone')
+            : (isWithinTolerance ? 'Présent' : 'Hors zone'),
+          note: item.checkins.note,
+          photo_url: item.checkins.photo_url,
+          mission_duration: item.checkins.end_time 
+            ? (new Date(item.checkins.end_time) - new Date(item.checkins.start_time)) / 60000 
+            : null
+        };
+      }).filter(Boolean); // Filtrer les entrées nulles en cas d'erreur
+
+      console.log(`📊 ${formattedData.length} entrées valides après traitement`);
+      res.json(formattedData);
+      
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des validations:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Erreur lors de la récupération des données',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  } catch (outerError) {
+    console.error('❌ Erreur globale du gestionnaire de route:', outerError);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Erreur interne du serveur',
+      details: process.env.NODE_ENV === 'development' ? outerError.message : undefined
+    });
+  }
+});
+
 // Fonction utilitaire pour récupérer toutes les pages d'une requête Supabase
 // Supabase limite par défaut à 1000 résultats, cette fonction parcourt toutes les pages
 async function fetchAllPages(queryBuilder, pageSize = 1000) {
@@ -923,7 +1165,7 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
         mission_duration = null;
       }
       
-      return {
+      const result = {
         agent_id: validation.agent_id,
         agent: user?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || `Agent #${validation.agent_id}`,
         role: user?.role || 'non-spécifié',
@@ -940,8 +1182,31 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
         photo_url: checkin?.photo_url || null,
         validation_id: validation.id,
         checkin_id: checkin?.id || null,
-        created_at: validation.created_at
+        created_at: validation.created_at,
+        // Coordonnées de référence (depuis la table users)
+        ref_lat: refLat,
+        ref_lon: refLon,
+        // Coordonnées actuelles (depuis le checkin)
+        lat: checkin?.lat,
+        lon: checkin?.lon
       };
+
+      // Log de débogage pour vérifier les coordonnées
+      if (validation.id === validations[0]?.id) {
+        console.log('📍 Coordonnées du premier rapport:', {
+          agent: result.agent,
+          ref_lat: result.ref_lat,
+          ref_lon: result.ref_lon,
+          lat: result.lat,
+          lon: result.lon,
+          refLat_source: refLat,
+          refLon_source: refLon,
+          checkin_lat: checkin?.lat,
+          checkin_lon: checkin?.lon
+        });
+      }
+
+      return result;
     });
 
     // Filtrer les rapports null (où l'utilisateur n'a pas été trouvé)
@@ -1042,16 +1307,24 @@ app.use((req, res, next) => {
 
 // Middleware d'authentification
 async function authenticateToken(req, res, next) {
+  console.log('🔍 Middleware authenticateToken appelé');
   const authHeader = req.headers['authorization'];
+  console.log('🔍 Authorization header:', authHeader);
+  
   const token = authHeader && authHeader.split(' ')[1];
+  console.log('🔍 Token extrait:', token ? `${token.substring(0, 10)}...` : 'non fourni');
 
   if (!token) {
+    console.log('❌ Aucun token fourni');
     return res.status(401).json({ error: 'Token d\'accès requis' });
   }
 
+  console.log('🔍 Vérification du token...');
   jwt.verify(token, JWT_SECRET, async (err, decoded) => {
+    console.log('🔍 Résultat de la vérification du token:', { err, decoded: decoded ? 'présent' : 'non décodé' });
     if (err) {
-      return res.status(403).json({ error: 'Token invalide' });
+      console.error('❌ Erreur de vérification du token:', err.message);
+      return res.status(403).json({ error: 'Token invalide', details: err.message });
     }
     
     // Chercher l'utilisateur par auth_uuid (pour Supabase Auth) ou par ID (pour ancien système)
@@ -3751,7 +4024,7 @@ app.get('/api/admin-units', async (req, res) => {
   }
 });
 
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', authenticateToken, async (req, res) => {
   try {
     const search = String(req.query.search || '').trim();
     const role = String(req.query.role || '').trim();
@@ -3762,7 +4035,11 @@ app.get('/api/users', async (req, res) => {
     // Vérifier si pagination est demandée
     const page = req.query.page ? Math.max(1, parseInt(req.query.page, 10)) : null;
     const limit = req.query.limit ? Math.max(1, Math.min(100, parseInt(req.query.limit, 10))) : null;
-    
+
+    if (!supabaseClient) {
+      return res.status(500).json({ success: false, error: 'Supabase client not initialized' });
+    }
+
     let query = supabaseClient
       .from('users')
       .select('id,name,email,role,phone,departement,project_name,status,photo_path,last_activity');
@@ -5076,115 +5353,8 @@ app.get('/api/validations/mine', authenticateToken, async (req, res) => {
   }
 });
 
-// Récupérer validations (admin/superviseur) avec enrichissements pour rapports
-app.get('/api/reports/validations', authenticateToken, authenticateSupervisorOrAdmin, async (req, res) => {
-  try {
-    const { from, to, agent_id, supervisor_id } = req.query;
-    
-    // 1) Lire validations dans l'intervalle
-    let vq = supabaseClient
-      .from('checkin_validations')
-      .select('id, checkin_id, agent_id, valid, reason, distance_m, tolerance_m, reference_lat, reference_lon, planned_start_time, planned_end_time, created_at')
-      .order('created_at', { ascending: false });
-      
-    // Si un agent_id ou supervisor_id est spécifié, ne pas limiter les résultats
-    // Sinon, appliquer une limite raisonnable pour éviter de surcharger le serveur
-    if (!agent_id && !supervisor_id) {
-      vq = vq.limit(10000); // Limiter à 10,000 résultats par défaut
-    }
-      
-    // Si un agent_id est spécifié, filtrer directement dans la requête
-    if (agent_id) {
-      vq = vq.eq('agent_id', Number(agent_id));
-    }
-    
-    if (from) vq = vq.gte('created_at', new Date(String(from) + 'T00:00:00.000Z').toISOString());
-    if (to) vq = vq.lte('created_at', new Date(String(to) + 'T23:59:59.999Z').toISOString());
-    
-    const { data: validations, error: vErr } = await vq;
-    if (vErr) throw vErr;
-
-    let items = validations || [];
-    
-    // 2) Si un supervisor_id est spécifié, filtrer côté serveur
-    if (supervisor_id) {
-      // Récupérer les agents supervisés par ce superviseur
-      const { data: supervisedAgents, error: supervisedError } = await supabaseClient
-        .from('users')
-        .select('id')
-        .eq('supervisor_id', supervisor_id);
-        
-      if (supervisedError) {
-        console.error('Erreur lors de la récupération des agents supervisés:', supervisedError);
-        return res.status(500).json({ success: false, message: 'Erreur lors de la récupération des agents supervisés' });
-      }
-      
-      const supervisedAgentIds = new Set((supervisedAgents || []).map(a => a.id));
-      items = items.filter(v => supervisedAgentIds.has(v.agent_id));
-    }
-
-    if (items.length === 0) return res.json({ success: true, items: [] });
-
-    // 3) Charger checkins liés
-    const checkinIds = Array.from(new Set(items.map(i => i.checkin_id).filter(Boolean)));
-    let checkinsMap = new Map();
-    if (checkinIds.length) {
-      const { data: checkins } = await supabaseClient
-        .from('checkins')
-        .select('id, mission_id, lat, lon, note, photo_url, created_at')
-        .in('id', checkinIds);
-      (checkins || []).forEach(c => checkinsMap.set(c.id, c));
-    }
-
-    // 4) Charger profils/agents depuis la table users avec supervisor_id
-    const agentIds = Array.from(new Set(items.map(i => i.agent_id).filter(Boolean)));
-    let profilesMap = new Map();
-    if (agentIds.length) {
-      const { data: profs } = await supabaseClient
-        .from('users')
-        .select('id, name, first_name, last_name, project_name, departement, commune, arrondissement, village, supervisor_id')
-        .in('id', agentIds);
-      (profs || []).forEach(p => profilesMap.set(p.id, p));
-    }
-
-    // 5) Construire sorties
-    const out = items.map(v => {
-      const c = checkinsMap.get(v.checkin_id) || {};
-      const p = profilesMap.get(v.agent_id) || {};
-      const fullName = p.name || [p.first_name, p.last_name].filter(Boolean).join(' ');
-      return {
-        agent_id: v.agent_id,
-        agent_name: fullName || `Agent #${v.agent_id}`,
-        project_name: p.project_name || '',
-        departement: p.departement || '',
-        commune: p.commune || '',
-        arrondissement: p.arrondissement || '',
-        village: p.village || '',
-        supervisor_id: p.supervisor_id || null,
-        reference_lon: v.reference_lon,
-        reference_lat: v.reference_lat,
-        tolerance_radius_meters: v.tolerance_m,
-        lat: c.lat,
-        lon: c.lon,
-        date: v.created_at,
-        day_start_time: v.planned_start_time || null,
-        day_end_time: v.planned_end_time || null,
-        note: c.note || '',
-        photo_url: c.photo_url || '',
-        status: v.valid ? 'present' : 'absent',
-        within_tolerance: v.valid,
-        distance_from_reference_m: v.distance_m ?? null,
-        checkin_id: v.checkin_id,
-        validation_id: v.id
-      };
-    });
-
-    return res.json({ success: true, items: out });
-  } catch (e) {
-    console.error('Erreur /api/reports/validations:', e);
-    return res.status(500).json({ success: false, message: 'Erreur serveur' });
-  }
-});
+// Note: Route /api/reports/validations est déjà définie plus haut dans le fichier
+// Le code de la route a été déplacé plus haut dans le fichier pour éviter les doublons
 
 // ====== PRESENCE: start mission ======
 app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
@@ -6473,6 +6643,14 @@ app.get('/api/presence-validations', authenticateToken, async (req, res) => {
     
     // Ordonner par timestamp décroissant
     query = query.order('checkin_timestamp', { ascending: false });
+    
+    console.log('Exécution de la requête avec les paramètres:', {
+      from,
+      to,
+      agent_id,
+      supervisor_id,
+      query: query
+    });
     
     const { data: validations, error } = await query;
     

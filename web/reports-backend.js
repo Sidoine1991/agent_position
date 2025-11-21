@@ -419,20 +419,49 @@ async function fetchReportsFromBackend() {
         
         if (pageData.length > 0) {
           console.log(`📥 ${pageData.length} rapports chargés (page ${page}/${totalPages || '?'})`);
-          
-          // Enrichir chaque rapport avec les données utilisateur
+
+          // Transformer les données de l'API vers le format attendu
           const enrichedRows = [];
           const skippedRows = [];
           pageData.forEach(row => {
+            // Transformer le format de l'API vers le format attendu par renderValidations
+            const transformedRow = {
+              id: row.validation_id || row.id,
+              agent_id: row.agent_id,
+              ts: row.created_at || row.date,
+              lat: row.lat,
+              lon: row.lon,
+              ref_lat: row.ref_lat,
+              ref_lon: row.ref_lon,
+              distance_m: row.distance_m,
+              rayon_m: row.tolerance_m,
+              localisation: row.localisation,
+              statut: row.status_presence || row.statut,
+              projet: row.projet,
+              validation_notes: row.note,
+              user: null
+            };
+
+            // Log de débogage pour vérifier les coordonnées
+            if (!row.ref_lat || !row.ref_lon) {
+              console.warn(`⚠️ Agent ${row.agent} (ID: ${row.agent_id}) n'a pas de coordonnées de référence`);
+            }
+            if (!row.lat || !row.lon) {
+              console.warn(`⚠️ Validation ${row.validation_id} n'a pas de coordonnées de checkin`);
+            }
+
             const agentIdStr = String(row.agent_id || row.user_id);
             if (usersById.has(agentIdStr)) {
-              row.user = usersById.get(agentIdStr);
-              enrichedRows.push(row);
+              transformedRow.user = usersById.get(agentIdStr);
+              enrichedRows.push(transformedRow);
             } else {
-              // Conserver le rapport même sans données utilisateur (pour le débogage)
+              // Conserver le rapport même sans données utilisateur
               skippedRows.push(row);
-              row.user = null; // Marquer comme non enrichi
-              enrichedRows.push(row); // Tout de même ajouter pour le débogage
+              transformedRow.user = {
+                name: row.agent || `Agent ${row.agent_id}`,
+                project_name: row.projet
+              };
+              enrichedRows.push(transformedRow);
             }
           });
           
@@ -2196,9 +2225,20 @@ window.generateReport = async function() {
   await window.loadValidations();
   const filteredRows = window.__filteredRows || [];
   const total = filteredRows.length;
-  const presents = filteredRows.filter(r => !(r.statut || '').toLowerCase().includes('hors')).length;
+
+  // Compter les présents et absents en fonction du statut
+  // Le statut peut être "Présent" ou "Absent" (venant de status_presence de l'API)
+  const presents = filteredRows.filter(r => {
+    const statut = (r.statut || '').toLowerCase().trim();
+    // Considérer comme présent si le statut contient "présent" ou "present"
+    return statut.includes('présent') || statut.includes('present');
+  }).length;
+
   const absent = total - presents;
   const rate = total ? Math.round((presents / total) * 100) : 0;
+
+  console.log(`📊 Statistiques calculées: ${total} agents, ${presents} présents, ${absent} absents, ${rate}% de présence`);
+
   const set = (id, val) => {
     const el = document.getElementById(id);
     if (el) el.textContent = String(val);

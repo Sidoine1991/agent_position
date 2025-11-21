@@ -1362,6 +1362,9 @@ module.exports = async (req, res) => {
       return;
     }
 
+    // Rapports - Validations de présence (endpoint supprimé - utiliser server.js à la place)
+    // Cet endpoint est géré par server.js avec checkin_validations
+
     // Admin - Liste des agents avec pagination
     if (path === '/api/admin/agents' && method === 'GET') {
       console.log('🔍 Endpoint /api/admin/agents appelé');
@@ -2552,7 +2555,7 @@ module.exports = async (req, res) => {
 
           const { from, to } = req.query;
           let query = supabaseClient
-            .from('validations')
+            .from('presence_validations')
             .select('*')
             .eq('user_id', req.user.id)
             .order('created_at', { ascending: false });

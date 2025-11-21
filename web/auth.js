@@ -149,7 +149,11 @@ async function protectPage() {
     if (!userRole) {
       // Sauvegarder l'URL actuelle pour redirection après connexion
       if (currentPage !== '/index.html' && currentPage !== '/') {
-        sessionStorage.setItem('redirectAfterLogin', window.location.href);
+        try {
+          sessionStorage.setItem('redirectAfterLogin', window.location.href);
+        } catch (e) {
+          console.warn('⚠️ Tracking Prevention bloqué l\'accès à sessionStorage:', e);
+        }
       }
       window.location.href = '/index.html';
       return;

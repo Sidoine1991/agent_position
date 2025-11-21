@@ -414,8 +414,108 @@
       </div>
     </main>
 
+    <script>
+      // DÉSACTIVER LE SERVICE WORKER POUR ÉVITER LE CACHE
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            console.log('🗑️ Désactivation du Service Worker:', registration.scope);
+            registration.unregister();
+          }
+        });
+      }
+
+      // NETTOYER AGRESSIVEMENT TOUS LES MODALS
+      function cleanAllModals() {
+        console.log('🧹 Nettoyage agressif des modals...');
+
+        // Méthode 1: Supprimer par sélecteurs
+        const selectors = [
+          '[id*="modal"]', '[class*="modal"]', '[id*="Modal"]', '[class*="Modal"]',
+          '[style*="position: fixed"]', '[style*="position:fixed"]',
+          '[style*="z-index: 9999"]', '[style*="z-index:9999"]',
+          '[style*="z-index: 10000"]', '[style*="z-index:10000"]'
+        ];
+
+        selectors.forEach(selector => {
+          document.querySelectorAll(selector).forEach(el => {
+            const text = el.textContent || '';
+            if (text.includes('Chargement') || text.includes('Détails') || text.includes('validation')) {
+              console.log('🗑️ Suppression:', text.substring(0, 50));
+              el.remove();
+            }
+          });
+        });
+
+        // Méthode 2: Parcourir tous les éléments
+        document.querySelectorAll('*').forEach(el => {
+          const style = window.getComputedStyle(el);
+          const text = el.textContent || '';
+
+          // Supprimer les éléments fixes avec z-index élevé
+          if (style.position === 'fixed' && parseInt(style.zIndex) > 1000) {
+            if (text.includes('Chargement') || text.includes('Détails') || text.includes('validation')) {
+              console.log('🗑️ Suppression élément fixe:', text.substring(0, 50));
+              el.remove();
+            }
+          }
+
+          // Supprimer les overlays
+          if (style.position === 'fixed' && (style.backgroundColor.includes('rgba') || style.opacity < 1)) {
+            if (text.includes('Chargement') || text.includes('Détails')) {
+              console.log('🗑️ Suppression overlay:', text.substring(0, 50));
+              el.remove();
+            }
+          }
+        });
+
+        console.log('✅ Nettoyage terminé');
+      }
+
+      // Nettoyer immédiatement
+      cleanAllModals();
+
+      // Nettoyer après 100ms
+      setTimeout(cleanAllModals, 100);
+
+      // Nettoyer après 500ms
+      setTimeout(cleanAllModals, 500);
+
+      // Nettoyer après 1s
+      setTimeout(cleanAllModals, 1000);
+
+      // Observer les mutations du DOM pour supprimer les modals qui apparaissent
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === 1) { // Element node
+              const text = node.textContent || '';
+              const style = window.getComputedStyle(node);
+
+              if ((text.includes('Chargement') || text.includes('Détails') || text.includes('validation')) &&
+                  (style.position === 'fixed' || parseInt(style.zIndex) > 1000)) {
+                console.log('🗑️ Modal détecté et supprimé:', text.substring(0, 50));
+                node.remove();
+              }
+            }
+          });
+        });
+      });
+
+      // Observer le body
+      observer.observe(document.body || document.documentElement, {
+        childList: true,
+        subtree: true
+      });
+
+      // Arrêter l'observation après 5 secondes
+      setTimeout(() => {
+        observer.disconnect();
+        console.log('👁️ Observation des modals arrêtée');
+      }, 5000);
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="/reports-backend.js?v=4&t=20250115"></script>
+    <script src="/reports-backend.js?v=6&t=20250121b"></script>
     <script>
       // Vercel Speed Insights
       if (typeof window !== 'undefined') {

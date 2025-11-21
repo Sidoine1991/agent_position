@@ -15,16 +15,17 @@
     "test:all": "node test-runner.js all",
     "test:mobile": "node test-runner.js mobile",
     "test:vercel": "node test-runner.js vercel",
-    "test:ui": "node test-runner.js ui"
+    "test:ui": "node test-runner.js ui",
+    "migrate": "node scripts/run-migrations.js"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
     "@capacitor/core": "^7.4.3",
-    "@supabase/supabase-js": "^2.75.1",
+    "@supabase/supabase-js": "^2.84.0",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
-    "dotenv": "^17.2.2",
+    "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "express-rate-limit": "^7.4.0",
     "helmet": "^7.1.0",

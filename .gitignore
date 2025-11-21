@@ -48,8 +48,26 @@ yarn/
 Thumbs.db
 *.swp
 *.swo
-*~
-~$*
+
+# Fichiers de débogage et de test
+debug_*.js
+check_*.js
+*.test.js
+*.spec.js
+*.backup.*
+*-backup.*
+*backup.*
+*_backup.*
+*-temp.*
+*temp.*
+*_temp.*
+
+# Dossiers de scripts temporaires
+scripts/
+
+# Fichiers temporaires de développement
+web/reports-backend-*.js
+!web/reports-backend.js
 
 # IDE et éditeurs
 .vscode/
