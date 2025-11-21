@@ -8,20 +8,1141 @@
   let currentActivityId = null;
   let isAdmin = false;
   let currentUserId = null;
+  let cachedActivityData = null; // Cache pour les données d'activités
+  
+  // Constantes pour l'authentification (déclarées au début)
+  const DEFAULT_TOKEN_CANDIDATES = ['jwt', 'access_token', 'token', 'sb-access-token', 'sb:token'];
 
   // Initialisation
   document.addEventListener('DOMContentLoaded', () => {
     initializePage();
     setupEventListeners();
+    // Charger automatiquement le suivi des activités au chargement
+    setTimeout(() => {
+      loadActivityFollowUp();
+    }, 1000);
   });
 
+  /**
+   * Recharge les activités du tableau d'évaluation et met à jour le suivi
+   */
+  async function reloadActivitiesAndFollowUp() {
+    try {
+      await loadActivities();
+      displayActivityFollowUp(activities);
+    } catch (error) {
+      console.error('Erreur lors du rechargement:', error);
+    }
+  }
+
+  /**
+   * Charge le tableau de suivi des activités par agent (utilise les mêmes données que le tableau d'évaluation)
+   */
+  async function loadActivityFollowUp() {
+    const tbody = document.getElementById('activity-follow-up-body');
+    
+    if (!tbody) {
+      console.warn('Element activity-follow-up-body not found');
+      return;
+    }
+    
+    // Afficher le chargement
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="9" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Chargement...</span>
+          </div>
+        </td>
+      </tr>
+    `;
+    
+    try {
+      // Utiliser les mêmes données que le tableau d'évaluation
+      // Si les activités ne sont pas encore chargées, les charger d'abord
+      if (activities.length === 0) {
+        await loadActivities();
+      }
+      
+      // Attendre un peu pour s'assurer que les activités sont chargées
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Afficher les données dans le tableau de suivi
+      displayActivityFollowUp(activities);
+      
+    } catch (error) {
+      console.error('Erreur lors du chargement du suivi des activités:', error);
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" class="text-center py-4">
+            <div class="alert alert-danger">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              Erreur lors du chargement: ${escapeHtml(error.message)}
+            </div>
+          </td>
+        </tr>
+      `;
+    }
+  }
+
+  /**
+   * Affiche les données de suivi des activités dans le tableau (utilise les données du tableau d'évaluation)
+   */
+  function displayActivityFollowUp(rawActivities) {
+    const tbody = document.getElementById('activity-follow-up-body');
+    const projectFilter = document.getElementById('activity-project-filter');
+    
+    if (!tbody) return;
+    
+    if (!rawActivities || rawActivities.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" class="text-center py-4">
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              Aucune donnée trouvée pour la période sélectionnée
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+    
+    // Grouper les activités par agent et calculer les statistiques
+    const agentsStats = new Map();
+    
+    rawActivities.forEach(activity => {
+      // Récupérer le nom de l'agent
+      let agentName = 'Agent inconnu';
+      let agentRole = 'agent';
+      let projectName = activity.project_name || 'Non spécifié';
+      
+      // Si l'activité a des informations sur l'agent enrichies
+      if (activity.agent) {
+        agentName = activity.agent.name || `${activity.agent.first_name || ''} ${activity.agent.last_name || ''}`.trim() || activity.agent.email || `Agent ${activity.agent_id}`;
+        agentRole = activity.agent.role || 'agent';
+        projectName = activity.agent.project_name || activity.project_name || 'Non spécifié';
+      } else if (activity.user_id || activity.agent_id) {
+        // Chercher dans la liste des agents chargés
+        const agent = agents.find(a => a.id === (activity.user_id || activity.agent_id));
+        if (agent) {
+          agentName = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
+          agentRole = agent.role || 'agent';
+          projectName = agent.project_name || activity.project_name || 'Non spécifié';
+        }
+      }
+      
+      // Créer une clé unique pour l'agent (nom + projet)
+      const agentKey = `${agentName}|${projectName}`;
+      
+      // Initialiser les stats pour cet agent si nécessaire
+      if (!agentsStats.has(agentKey)) {
+        agentsStats.set(agentKey, {
+          agent_name: agentName,
+          role: agentRole,
+          project_name: projectName,
+          total_activities: 0,
+          realized_activities: 0,
+          not_realized_activities: 0,
+          in_progress_activities: 0,
+          partially_realized_activities: 0,
+          not_realized_list: []
+        });
+      }
+      
+      const stats = agentsStats.get(agentKey);
+      stats.total_activities++;
+      
+      // Compter par statut selon la logique spécifiée
+      const statut = activity.resultat_journee;
+      
+      if (statut === 'realise') {
+        stats.realized_activities++;
+      } else if (statut === 'non_realise') {
+        stats.not_realized_activities++;
+        // Ajouter à la liste des non réalisés
+        stats.not_realized_list.push({
+          name: activity.description_activite || 'Activité non spécifiée',
+          date: activity.date || 'Date non spécifiée',
+          project: activity.project_name || projectName,
+          id: activity.id
+        });
+      } else if (statut === 'en_cours') {
+        stats.in_progress_activities++;
+      } else if (statut === 'partiellement_realise') {
+        stats.partially_realized_activities++;
+      } else {
+        // Si pas de statut ou statut vide/null → automatiquement non réalisé
+        stats.not_realized_activities++;
+        // Ajouter à la liste des non réalisés
+        stats.not_realized_list.push({
+          name: activity.description_activite || 'Activité non spécifiée',
+          date: activity.date || 'Date non spécifiée',
+          project: activity.project_name || projectName,
+          id: activity.id
+        });
+      }
+    });
+    
+    // Extraire les projets uniques pour le filtre
+    const uniqueProjects = [...new Set(Array.from(agentsStats.values()).map(a => a.project_name).filter(p => p))];
+    updateProjectFilter(uniqueProjects);
+    
+    // Filtrer par projet si un filtre est sélectionné
+    let filteredStats = Array.from(agentsStats.values());
+    if (projectFilter && projectFilter.value) {
+      filteredStats = filteredStats.filter(a => a.project_name === projectFilter.value);
+    }
+    
+    if (filteredStats.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" class="text-center py-4">
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              Aucune donnée trouvée pour le projet sélectionné
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+    
+    // Trier par nom d'agent
+    filteredStats.sort((a, b) => a.agent_name.localeCompare(b.agent_name));
+    
+    const rows = filteredStats.map(stats => {
+      // Calculer le taux d'exécution de la planification (TEP)
+      const executionRate = calculateExecutionRate(stats.realized_activities, stats.total_activities);
+      
+      // Déterminer la classe de couleur pour le taux
+      const executionRateClass = executionRate >= 80 ? 'text-success' : executionRate >= 60 ? 'text-warning' : 'text-danger';
+      
+      // Vérification de la cohérence des données
+      const sumCategories = stats.realized_activities + stats.not_realized_activities + stats.in_progress_activities + stats.partially_realized_activities;
+      const isConsistent = sumCategories === stats.total_activities;
+      
+      return `
+        <tr class="${!isConsistent ? 'table-warning' : ''}">
+          <td>
+            <div class="d-flex align-items-center">
+              <div class="avatar-sm bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px; font-size: 12px;">
+                ${(stats.agent_name || 'Agent').charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div class="fw-semibold">${escapeHtml(stats.agent_name || 'N/A')}</div>
+                <small class="text-muted">${escapeHtml(stats.role || 'N/A')}</small>
+                ${!isConsistent ? '<br><small class="text-warning">⚠️ Incohérence</small>' : ''}
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="badge bg-info">${escapeHtml(stats.project_name || 'N/A')}</span>
+          </td>
+          <td class="text-center">
+            <span class="fw-bold text-primary">${stats.total_activities || 0}</span>
+            ${!isConsistent ? `<br><small class="text-warning">Σ=${sumCategories}</small>` : ''}
+          </td>
+          <td class="text-center">
+            <span class="fw-bold text-success">${stats.realized_activities || 0}</span>
+          </td>
+          <td class="text-center">
+            <span class="fw-bold text-danger">${stats.not_realized_activities || 0}</span>
+          </td>
+          <td class="text-center">
+            <span class="fw-bold text-warning">${stats.in_progress_activities || 0}</span>
+          </td>
+          <td class="text-center">
+            <span class="fw-bold text-info">${stats.partially_realized_activities || 0}</span>
+          </td>
+          <td class="text-center">
+            <span class="fw-bold ${executionRateClass}">${executionRate.toFixed(1)}%</span>
+            <div class="progress mt-1" style="height: 4px;">
+              <div class="progress-bar ${executionRate >= 80 ? 'bg-success' : executionRate >= 60 ? 'bg-warning' : 'bg-danger'}" 
+                   style="width: ${executionRate}%"></div>
+            </div>
+          </td>
+          <td>
+            <div class="small">
+              ${stats.not_realized_activities > 0 ? 
+                `<div class="mb-2">
+                  <strong class="text-danger">📋 Activités non réalisées (${stats.not_realized_activities}):</strong>
+                  ${stats.not_realized_list.map(item => 
+                    `<div class="mb-1 ms-2">
+                      <div class="text-danger">• ${escapeHtml(item.name || 'N/A')}</div>
+                      <div class="text-muted ms-2">📅 ${escapeHtml(item.date || 'N/A')} | 🏢 ${escapeHtml(item.project || 'N/A')}</div>
+                    </div>`
+                  ).join('')}
+                </div>` : ''
+              }
+              ${stats.partially_realized_activities > 0 ? 
+                `<div class="text-warning">
+                  <strong>⚠️ ${stats.partially_realized_activities} activité(s) partiellement réalisée(s)</strong>
+                </div>` : ''
+              }
+              ${stats.not_realized_activities === 0 && stats.partially_realized_activities === 0 ? 
+                '<span class="text-success">✅ Toutes activités réalisées</span>' : ''
+              }
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+    
+    tbody.innerHTML = rows;
+    
+    // Ajouter la barre d'outils d'export pour le tableau principal
+    addExportToolbar('activity-follow-up-body', filteredStats.length);
+    
+    // Ajouter le tableau récapitulatif avec classement TEP
+    displayTEPRanking(filteredStats);
+  }
+
+  /**
+   * Ajoute une barre d'outils d'export pour un tableau
+   */
+  function addExportToolbar(tableId, statsCount) {
+    const table = document.querySelector(`#${tableId}`).closest('table');
+    if (!table) return;
+    
+    // Vérifier si la barre d'outils existe déjà
+    const existingToolbar = table.parentNode.querySelector('.export-toolbar');
+    if (existingToolbar) return;
+    
+    // Créer la barre d'outils
+    const toolbar = document.createElement('div');
+    toolbar.className = 'export-toolbar mb-2';
+    toolbar.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="text-muted small">
+          <i class="fas fa-info-circle me-1"></i>
+          Tableau de suivi des activités - ${statsCount || 0} agents affichés
+        </div>
+        <div class="btn-group" role="group">
+          <button type="button" class="btn btn-outline-primary btn-sm" onclick="exportMainTableHTML()" title="Exporter ce tableau en HTML">
+            <i class="fas fa-file-export me-1"></i>Exporter HTML
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="exportAllTablesHTML()" title="Exporter tous les tableaux">
+            <i class="fas fa-file-code me-1"></i>Tout exporter
+          </button>
+        </div>
+      </div>
+    `;
+    
+    // Insérer avant le tableau
+    table.parentNode.insertBefore(toolbar, table);
+  }
+
+  /**
+   * Affiche le tableau récapitulatif avec classement par TEP décroissant
+   */
+  function displayTEPRanking(stats) {
+    // Trier par TEP décroissant
+    const sortedByTEP = [...stats].sort((a, b) => {
+      const tepA = calculateExecutionRate(a.realized_activities, a.total_activities);
+      const tepB = calculateExecutionRate(b.realized_activities, b.total_activities);
+      return tepB - tepA; // Décroissant
+    });
+    
+    // Créer le HTML du tableau récapitulatif
+    const rankingHTML = `
+      <div class="card mt-5 border-0 shadow-lg">
+        <div class="card-header bg-dark text-white">
+          <div class="row align-items-center">
+            <div class="col-md-8">
+              <h5 class="mb-0">
+                <i class="fas fa-trophy me-2 text-warning"></i>Classement des agents par Taux d'Exécution de la Planification (TEP)
+              </h5>
+            </div>
+            <div class="col-md-4 text-end">
+              <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-light btn-sm" onclick="exportTEPRankingHTML()" title="Exporter ce tableau">
+                  <i class="fas fa-file-export me-1"></i>HTML
+                </button>
+                <button type="button" class="btn btn-outline-light btn-sm" onclick="exportAllTablesHTML()" title="Exporter tous les tableaux">
+                  <i class="fas fa-file-code me-1"></i>Tout
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <!-- Filtre par projet pour le classement -->
+          <div class="p-3 bg-light border-bottom">
+            <div class="row align-items-center">
+              <div class="col-md-4">
+                <label for="ranking-project-filter" class="form-label fw-semibold mb-1">
+                  <i class="fas fa-filter me-1"></i>Filtrer par projet
+                </label>
+                <select id="ranking-project-filter" class="form-select form-select-sm">
+                  <option value="">Tous les projets</option>
+                  ${[...new Set(stats.map(s => s.project_name))].filter(p => p).map(project => 
+                    `<option value="${escapeHtml(project)}">${escapeHtml(project)}</option>`
+                  ).join('')}
+                </select>
+              </div>
+              <div class="col-md-8">
+                <div class="d-flex align-items-center justify-content-end h-100">
+                  <small class="text-muted me-3">
+                    <i class="fas fa-info-circle me-1"></i>
+                    TEP = (Activités entièrement réalisées / Total planifié) × 100
+                  </small>
+                  <span id="ranking-count" class="badge bg-primary">
+                    ${stats.length} agents
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-dark">
+                <tr>
+                  <th class="text-center" style="width: 60px;">#</th>
+                  <th>Agent</th>
+                  <th class="text-center">Rôle</th>
+                  <th class="text-center">Projet</th>
+                  <th class="text-center">Total planifié</th>
+                  <th class="text-center">Entièrement réalisé</th>
+                  <th class="text-center">TEP (%)</th>
+                  <th class="text-center">Performance</th>
+                </tr>
+              </thead>
+              <tbody id="ranking-tbody">
+                ${sortedByTEP.map((stats, index) => {
+                  const tep = calculateExecutionRate(stats.realized_activities, stats.total_activities);
+                  const rank = index + 1;
+                  const rankClass = rank <= 3 ? 'text-warning fw-bold' : '';
+                  const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+                  
+                  // Déterminer la performance
+                  let performanceBadge = '';
+                  let performanceClass = '';
+                  if (tep >= 90) {
+                    performanceBadge = '<span class="badge bg-success">Excellent</span>';
+                    performanceClass = 'table-success';
+                  } else if (tep >= 75) {
+                    performanceBadge = '<span class="badge bg-info">Bon</span>';
+                    performanceClass = 'table-info';
+                  } else if (tep >= 60) {
+                    performanceBadge = '<span class="badge bg-warning">Moyen</span>';
+                    performanceClass = 'table-warning';
+                  } else if (tep >= 40) {
+                    performanceBadge = '<span class="badge bg-danger">Faible</span>';
+                    performanceClass = 'table-danger';
+                  } else {
+                    performanceBadge = '<span class="badge bg-secondary">Très faible</span>';
+                    performanceClass = 'table-secondary';
+                  }
+                  
+                  return `
+                    <tr class="${performanceClass}" data-project="${escapeHtml(stats.project_name)}">
+                      <td class="text-center">
+                        <span class="${rankClass}">${rankIcon} ${rank}</span>
+                      </td>
+                      <td>
+                        <div class="d-flex align-items-center">
+                          <div class="avatar-sm bg-dark text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 28px; height: 28px; font-size: 10px;">
+                            ${(stats.agent_name || 'A').charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div class="fw-semibold">${escapeHtml(stats.agent_name || 'N/A')}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="text-center">
+                        <small class="badge bg-dark">${escapeHtml(stats.role || 'N/A')}</small>
+                      </td>
+                      <td class="text-center">
+                        <small class="badge bg-secondary">${escapeHtml(stats.project_name || 'N/A')}</small>
+                      </td>
+                      <td class="text-center">
+                        <span class="fw-bold text-primary">${stats.total_activities || 0}</span>
+                      </td>
+                      <td class="text-center">
+                        <span class="fw-bold text-success">${stats.realized_activities || 0}</span>
+                      </td>
+                      <td class="text-center">
+                        <span class="fw-bold ${tep >= 80 ? 'text-success' : tep >= 60 ? 'text-warning' : 'text-danger'}">${tep.toFixed(1)}%</span>
+                        <div class="progress mt-1" style="height: 3px;">
+                          <div class="progress-bar ${tep >= 80 ? 'bg-success' : tep >= 60 ? 'bg-warning' : 'bg-danger'}" 
+                               style="width: ${tep}%"></div>
+                        </div>
+                      </td>
+                      <td class="text-center">
+                        ${performanceBadge}
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-footer bg-dark text-white py-2">
+          <small class="mb-0">
+            <i class="fas fa-chart-line me-1"></i>
+            Classement automatique par performance décroissante | 
+            <span id="ranking-summary">${stats.length} agents classés</span>
+          </small>
+        </div>
+      </div>
+    `;
+    
+    // Ajouter le tableau après le tableau principal
+    const mainTable = document.querySelector('#activity-follow-up-body').closest('table');
+    if (mainTable) {
+      // Supprimer l'ancien tableau s'il existe
+      const existingRanking = document.getElementById('tep-ranking-table');
+      if (existingRanking) {
+        existingRanking.remove();
+      }
+      
+      // Créer un conteneur pour le tableau
+      const rankingContainer = document.createElement('div');
+      rankingContainer.id = 'tep-ranking-table';
+      rankingContainer.innerHTML = rankingHTML;
+      
+      // Insérer après le tableau principal
+      mainTable.parentNode.insertBefore(rankingContainer, mainTable.nextSibling);
+      
+      // Ajouter l'événement de filtrage pour le classement
+      const rankingFilter = document.getElementById('ranking-project-filter');
+      if (rankingFilter) {
+        rankingFilter.addEventListener('change', () => {
+          filterRankingTable(stats);
+        });
+      }
+    }
+  }
+
+  /**
+   * Filtre le tableau de classement par projet
+   */
+  function filterRankingTable(allStats) {
+    const filter = document.getElementById('ranking-project-filter');
+    const tbody = document.getElementById('ranking-tbody');
+    const countBadge = document.getElementById('ranking-count');
+    const summarySpan = document.getElementById('ranking-summary');
+    
+    if (!filter || !tbody) return;
+    
+    const selectedProject = filter.value;
+    
+    // Filtrer les stats
+    const filteredStats = selectedProject ? 
+      allStats.filter(s => s.project_name === selectedProject) : 
+      allStats;
+    
+    // Retrier par TEP décroissant
+    const sortedStats = [...filteredStats].sort((a, b) => {
+      const tepA = calculateExecutionRate(a.realized_activities, a.total_activities);
+      const tepB = calculateExecutionRate(b.realized_activities, b.total_activities);
+      return tepB - tepA;
+    });
+    
+    // Regénérer le tbody
+    tbody.innerHTML = sortedStats.map((stats, index) => {
+      const tep = calculateExecutionRate(stats.realized_activities, stats.total_activities);
+      const rank = index + 1;
+      const rankClass = rank <= 3 ? 'text-warning fw-bold' : '';
+      const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+      
+      // Déterminer la performance
+      let performanceBadge = '';
+      let performanceClass = '';
+      if (tep >= 90) {
+        performanceBadge = '<span class="badge bg-success">Excellent</span>';
+        performanceClass = 'table-success';
+      } else if (tep >= 75) {
+        performanceBadge = '<span class="badge bg-info">Bon</span>';
+        performanceClass = 'table-info';
+      } else if (tep >= 60) {
+        performanceBadge = '<span class="badge bg-warning">Moyen</span>';
+        performanceClass = 'table-warning';
+      } else if (tep >= 40) {
+        performanceBadge = '<span class="badge bg-danger">Faible</span>';
+        performanceClass = 'table-danger';
+      } else {
+        performanceBadge = '<span class="badge bg-secondary">Très faible</span>';
+        performanceClass = 'table-secondary';
+      }
+      
+      return `
+        <tr class="${performanceClass}" data-project="${escapeHtml(stats.project_name)}">
+          <td class="text-center">
+            <span class="${rankClass}">${rankIcon} ${rank}</span>
+          </td>
+          <td>
+            <div class="d-flex align-items-center">
+              <div class="avatar-sm bg-dark text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 28px; height: 28px; font-size: 10px;">
+                ${(stats.agent_name || 'A').charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div class="fw-semibold">${escapeHtml(stats.agent_name || 'N/A')}</div>
+              </div>
+            </div>
+          </td>
+          <td class="text-center">
+            <small class="badge bg-dark">${escapeHtml(stats.role || 'N/A')}</small>
+          </td>
+          <td class="text-center">
+            <small class="badge bg-secondary">${escapeHtml(stats.project_name || 'N/A')}</small>
+          </td>
+          <td class="text-center">
+            <span class="fw-bold text-primary">${stats.total_activities || 0}</span>
+          </td>
+          <td class="text-center">
+            <span class="fw-bold text-success">${stats.realized_activities || 0}</span>
+          </td>
+          <td class="text-center">
+            <span class="fw-bold ${tep >= 80 ? 'text-success' : tep >= 60 ? 'text-warning' : 'text-danger'}">${tep.toFixed(1)}%</span>
+            <div class="progress mt-1" style="height: 3px;">
+              <div class="progress-bar ${tep >= 80 ? 'bg-success' : tep >= 60 ? 'bg-warning' : 'bg-danger'}" 
+                   style="width: ${tep}%"></div>
+            </div>
+          </td>
+          <td class="text-center">
+            ${performanceBadge}
+          </td>
+        </tr>
+      `;
+    }).join('');
+    
+    // Mettre à jour les compteurs
+    if (countBadge) {
+      countBadge.textContent = `${sortedStats.length} agents`;
+    }
+    if (summarySpan) {
+      summarySpan.textContent = `${sortedStats.length} agents classés${selectedProject ? ` (projet: ${selectedProject})` : ''}`;
+    }
+  }
+
+  /**
+   * Exporte un tableau en HTML avec bonne résolution
+   */
+  function exportTableToHTML(tableElementOrSelector, title, filename) {
+    try {
+      console.log('Début export HTML pour:', title);
+      
+      let table;
+      if (typeof tableElementOrSelector === 'string') {
+        table = document.querySelector(tableElementOrSelector);
+      } else {
+        table = tableElementOrSelector;
+      }
+      
+      if (!table) {
+        console.error('Tableau non trouvé:', tableElementOrSelector);
+        showErrorMessage('Tableau non trouvé');
+        return;
+      }
+      
+      console.log('Tableau trouvé, génération du HTML...');
+      
+      // Créer le contenu HTML
+      const htmlContent = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @media print {
+            body { margin: 0.5cm; }
+            .no-print { display: none !important; }
+            .table { font-size: 12px; }
+            .badge { font-size: 10px; }
+        }
+        @media screen {
+            .container { max-width: 1400px; margin: 20px auto; }
+            .table-responsive { max-height: 80vh; overflow-y: auto; }
+        }
+        .table th { background-color: #343a40; color: white; font-weight: bold; }
+        .table td { vertical-align: middle; }
+        .avatar-sm { width: 32px; height: 32px; font-size: 12px; }
+        .progress { height: 4px; }
+        .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header-title { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            padding: 20px; 
+            margin-bottom: 20px; 
+            border-radius: 8px;
+            text-align: center;
+        }
+        .footer-info { 
+            background-color: #f8f9fa; 
+            padding: 15px; 
+            margin-top: 20px; 
+            border-radius: 8px;
+            font-size: 11px;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-title">
+            <h1><i class="fas fa-chart-line me-2"></i>${title}</h1>
+            <p class="mb-0">Généré le ${new Date().toLocaleDateString('fr-FR', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            })}</p>
+        </div>
+        
+        ${generateTableHTML(table, title)}
+        
+        <div class="footer-info">
+            <div class="row">
+                <div class="col-md-6">
+                    <i class="fas fa-info-circle me-1"></i>
+                    <strong>Source:</strong> Système de Suivi des Activités CCRB
+                </div>
+                <div class="col-md-6 text-end">
+                    <i class="fas fa-calendar me-1"></i>
+                    Période: ${getCurrentPeriod()}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Auto-print option
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('print') === 'true') {
+            window.onload = function() {
+                setTimeout(() => window.print(), 500);
+            };
+        }
+    </script>
+</body>
+</html>`;
+      
+      console.log('HTML généré, création du blob...');
+      
+      // Créer un blob et télécharger
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      console.log('Export HTML réussi:', filename);
+      showSuccessMessage(`Tableau "${title}" exporté avec succès`);
+    } catch (error) {
+      console.error('Erreur export HTML:', error);
+      showErrorMessage('Erreur lors de l\'export HTML: ' + error.message);
+    }
+  }
+
+  /**
+   * Génère le HTML du tableau pour l'export
+   */
+  function generateTableHTML(tableElement, title) {
+    try {
+      console.log('Génération HTML du tableau:', title);
+      
+      let tableHTML = '';
+      
+      // Cloner le tableau pour le manipuler
+      const clonedTable = tableElement.cloneNode(true);
+      
+      // Nettoyer et optimiser le tableau pour l'export
+      const rows = clonedTable.querySelectorAll('tr');
+      console.log('Nombre de lignes trouvées:', rows.length);
+      
+      rows.forEach(row => {
+        // Supprimer les classes inutiles et les attributs d'événements
+        row.removeAttribute('onclick');
+        row.removeAttribute('onchange');
+        
+        // Nettoyer les cellules
+        const cells = row.querySelectorAll('td, th');
+        cells.forEach(cell => {
+          // Supprimer les boutons et inputs
+          const buttons = cell.querySelectorAll('button, input, select');
+          buttons.forEach(btn => btn.remove());
+          
+          // Garder le texte important
+          if (cell.textContent.trim() === '') {
+            cell.innerHTML = '-';
+          }
+        });
+      });
+      
+      // Créer la carte contenant le tableau
+      tableHTML = `
+      <div class="card">
+        <div class="card-header bg-dark text-white">
+          <h5 class="mb-0">${title}</h5>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            ${clonedTable.outerHTML}
+          </div>
+        </div>
+      </div>
+    `;
+      
+      console.log('HTML du tableau généré avec succès');
+      return tableHTML;
+    } catch (error) {
+      console.error('Erreur dans generateTableHTML:', error);
+      return `
+      <div class="alert alert-danger">
+        <h5>Erreur lors de la génération du tableau</h5>
+        <p>Impossible de générer le HTML pour le tableau "${title}"</p>
+        <p><strong>Erreur:</strong> ${error.message}</p>
+      </div>
+    `;
+    }
+  }
+
+  /**
+   * Obtient la période actuelle pour l'export
+   */
+  function getCurrentPeriod() {
+    try {
+      const monthSelect = document.getElementById('month-select');
+      const yearSelect = document.getElementById('activity-year-selector');
+      
+      if (monthSelect && yearSelect) {
+        const month = monthSelect.value;
+        const year = yearSelect.value;
+        if (month && year) {
+          const date = new Date(year, month - 1);
+          return date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        }
+      }
+      
+      return new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    } catch (error) {
+      console.error('Erreur dans getCurrentPeriod:', error);
+      return 'Période inconnue';
+    }
+  }
+
+  /**
+   * Exporte le tableau principal de suivi des activités
+   */
+  function exportMainTableHTML() {
+    // Trouver le tableau contenant activity-follow-up-body
+    const followUpTable = document.querySelector('#activity-follow-up-body').closest('table');
+    if (!followUpTable) {
+      console.error('Tableau de suivi non trouvé');
+      showErrorMessage('Tableau de suivi non trouvé');
+      return;
+    }
+    
+    exportTableToHTML(
+      followUpTable,
+      'Tableau de Suivi des Activités - Détail par Agent',
+      `suivi-activites-detail-${new Date().toISOString().split('T')[0]}.html`
+    );
+  }
+
+  /**
+   * Exporte le tableau récapitulatif TEP
+   */
+  function exportTEPRankingHTML() {
+    const rankingTable = document.getElementById('tep-ranking-table');
+    if (!rankingTable) {
+      showErrorMessage('Tableau de classement TEP non trouvé');
+      return;
+    }
+    
+    // Créer un HTML spécial pour le classement TEP
+    const rankingContent = rankingTable.querySelector('table');
+    exportTableToHTML(
+      rankingContent,
+      'Classement des Agents par Taux d\'Exécution de la Planification (TEP)',
+      `classement-tep-${new Date().toISOString().split('T')[0]}.html`
+    );
+  }
+
+  /**
+   * Exporte tous les tableaux dans un seul fichier HTML
+   */
+  function exportAllTablesHTML() {
+    try {
+      const mainTable = document.querySelector('#activities-table');
+      const rankingTable = document.getElementById('tep-ranking-table');
+      
+      if (!mainTable && !rankingTable) {
+        showErrorMessage('Aucun tableau à exporter');
+        return;
+      }
+      
+      let allTablesHTML = '';
+      
+      // Ajouter le tableau principal
+      if (mainTable) {
+        allTablesHTML += generateTableHTML(mainTable, 'Tableau de Suivi des Activités - Détail par Agent');
+      }
+      
+      // Ajouter le tableau de classement TEP
+      if (rankingTable) {
+        allTablesHTML += generateTableHTML(rankingTable.querySelector('table'), 'Classement des Agents par TEP');
+      }
+      
+      // Créer le HTML complet
+      const htmlContent = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport Complet de Suivi des Activités</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @media print {
+            body { margin: 0.5cm; }
+            .no-print { display: none !important; }
+            .table { font-size: 11px; page-break-inside: avoid; }
+            .card { page-break-inside: avoid; margin-bottom: 20px; }
+            .badge { font-size: 9px; }
+        }
+        @media screen {
+            .container { max-width: 1400px; margin: 20px auto; }
+        }
+        .table th { background-color: #343a40; color: white; font-weight: bold; }
+        .table td { vertical-align: middle; }
+        .avatar-sm { width: 28px; height: 28px; font-size: 10px; }
+        .progress { height: 3px; }
+        .card { margin-bottom: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header-title { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            padding: 30px; 
+            margin-bottom: 30px; 
+            border-radius: 8px;
+            text-align: center;
+        }
+        .section-title {
+            background-color: #343a40;
+            color: white;
+            padding: 15px 20px;
+            margin: 30px 0 20px 0;
+            border-radius: 8px;
+        }
+        .footer-info { 
+            background-color: #f8f9fa; 
+            padding: 20px; 
+            margin-top: 30px; 
+            border-radius: 8px;
+            font-size: 11px;
+            color: #6c757d;
+        }
+        .page-break {
+            page-break-before: always;
+            height: 1px;
+            margin: 0;
+            padding: 0;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-title">
+            <h1><i class="fas fa-chart-line me-2"></i>Rapport Complet de Suivi des Activités</h1>
+            <p class="mb-0">CCRB - Système de Suivi des Activités</p>
+            <p class="mb-0">Généré le ${new Date().toLocaleDateString('fr-FR', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            })}</p>
+        </div>
+        
+        ${allTablesHTML}
+        
+        <div class="footer-info">
+            <div class="row">
+                <div class="col-md-4">
+                    <i class="fas fa-info-circle me-1"></i>
+                    <strong>Source:</strong> Système de Suivi CCRB
+                </div>
+                <div class="col-md-4 text-center">
+                    <i class="fas fa-calendar me-1"></i>
+                    Période: ${getCurrentPeriod()}
+                </div>
+                <div class="col-md-4 text-end">
+                    <i class="fas fa-user me-1"></i>
+                    Exporté par: ${document.getElementById('user-display-name')?.textContent || 'Utilisateur'}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Auto-print option
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('print') === 'true') {
+            window.onload = function() {
+                setTimeout(() => window.print(), 500);
+            };
+        }
+    </script>
+</body>
+</html>`;
+      
+      // Créer un blob et télécharger
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `rapport-complet-suivi-activites-${new Date().toISOString().split('T')[0]}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      showSuccessMessage('Rapport complet exporté avec succès');
+    } catch (error) {
+      console.error('Erreur export complet:', error);
+      showErrorMessage('Erreur lors de l\'export du rapport complet');
+    }
+  }
+
+  /**
+   * Formate la liste des activités non réalisées
+   */
+  function formatActivityList(activities) {
+    if (!activities || activities.length === 0) {
+      return '<span class="text-muted">Aucune</span>';
+    }
+    
+    const maxItems = 3; // Limiter l'affichage à 3 éléments
+    const displayItems = activities.slice(0, maxItems);
+    const remainingCount = activities.length - maxItems;
+    
+    const listHtml = displayItems.map(activity => {
+      const activityName = activity.name || activity.title || activity.description || activity.description_activite || 'Activité sans nom';
+      const activityDate = activity.date ? ` (${formatShortDate(activity.date)})` : '';
+      return `<div class="small">• ${escapeHtml(activityName)}${activityDate}</div>`;
+    }).join('');
+    
+    if (remainingCount > 0) {
+      return `
+        ${listHtml}
+        <div class="small text-muted">... et ${remainingCount} autre(s) activité(s)</div>
+      `;
+    }
+    
+    return listHtml;
+  }
+
+  /**
+   * Formate une date courte
+   */
+  function formatShortDate(dateStr) {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  /**
+   * Échappe le HTML pour éviter les injections XSS
+   */
+  function escapeHtml(unsafe) {
+    if (typeof unsafe !== 'string') return '';
+    return unsafe
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  // Rendre les fonctions globales pour pouvoir les appeler depuis le HTML
+  window.loadActivityFollowUp = loadActivityFollowUp;
+  window.reloadActivitiesAndFollowUp = reloadActivitiesAndFollowUp;
+  window.displayActivityFollowUp = displayActivityFollowUp;
+  window.calculateExecutionRate = calculateExecutionRate;
+  window.formatActivityList = formatActivityList;
+  window.formatShortDate = formatShortDate;
+  window.escapeHtml = escapeHtml;
+  window.exportMainTableHTML = exportMainTableHTML;
+  window.exportTEPRankingHTML = exportTEPRankingHTML;
+  window.exportAllTablesHTML = exportAllTablesHTML;
+  window.showSuccessMessage = showSuccessMessage;
+  window.showErrorMessage = showErrorMessage;
+  window.findToken = findToken;
+  window.checkTodayPlanification = checkTodayPlanification;
+  window.updatePresenceButtons = updatePresenceButtons;
+  window.handlePresenceError = handlePresenceError;
+
   function initializePage() {
+    // Vérifier si on est en mode reconnexion
+    const isReauth = window.location.search.includes('reauth=true');
+    
+    // Débogage: afficher tous les tokens trouvés
+    console.log('=== DÉBOGAGE AUTHENTIFICATION ===');
+    console.log('localStorage keys:', Object.keys(localStorage));
+    console.log('sessionStorage keys:', Object.keys(sessionStorage));
+    
+    // Vérifier la planification du jour et mettre à jour les boutons
+    updatePresenceButtons();
+    
+    // Continuer l'initialisation
+    loadCurrentUser();
+    loadProjects();
+    loadAgents();
+    loadSupervisors();
+    setupEventListeners();
+    
+    // Charger automatiquement le suivi des activités au chargement
+    setTimeout(() => {
+      loadActivityFollowUp();
+    }, 1000);
+    
     // Vérifier l'authentification d'abord
     const token = findToken();
+    console.log('Token trouvé:', token ? 'OUI' : 'NON');
+    if (token) {
+      console.log('Token length:', token.length);
+      console.log('Token parts:', token.split('.').length);
+      console.log('Token preview:', token.substring(0, 50) + '...');
+    }
+    
     if (!token) {
+      console.warn('Aucun token trouvé - affichage du message d\'authentification');
+      // Afficher le message d'erreur au lieu de rediriger immédiatement
       showAuthError();
       return;
     }
+    
+    if (isReauth) {
+      console.log('Mode reconnexion: token trouvé, nettoyage de l\'URL...');
+      // Nettoyer l'URL pour enlever le paramètre reauth
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+      // Afficher un message de bienvenue
+      showSuccessMessage('Reconnexion réussie ! Vous pouvez continuer à utiliser l\'application.');
+    }
+    
+    console.log('Token trouvé, initialisation de la page...');
     
     // Définir la date d'aujourd'hui par défaut
     const dateInput = document.getElementById('date-select');
@@ -45,6 +1166,32 @@
       monthSelect.value = monthValue;
       monthSelect.addEventListener('change', () => {
         loadActivities();
+      });
+    }
+
+    // Activity follow-up month selector (utilise le même sélecteur que le tableau d'évaluation)
+    const activityMonthSelector = document.getElementById('activity-month-selector');
+    if (activityMonthSelector) {
+      // Initialiser au mois courant
+      activityMonthSelector.value = new Date().getMonth() + 1;
+      activityMonthSelector.addEventListener('change', () => {
+        // Recharger les activités du tableau d'évaluation, puis mettre à jour le suivi
+        loadActivities().then(() => {
+          displayActivityFollowUp(activities);
+        });
+      });
+    }
+
+    // Activity follow-up year selector (utilise le même sélecteur que le tableau d'évaluation)
+    const activityYearSelector = document.getElementById('activity-year-selector');
+    if (activityYearSelector) {
+      // Initialiser à l'année courante
+      activityYearSelector.value = new Date().getFullYear();
+      activityYearSelector.addEventListener('change', () => {
+        // Recharger les activités du tableau d'évaluation, puis mettre à jour le suivi
+        loadActivities().then(() => {
+          displayActivityFollowUp(activities);
+        });
       });
     }
 
@@ -159,6 +1306,11 @@
         
         // Charger les activités
         loadActivities();
+      } else if (res.status === 401) {
+        console.warn('Token expiré lors du chargement du profil');
+        // Afficher un message d'erreur au lieu de rediriger immédiatement
+        showAuthError();
+        return;
       } else {
         throw new Error('Erreur lors du chargement du profil');
       }
@@ -180,73 +1332,60 @@
           const payload = await res.json();
           const list = payload?.data || payload?.agents || payload?.items || [];
           if (Array.isArray(list) && list.length) {
-            agents = list.filter(u => String(u.role || '').trim().toLowerCase() === 'agent');
+            // Charger TOUS les utilisateurs (agents ET superviseurs)
+            agents = list; // Ne pas filtrer par rôle
             loaded = true;
+            console.log(`Chargé ${agents.length} utilisateurs (agents + superviseurs)`);
           }
         }
-      } catch {}
-
-      // 2) Fallback endpoint générique utilisateurs
+      } catch (e) {
+        console.warn('Endpoint admin/agents non accessible:', e.message);
+      }
+      // 2) Endpoint public avec rôle
       if (!loaded) {
         try {
-          const res2 = await fetch(`${apiBase}/users`, { headers });
-          if (res2.ok) {
-            const data = await res2.json();
-            const list = data?.items || data?.users || data?.data || [];
+          const res = await fetch(`${apiBase}/agents`, { headers });
+          if (res.ok) {
+            const payload = await res.json();
+            const list = payload?.data || payload?.agents || payload?.items || [];
             if (Array.isArray(list) && list.length) {
-              agents = list.filter(u => String(u.role || '').trim().toLowerCase() === 'agent');
+              // Charger TOUS les utilisateurs (agents ET superviseurs)
+              agents = list; // Ne pas filtrer par rôle
               loaded = true;
+              console.log(`Chargé ${agents.length} utilisateurs via endpoint public`);
             }
           }
-        } catch {}
+        } catch (e) {
+          console.warn('Endpoint agents non accessible:', e.message);
+        }
       }
-
-      // 3) Fallback: si profil courant est agent, limiter au compte courant
+      // 3) Endpoint users en fallback
       if (!loaded) {
         try {
-          if (currentUser && String(currentUser.role || '').toLowerCase() === 'agent') {
-            agents = [{ id: currentUser.id, first_name: currentUser.first_name, last_name: currentUser.last_name, email: currentUser.email, role: 'agent' }];
-            loaded = true;
+          const res = await fetch(`${apiBase}/users`, { headers });
+          if (res.ok) {
+            const payload = await res.json();
+            const list = payload?.data || payload?.users || payload?.items || [];
+            if (Array.isArray(list) && list.length) {
+              // Charger TOUS les utilisateurs (agents ET superviseurs)
+              agents = list; // Ne pas filtrer par rôle
+              loaded = true;
+              console.log(`Chargé ${agents.length} utilisateurs via endpoint users`);
+            }
           }
-        } catch {}
+        } catch (e) {
+          console.warn('Endpoint users non accessible:', e.message);
+        }
       }
-
-      if (!Array.isArray(agents)) agents = [];
-      populateAgentSelect();
-      // Charger la liste des superviseurs pour le filtre (admins)
-      if (isAdmin) {
-        populateSupervisorFilter();
+      if (!loaded) {
+        console.warn('Aucun endpoint de chargement des utilisateurs n\'a répondu');
+        agents = [];
       }
+      console.log('Utilisateurs chargés:', agents.length);
     } catch (error) {
-      console.error('Erreur chargement agents:', error);
+      console.error('Erreur lors du chargement des agents:', error);
+      agents = [];
     }
-  }
-
-  // Peupler le sélecteur d'agents
-  function populateAgentSelect() {
-    const agentSelect = document.getElementById('agent-select');
-    agentSelect.innerHTML = '';
-    
-    // Ajouter l'option par défaut
-    const defaultOption = document.createElement('option');
-    defaultOption.value = '';
-    defaultOption.textContent = 'Sélectionner un agent';
-    agentSelect.appendChild(defaultOption);
-    
-    // Ajouter les agents
-    agents.forEach(agent => {
-      const option = document.createElement('option');
-      option.value = agent.id;
-      // Extraire le prénom et le nom de la colonne 'name' s'il existe
-      const fullName = agent.name || '';
-      // Utiliser le nom complet si disponible, sinon utiliser l'email
-      option.textContent = fullName.trim() || agent.email;
-      option.dataset.email = agent.email;
-      agentSelect.appendChild(option);
-    });
-    
-    // Mettre à jour le titre lors du changement de sélection
-    agentSelect.addEventListener('change', updateAgentTitle);
   }
 
   // Remplir le filtre des superviseurs (admins uniquement)
@@ -489,9 +1628,9 @@
       const supervisorFilterValue = (document.getElementById('supervisor-filter') || {}).value || '';
       
       // Toujours filtrer par l'agent sélectionné si un agent est sélectionné
-      if (selectedAgentId) {
+      if (selectedAgentId && selectedAgentId !== 'null' && selectedAgentId !== '') {
         url += `&agent_id=${selectedAgentId}`;
-      } else if (!isAdmin) {
+      } else if (!isAdmin && currentUserId) {
         // Pour les agents non-admin, filtrer par leur propre ID si aucun agent n'est sélectionné
         url += `&agent_id=${currentUserId}`;
       }
@@ -504,6 +1643,8 @@
       const res = await fetch(url, { headers });
       
       if (res.status === 401) {
+        console.warn('Token expiré ou invalide lors du chargement des activités');
+        // Afficher un message d'erreur au lieu de rediriger immédiatement
         showAuthError();
         return;
       }
@@ -542,6 +1683,9 @@
           updateStatistics();
           updateFilterIndicator();
         }
+        
+        // Mettre à jour automatiquement le tableau de suivi des activités
+        displayActivityFollowUp(activities);
       } else {
         throw new Error('Erreur lors du chargement des activités');
       }
@@ -987,39 +2131,160 @@
   }
 
   function showAuthError() {
-    const tbody = document.getElementById('activities-tbody');
-    if (tbody) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="8" class="text-center py-4">
-            <div class="alert alert-warning mb-0">
-        <h6>Session requise</h6>
-              <p class="mb-2">Veuillez vous connecter pour accéder au suivi d'activité.</p>
-              <a href="/index.html" class="btn btn-primary btn-sm">Se connecter</a>
+    // Afficher un message d'erreur au lieu de rediriger immédiatement
+    console.error('Erreur d\'authentification - token non trouvé ou invalide');
+    
+    // Afficher un message dans la page
+    const activitiesTbody = document.getElementById('activities-tbody');
+    const followUpTbody = document.getElementById('activity-follow-up-body');
+    
+    const errorMessage = `
+      <div class="alert alert-warning">
+        <h6>⚠️ Problème d'authentification</h6>
+        <p class="mb-2">Votre session semble expirée. Veuillez vous reconnecter.</p>
+        <div class="d-flex gap-2">
+          <a href="/index.html" class="btn btn-primary btn-sm">Se reconnecter</a>
+          <button class="btn btn-secondary btn-sm" onclick="location.reload()">Réessayer</button>
+        </div>
       </div>
-          </td>
-        </tr>
     `;
+    
+    if (activitiesTbody) {
+      activitiesTbody.innerHTML = `<tr><td colspan="8" class="p-3">${errorMessage}</td></tr>`;
+    }
+    
+    if (followUpTbody) {
+      followUpTbody.innerHTML = `<tr><td colspan="9" class="p-3">${errorMessage}</td></tr>`;
+    }
+    
+    // Ne plus rediriger automatiquement - laisser l'utilisateur choisir
+  }
+
+  /**
+   * Vérifie si l'agent a une planification pour aujourd'hui
+   */
+  async function checkTodayPlanification() {
+    try {
+      const response = await fetch('/api/planifications/today/check', {
+        headers: {
+          'Authorization': `Bearer ${findToken()}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.has_planification;
+      } else {
+        console.error('Erreur vérification planification:', response.status);
+        return false;
+      }
+    } catch (error) {
+      console.error('Erreur vérification planification:', error);
+      return false;
     }
   }
 
-  // Fonctions d'authentification (reprises de planning.js)
-  function findToken() {
-    const candidates = ['jwt','access_token','token','sb-access-token','sb:token'];
-    for (const k of candidates) {
-      const v = (localStorage.getItem(k) || '').trim();
-      if (v && v.split('.').length >= 3) return v;
+  /**
+   * Intercepte les erreurs de présence et affiche des messages conviviaux
+   */
+  function handlePresenceError(error, action) {
+    if (error.code === 'NO_PLANIFICATION_FOUND') {
+      showErrorMessage(`
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          <strong>Impossible de ${action} votre présence</strong><br>
+          <small>Vous n'avez pas de planification enregistrée pour aujourd'hui.</small><br>
+          <small>Veuillez d'abord <a href="/planning.html" class="alert-link">remplir votre planification quotidienne</a> avant de pouvoir marquer votre présence.</small>
+        </div>
+      `);
+    } else {
+      showErrorMessage(`Erreur lors de ${action} la présence: ${error.message || 'Erreur inconnue'}`);
     }
-    if (typeof window !== 'undefined' && typeof (window).jwt === 'string' && (window).jwt.split('.').length >= 3) {
-      return (window).jwt;
+  }
+
+  /**
+   * Affiche/masque les boutons de présence selon la planification
+   */
+  async function updatePresenceButtons() {
+    const hasPlanification = await checkTodayPlanification();
+    
+    // Sélectionner tous les boutons de présence
+    const presenceButtons = document.querySelectorAll('.presence-start-btn, .presence-end-btn, .checkin-btn');
+    
+    presenceButtons.forEach(button => {
+      if (hasPlanification) {
+        // Afficher le bouton si planification existe
+        button.style.display = '';
+        button.disabled = false;
+        
+        // Ajouter une indication positive
+        if (!button.querySelector('.planification-indicator')) {
+          const indicator = document.createElement('span');
+          indicator.className = 'planification-indicator badge bg-success ms-2';
+          indicator.style.fontSize = '0.7em';
+          indicator.textContent = '✓ Planifié';
+          button.appendChild(indicator);
+        }
+      } else {
+        // Masquer ou désactiver le bouton si pas de planification
+        button.style.display = 'none';
+        button.disabled = true;
+        
+        // Afficher un message d'information
+        const parent = button.parentNode;
+        if (parent && !parent.querySelector('.no-planification-message')) {
+          const message = document.createElement('div');
+          message.className = 'no-planification-message alert alert-warning mt-2';
+          message.innerHTML = `
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Pas de planification aujourd'hui</strong><br>
+            <small>Veuillez d'abord enregistrer votre planification quotidienne pour pouvoir marquer votre présence.</small>
+          `;
+          parent.appendChild(message);
+        }
+      }
+    });
+    
+    console.log(`Planification aujourd'hui: ${hasPlanification ? 'Oui' : 'Non'}`);
+  }
+
+  /**
+   * Calcule le taux d'exécution de la planification (TEP)
+   * TEP = (nombre d'activités entièrement réalisées / nombre total planifié) * 100
+   */
+  function calculateExecutionRate(realizedActivities, totalActivities) {
+    if (!totalActivities || totalActivities === 0) {
+      return 0;
+    }
+    return (realizedActivities / totalActivities) * 100;
+  }
+
+  // Fonctions d'authentification (reprises de planning.js)
+  
+  function findToken() {
+    console.log('Recherche du token JWT...');
+    for (const key of DEFAULT_TOKEN_CANDIDATES) {
+      const value = (localStorage.getItem(key) || '').trim();
+      if (value && value.split('.').length >= 3) {
+        console.log(`Token trouvé dans localStorage.${key}`);
+        return value;
+      }
+    }
+    if (typeof window.jwt === 'string' && window.jwt.split('.').length >= 3) {
+      console.log('Token trouvé dans window.jwt');
+      return window.jwt;
     }
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key) continue;
-      const v = localStorage.getItem(key) || '';
-      if (typeof v === 'string' && v.split('.').length >= 3 && v.length > 60) return v;
+      const value = localStorage.getItem(key) || '';
+      if (value.split('.').length >= 3 && value.length > 60) {
+        console.log(`Token trouvé dans localStorage.${key}`);
+        return value;
+      }
     }
-    return '';
+    console.log('Aucun token JWT trouvé');
+    return null;
   }
 
   async function authHeaders() {
@@ -1211,8 +2476,59 @@
     updateFilterIndicator();
   }
 
+  // Effacer les filtres du suivi d'activités
+  function clearActivityFilters() {
+    const projectFilter = document.getElementById('activity-project-filter');
+    if (projectFilter) {
+      projectFilter.value = '';
+    }
+    loadActivityFollowUp();
+  }
+
+  // Mettre à jour le filtre de projets
+  function updateProjectFilter(projects) {
+    const projectFilter = document.getElementById('activity-project-filter');
+    if (!projectFilter) return;
+    
+    // Vérifier que projects est un tableau
+    if (!projects || !Array.isArray(projects)) {
+      console.warn('updateProjectFilter: projects n\'est pas un tableau', projects);
+      return;
+    }
+    
+    const currentValue = projectFilter.value;
+    
+    // Garder seulement l'option "Tous les projets"
+    projectFilter.innerHTML = '<option value="">Tous les projets</option>';
+    
+    // Ajouter les projets uniques triés
+    projects.sort().forEach(project => {
+      const option = document.createElement('option');
+      option.value = project;
+      option.textContent = project;
+      projectFilter.appendChild(option);
+    });
+    
+    // Restaurer la sélection précédente si elle existe toujours
+    if (currentValue) {
+      projectFilter.value = currentValue;
+    }
+  }
+
   // Fonctions globales pour les boutons du tableau
   window.saveActivityRow = saveActivityRow;
   window.deleteActivityRow = deleteActivityRow;
+  window.clearActivityFilters = clearActivityFilters;
+
+  // Ajouter l'écouteur d'événement pour le filtre de projet
+  document.addEventListener('DOMContentLoaded', () => {
+    const projectFilter = document.getElementById('activity-project-filter');
+    if (projectFilter) {
+      projectFilter.addEventListener('change', () => {
+        // Recharger les données avec le filtre actuel
+        loadActivityFollowUp();
+      });
+    }
+  });
 
 })();

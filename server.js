@@ -1238,7 +1238,259 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
     });
   } catch (error) {
     console.error('❌ Erreur API reports:', error);
-    res.status(500).json({ error: 'Erreur interne du serveur' });
+    console.error('❌ Stack trace:', error.stack);
+    res.status(500).json({ error: 'Erreur interne du serveur', message: error.message });
+  }
+});
+app.get('/api/reports/activity-follow-up', authenticateToken, async (req, res) => {
+  console.log(' /api/reports/activity-follow-up called with query:', req.query);
+  
+  try {
+    const { from, to } = req.query;
+    
+    // Validation des paramètres
+    if (!from || !to) {
+      return res.status(400).json({ 
+        error: 'Les paramètres from et to sont obligatoires',
+        message: 'Veuillez fournir une période valide (from et to)'
+      });
+    }
+    
+    // Fonction pour formater les dates
+    const formatDateForQuery = (dateStr, isEndOfDay = false) => {
+      try {
+        let date = new Date(dateStr);
+        
+        // Si la date string est en format 'YYYY-MM-DD', la parser manuellement
+        if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+          const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
+          date = new Date(Date.UTC(year, month - 1, day));
+        }
+        
+        if (isNaN(date.getTime())) {
+          console.warn(`⚠️ Format de date invalide: ${dateStr}`);
+          return null;
+        }
+        
+        if (isEndOfDay) {
+          date.setUTCHours(23, 59, 59, 999);
+        } else {
+          date.setUTCHours(0, 0, 0, 0);
+        }
+        
+        return date.toISOString().replace('Z', '+00:00');
+      } catch (e) {
+        console.warn(`⚠️ Erreur de formatage de date (${dateStr}):`, e.message);
+        return null;
+      }
+    };
+    
+    const fromDateStr = formatDateForQuery(from);
+    const toDateStr = formatDateForQuery(to, true);
+    
+    if (!fromDateStr || !toDateStr) {
+      return res.status(400).json({ 
+        error: 'Format de date invalide',
+        message: 'Les dates doivent être au format YYYY-MM-DD ou ISO'
+      });
+    }
+    
+    console.log(`📅 Période: ${fromDateStr} à ${toDateStr}`);
+    
+    // 1. Récupérer tous les agents avec leurs informations
+    const { data: agents, error: agentsError } = await supabaseClient
+      .from('users')
+      .select(`
+        id,
+        name,
+        email,
+        role,
+        project_name,
+        departement,
+        commune,
+        first_name,
+        last_name
+      `)
+      .eq('role', 'agent');
+    
+    if (agentsError) {
+      console.error('❌ Erreur lors de la récupération des agents:', agentsError);
+      return res.status(500).json({ error: 'Erreur lors de la récupération des agents' });
+    }
+    
+    console.log(`👥 ${agents?.length || 0} agents trouvés`);
+    
+    // 2. Récupérer toutes les planifications pour la période (même logique que planning.js)
+    const { data: planifications, error: planificationsError } = await supabaseClient
+      .from('planifications')
+      .select(`
+        id,
+        user_id,
+        date,
+        planned_start_time,
+        planned_end_time,
+        description_activite,
+        resultat_journee,
+        observations,
+        project_name,
+        created_at
+      `)
+      .gte('date', fromDateStr.split('T')[0])
+      .lte('date', toDateStr.split('T')[0]);
+    
+    if (planificationsError) {
+      console.error('❌ Erreur lors de la récupération des planifications:', planificationsError);
+      return res.status(500).json({ error: 'Erreur lors de la récupération des planifications' });
+    }
+    
+    console.log(`📋 ${planifications?.length || 0} planifications trouvées`);
+    
+    // 3. Grouper les planifications par agent et calculer les statistiques
+    const agentsMap = new Map();
+    agents.forEach(agent => {
+      agentsMap.set(agent.id, {
+        agent_id: agent.id,
+        agent_name: agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email,
+        role: agent.role,
+        project_name: agent.project_name,
+        departement: agent.departement,
+        commune: agent.commune,
+        total_activities: 0,
+        realized_activities: 0,
+        not_realized_activities: 0,
+        in_progress_activities: 0,
+        partially_realized_activities: 0,
+        not_realized_list: []
+      });
+    });
+    
+    // Traiter chaque planification
+    planifications.forEach(planification => {
+      const agent = agentsMap.get(planification.user_id);
+      if (!agent) {
+        console.warn(`⚠️ Agent ${planification.user_id} non trouvé pour la planification ${planification.id}`);
+        return;
+      }
+      
+      agent.total_activities++;
+      
+      // Compter par statut
+      switch (planification.resultat_journee) {
+        case 'realise':
+          agent.realized_activities++;
+          break;
+        case 'non_realise':
+          agent.not_realized_activities++;
+          agent.not_realized_list.push({
+            name: planification.description_activite,
+            date: planification.date,
+            id: planification.id
+          });
+          break;
+        case 'en_cours':
+          agent.in_progress_activities++;
+          break;
+        case 'partiellement_realise':
+          agent.partially_realized_activities++;
+          break;
+        default:
+          // Statut non défini, on ne compte pas dans les catégories
+          break;
+      }
+    });
+    
+    // 4. Convertir en tableau et filtrer les agents sans activités
+    const activityReports = Array.from(agentsMap.values())
+      .filter(agent => agent.total_activities > 0)
+      .sort((a, b) => a.agent_name.localeCompare(b.agent_name));
+    
+    console.log(`📊 ${activityReports.length} agents avec des activités trouvés`);
+    
+    res.json({
+      success: true,
+      data: activityReports,
+      period: {
+        from: fromDateStr.split('T')[0],
+        to: toDateStr.split('T')[0]
+      },
+      summary: {
+        total_agents: activityReports.length,
+        total_activities: activityReports.reduce((sum, agent) => sum + agent.total_activities, 0),
+        total_realized: activityReports.reduce((sum, agent) => sum + agent.realized_activities, 0),
+        total_not_realized: activityReports.reduce((sum, agent) => sum + agent.not_realized_activities, 0)
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Erreur dans /api/reports/activity-follow-up:', error);
+    console.error('❌ Stack trace:', error.stack);
+    res.status(500).json({ 
+      error: 'Erreur interne du serveur',
+      message: error.message 
+    });
+  }
+});
+
+// Endpoint de test sans authentification pour diagnostiquer
+app.get('/api/test-activity-follow-up', async (req, res) => {
+  console.log(' /api/test-activity-follow-up called with query:', req.query);
+  
+  try {
+    const { from, to } = req.query;
+    
+    // Validation des paramètres
+    if (!from || !to) {
+      return res.status(400).json({ 
+        error: 'Les paramètres from et to sont obligatoires',
+        message: 'Veuillez fournir une période valide (from et to)'
+      });
+    }
+    
+    console.log(` Période: ${from} à ${to}`);
+    
+    // Test simple: récupérer les agents
+    const { data: agents, error: agentsError } = await supabaseClient
+      .from('users')
+      .select('id, name, role, project_name')
+      .eq('role', 'agent')
+      .limit(5);
+    
+    if (agentsError) {
+      console.error('Erreur test agents:', agentsError);
+      return res.status(500).json({ error: 'Erreur test agents', details: agentsError });
+    }
+    
+    // Test simple: récupérer les planifications
+    const { data: planifications, error: planificationsError } = await supabaseClient
+      .from('planifications')
+      .select('id, user_id, date, description_activite, resultat_journee, planned_start_time, planned_end_time')
+      .gte('date', from)
+      .lte('date', to)
+      .limit(5);
+    
+    if (planificationsError) {
+      console.error('Erreur test planifications:', planificationsError);
+      return res.status(500).json({ error: 'Erreur test planifications', details: planificationsError });
+    }
+    
+    console.log(` ${agents?.length || 0} agents, ${planifications?.length || 0} planifications`);
+    
+    res.json({
+      success: true,
+      test: true,
+      agents: agents,
+      planifications: planifications,
+      period: { from, to }
+    });
+    
+  } catch (error) {
+    console.error('Erreur test:', error);
+    console.error('Stack trace test:', error.stack);
+    res.status(500).json({ 
+      error: 'Erreur interne du serveur (test)',
+      message: error.message,
+      stack: error.stack 
+    });
   }
 });
 
@@ -4368,6 +4620,17 @@ app.post('/api/checkins', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Latitude et longitude requis' });
     }
 
+    // Vérifier si l'agent a une planification pour ce jour
+    const checkinTime = start_time || new Date().toISOString();
+    const hasPlanification = await hasPlanificationForDay(req.user.id, checkinTime);
+    if (!hasPlanification) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Vous ne pouvez pas faire de check-in. Aucune planification trouvée pour ce jour. Veuillez d\'abord enregistrer votre planification quotidienne.',
+        code: 'NO_PLANIFICATION_FOUND'
+      });
+    }
+
     // Vérifier que l'utilisateur existe
     const { data: userExists, error: userCheckError } = await supabaseClient
       .from('users')
@@ -5356,6 +5619,87 @@ app.get('/api/validations/mine', authenticateToken, async (req, res) => {
 // Note: Route /api/reports/validations est déjà définie plus haut dans le fichier
 // Le code de la route a été déplacé plus haut dans le fichier pour éviter les doublons
 
+// Vérifier si l'agent a une planification pour aujourd'hui
+app.get('/api/planifications/today/check', authenticateToken, async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const hasPlanification = await hasPlanificationForDay(req.user.id, today);
+    
+    return res.json({ 
+      success: true, 
+      has_planification: hasPlanification,
+      date: today,
+      message: hasPlanification ? 'Planification trouvée pour aujourd\'hui' : 'Aucune planification pour aujourd\'hui'
+    });
+  } catch (error) {
+    console.error('Erreur vérification planification aujourd\'hui:', error);
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// Vérifier si l'agent a une planification pour une date spécifique
+app.get('/api/planifications/:date/check', authenticateToken, async (req, res) => {
+  try {
+    const { date } = req.params;
+    
+    // Valider le format de la date
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Format de date invalide. Utilisez YYYY-MM-DD' 
+      });
+    }
+    
+    const hasPlanification = await hasPlanificationForDay(req.user.id, date);
+    
+    return res.json({ 
+      success: true, 
+      has_planification: hasPlanification,
+      date: date,
+      message: hasPlanification ? `Planification trouvée pour le ${date}` : `Aucune planification pour le ${date}`
+    });
+  } catch (error) {
+    console.error('Erreur vérification planification date:', error);
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// Vérifier si l'agent a une planification pour le jour donné
+async function hasPlanificationForDay(userId, date) {
+  try {
+    const targetDate = new Date(date);
+    const dateStr = targetDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    console.log(`🔍 Vérification planification pour utilisateur ${userId} le ${dateStr}`);
+    
+    const { data: planification, error } = await supabaseClient
+      .from('planifications')
+      .select('id, description_activite, date')
+      .eq('user_id', userId)
+      .eq('date', dateStr)
+      .maybeSingle(); // maybeSingle() pour ne pas générer d'erreur si non trouvé
+    
+    if (error) {
+      console.error('❌ Erreur vérification planification:', error);
+      return false;
+    }
+    
+    const hasPlanification = !!planification;
+    console.log(`📋 Planification trouvée pour ${userId} le ${dateStr}: ${hasPlanification}`);
+    
+    if (hasPlanification) {
+      console.log(`✅ Activité planifiée: ${planification.description_activite}`);
+    } else {
+      console.log(`⚠️ Aucune planification trouvée pour ${userId} le ${dateStr}`);
+    }
+    
+    return hasPlanification;
+  } catch (error) {
+    console.error('❌ Erreur dans hasPlanificationForDay:', error);
+    return false;
+  }
+}
+
 // ====== PRESENCE: start mission ======
 app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
   try {
@@ -5382,6 +5726,16 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
     const longitude = Number(lon);
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
       return res.status(400).json({ success: false, message: 'Coordonnées invalides' });
+    }
+
+    // Vérifier si l'agent a une planification pour ce jour
+    const hasPlanification = await hasPlanificationForDay(userId, start_time);
+    if (!hasPlanification) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Vous ne pouvez pas commencer votre présence. Aucune planification trouvée pour ce jour. Veuillez d\'abord enregistrer votre planification quotidienne.',
+        code: 'NO_PLANIFICATION_FOUND'
+      });
     }
 
     // 1) Créer la mission (Supabase schema)
@@ -5550,6 +5904,16 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
     const end_time = endTimeInput || new Date().toISOString();
     const latitude = lat !== undefined ? Number(lat) : undefined;
     const longitude = lon !== undefined ? Number(lon) : undefined;
+
+    // Vérifier si l'agent a une planification pour ce jour
+    const hasPlanification = await hasPlanificationForDay(userId, end_time);
+    if (!hasPlanification) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Vous ne pouvez pas terminer votre présence. Aucune planification trouvée pour ce jour. Veuillez d\'abord enregistrer votre planification quotidienne.',
+        code: 'NO_PLANIFICATION_FOUND'
+      });
+    }
 
     // Déterminer la mission cible: utiliser mission_id fourni, sinon dernière active de l'agent
     let targetMissionId = mission_id ? Number(mission_id) : null;
