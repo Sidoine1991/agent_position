@@ -883,38 +883,58 @@
   }
 
   /**
-   * Exporte tous les tableaux dans un seul fichier HTML
+   * Exporte tout le contenu de la page (statistiques, tableaux, etc.)
    */
   function exportAllTablesHTML() {
     try {
-      const mainTable = document.querySelector('#activities-table');
-      const rankingTable = document.getElementById('tep-ranking-table');
+      // Créer une copie de tout le contenu de la page
+      const pageContent = document.querySelector('.container-fluid') || document.querySelector('main') || document.body;
       
-      if (!mainTable && !rankingTable) {
-        showErrorMessage('Aucun tableau à exporter');
+      if (!pageContent) {
+        showErrorMessage('Aucun contenu à exporter');
         return;
       }
       
-      let allTablesHTML = '';
+      // Cloner le contenu pour le manipuler
+      const clonedContent = pageContent.cloneNode(true);
       
-      // Ajouter le tableau principal
-      if (mainTable) {
-        allTablesHTML += generateTableHTML(mainTable, 'Tableau de Suivi des Activités - Détail par Agent');
-      }
+      // Nettoyer le contenu pour l'export
+      // Supprimer les boutons d'action non nécessaires
+      const actionButtons = clonedContent.querySelectorAll('button[onclick*="export"], .btn-outline-secondary, .btn-light');
+      actionButtons.forEach(btn => btn.remove());
       
-      // Ajouter le tableau de classement TEP
-      if (rankingTable) {
-        allTablesHTML += generateTableHTML(rankingTable.querySelector('table'), 'Classement des Agents par TEP');
-      }
+      // Supprimer les inputs et selects inutiles
+      const formControls = clonedContent.querySelectorAll('input, select');
+      formControls.forEach(control => {
+        // Remplacer les selects par leur texte sélectionné
+        if (control.tagName === 'SELECT') {
+          const selectedOption = control.options[control.selectedIndex];
+          if (selectedOption) {
+            const span = document.createElement('span');
+            span.textContent = selectedOption.textContent;
+            control.parentNode.replaceChild(span, control);
+          }
+        } else {
+          control.remove();
+        }
+      });
       
-      // Créer le HTML complet
+      // Nettoyer les cellules vides dans les tableaux
+      const tableCells = clonedContent.querySelectorAll('td, th');
+      tableCells.forEach(cell => {
+        if (cell.textContent.trim() === '') {
+          cell.textContent = '-';
+        }
+      });
+      
+      // Créer le HTML complet avec tout le contenu
       const htmlContent = `
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rapport Complet de Suivi des Activités</title>
+    <title>Rapport Complet de Suivi des Activités - ${getCurrentPeriod()}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -924,95 +944,45 @@
             .table { font-size: 11px; page-break-inside: avoid; }
             .card { page-break-inside: avoid; margin-bottom: 20px; }
             .badge { font-size: 9px; }
+            .btn { display: none !important; }
         }
         @media screen {
             .container { max-width: 1400px; margin: 20px auto; }
         }
         .table th { background-color: #343a40; color: white; font-weight: bold; }
         .table td { vertical-align: middle; }
-        .avatar-sm { width: 28px; height: 28px; font-size: 10px; }
         .progress { height: 3px; }
         .card { margin-bottom: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .header-title { 
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
             color: white; 
-            padding: 30px; 
-            margin-bottom: 30px; 
-            border-radius: 8px;
-            text-align: center;
-        }
-        .section-title {
-            background-color: #343a40;
-            color: white;
-            padding: 15px 20px;
-            margin: 30px 0 20px 0;
-            border-radius: 8px;
-        }
-        .footer-info { 
-            background-color: #f8f9fa; 
             padding: 20px; 
-            margin-top: 30px; 
-            border-radius: 8px;
-            font-size: 11px;
-            color: #6c757d;
+            border-radius: 8px; 
+            margin-bottom: 30px;
         }
-        .page-break {
-            page-break-before: always;
-            height: 1px;
-            margin: 0;
-            padding: 0;
-            border: none;
+        .stat-item { 
+            border: 1px solid #dee2e6; 
+            border-radius: 8px; 
+            padding: 15px; 
+            text-align: center; 
+            margin-bottom: 15px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header-title">
+        <div class="header-title text-center">
             <h1><i class="fas fa-chart-line me-2"></i>Rapport Complet de Suivi des Activités</h1>
-            <p class="mb-0">CCRB - Système de Suivi des Activités</p>
-            <p class="mb-0">Généré le ${new Date().toLocaleDateString('fr-FR', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            })}</p>
+            <p class="mb-0">Généré le ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            <p class="mb-0">Période: ${getCurrentPeriod()}</p>
         </div>
         
-        ${allTablesHTML}
-        
-        <div class="footer-info">
-            <div class="row">
-                <div class="col-md-4">
-                    <i class="fas fa-info-circle me-1"></i>
-                    <strong>Source:</strong> Système de Suivi CCRB
-                </div>
-                <div class="col-md-4 text-center">
-                    <i class="fas fa-calendar me-1"></i>
-                    Période: ${getCurrentPeriod()}
-                </div>
-                <div class="col-md-4 text-end">
-                    <i class="fas fa-user me-1"></i>
-                    Exporté par: ${document.getElementById('user-display-name')?.textContent || 'Utilisateur'}
-                </div>
-            </div>
-        </div>
+        ${clonedContent.innerHTML}
     </div>
-    
-    <script>
-        // Auto-print option
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('print') === 'true') {
-            window.onload = function() {
-                setTimeout(() => window.print(), 500);
-            };
-        }
-    </script>
 </body>
 </html>`;
       
-      // Créer un blob et télécharger
+      // Télécharger le fichier
       const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
