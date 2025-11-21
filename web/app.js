@@ -1635,6 +1635,9 @@ async function init() {
       let distanceStr = null;
       let startMs = null;
       let endMs = null;
+      let startTimestamp = null;
+      let endTimestamp = null;
+      
       try {
         // Vérifier les deux formats possibles : start_time/end_time ou date_start/date_end
         const startTime = m.start_time || m.date_start;
@@ -1645,6 +1648,7 @@ async function init() {
           if (!isNaN(d.getTime())) {
             startStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
             startMs = d.getTime();
+            startTimestamp = startTime;
           }
         }
         
@@ -1653,8 +1657,10 @@ async function init() {
           if (!isNaN(d.getTime())) {
             endStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
             endMs = d.getTime();
+            endTimestamp = endTime;
           }
         }
+        
         // Distance: depuis mission si présent, sinon depuis cache, sinon calcul
         if (typeof m.total_distance_m !== 'undefined' && m.total_distance_m !== null) {
           const d = Number(m.total_distance_m);
@@ -1667,30 +1673,92 @@ async function init() {
           } catch {}
         }
 
+        // Récupérer les checkins pour obtenir les heures système du téléphone
         const checkinRows = await getMissionCheckinsCached(m.id);
         if (checkinRows && checkinRows.length) {
+          console.log(`📍 Mission #${m.id}: ${checkinRows.length} checkins trouvés`);
+          
           const normalized = checkinRows
             .map(row => {
-              const ts = row.created_at || row.date || row.checked_at;
-              return { row, ts };
+              // Prioriser l'heure système du téléphone (local time) quand GPS capturé
+              // Utiliser l'heure locale du téléphone au lieu du timestamp GPS/serveur
+              let phoneTime = null;
+              
+              // Si on a une heure système locale enregistrée lors du GPS
+              if (row.local_time || row.phone_time || row.device_time) {
+                phoneTime = row.local_time || row.phone_time || row.device_time;
+              } 
+              // Sinon, convertir le timestamp serveur/GPS en heure locale du téléphone
+              else if (row.checked_at || row.created_at || row.date || row.timestamp) {
+                const serverTimestamp = row.checked_at || row.created_at || row.date || row.timestamp;
+                const serverDate = new Date(serverTimestamp);
+                if (!isNaN(serverDate.getTime())) {
+                  // Convertir en heure locale du téléphone (navigateur)
+                  phoneTime = serverDate.toLocaleString('fr-FR', { 
+                    year: 'numeric',
+                    month: '2-digit', 
+                    day: '2-digit',
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    second: '2-digit'
+                  });
+                }
+              }
+              
+              return { row, ts: phoneTime };
             })
             .filter(entry => entry.ts && !isNaN(new Date(entry.ts).getTime()))
             .sort((a, b) => new Date(a.ts) - new Date(b.ts));
 
           if (normalized.length) {
+            // Utiliser le premier checkin comme heure de début (heure téléphone)
             const firstDate = new Date(normalized[0].ts);
             if (!isNaN(firstDate.getTime())) {
               startMs = firstDate.getTime();
               startStr = firstDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+              startTimestamp = normalized[0].ts;
+              
+              // Afficher aussi la date si c'est un jour différent
+              const today = new Date();
+              const checkinDate = new Date(firstDate);
+              if (checkinDate.toDateString() !== today.toDateString()) {
+                startStr = checkinDate.toLocaleDateString('fr-FR', { 
+                  day: '2-digit', 
+                  month: '2-digit',
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                });
+              }
+              
+              console.log(`📱 Heure de début téléphone: ${startStr} (timestamp: ${normalized[0].ts})`);
             }
 
-            const lastDate = new Date(normalized[normalized.length - 1].ts);
+            // Utiliser le dernier checkin comme heure de fin si mission complétée
             const missionCompleted = String(m.status || '').toLowerCase() === 'completed';
-            if (missionCompleted && !isNaN(lastDate.getTime())) {
-              endMs = lastDate.getTime();
-              endStr = lastDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            if (missionCompleted && normalized.length > 1) {
+              const lastDate = new Date(normalized[normalized.length - 1].ts);
+              if (!isNaN(lastDate.getTime())) {
+                endMs = lastDate.getTime();
+                endStr = lastDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                endTimestamp = normalized[normalized.length - 1].ts;
+                
+                // Afficher aussi la date si c'est un jour différent
+                const today = new Date();
+                const checkinDate = new Date(lastDate);
+                if (checkinDate.toDateString() !== today.toDateString()) {
+                  endStr = checkinDate.toLocaleDateString('fr-FR', { 
+                    day: '2-digit', 
+                    month: '2-digit',
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  });
+                }
+                
+                console.log(`📱 Heure de fin téléphone: ${endStr} (timestamp: ${normalized[normalized.length - 1].ts})`);
+              }
             }
 
+            // Calculer la distance si non disponible
             if (!distanceStr) {
               const points = normalized
                 .map(({ row, ts }) => ({
@@ -1721,8 +1789,13 @@ async function init() {
               }
             }
           }
+        } else {
+          console.log(`⚠️ Mission #${m.id}: Aucun checkin trouvé`);
         }
-      } catch {}
+      } catch (error) {
+        console.error(`❌ Erreur traitement mission #${m.id}:`, error);
+      }
+      
       const li = document.createElement('li');
       const depName = getDepartementNameById(m.departement);
       // Préférer champs manuels si lookups manquent
@@ -1732,6 +1805,7 @@ async function init() {
       const comName = manualCommune || getCommuneNameById(m.departement, m.commune);
       const arrText = manualArr || '';
       const vilText = manualVil || '';
+      
       // Durée passée sur le terrain (si heure de début disponible)
       let durationStr = '';
       try {
@@ -1757,6 +1831,11 @@ async function init() {
         timeDisplay = 'Heure non disponible';
       }
       
+      // Afficher les timestamps du téléphone pour information
+      const phoneInfo = startTimestamp && endTimestamp ? 
+        `<div class="text-muted small">Téléphone: ${new Date(startTimestamp).toLocaleString('fr-FR')} → ${new Date(endTimestamp).toLocaleString('fr-FR')}</div>` : 
+        (startTimestamp ? `<div class="text-muted small">Téléphone: ${new Date(startTimestamp).toLocaleString('fr-FR')}</div>` : '');
+      
       li.innerHTML = `
         <div class="list-item">
           <div><strong>Mission #${m.id}</strong> — ${m.status}</div>
@@ -1766,6 +1845,7 @@ async function init() {
           ${vilText ? `<div>Village: ${vilText}</div>` : ''}
           <div>Start GPS: ${m.start_lat ?? '-'}, ${m.start_lon ?? '-'} | End GPS: ${m.end_lat ?? '-'}, ${m.end_lon ?? '-'}</div>
           ${distanceStr ? `<div>Distance totale: ${distanceStr}</div>` : ''}
+          ${phoneInfo}
         </div>
       `;
       return li;
