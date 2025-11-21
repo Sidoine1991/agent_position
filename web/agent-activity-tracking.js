@@ -4,8 +4,7 @@
   let projects = [];
   let agents = [];
   let supervisors = [];
-  let currentDate = new Date().toISOString().split('T')[0];
-  let currentActivityId = null;
+  let currentUser = null;
   let isAdmin = false;
   let currentUserId = null;
   let cachedActivityData = null; // Cache pour les données d'activités
@@ -192,6 +191,16 @@
     let filteredStats = Array.from(agentsStats.values());
     if (projectFilter && projectFilter.value) {
       filteredStats = filteredStats.filter(a => a.project_name === projectFilter.value);
+    }
+    
+    // Filtrer par agent si un filtre est sélectionné
+    const agentFilter = document.getElementById('agent-select');
+    if (agentFilter && agentFilter.value) {
+      const selectedAgent = agents.find(a => a.id === agentFilter.value);
+      if (selectedAgent) {
+        const selectedAgentName = selectedAgent.name || `${selectedAgent.first_name || ''} ${selectedAgent.last_name || ''}`.trim() || selectedAgent.email;
+        filteredStats = filteredStats.filter(a => a.agent_name === selectedAgentName);
+      }
     }
     
     if (filteredStats.length === 0) {
@@ -1196,9 +1205,16 @@
     });
 
     // Agent selector
-    document.getElementById('agent-select').addEventListener('change', () => {
-      loadActivities();
-    });
+    const agentSelect = document.getElementById('agent-select');
+    if (agentSelect) {
+      agentSelect.addEventListener('change', () => {
+        filterActivities();
+        updateStatistics();
+        updateFilterIndicator();
+        // Recharger aussi le suivi des activités
+        displayActivityFollowUp(activities);
+      });
+    }
 
     // Project filter
     document.getElementById('project-filter').addEventListener('change', () => {
@@ -1287,6 +1303,8 @@
         if (isAdmin) {
           await loadAgents();
           showAgentFilter();
+          populateAgentFilter(); // Remplir le sélecteur d'agents
+          populateSupervisorFilter(); // Remplir le sélecteur de superviseurs
         } else {
           hideAgentFilter();
         }
@@ -1380,6 +1398,29 @@
     } catch (error) {
       console.error('Erreur lors du chargement des agents:', error);
       agents = [];
+    }
+  }
+
+  // Remplir le filtre des agents
+  function populateAgentFilter() {
+    try {
+      const agentSelect = document.getElementById('agent-select');
+      if (!agentSelect) return;
+
+      // Vider le sélecteur sauf l'option par défaut
+      agentSelect.innerHTML = '<option value="">Tous les agents</option>';
+
+      // Ajouter les agents
+      agents.forEach(agent => {
+        const option = document.createElement('option');
+        option.value = agent.id || agent.email;
+        option.textContent = `${agent.name || agent.first_name || 'Agent'} ${agent.last_name || ''}`.trim() || agent.email;
+        agentSelect.appendChild(option);
+      });
+
+      console.log(`Filtre agents rempli avec ${agents.length} agents`);
+    } catch (error) {
+      console.error('Erreur remplissage filtre agents:', error);
     }
   }
 
@@ -1953,8 +1994,17 @@
     const statusFilter = document.getElementById('status-filter').value;
     const supervisorFilter = (document.getElementById('supervisor-filter') || {}).value || '';
     const weekFilter = (document.getElementById('week-filter') || {}).value || '';
+    const agentFilter = (document.getElementById('agent-select') || {}).value || '';
 
     let filtered = activities;
+
+    // Filtrer par agent
+    if (agentFilter) {
+      filtered = filtered.filter(activity => {
+        const agentId = activity.user_id || activity.agent_id;
+        return agentId === agentFilter;
+      });
+    }
 
     if (projectFilter) {
       // Filtrer par nom de projet (cohérent avec updateProjectFilter)
