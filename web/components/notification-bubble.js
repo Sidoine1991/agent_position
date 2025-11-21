@@ -52,6 +52,30 @@ class NotificationBubble {
         cursor: pointer;
         position: relative;
         overflow: hidden;
+        touch-action: pan-y; /* Permettre le swipe vertical */
+        user-select: none;
+      }
+      
+      .notification-bubble.swiping {
+        transition: transform 0.1s ease-out, opacity 0.1s ease-out;
+      }
+      
+      .notification-bubble.swipe-dismiss {
+        transform: translateY(100px) rotateZ(5deg);
+        opacity: 0;
+      }
+      
+      .notification-bubble.forum {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      }
+      
+      .notification-bubble.forum::after {
+        content: '🗨️';
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        font-size: 12px;
+        opacity: 0.7;
       }
       
       .notification-bubble.show {
@@ -297,6 +321,23 @@ class NotificationBubble {
     this.showNotification(notification);
   }
 
+  showForumNotification(data) {
+    const notification = {
+      id: Date.now() + Math.random(),
+      type: 'message',
+      forum: true,
+      forumId: data.forumId || data.category_id,
+      threadId: data.threadId || data.thread_id,
+      sender: data.sender?.name || data.author || 'Utilisateur forum',
+      content: data.content || data.message || '',
+      timestamp: new Date(),
+      avatar: data.sender?.avatar || data.author_avatar || '🗨️',
+      urgent: data.urgent || false
+    };
+    
+    this.showNotification(notification);
+  }
+
   showNotification(notification) {
     // Limiter le nombre de notifications
     if (this.notifications.length >= this.maxNotifications) {
@@ -328,8 +369,14 @@ class NotificationBubble {
   createNotificationElement(notification) {
     const container = document.getElementById('notification-bubble-container');
     const element = document.createElement('div');
-    element.className = `notification-bubble ${notification.type} ${notification.urgent ? 'urgent' : ''}`;
+    element.className = `notification-bubble ${notification.type} ${notification.urgent ? 'urgent' : ''} ${notification.forum ? 'forum' : ''}`;
     element.dataset.notificationId = notification.id;
+    
+    // Variables pour le swipe
+    let startY = 0;
+    let currentY = 0;
+    let isSwiping = false;
+    let swipeThreshold = 80; // Seuil pour supprimer (80px)
     
     // Contenu de la notification
     element.innerHTML = `
@@ -344,20 +391,91 @@ class NotificationBubble {
       </div>
       <div class="notification-content">${this.truncateText(notification.content, 100)}</div>
       <div class="notification-actions">
-        <button class="notification-btn" onclick="notificationBubble.openChat('${notification.chatId}')">
-          Répondre
-        </button>
+        ${notification.forum ? 
+          `<button class="notification-btn" onclick="notificationBubble.openForum('${notification.forumId}', '${notification.threadId}')">
+            Voir la discussion
+          </button>` :
+          `<button class="notification-btn" onclick="notificationBubble.openChat('${notification.chatId}')">
+            Répondre
+          </button>`
+        }
         <button class="notification-btn" onclick="notificationBubble.markAsRead('${notification.id}')">
           Marquer lu
         </button>
       </div>
     `;
     
-    // Ajouter l'événement de clic
+    // Gestion du swipe pour supprimer (mobile et desktop)
+    const handleStart = (e) => {
+      if (e.target.classList.contains('notification-close') || 
+          e.target.classList.contains('notification-btn')) return;
+      
+      isSwiping = true;
+      startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+      element.classList.add('swiping');
+      element.style.transition = 'none';
+    };
+    
+    const handleMove = (e) => {
+      if (!isSwiping) return;
+      
+      e.preventDefault();
+      currentY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+      const deltaY = currentY - startY;
+      
+      // Limiter le mouvement vers le bas
+      if (deltaY > 0) {
+        element.style.transform = `translateY(${deltaY}px) rotateZ(${deltaY * 0.05}deg)`;
+        element.style.opacity = 1 - (deltaY / swipeThreshold);
+      }
+    };
+    
+    const handleEnd = () => {
+      if (!isSwiping) return;
+      
+      isSwiping = false;
+      element.classList.remove('swiping');
+      element.style.transition = '';
+      
+      const deltaY = currentY - startY;
+      
+      if (deltaY > swipeThreshold) {
+        // Supprimer la notification avec animation
+        element.classList.add('swipe-dismiss');
+        setTimeout(() => {
+          this.hideNotification(notification.id);
+        }, 200);
+      } else {
+        // Revenir à la position normale
+        element.style.transform = '';
+        element.style.opacity = '';
+      }
+      
+      startY = 0;
+      currentY = 0;
+    };
+    
+    // Événements pour le touch (mobile)
+    element.addEventListener('touchstart', handleStart, { passive: false });
+    element.addEventListener('touchmove', handleMove, { passive: false });
+    element.addEventListener('touchend', handleEnd);
+    
+    // Événements pour la souris (desktop)
+    element.addEventListener('mousedown', handleStart);
+    element.addEventListener('mousemove', handleMove);
+    element.addEventListener('mouseup', handleEnd);
+    element.addEventListener('mouseleave', handleEnd);
+    
+    // Ajouter l'événement de clic normal
     element.addEventListener('click', (e) => {
       if (!e.target.classList.contains('notification-close') && 
-          !e.target.classList.contains('notification-btn')) {
-        this.openChat(notification.chatId);
+          !e.target.classList.contains('notification-btn') &&
+          !isSwiping) {
+        if (notification.forum) {
+          this.openForum(notification.forumId, notification.threadId);
+        } else {
+          this.openChat(notification.chatId);
+        }
       }
     });
     
@@ -394,6 +512,18 @@ class NotificationBubble {
     } else {
       window.location.href = '/messages.html';
     }
+  }
+
+  openForum(forumId, threadId) {
+    // Rediriger vers la page de messagerie avec le forum spécifique
+    let url = '/messages.html?mode=forum';
+    if (forumId) {
+      url += `&category=${forumId}`;
+    }
+    if (threadId) {
+      url += `&thread=${threadId}`;
+    }
+    window.location.href = url;
   }
 
   markAsRead(notificationId) {

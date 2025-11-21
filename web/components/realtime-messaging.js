@@ -103,11 +103,17 @@ class RealtimeMessaging {
         case 'message':
           this.handleRealtimeMessage(data.payload);
           break;
+        case 'forum_message':
+          this.handleForumMessage(data.payload);
+          break;
         case 'read':
           this.handleReadReceipt(data.payload);
           break;
         case 'typing':
           this.handleTypingIndicator(data.payload);
+          break;
+        case 'forum_typing':
+          this.handleForumTypingIndicator(data.payload);
           break;
         case 'presence':
           this.handlePresenceUpdate(data.payload);
@@ -142,8 +148,36 @@ class RealtimeMessaging {
     }));
   }
 
+  handleForumMessage(message) {
+    // Vérifier si le message est nouveau
+    const messageId = message.id || message.message_id;
+    if (this.isMessageProcessed(messageId)) {
+      return;
+    }
+    
+    // Marquer comme traité
+    this.markMessageAsProcessed(messageId);
+    
+    // Notifier les abonnés
+    this.notifySubscribers('newForumMessage', message);
+    
+    // Déclencher l'événement global
+    document.dispatchEvent(new CustomEvent('newForumMessage', {
+      detail: { message }
+    }));
+  }
+
   handleTypingIndicator(data) {
     this.notifySubscribers('typing', data);
+  }
+
+  handleForumTypingIndicator(data) {
+    this.notifySubscribers('forum_typing', data);
+    
+    // Déclencher l'événement global
+    document.dispatchEvent(new CustomEvent('forumTyping', {
+      detail: data
+    }));
   }
 
   handlePresenceUpdate(data) {
@@ -287,6 +321,33 @@ class RealtimeMessaging {
         content,
         recipient_id: recipientId,
         message_type: type,
+        timestamp: Date.now()
+      }
+    });
+  }
+
+  // Envoyer un message de forum
+  sendForumMessage(content, categoryId, threadId = null) {
+    return this.send({
+      type: 'forum_message',
+      payload: {
+        content,
+        category_id: categoryId,
+        thread_id: threadId,
+        message_type: 'forum',
+        timestamp: Date.now()
+      }
+    });
+  }
+
+  // Envoyer un indicateur de frappe pour le forum
+  sendForumTypingIndicator(categoryId, threadId = null, isTyping = true) {
+    return this.send({
+      type: 'forum_typing',
+      payload: {
+        category_id: categoryId,
+        thread_id: threadId,
+        is_typing: isTyping,
         timestamp: Date.now()
       }
     });

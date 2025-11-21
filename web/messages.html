@@ -50,6 +50,61 @@
         font-weight: 500;
       }
       
+      /* Styles pour les messages de forum en temps réel */
+      .forum-message {
+        margin-bottom: 15px;
+        padding: 10px;
+        border-radius: 10px;
+        max-width: 80%;
+        animation: fadeInUp 0.3s ease-out;
+      }
+      
+      .forum-message.own-message {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        margin-left: auto;
+        text-align: right;
+      }
+      
+      .forum-message.other-message {
+        background: #f8f9fa;
+        color: #333;
+        border: 1px solid #e9ecef;
+      }
+      
+      .forum-message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 5px;
+        font-size: 12px;
+        opacity: 0.8;
+      }
+      
+      .forum-message-author {
+        font-weight: 600;
+      }
+      
+      .forum-message-time {
+        font-size: 11px;
+      }
+      
+      .forum-message-content {
+        line-height: 1.4;
+        word-wrap: break-word;
+      }
+      
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      
       /* Styles pour la section des paramètres de notification */
       .notification-settings-panel {
         position: fixed;
@@ -1413,6 +1468,24 @@
           handleRealtimeMessage(event.detail.message);
         });
 
+        // Écouter les nouveaux messages de forum
+        document.addEventListener('newForumMessage', (event) => {
+          handleForumMessage(event.detail.message);
+        });
+
+        // Écouter les messages de forum WebSocket pour mise à jour en temps réel
+        if (window.realtimeMessaging) {
+          window.realtimeMessaging.subscribe('newForumMessage', (message) => {
+            // Si on est sur le même forum, ajouter le message immédiatement
+            if (currentForumCategoryIdMain === message.category_id) {
+              addForumMessageToUI(message);
+            }
+            
+            // Afficher une notification si on n'est pas sur ce forum
+            handleForumMessage(message);
+          });
+        }
+
         // Écouter les accusés de lecture et mettre à jour l'UI
         document.addEventListener('messageRead', (event) => {
           const { conversation_id, last_read_message_id } = event.detail || {};
@@ -1593,17 +1666,36 @@
         forumSendBtnMain?.addEventListener('click', async ()=>{
           const text = (forumInputMain?.value || '').trim();
           if (!text || !currentForumCategoryIdMain) return;
+          
           try {
+            // Envoyer via WebSocket pour temps réel
+            if (window.realtimeMessaging && window.realtimeMessaging.isConnected) {
+              const success = window.realtimeMessaging.sendForumMessage(text, currentForumCategoryIdMain);
+              if (success) {
+                forumInputMain.value = '';
+                console.log('🗨️ Message de forum envoyé via WebSocket');
+                return;
+              }
+            }
+            
+            // Fallback vers API HTTP si WebSocket non disponible
             const resp = await fetch('/api/forum/messages', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', ...authHeaders() },
               body: JSON.stringify({ category_id: currentForumCategoryIdMain, content: text })
             });
+            
             if (resp.ok) {
               forumInputMain.value = '';
               await loadForumMessagesMain(true);
+              console.log('🗨️ Message de forum envoyé via API');
+            } else {
+              throw new Error('Erreur envoi message forum');
             }
-          } catch(e) { console.warn('send forum msg failed', e); }
+          } catch(e) { 
+            console.warn('❌ Envoi message forum échoué:', e);
+            showNotification('Erreur lors de l\'envoi du message', 'error');
+          }
         });
 
         async function loadForumMessagesMain(force=false) {
@@ -1762,6 +1854,80 @@
         }
       }
 
+      // Fonction pour gérer les nouveaux messages de forum
+      function handleForumMessage(message) {
+        if (!message) return;
+        
+        // Vérifier si l'utilisateur est déjà sur la discussion de forum en cours
+        const currentMode = getCurrentMode();
+        const isOnSameForum = currentMode === 'forum' && 
+                              currentForumCategoryIdMain === message.category_id &&
+                              (!message.thread_id || currentForumThreadIdMain === message.thread_id);
+        
+        // Ne pas afficher la notification si l'utilisateur est déjà sur la discussion
+        if (isOnSameForum && !document.hidden) {
+          return;
+        }
+        
+        // Créer une notification de forum
+        if (window.notificationBubble) {
+          const forumNotification = {
+            forumId: message.category_id,
+            threadId: message.thread_id,
+            sender: { name: message.author_name || message.sender?.name || 'Utilisateur forum' },
+            content: message.content || message.message,
+            urgent: message.urgent || false
+          };
+          
+          window.notificationBubble.showForumNotification(forumNotification);
+        }
+        
+        // Jouer un son de notification
+        if (window.notificationSounds) {
+          window.notificationSounds.play('forum');
+        }
+        
+        console.log('🗨️ Nouveau message de forum:', message);
+      }
+
+      // Fonction pour ajouter un message de forum à l'UI en temps réel
+      function addForumMessageToUI(message) {
+        if (!forumMessagesMain || !message) return;
+        
+        try {
+          // Créer l'élément de message
+          const messageDiv = document.createElement('div');
+          messageDiv.className = 'forum-message';
+          messageDiv.setAttribute('data-message-id', message.id);
+          
+          const messageTime = new Date(message.created_at || message.timestamp).toLocaleTimeString('fr-FR', {
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          
+          const isOwnMessage = message.author_id === getCurrentUserId();
+          messageDiv.classList.add(isOwnMessage ? 'own-message' : 'other-message');
+          
+          messageDiv.innerHTML = `
+            <div class="forum-message-header">
+              <span class="forum-message-author">${message.author_name || 'Utilisateur'}</span>
+              <span class="forum-message-time">${messageTime}</span>
+            </div>
+            <div class="forum-message-content">${message.content}</div>
+          `;
+          
+          // Ajouter au conteneur
+          forumMessagesMain.appendChild(messageDiv);
+          
+          // Scroll vers le bas
+          forumMessagesMain.scrollTop = forumMessagesMain.scrollHeight;
+          
+          console.log('✅ Message de forum ajouté à l\'UI:', message.id);
+        } catch (error) {
+          console.error('❌ Erreur ajout message forum UI:', error);
+        }
+      }
+
       // Fonction pour obtenir l'ID de l'utilisateur actuel
       function getCurrentUserId() {
         const token = localStorage.getItem('jwt');
@@ -1875,6 +2041,26 @@
         tooltipTriggerList.forEach(function (tooltipTriggerEl) {
           return new bootstrap.Tooltip(tooltipTriggerEl);
         });
+        
+        // Fonction de test pour les notifications de forum
+        window.testForumNotification = function() {
+          const testMessage = {
+            category_id: 'general',
+            thread_id: 'discussion-1',
+            author_name: 'Jean Dupont',
+            content: 'Nouveau message dans le forum général !',
+            urgent: false
+          };
+          
+          document.dispatchEvent(new CustomEvent('newForumMessage', {
+            detail: { message: testMessage }
+          }));
+          
+          console.log('🧪 Test notification de forum envoyé');
+        };
+        
+        // Ajouter un bouton de test dans la console
+        console.log('💡 Pour tester les notifications de forum, tapez: testForumNotification()');
         
         console.log('Page de messagerie initialisée');
       }
