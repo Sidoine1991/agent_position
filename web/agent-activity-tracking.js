@@ -779,16 +779,16 @@
       
       if (mode === 'weighted') {
         const weightedScore = stats.weighted_score || 0;
-        if (weightedScore >= 80) {
+        if (weightedScore >= 70) {
           performanceBadge = '<span class="badge bg-success">Excellent</span>';
           performanceClass = 'table-success';
-        } else if (weightedScore >= 60) {
+        } else if (weightedScore >= 50) {
           performanceBadge = '<span class="badge bg-info">Bon</span>';
           performanceClass = 'table-info';
-        } else if (weightedScore >= 40) {
+        } else if (weightedScore >= 30) {
           performanceBadge = '<span class="badge bg-warning">Moyen</span>';
           performanceClass = 'table-warning';
-        } else if (weightedScore >= 20) {
+        } else if (weightedScore >= 10) {
           performanceBadge = '<span class="badge bg-danger">Faible</span>';
           performanceClass = 'table-danger';
         } else {
@@ -851,8 +851,8 @@
           </td>
           <td class="text-center">
             <div class="d-flex flex-column align-items-center">
-              <div class="${rankClass}">${rankIcon} ${rank}</div>
-              ${mode === 'weighted' ? `<small class="${rankChangeClass}" title="vs classement TEP">${rankChangeIcon} ${tepRank}</small>` : ''}
+              <div class="${rankClass}">${rankIcon}</div>
+              ${mode === 'weighted' ? `<small class="${rankChangeClass}" title="vs classement TEP">${rankChangeIcon} ${tepRank}</small>` : `<small class="text-muted">#${rank}</small>`}
             </div>
           </td>
           <td class="text-center">
@@ -863,85 +863,6 @@
     }).join('');
     
     tbody.innerHTML = rows;
-  }
-      return tepB - tepA;
-    });
-    
-    // Regénérer le tbody
-    tbody.innerHTML = sortedStats.map((stats, index) => {
-      const tep = calculateExecutionRate(stats.realized_activities, stats.total_activities);
-      const rank = index + 1;
-      const rankClass = rank <= 3 ? 'text-warning fw-bold' : '';
-      const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
-      
-      // Déterminer la performance
-      let performanceBadge = '';
-      let performanceClass = '';
-      if (tep >= 90) {
-        performanceBadge = '<span class="badge bg-success">Excellent</span>';
-        performanceClass = 'table-success';
-      } else if (tep >= 75) {
-        performanceBadge = '<span class="badge bg-info">Bon</span>';
-        performanceClass = 'table-info';
-      } else if (tep >= 60) {
-        performanceBadge = '<span class="badge bg-warning">Moyen</span>';
-        performanceClass = 'table-warning';
-      } else if (tep >= 40) {
-        performanceBadge = '<span class="badge bg-danger">Faible</span>';
-        performanceClass = 'table-danger';
-      } else {
-        performanceBadge = '<span class="badge bg-secondary">Très faible</span>';
-        performanceClass = 'table-secondary';
-      }
-      
-      return `
-        <tr class="${performanceClass}" data-project="${escapeHtml(stats.project_name)}">
-          <td class="text-center">
-            <span class="${rankClass}">${rankIcon} ${rank}</span>
-          </td>
-          <td>
-            <div class="d-flex align-items-center">
-              <div class="avatar-sm bg-dark text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 28px; height: 28px; font-size: 10px;">
-                ${(stats.agent_name || 'A').charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <div class="fw-semibold">${escapeHtml(stats.agent_name || 'N/A')}</div>
-              </div>
-            </div>
-          </td>
-          <td class="text-center">
-            <small class="badge bg-dark">${escapeHtml(stats.role || 'N/A')}</small>
-          </td>
-          <td class="text-center">
-            <small class="badge bg-secondary">${escapeHtml(stats.project_name || 'N/A')}</small>
-          </td>
-          <td class="text-center">
-            <span class="fw-bold text-primary">${stats.total_activities || 0}</span>
-          </td>
-          <td class="text-center">
-            <span class="fw-bold text-success">${stats.realized_activities || 0}</span>
-          </td>
-          <td class="text-center">
-            <span class="fw-bold ${tep >= 80 ? 'text-success' : tep >= 60 ? 'text-warning' : 'text-danger'}">${tep.toFixed(1)}%</span>
-            <div class="progress mt-1" style="height: 3px;">
-              <div class="progress-bar ${tep >= 80 ? 'bg-success' : tep >= 60 ? 'bg-warning' : 'bg-danger'}" 
-                   style="width: ${tep}%"></div>
-            </div>
-          </td>
-          <td class="text-center">
-            ${performanceBadge}
-          </td>
-        </tr>
-      `;
-    }).join('');
-    
-    // Mettre à jour les compteurs
-    if (countBadge) {
-      countBadge.textContent = `${sortedStats.length} agents`;
-    }
-    if (summarySpan) {
-      summarySpan.textContent = `${sortedStats.length} agents classés${selectedProject ? ` (projet: ${selectedProject})` : ''}`;
-    }
   }
 
   /**
