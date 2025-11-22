@@ -449,6 +449,9 @@
               <option value="2024">2024</option>
               <option value="2025" selected>2025</option>
             </select>
+            <button type="button" class="btn btn-outline-light btn-sm" onclick="exportPresenceSummaryHTML()" title="Exporter ce tableau en HTML">
+              <i class="fas fa-download me-1"></i>HTML
+            </button>
           </div>
         </div>
         <div class="card-body p-0">
@@ -472,6 +475,7 @@
                   <th>Jour planifié</th>
                   <th>Présences</th>
                   <th>Taux de présence global mensuel</th>
+                  <th>Observation</th>
                 </tr>
               </thead>
               <tbody>
@@ -487,7 +491,8 @@
           </div>
         </div>
       </div>
-    </main>
+
+      </main>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>

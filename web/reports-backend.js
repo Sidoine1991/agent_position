@@ -2483,6 +2483,171 @@ async function storePresenceValidations(presencesData) {
   }
 }
 
+// Fonction pour exporter le tableau récapitulatif mensuel des présences
+window.exportPresenceSummaryHTML = async function() {
+  try {
+    // Créer et afficher l'indicateur de chargement
+    const loading = document.createElement('div');
+    loading.id = 'export-loading';
+    loading.style.position = 'fixed';
+    loading.style.top = '50%';
+    loading.style.left = '50%';
+    loading.style.transform = 'translate(-50%, -50%)';
+    loading.style.padding = '20px';
+    loading.style.backgroundColor = 'rgba(0,0,0,0.8)';
+    loading.style.color = 'white';
+    loading.style.borderRadius = '5px';
+    loading.style.zIndex = '10000';
+    loading.style.textAlign = 'center';
+    loading.innerHTML = 'Préparation de l\'export HTML...<br><small>Cette opération peut prendre quelques secondes</small>';
+    document.body.appendChild(loading);
+
+    // Donner le temps à l'UI de se mettre à jour
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Récupérer le tableau de présence
+    const presenceTable = document.getElementById('presence-summary');
+    if (!presenceTable) {
+      throw new Error('Tableau de présence non trouvé');
+    }
+    
+    // Obtenir le mois et l'année sélectionnés
+    const monthSelect = document.getElementById('month-selector');
+    const yearSelect = document.getElementById('year-selector');
+    const monthName = monthSelect ? monthSelect.options[monthSelect.selectedIndex].text : 'Mois';
+    const year = yearSelect ? yearSelect.value : new Date().getFullYear();
+    
+    // Créer le HTML d'export
+    const exportHtml = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Récapitulatif mensuel des présences - ${monthName} ${year}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #f8f9fa; 
+            padding: 20px; 
+        }
+        .export-header { 
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); 
+            color: white; 
+            padding: 30px; 
+            text-align: center; 
+            margin-bottom: 30px; 
+            border-radius: 10px; 
+        }
+        .export-title { 
+            font-size: 2.5rem; 
+            font-weight: bold; 
+            margin-bottom: 10px; 
+        }
+        .export-subtitle { 
+            font-size: 1.2rem; 
+            opacity: 0.9; 
+        }
+        .table-container { 
+            background: white; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            overflow: hidden; 
+            margin-bottom: 30px; 
+        }
+        .table { 
+            margin: 0; 
+        }
+        .export-footer { 
+            text-align: center; 
+            color: #6c757d; 
+            margin-top: 30px; 
+            padding: 20px; 
+            border-top: 1px solid #dee2e6; 
+        }
+        .badge-success { background-color: #28a745; }
+        .badge-danger { background-color: #dc3545; }
+        .badge-warning { background-color: #ffc107; color: #212529; }
+        .table th { background-color: #343a40; color: white; }
+        @media print {
+            body { padding: 10px; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="export-header">
+        <div class="export-title">
+            <i class="fas fa-calendar-check me-2"></i>
+            Récapitulatif mensuel des présences
+        </div>
+        <div class="export-subtitle">
+            ${monthName} ${year}
+        </div>
+    </div>
+    
+    <div class="table-container">
+        ${presenceTable.outerHTML}
+    </div>
+    
+    <div class="export-footer">
+        <p class="mb-2">
+            <i class="fas fa-info-circle me-1"></i>
+            Rapport généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}
+        </p>
+        <p class="mb-0 text-muted">
+            Système de suivi des agents - CCRB Bénin
+        </p>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Auto-imprimer optionnel
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                if (confirm('Voulez-vous imprimer ce rapport maintenant?')) {
+                    window.print();
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>`;
+    
+    // Créer un blob et télécharger
+    const blob = new Blob([exportHtml], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `rapport-presences-${monthName.toLowerCase()}-${year}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    // Supprimer l'indicateur de chargement
+    const loadingElement = document.getElementById('export-loading');
+    if (loadingElement) {
+      loadingElement.remove();
+    }
+    
+    showSuccessMessage('Rapport de présence exporté avec succès!');
+    
+  } catch (error) {
+    console.error('Erreur lors de l\'export HTML du tableau de présence:', error);
+    
+    // Supprimer l'indicateur de chargement
+    const loadingElement = document.getElementById('export-loading');
+    if (loadingElement) {
+      loadingElement.remove();
+    }
+    
+    const errorMsg = `Erreur lors de l'export HTML : ${error.message || 'Erreur inconnue'}\n\nVeuillez réessayer ou contacter le support si le problème persiste.`;
+    showErrorMessage(errorMsg);
+  }
+}
+
 // Fonction pour exporter le rapport en HTML
 window.exportAsHtml = async function() {
   try {
@@ -4908,6 +5073,15 @@ async function updatePresenceSummary() {
                 </div>
               </div>
             </td>
+            <td>
+              <input type="text" 
+                     class="form-control form-control-sm observation-input" 
+                     data-user-id="${agent.user_id}" 
+                     data-month="${month}" 
+                     data-year="${year}"
+                     placeholder="Ajouter une note..."
+                     value="${agent.observation || ''}">
+            </td>
           </tr>`;
       });
     }
@@ -4916,6 +5090,33 @@ async function updatePresenceSummary() {
     
     // Extraire les projets uniques du récapitulatif mensuel (depuis le DOM) et mettre à jour le filtre
     updateSummaryProjectFilter();
+
+    // Ajouter les gestionnaires d'événements pour les champs d'observation
+    document.querySelectorAll('#presence-summary .observation-input').forEach(input => {
+      // Récupérer les données
+      const userId = input.getAttribute('data-user-id');
+      const month = input.getAttribute('data-month');
+      const year = input.getAttribute('data-year');
+      const key = `monthly_observation_${userId}_${month}_${year}`;
+      
+      // Charger la valeur sauvegardée si elle existe
+      const savedObservation = localStorage.getItem(key);
+      if (savedObservation) {
+        input.value = savedObservation;
+      }
+      
+      // Ajouter l'écouteur d'événement pour sauvegarder les modifications
+      input.addEventListener('blur', function() {
+        const observation = this.value.trim();
+        if (observation) {
+          localStorage.setItem(key, observation);
+          console.log(`Observation sauvegardée pour l'agent ${userId} (${month}/${year}):`, observation);
+        } else {
+          localStorage.removeItem(key);
+          console.log(`Observation supprimée pour l'agent ${userId} (${month}/${year})`);
+        }
+      });
+    });
 
   } catch (error) {
     console.error('Erreur lors de la mise à jour du récapitulatif:', error);
