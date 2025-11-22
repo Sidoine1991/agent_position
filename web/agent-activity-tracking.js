@@ -818,7 +818,7 @@
       return `
         <tr class="${performanceClass}" data-project="${escapeHtml(stats.project_name)}">
           <td class="text-center">
-            <span class="${rankClass}">${rankIcon} ${rank}</span>
+            <span class="${rankClass}">${rankIcon}</span>
           </td>
           <td>
             <div class="d-flex align-items-center">
@@ -851,8 +851,8 @@
           </td>
           <td class="text-center">
             <div class="d-flex flex-column align-items-center">
-              <div class="${rankClass}">${rankIcon}</div>
-              ${mode === 'weighted' ? `<small class="${rankChangeClass}" title="vs classement TEP">${rankChangeIcon} ${tepRank}</small>` : `<small class="text-muted">#${rank}</small>`}
+              <div class="${rankClass}">#${rank}</div>
+              ${mode === 'weighted' ? `<small class="${rankChangeClass}" title="vs classement TEP">${rankChangeIcon} ${tepRank}</small>` : ''}
             </div>
           </td>
           <td class="text-center">
