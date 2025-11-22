@@ -1630,6 +1630,14 @@
         agents = [];
       }
       console.log('Utilisateurs chargés:', agents.length);
+      
+      // Debug: Compter les agents par projet après chargement principal
+      const projectCountsMain = {};
+      agents.forEach(agent => {
+        const project = agent.project_name || 'Non défini';
+        projectCountsMain[project] = (projectCountsMain[project] || 0) + 1;
+      });
+      console.log('📊 Répartition principale des agents par projet:', projectCountsMain);
     } catch (error) {
       console.error('Erreur lors du chargement des agents:', error);
       agents = [];
@@ -1762,6 +1770,14 @@
         const agents = data.data || data.agents || [];
         
         console.log(`📋 ${agents.length} agents chargés depuis la base`);
+        
+        // Debug: Compter les agents par projet
+        const projectCounts = {};
+        agents.forEach(agent => {
+          const project = agent.project_name || 'Non défini';
+          projectCounts[project] = (projectCounts[project] || 0) + 1;
+        });
+        console.log('📊 Répartition des agents par projet:', projectCounts);
         
         // Extraire les projets uniques depuis tous les agents
         const uniqueProjects = new Set();
