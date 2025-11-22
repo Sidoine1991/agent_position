@@ -433,6 +433,10 @@
       return tepB - tepA; // Décroissant
     });
     
+    // Calculer le classement pondéré
+    const weightedRanking = calculateWeightedRanking(completeStats);
+    const sortedByWeighted = [...weightedRanking].sort((a, b) => b.weighted_score - a.weighted_score);
+    
     // Obtenir tous les projets disponibles depuis la variable globale projects
     const availableProjects = projects.map(p => p.name);
     
@@ -448,21 +452,32 @@
       <div class="card mt-5 border-0 shadow-lg">
         <div class="card-header bg-dark text-white">
           <div class="row align-items-center">
-            <div class="col-md-8">
-              <h5 class="mb-0">
-                <i class="fas fa-trophy me-2 text-warning"></i>Classement des agents par Taux d'Exécution de la Planification (TEP)
+            <div class="card-header bg-gradient text-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="mb-2">
+                <i class="fas fa-trophy me-2 text-warning"></i>Classement des agents par Performance Pondérée
               </h5>
+              <p class="mb-0 small">
+                <i class="fas fa-chart-line me-1"></i>
+                TEP = (Activités entièrement réalisées / Total planifié) × 100
+                <br>
+                <strong>Score pondéré</strong> = TEP × (log(activités) / log(max_activités_projet))
+              </p>
             </div>
-            <div class="col-md-4 text-end">
-              <div class="btn-group" role="group">
-                <button type="button" class="btn btn-outline-light btn-sm" onclick="exportTEPRankingHTML()" title="Exporter ce tableau">
-                  <i class="fas fa-file-export me-1"></i>HTML
-                </button>
-                <button type="button" class="btn btn-outline-light btn-sm" onclick="exportAllTablesHTML()" title="Exporter tous les tableaux">
-                  <i class="fas fa-file-code me-1"></i>Tout
-                </button>
-              </div>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-outline-light btn-sm" onclick="switchRankingMode('weighted')" id="weighted-btn" title="Classement pondéré">
+                <i class="fas fa-balance-scale me-1"></i>Pondéré
+              </button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" onclick="switchRankingMode('tep')" id="tep-btn" title="Classement TEP pur">
+                <i class="fas fa-percentage me-1"></i>TEP Pur
+              </button>
+              <button type="button" class="btn btn-outline-light btn-sm" onclick="exportTEPRankingHTML()" title="Exporter ce tableau">
+                <i class="fas fa-download me-1"></i>Exporter
+              </button>
             </div>
+          </div>
+        </div>
           </div>
         </div>
         <div class="card-body p-0">
@@ -505,29 +520,43 @@
                   <th class="text-center">Total planifié</th>
                   <th class="text-center">Entièrement réalisé</th>
                   <th class="text-center">TEP (%)</th>
+                  <th class="text-center">
+                    <div class="d-flex flex-column align-items-center">
+                      <span>Classement</span>
+                      <small class="text-muted">Pondéré</small>
+                    </div>
+                  </th>
                   <th class="text-center">Performance</th>
                 </tr>
               </thead>
               <tbody id="ranking-tbody">
-                ${sortedByTEP.map((stats, index) => {
+                ${sortedByWeighted.map((stats, index) => {
                   const tep = calculateExecutionRate(stats.realized_activities, stats.total_activities);
                   const rank = index + 1;
                   const rankClass = rank <= 3 ? 'text-warning fw-bold' : '';
                   const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
                   
-                  // Déterminer la performance
+                  // Trouver le classement TEP pour comparaison
+                  const tepRank = sortedByTEP.findIndex(s => s.agent_name === stats.agent_name && s.project_name === stats.project_name) + 1;
+                  const rankChange = tepRank - rank;
+                  const rankChangeIcon = rankChange > 0 ? '📈' : rankChange < 0 ? '📉' : '➡️';
+                  const rankChangeClass = rankChange > 0 ? 'text-success' : rankChange < 0 ? 'text-danger' : 'text-muted';
+                  
+                  // Déterminer la performance basée sur le score pondéré
                   let performanceBadge = '';
                   let performanceClass = '';
-                  if (tep >= 90) {
+                  const weightedScore = stats.weighted_score || 0;
+                  
+                  if (weightedScore >= 80) {
                     performanceBadge = '<span class="badge bg-success">Excellent</span>';
                     performanceClass = 'table-success';
-                  } else if (tep >= 75) {
+                  } else if (weightedScore >= 60) {
                     performanceBadge = '<span class="badge bg-info">Bon</span>';
                     performanceClass = 'table-info';
-                  } else if (tep >= 60) {
+                  } else if (weightedScore >= 40) {
                     performanceBadge = '<span class="badge bg-warning">Moyen</span>';
                     performanceClass = 'table-warning';
-                  } else if (tep >= 40) {
+                  } else if (weightedScore >= 20) {
                     performanceBadge = '<span class="badge bg-danger">Faible</span>';
                     performanceClass = 'table-danger';
                   } else {
@@ -570,6 +599,12 @@
                         </div>
                       </td>
                       <td class="text-center">
+                        <div class="d-flex flex-column align-items-center">
+                          <div class="${rankClass}">${rankIcon} ${rank}</div>
+                          <small class="${rankChangeClass}" title="vs classement TEP">${rankChangeIcon} ${tepRank}</small>
+                        </div>
+                      </td>
+                      <td class="text-center">
                         ${performanceBadge}
                       </td>
                     </tr>
@@ -582,8 +617,10 @@
         <div class="card-footer bg-dark text-white py-2">
           <small class="mb-0">
             <i class="fas fa-chart-line me-1"></i>
-            Classement automatique par performance décroissante | 
-            <span id="ranking-summary">${stats.length} agents classés</span>
+            Classement pondéré par performance (TEP × volume d'activités) | 
+            <span id="ranking-summary">${stats.length} agents classés</span> | 
+            <i class="fas fa-info-circle me-1"></i>
+            Le classement pondéré corrige le biais du TEP pur en tenant compte du volume d'activités
           </small>
         </div>
       </div>
@@ -647,10 +684,186 @@
       filteredProjects: [...new Set(filteredStats.map(s => s.project_name))]
     });
     
-    // Retrier par TEP décroissant
+    // Retrier selon le mode actuel
     const sortedStats = [...filteredStats].sort((a, b) => {
+      const weightedA = a.weighted_score || 0;
+      const weightedB = b.weighted_score || 0;
+      return weightedB - weightedA;
+    });
+    
+    // Mettre à jour le tableau
+    updateRankingTable(sortedStats);
+    
+    // Mettre à jour les compteurs
+    if (countBadge) countBadge.textContent = `${sortedStats.length} agents`;
+    if (summarySpan) summarySpan.textContent = `${sortedStats.length} agents classés`;
+  }
+
+  /**
+   * Bascule entre le mode de classement pondéré et TEP pur
+   */
+  function switchRankingMode(mode) {
+    const weightedBtn = document.getElementById('weighted-btn');
+    const tepBtn = document.getElementById('tep-btn');
+    const allStats = window.tepRankingStats || [];
+    
+    // Mettre à jour les boutons
+    if (mode === 'weighted') {
+      weightedBtn.className = 'btn btn-outline-light btn-sm';
+      tepBtn.className = 'btn btn-outline-secondary btn-sm';
+    } else {
+      weightedBtn.className = 'btn btn-outline-secondary btn-sm';
+      tepBtn.className = 'btn btn-outline-light btn-sm';
+    }
+    
+    // Filtrer selon le projet sélectionné
+    const filter = document.getElementById('ranking-project-filter');
+    const selectedProject = filter ? filter.value : '';
+    const filteredStats = selectedProject ? 
+      allStats.filter(s => s.project_name === selectedProject) : 
+      allStats;
+    
+    // Trier selon le mode
+    let sortedStats;
+    if (mode === 'weighted') {
+      // Utiliser le classement pondéré
+      const weightedRanking = calculateWeightedRanking(filteredStats);
+      sortedStats = weightedRanking.sort((a, b) => b.weighted_score - a.weighted_score);
+    } else {
+      // Utiliser le classement TEP pur
+      sortedStats = filteredStats.sort((a, b) => {
+        const tepA = calculateExecutionRate(a.realized_activities, a.total_activities);
+        const tepB = calculateExecutionRate(b.realized_activities, b.total_activities);
+        return tepB - tepA;
+      });
+    }
+    
+    // Mettre à jour le tableau
+    updateRankingTable(sortedStats, mode);
+    
+    console.log(`🔄 Basculement vers mode: ${mode}`, {
+      totalAgents: sortedStats.length,
+      mode: mode
+    });
+  }
+
+  /**
+   * Met à jour le tableau de classement
+   */
+  function updateRankingTable(sortedStats, mode = 'weighted') {
+    const tbody = document.getElementById('ranking-tbody');
+    if (!tbody) return;
+    
+    // Calculer les classements TEP pour comparaison
+    const tepRanking = [...sortedStats].sort((a, b) => {
       const tepA = calculateExecutionRate(a.realized_activities, a.total_activities);
       const tepB = calculateExecutionRate(b.realized_activities, b.total_activities);
+      return tepB - tepA;
+    });
+    
+    const rows = sortedStats.map((stats, index) => {
+      const tep = calculateExecutionRate(stats.realized_activities, stats.total_activities);
+      const rank = index + 1;
+      const rankClass = rank <= 3 ? 'text-warning fw-bold' : '';
+      const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+      
+      // Trouver le classement TEP pour comparaison
+      const tepRank = tepRanking.findIndex(s => s.agent_name === stats.agent_name && s.project_name === stats.project_name) + 1;
+      const rankChange = tepRank - rank;
+      const rankChangeIcon = rankChange > 0 ? '📈' : rankChange < 0 ? '📉' : '➡️';
+      const rankChangeClass = rankChange > 0 ? 'text-success' : rankChange < 0 ? 'text-danger' : 'text-muted';
+      
+      // Déterminer la performance
+      let performanceBadge = '';
+      let performanceClass = '';
+      
+      if (mode === 'weighted') {
+        const weightedScore = stats.weighted_score || 0;
+        if (weightedScore >= 80) {
+          performanceBadge = '<span class="badge bg-success">Excellent</span>';
+          performanceClass = 'table-success';
+        } else if (weightedScore >= 60) {
+          performanceBadge = '<span class="badge bg-info">Bon</span>';
+          performanceClass = 'table-info';
+        } else if (weightedScore >= 40) {
+          performanceBadge = '<span class="badge bg-warning">Moyen</span>';
+          performanceClass = 'table-warning';
+        } else if (weightedScore >= 20) {
+          performanceBadge = '<span class="badge bg-danger">Faible</span>';
+          performanceClass = 'table-danger';
+        } else {
+          performanceBadge = '<span class="badge bg-secondary">Très faible</span>';
+          performanceClass = 'table-secondary';
+        }
+      } else {
+        // Mode TEP pur
+        if (tep >= 90) {
+          performanceBadge = '<span class="badge bg-success">Excellent</span>';
+          performanceClass = 'table-success';
+        } else if (tep >= 75) {
+          performanceBadge = '<span class="badge bg-info">Bon</span>';
+          performanceClass = 'table-info';
+        } else if (tep >= 60) {
+          performanceBadge = '<span class="badge bg-warning">Moyen</span>';
+          performanceClass = 'table-warning';
+        } else if (tep >= 40) {
+          performanceBadge = '<span class="badge bg-danger">Faible</span>';
+          performanceClass = 'table-danger';
+        } else {
+          performanceBadge = '<span class="badge bg-secondary">Très faible</span>';
+          performanceClass = 'table-secondary';
+        }
+      }
+      
+      return `
+        <tr class="${performanceClass}" data-project="${escapeHtml(stats.project_name)}">
+          <td class="text-center">
+            <span class="${rankClass}">${rankIcon} ${rank}</span>
+          </td>
+          <td>
+            <div class="d-flex align-items-center">
+              <div class="avatar-sm bg-dark text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 28px; height: 28px; font-size: 10px;">
+                ${(stats.agent_name || 'A').charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div class="fw-semibold">${escapeHtml(stats.agent_name || 'N/A')}</div>
+              </div>
+            </div>
+          </td>
+          <td class="text-center">
+            <small class="badge bg-dark">${escapeHtml(stats.role || 'N/A')}</small>
+          </td>
+          <td class="text-center">
+            <small class="badge bg-secondary">${escapeHtml(stats.project_name || 'N/A')}</small>
+          </td>
+          <td class="text-center">
+            <span class="fw-bold text-primary">${stats.total_activities || 0}</span>
+          </td>
+          <td class="text-center">
+            <span class="fw-bold text-success">${stats.realized_activities || 0}</span>
+          </td>
+          <td class="text-center">
+            <span class="fw-bold ${tep >= 80 ? 'text-success' : tep >= 60 ? 'text-warning' : 'text-danger'}">${tep.toFixed(1)}%</span>
+            <div class="progress mt-1" style="height: 3px;">
+              <div class="progress-bar ${tep >= 80 ? 'bg-success' : tep >= 60 ? 'bg-warning' : 'bg-danger'}" 
+                   style="width: ${tep}%"></div>
+            </div>
+          </td>
+          <td class="text-center">
+            <div class="d-flex flex-column align-items-center">
+              <div class="${rankClass}">${rankIcon} ${rank}</div>
+              ${mode === 'weighted' ? `<small class="${rankChangeClass}" title="vs classement TEP">${rankChangeIcon} ${tepRank}</small>` : ''}
+            </div>
+          </td>
+          <td class="text-center">
+            ${performanceBadge}
+          </td>
+        </tr>
+      `;
+    }).join('');
+    
+    tbody.innerHTML = rows;
+  }
       return tepB - tepA;
     });
     
@@ -2470,6 +2683,45 @@
     return (realizedActivities / totalActivities) * 100;
   }
 
+  /**
+   * Calcule un classement pondéré qui prend en compte le TEP et le volume d'activités
+   * Formule: Score pondéré = TEP × (log(activités_réalisées + 1) / log(max_activités_projet + 1)) × 100
+   */
+  function calculateWeightedRanking(stats) {
+    // Grouper par projet pour trouver le maximum d'activités par projet
+    const projectMaxActivities = new Map();
+    
+    stats.forEach(stat => {
+      const project = stat.project_name;
+      const currentMax = projectMaxActivities.get(project) || 0;
+      projectMaxActivities.set(project, Math.max(currentMax, stat.total_activities));
+    });
+    
+    // Calculer le score pondéré pour chaque agent
+    return stats.map(stat => {
+      const tep = calculateExecutionRate(stat.realized_activities, stat.total_activities);
+      const maxActivitiesInProject = projectMaxActivities.get(stat.project_name) || 1;
+      
+      // Facteur de volume : pénalise les agents avec très peu d'activités
+      // Utilise log pour éviter que les différences extrêmes ne dominent trop
+      const volumeFactor = stat.total_activities > 0 
+        ? Math.log(stat.total_activities + 1) / Math.log(maxActivitiesInProject + 1)
+        : 0;
+      
+      // Score pondéré : combine TEP et volume
+      // Plus d'activités = plus de poids dans le classement
+      const weightedScore = tep * volumeFactor;
+      
+      return {
+        ...stat,
+        tep: tep,
+        volume_factor: volumeFactor,
+        weighted_score: weightedScore,
+        max_activities_project: maxActivitiesInProject
+      };
+    });
+  }
+
   // Fonctions d'authentification (reprises de planning.js)
   
   function findToken() {
@@ -2704,6 +2956,8 @@
   window.saveActivityRow = saveActivityRow;
   window.deleteActivityRow = deleteActivityRow;
   window.clearActivityFilters = clearActivityFilters;
+  window.switchRankingMode = switchRankingMode;
+  window.filterRankingTable = filterRankingTable;
 
   // Synchroniser les données en attente
   async function syncOfflineData() {
