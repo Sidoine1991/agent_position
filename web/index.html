@@ -1148,7 +1148,7 @@
           <span style="font-size: 24px;">👤</span>
           <span>Profil</span>
         </a>
-        <button id="sync-offline-checkins-btn" class="navbar-link" title="Synchroniser les check-ins en attente" style="display: none; background: transparent; border: none; cursor: pointer; position: relative;">
+        <button id="sync-offline-checkins-btn" class="navbar-link" title="Synchroniser les check-ins en attente" style="background: transparent; border: none; cursor: pointer; position: relative;">
           <span style="font-size: 24px;">🔄</span>
           <span>Sync</span>
           <span id="sync-checkins-badge" class="badge bg-danger" style="position: absolute; top: -5px; right: -5px; font-size: 10px; padding: 2px 5px; display: none;">0</span>
@@ -26858,7 +26858,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   badge.style.display = 'inline-block';
                 }
               } else {
-                syncBtn.style.display = 'none';
+                syncBtn.style.display = 'flex';
                 const badge = document.getElementById('sync-checkins-badge');
                 if (badge) badge.style.display = 'none';
               }
