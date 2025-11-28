@@ -682,12 +682,12 @@ body::after {
 }
 
 .navbar-logo {
-  width: 48px;
-  height: 48px;
+  width: 36px;
+  height: 36px;
   object-fit: contain;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.1);
-  padding: 4px;
+  padding: 3px;
 }
 
 .navbar-title h1 {
@@ -1334,13 +1334,13 @@ main {
   transition: transform 0.3s ease;
 }
 .org-logo {
-  width: 120px;
-  height: 120px;
+  width: 80px;
+  height: 80px;
   object-fit: contain;
   border-radius: 12px;
   background: #fff;
   box-shadow: var(--shadow);
-  padding: 8px;
+  padding: 6px;
 }
 
 .agent-avatar:hover {

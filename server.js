@@ -8,7 +8,7 @@ try {
   process.env.SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_PROJECT_URL;
   process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
   process.env.SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-} catch {}
+} catch { }
 const express = require('express');
 const fs = require('fs');
 const bcrypt = require('bcrypt');
@@ -18,6 +18,7 @@ const multer = require('multer');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
+const { buildAgentMonthlyReport } = require('./utils/monthlyReport');
 
 const app = express();
 const PORT = process.env.PORT || 3010;
@@ -36,7 +37,7 @@ const { createClient } = require('@supabase/supabase-js');
 // Sanitize Supabase env vars (trim spaces, remove trailing slashes)
 const supabaseUrlRaw = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
 const supabaseUrl = typeof supabaseUrlRaw === 'string' 
-  ? supabaseUrlRaw.trim().replace(/\/+$/,'') 
+  ? supabaseUrlRaw.trim().replace(/\/+$/, '')
   : '';
 const supabaseKeyRaw = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY 
   || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
@@ -75,15 +76,338 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371e3; // Rayon de la Terre en mètres
   const φ1 = toRad(lat1); // φ, λ en radians
   const φ2 = toRad(lat2);
-  const Δφ = toRad(lat2-lat1);
-  const Δλ = toRad(lon2-lon1);
+  const Δφ = toRad(lat2 - lat1);
+  const Δλ = toRad(lon2 - lon1);
 
-  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
             Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ/2) * Math.sin(Δλ/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return Math.round(R * c);
+}
+
+function getUserDisplayName(user = {}) {
+  if (!user) return 'Agent';
+  if (user.name && user.name.trim()) return user.name.trim();
+  const fragments = [user.first_name, user.last_name].filter(Boolean).map(part => String(part).trim());
+  if (fragments.length > 0) return fragments.join(' ');
+  if (user.email) return user.email.split('@')[0];
+  if (user.id) return `Agent ${user.id}`;
+  return 'Agent';
+}
+
+function computeDurationHours(start, end) {
+  if (!start || !end) return 0;
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return 0;
+  const diffMs = endDate.getTime() - startDate.getTime();
+  if (diffMs <= 0) return 0;
+  return Math.round((diffMs / 3600000) * 100) / 100;
+}
+
+function clampDays(value, { fallback = 30, min = 7, max = 120 } = {}) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, min), max);
+}
+
+function isMissingTable(error) {
+  if (!error) return false;
+  // PostgreSQL error code for missing table
+  if (error.code === '42P01') return true;
+  // PostgREST error code for missing table
+  if (error.code === 'PGRST205') return true;
+  // PostgREST error code for missing relationship (table might exist but no FK)
+  if (error.code === 'PGRST200') return true;
+  if (typeof error.message === 'string') {
+    return /relation .* does not exist/i.test(error.message) ||
+      /Could not find the table/i.test(error.message) ||
+      /table .* in the schema cache/i.test(error.message) ||
+      /Could not find a relationship/i.test(error.message);
+  }
+  return false;
+}
+
+/**
+ * Récupère l'UUID d'un utilisateur à partir de son ID numérique ou UUID
+ * @param {string|number} id - ID numérique ou UUID de l'utilisateur
+ * @returns {Promise<string|null>} UUID de l'utilisateur ou null si non trouvé
+ */
+async function getUserId(id) {
+  console.log('🔍 getUserId called with ID:', { id, type: typeof id });
+
+  if (!id) {
+    const error = new Error('Aucun ID fourni à getUserId');
+    console.error('❌', error.message);
+    throw error;
+  }
+
+  const idStr = String(id).trim();
+  if (!idStr) {
+    const error = new Error('ID vide fourni à getUserId');
+    console.error('❌', error.message);
+    throw error;
+  }
+  
+  try {
+    console.log(`🔍 Vérification de l'existence de l'utilisateur avec l'ID: ${idStr}`);
+    
+    // Vérification UUID
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idStr);
+    if (isUuid) {
+      console.log('🔍 ID est un UUID, vérification dans auth.users...');
+      
+      try {
+        const { data: authUser, error: authError } = await supabaseClient.auth.admin.getUserById(idStr);
+        if (authUser && !authError) {
+          console.log('✅ UUID trouvé dans auth.users:', idStr);
+          return idStr;
+        }
+      } catch (e) {
+        console.error('❌ Erreur lors de la vérification dans auth.users:', e.message);
+        // On continue même en cas d'erreur
+      }
+      
+      console.log('⚠️ UUID non trouvé dans auth.users, recherche dans la table users...');
+      
+      // Recherche dans la table users par auth_uuid
+      const { data: user, error: userError } = await supabaseClient
+        .from('users')
+        .select('id, auth_uuid, email')
+        .eq('auth_uuid', idStr)
+        .single();
+        
+      if (user && !userError) {
+        console.log('✅ Utilisateur trouvé dans la table users avec cet auth_uuid:', { 
+          id: user.id, 
+          email: user.email 
+        });
+        return user.id;
+      }
+      
+      console.log('❌ Aucun utilisateur trouvé avec cet auth_uuid');
+      throw new Error(`Aucun utilisateur trouvé avec l'UUID: ${idStr}`);
+    }
+    
+    // Vérification ID numérique
+    const isNumeric = /^\d+$/.test(idStr);
+    if (isNumeric) {
+      console.log('🔢 ID numérique détecté, recherche par ID...');
+      const numericId = Number(idStr);
+      
+      // D'abord, essayer de trouver l'utilisateur directement par son ID
+      const { data: user, error: userError } = await supabaseClient
+        .from('users')
+        .select('id, auth_uuid, email')
+        .eq('id', numericId)
+        .single();
+
+      if (user && !userError) {
+        console.log('✅ Utilisateur trouvé par ID numérique:', { 
+          id: numericId, 
+          email: user.email,
+          hasAuthUuid: !!user.auth_uuid
+        });
+        
+        // Si l'utilisateur a un auth_uuid, vérifier qu'il existe dans auth.users
+        if (user.auth_uuid) {
+          try {
+            const { data: authUser } = await supabaseClient.auth.admin.getUserById(user.auth_uuid);
+            if (authUser) {
+              console.log('✅ UUID associé trouvé dans auth.users:', user.auth_uuid);
+              return user.auth_uuid; // Retourner l'UUID pour la cohérence
+            } else {
+              console.log('⚠️ UUID non trouvé dans auth.users, utilisation de l\'ID numérique');
+              return user.id;
+            }
+          } catch (e) {
+            console.error('❌ Erreur lors de la vérification de l\'UUID dans auth.users:', e.message);
+            // En cas d'erreur, on retourne quand même l'ID numérique
+            return user.id;
+          }
+        }
+        
+        return user.id;
+      }
+      
+      // Si on arrive ici, l'utilisateur n'a pas été trouvé par son ID
+      console.log('❌ Aucun utilisateur trouvé avec cet ID numérique');
+      throw new Error(`Aucun utilisateur trouvé avec l'ID: ${numericId}`);
+    }
+    
+    // Si on arrive ici, l'ID n'est ni un UUID ni un nombre
+    console.log('❌ Format d\'ID non reconnu:', idStr);
+    throw new Error(`Format d'identifiant non valide: ${idStr}`);
+    
+  } catch (error) {
+    console.error('❌ Erreur dans getUserId:', {
+      id: idStr,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+    // Propager l'erreur pour une gestion plus haut niveau
+    throw error;
+  }
+}
+
+function isoDateOnly(input) {
+  if (!input) return null;
+  const date = new Date(input);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().split('T')[0];
+}
+
+function calculateRecentStreak(dateList = [], windowDays = 30) {
+  if (!Array.isArray(dateList) || dateList.length === 0) return 0;
+  const daySet = new Set(dateList.map(isoDateOnly).filter(Boolean));
+  if (daySet.size === 0) return 0;
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  let streak = 0;
+  for (let i = 0; i < windowDays; i++) {
+    const cursor = new Date(today);
+    cursor.setUTCDate(today.getUTCDate() - i);
+    const key = cursor.toISOString().split('T')[0];
+    if (daySet.has(key)) {
+      streak += 1;
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+function getStaticHelpSections() {
+  return [
+    {
+      id: 'getting-started',
+      title: 'Guide de démarrage',
+      content: 'Découvrez comment vous connecter, enregistrer vos présences et envoyer vos premiers rapports.',
+      category: 'start'
+    },
+    {
+      id: 'planning',
+      title: 'Planification des missions',
+      content: 'Créez votre planification quotidienne, indiquez les objectifs et suivez vos activités terrain.',
+      category: 'planning'
+    },
+    {
+      id: 'reports',
+      title: 'Rapports et preuves terrain',
+      content: 'Générez des rapports détaillés, joignez des photos et partagez vos résultats avec votre superviseur.',
+      category: 'reports'
+    }
+  ];
+}
+
+/**
+ * Vérifie si l'utilisateur a les privilèges nécessaires
+ * @param {object} req - Requête Express
+ * @returns {boolean} true si l'utilisateur a les privilèges, false sinon
+ */
+function isPrivilegedRequest(req) {
+  try {
+    // Vérification complète de l'objet utilisateur
+    if (!req || typeof req !== 'object' || !req.user) {
+      console.log('⚠️ Aucun utilisateur dans la requête', { 
+        hasReq: !!req,
+        reqType: typeof req,
+        hasUser: req ? !!req.user : 'N/A'
+      });
+      return false;
+    }
+
+    // Vérification du rôle
+    const userRole = req.user.role;
+    if (userRole === undefined || userRole === null) {
+      console.log('⚠️ Rôle utilisateur manquant', { 
+        userId: req.user.id,
+        userEmail: req.user.email
+      });
+      return false;
+    }
+
+    const role = String(userRole).trim().toLowerCase();
+    const privilegedRoles = new Set(['admin', 'superadmin', 'superviseur', 'supervisor']);
+    const isPrivileged = privilegedRoles.has(role);
+    
+    console.log(`🔑 Vérification des privilèges - `, { 
+      userId: req.user.id,
+      email: req.user.email,
+      role: role,
+      isPrivileged: isPrivileged
+    });
+    
+    return isPrivileged;
+  } catch (error) {
+    console.error('❌ Erreur dans isPrivilegedRequest:', error);
+    return false; // En cas d'erreur, on refuse l'accès par sécurité
+  }
+}
+
+function pad2(value) {
+  return String(value).padStart(2, '0');
+}
+
+function normalizeMonthValue(input) {
+  if (!input) return null;
+  if (typeof input === 'string' && /^\d{4}-\d{2}$/.test(input)) {
+    return input;
+  }
+  const date = new Date(input);
+  if (Number.isNaN(date.getTime())) return null;
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}`;
+}
+
+function formatMonthKey(date) {
+  if (!(date instanceof Date)) return '';
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}`;
+}
+
+async function buildFallbackLocations() {
+  try {
+    const { data, error } = await supabaseClient
+      .from('presences')
+      .select('id, location_name, location_lat, location_lng, start_time')
+      .order('start_time', { ascending: false })
+      .limit(2000);
+    
+    if (error) throw error;
+    
+    const presences = Array.isArray(data) ? data : [];
+    const map = new Map();
+    
+    presences.forEach(presence => {
+      const lat = Number(presence.location_lat);
+      const lon = Number(presence.location_lng);
+      const hasCoords = Number.isFinite(lat) && Number.isFinite(lon);
+      const label = presence.location_name?.trim();
+      const key = label ? label.toLowerCase() : (hasCoords ? `${lat.toFixed(3)}_${lon.toFixed(3)}` : null);
+      if (!key) return;
+      
+      if (!map.has(key)) {
+        map.set(key, {
+          id: key,
+          name: label || `Coordonnées ${lat.toFixed(3)}, ${lon.toFixed(3)}`,
+          lat: hasCoords ? lat : null,
+          lon: hasCoords ? lon : null,
+          type: label ? 'named' : 'coordinate',
+          usage: 0
+        });
+      }
+      map.get(key).usage += 1;
+    });
+    
+    return Array.from(map.values())
+      .sort((a, b) => b.usage - a.usage)
+      .slice(0, 200)
+      .map(({ usage, ...rest }) => rest);
+  } catch (error) {
+    console.warn('buildFallbackLocations error:', error.message);
+    return [];
+  }
 }
 
 // Route pour récupérer les validations
@@ -538,15 +862,15 @@ app.get('/api/admin/stats', async (req, res) => {
         .eq('status', 'active');
       if (mErr) throw mErr;
       activeMissions = mCount || 0;
-    } catch {}
+    } catch { }
 
     // Check-ins today (UTC day)
     let checkinsToday = 0;
     try {
       const start = new Date();
-      start.setUTCHours(0,0,0,0);
+      start.setUTCHours(0, 0, 0, 0);
       const end = new Date();
-      end.setUTCHours(23,59,59,999);
+      end.setUTCHours(23, 59, 59, 999);
       const { count: cCount, error: cErr } = await supabaseClient
         .from('checkins')
         .select('id', { count: 'exact', head: true })
@@ -554,14 +878,16 @@ app.get('/api/admin/stats', async (req, res) => {
         .lte('timestamp', end.toISOString());
       if (cErr) throw cErr;
       checkinsToday = cCount || 0;
-    } catch {}
+    } catch { }
 
-    res.json({ success: true, data: {
+    res.json({
+      success: true, data: {
       totalUsers: totalUsers || 0,
       activeAgents: activeAgents || 0,
       activeMissions,
       checkinsToday,
-    }});
+      }
+    });
   } catch (error) {
     console.error('Erreur API admin/stats:', error);
     res.status(500).json({ success: false, error: 'Erreur lors de la récupération des statistiques' });
@@ -596,14 +922,14 @@ app.get('/api/attendance/day-status', async (req, res) => {
         .from('planifications')
         .select('agent_id,date')
         .eq('agent_id', agentId)
-        .gte('date', fromISO.slice(0,10))
-        .lte('date', toISO.slice(0,10));
+        .gte('date', fromISO.slice(0, 10))
+        .lte('date', toISO.slice(0, 10));
       if (pErr) { /* silencieux si table absente */ }
       else plans = planRows || [];
-    } catch {}
+    } catch { }
 
-    const dayKey = (d) => new Date(d).toISOString().slice(0,10);
-    const todayKey = new Date().toISOString().slice(0,10);
+    const dayKey = (d) => new Date(d).toISOString().slice(0, 10);
+    const todayKey = new Date().toISOString().slice(0, 10);
 
     // 3) Choisir le premier point par jour et déterminer la couleur
     const byDay = new Map();
@@ -1499,10 +1825,10 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371000; // Rayon de la Terre en mètres
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c; // Distance en mètres
 }
 
@@ -1539,7 +1865,15 @@ if (process.env.NODE_ENV !== 'test') {
 
 // Servir les fichiers statiques
 app.use(express.static('web'));
-app.use('/bootstrap-5.3.8-dist', express.static(path.join(__dirname, 'bootstrap-5.3.8-dist')));
+app.use(express.static('www')); // Servir aussi le dossier www
+// Servir bootstrap depuis node_modules ou CDN (si le dossier local n'existe pas)
+const bootstrapPath = path.join(__dirname, 'bootstrap-5.3.8-dist');
+if (require('fs').existsSync(bootstrapPath)) {
+  app.use('/bootstrap-5.3.8-dist', express.static(bootstrapPath));
+} else {
+  // Si bootstrap n'existe pas localement, on utilisera le CDN dans le HTML
+  console.warn('⚠️ Dossier bootstrap-5.3.8-dist non trouvé, utilisez le CDN dans le HTML');
+}
 // Servir le dossier Media pour les images (accès public)
 app.use('/Media', express.static(path.join(__dirname, 'Media')));
 
@@ -1557,7 +1891,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Middleware d'authentification
 async function authenticateToken(req, res, next) {
   console.log('🔍 Middleware authenticateToken appelé');
   const authHeader = req.headers['authorization'];
@@ -1572,19 +1905,21 @@ async function authenticateToken(req, res, next) {
   }
 
   console.log('🔍 Vérification du token...');
-  jwt.verify(token, JWT_SECRET, async (err, decoded) => {
-    console.log('🔍 Résultat de la vérification du token:', { err, decoded: decoded ? 'présent' : 'non décodé' });
-    if (err) {
-      console.error('❌ Erreur de vérification du token:', err.message);
-      return res.status(403).json({ error: 'Token invalide', details: err.message });
-    }
-    
-    // Chercher l'utilisateur par auth_uuid (pour Supabase Auth) ou par ID (pour ancien système)
+
+  try {
+    // Vérifier le token JWT
+    const decoded = jwt.verify(token, JWT_SECRET);
+    console.log('🔍 Token décodé:', {
+      id: decoded.id,
+      auth_uuid: decoded.auth_uuid,
+      email: decoded.email
+    });
+
     let user = null;
     
-    try {
+    // Essayer de trouver l'utilisateur par auth_uuid (nouveau système) ou par ID (ancien système)
       if (decoded.auth_uuid) {
-        // Recherche par auth_uuid (nouveau système Supabase Auth)
+      console.log('🔍 Recherche par auth_uuid:', decoded.auth_uuid);
         const { data, error } = await supabaseClient
           .from('users')
           .select('*')
@@ -1594,35 +1929,104 @@ async function authenticateToken(req, res, next) {
         if (!error && data) {
           user = data;
         }
-      } else if (decoded.id) {
-        // Recherche par ID (ancien système)
-        const { data, error } = await supabaseClient
+    }
+
+    // Si pas trouvé par auth_uuid, essayer par ID numérique ou UUID
+    if (!user && decoded.id) {
+      console.log('🔍 Recherche par ID:', decoded.id);
+
+      // Essayer d'abord avec l'ID tel quel (pour les UUID)
+      let { data, error } = await supabaseClient
           .from('users')
           .select('*')
           .eq('id', decoded.id)
           .single();
         
+      // Si non trouvé et que l'ID est numérique, essayer avec la conversion en nombre
+      if ((error || !data) && /^\d+$/.test(decoded.id)) {
+        console.log('🔍 Essai avec conversion de l\'ID en nombre');
+        const numericId = parseInt(decoded.id, 10);
+        const result = await supabaseClient
+          .from('users')
+          .select('*')
+          .eq('id', numericId)
+          .single();
+
+        if (!result.error && result.data) {
+          data = result.data;
+          error = null;
+        }
+      }
+
+      if (!error && data) {
+        user = data;
+      }
+    }
+
+    // Si l'utilisateur n'est toujours pas trouvé, vérifier s'il s'agit d'un ID numérique
+    if (!user && decoded.id && /^\d+$/.test(decoded.id)) {
+      console.log('🔍 Tentative de recherche par ID numérique dans les anciens enregistrements');
+
+      // Essayer de trouver l'utilisateur avec l'ID numérique
+      const { data, error } = await supabaseClient
+        .from('users')
+        .select('*')
+        .eq('id', parseInt(decoded.id, 10))
+        .single();
+
         if (!error && data) {
           user = data;
         }
       }
       
       if (!user) {
-        return res.status(403).json({ error: 'Utilisateur non trouvé' });
-      }
-      
+      console.error('❌ Utilisateur non trouvé dans la base de données');
+      return res.status(403).json({
+        success: false,
+        error: 'Utilisateur non trouvé',
+        details: process.env.NODE_ENV === 'development' ? {
+          decodedToken: {
+            id: decoded.id,
+            auth_uuid: decoded.auth_uuid,
+            email: decoded.email
+          }
+        } : undefined
+      });
+    }
+
+    console.log('✅ Utilisateur authentifié:', {
+      id: user.id,
+      email: user.email,
+      role: user.role
+    });
+
+    // Ajouter l'utilisateur à la requête
       req.user = user;
       next();
-    } catch (dbErr) {
-      console.error('Erreur base de données auth:', dbErr);
-      return res.status(500).json({ error: 'Erreur serveur' });
+
+  } catch (err) {
+    console.error('❌ Erreur d\'authentification:', err);
+
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        error: 'Session expirée',
+        details: process.env.NODE_ENV === 'development' ? err.message : undefined
+      });
     }
-  });
+
+    res.status(403).json({
+      success: false,
+      error: 'Token invalide',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
 }
 
 // Middleware d'authentification admin
 function authenticateAdmin(req, res, next) {
   if (!req.user || req.user.role !== 'admin') {
+    console.log('❌ Accès administrateur requis');
     return res.status(403).json({ error: 'Accès administrateur requis' });
   }
   next();
@@ -1679,7 +2083,7 @@ app.get('/api/admin/export/presence.csv', authenticateToken, authenticateSupervi
       .select('id, agent_id, departement, commune, arrondissement, village')
       .in('id', missionIds.length ? missionIds : [0]);
     if (mErr) throw mErr;
-    const missionById = new Map((missions||[]).map(m => [m.id, m]));
+    const missionById = new Map((missions || []).map(m => [m.id, m]));
 
     // Users + Profiles
     const agentIds = Array.from(new Set((missions || []).map(m => m.agent_id).filter(Boolean)));
@@ -1687,12 +2091,12 @@ app.get('/api/admin/export/presence.csv', authenticateToken, authenticateSupervi
       .from('users')
       .select('id, first_name, last_name, name, project_name');
     if (uErr) throw uErr;
-    const usersById = new Map((users||[]).map(u => [u.id, u]));
+    const usersById = new Map((users || []).map(u => [u.id, u]));
     const { data: profiles, error: pErr } = await supabaseClient
       .from('profiles')
       .select('user_id, reference_lat, reference_lon, tolerance_radius_meters');
     if (pErr) throw pErr;
-    const profileByUser = new Map((profiles||[]).map(p => [p.user_id, p]));
+    const profileByUser = new Map((profiles || []).map(p => [p.user_id, p]));
 
     // Grouper par agent+jour pour déterminer début/fin de journée
     const byAgentDay = new Map();
@@ -1701,7 +2105,7 @@ app.get('/api/admin/export/presence.csv', authenticateToken, authenticateSupervi
       const agentId = m.agent_id;
       if (!agentId) continue;
       const day = new Date(c.created_at);
-      const dayKey = day.toISOString().slice(0,10);
+      const dayKey = day.toISOString().slice(0, 10);
       const key = agentId + '|' + dayKey;
       if (!byAgentDay.has(key)) byAgentDay.set(key, []);
       byAgentDay.get(key).push(c);
@@ -1714,7 +2118,7 @@ app.get('/api/admin/export/presence.csv', authenticateToken, authenticateSupervi
       const R = 6371000;
       const dLat = toRad(lat2 - lat1);
       const dLon = toRad(lon2 - lon1);
-      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return Math.round(R * c);
     }
@@ -1722,11 +2126,11 @@ app.get('/api/admin/export/presence.csv', authenticateToken, authenticateSupervi
     // Construire lignes
     const rows = [];
     for (const [key, list] of byAgentDay.entries()) {
-      list.sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
+      list.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
       const [agentIdStr, dayKey] = key.split('|');
       const agentId = Number(agentIdStr);
       const first = list[0];
-      const last = list[list.length-1];
+      const last = list[list.length - 1];
       const mission = missionById.get(first.mission_id) || {};
       const user = usersById.get(agentId) || {};
       const prof = profileByUser.get(agentId) || {};
@@ -1740,8 +2144,8 @@ app.get('/api/admin/export/presence.csv', authenticateToken, authenticateSupervi
       const status = dist === null ? '' : (dist <= tol ? 'Présent' : 'Hors_zone');
 
       rows.push([
-        user.last_name || (user.name||'').split(' ').slice(-1)[0] || '',
-        user.first_name || (user.name||'').split(' ').slice(0, -1).join(' ') || '',
+        user.last_name || (user.name || '').split(' ').slice(-1)[0] || '',
+        user.first_name || (user.name || '').split(' ').slice(0, -1).join(' ') || '',
         user.project_name || '',
         mission.departement || '',
         mission.commune || '',
@@ -1753,8 +2157,8 @@ app.get('/api/admin/export/presence.csv', authenticateToken, authenticateSupervi
         String(curLat || ''),
         String(curLon || ''),
         dayKey,
-        new Date(first.timestamp).toLocaleTimeString('fr-FR', { hour12:false }),
-        new Date(last.timestamp).toLocaleTimeString('fr-FR', { hour12:false }),
+        new Date(first.timestamp).toLocaleTimeString('fr-FR', { hour12: false }),
+        new Date(last.timestamp).toLocaleTimeString('fr-FR', { hour12: false }),
         last.note || '',
         last.photo_url || '',
         status,
@@ -1766,15 +2170,15 @@ app.get('/api/admin/export/presence.csv', authenticateToken, authenticateSupervi
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="presence-export.csv"');
     const header = [
-      'Nom Animateur/agent','Prénom Animateur/Agent','Projet','Departement','Commune','Arrondissement','Village',
-      'Longitude_reference','Latitude_reference','Rayon tolere (metre)','Latitude_actuelle','Longitude_actuelle','Date',
-      'Heure debut journee','Heure fin journee','Note','Photo','Statut_Presence','Distance_Reference_M'
+      'Nom Animateur/agent', 'Prénom Animateur/Agent', 'Projet', 'Departement', 'Commune', 'Arrondissement', 'Village',
+      'Longitude_reference', 'Latitude_reference', 'Rayon tolere (metre)', 'Latitude_actuelle', 'Longitude_actuelle', 'Date',
+      'Heure debut journee', 'Heure fin journee', 'Note', 'Photo', 'Statut_Presence', 'Distance_Reference_M'
     ];
     const toCsv = (v) => {
       const s = String(v ?? '');
-      return /[",\n;]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+      return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     };
-    const csv = [header.map(toCsv).join(';')].concat(rows.map(r=> r.map(toCsv).join(';'))).join('\n');
+    const csv = [header.map(toCsv).join(';')].concat(rows.map(r => r.map(toCsv).join(';'))).join('\n');
     res.send(csv);
   } catch (e) {
     console.error('export/presence.csv error:', e);
@@ -1784,14 +2188,14 @@ app.get('/api/admin/export/presence.csv', authenticateToken, authenticateSupervi
 
 app.get('/api/admin/export/presence.txt', authenticateToken, authenticateSupervisorOrAdmin, async (req, res) => {
   // Réutilise le CSV puis remplace le séparateur par des tabulations
-  req.url = req.url.replace('/presence.txt','/presence.csv');
+  req.url = req.url.replace('/presence.txt', '/presence.csv');
   try {
     const fakeRes = {
       _chunks: '',
-      setHeader: ()=>{},
-      send: (s)=>{ fakeRes._chunks = s; }
+      setHeader: () => { },
+      send: (s) => { fakeRes._chunks = s; }
     };
-    await new Promise((resolve)=>{
+    await new Promise((resolve) => {
       // Appeler le handler CSV manuellement n'est pas trivial ici; renvoyer 501 simple
       resolve();
     });
@@ -1819,7 +2223,7 @@ app.get('/api/debug/whoami', authenticateToken, async (req, res) => {
         .eq('id', userId)
         .single();
       if (!error) userRow = data || null;
-    } catch {}
+    } catch { }
     res.json({ success: true, jwt_user: req.user, db_user: userRow });
   } catch (e) {
     res.status(500).json({ success: false, error: e?.message || 'server_error' });
@@ -1831,7 +2235,7 @@ app.get('/api/debug/can-planify', authenticateToken, async (req, res) => {
   try {
     const userId = req.user && (req.user.id || req.user.userId);
     const today = new Date();
-    const date = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())).toISOString().slice(0,10);
+    const date = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())).toISOString().slice(0, 10);
     const probeNote = 'debug_probe_do_not_keep';
 
     // 1) tenter upsert
@@ -1894,7 +2298,7 @@ app.post('/api/planifications', async (req, res) => {
           enrichedDescription = `Planification de ${fullName}`;
         }
       }
-    } catch {}
+    } catch { }
 
     // Déterminer l'utilisateur cible: un admin/superviseur peut planifier pour un autre agent
     // Récupérer les informations de l'utilisateur depuis la base de données
@@ -3123,7 +3527,7 @@ app.get('/api/admin/attendance', authenticateToken, authenticateSupervisorOrAdmi
     }
 
     const fromISO = new Date(from + 'T00:00:00.000Z').toISOString();
-    const toISO = new Date(new Date(to + 'T00:00:00.000Z').getTime() + 24*60*60*1000).toISOString();
+    const toISO = new Date(new Date(to + 'T00:00:00.000Z').getTime() + 24 * 60 * 60 * 1000).toISOString();
 
     // Récupérer les missions dans l'intervalle, avec l'agent
     const { data: missions, error: missionsErr } = await supabaseClient
@@ -3275,7 +3679,7 @@ app.get('/api/admin/project-summary', authenticateToken, authenticateSupervisorO
     }
 
     const fromISO = new Date(from + 'T00:00:00.000Z').toISOString();
-    const toISO = new Date(new Date(to + 'T00:00:00.000Z').getTime() + 24*60*60*1000).toISOString();
+    const toISO = new Date(new Date(to + 'T00:00:00.000Z').getTime() + 24 * 60 * 60 * 1000).toISOString();
 
     // Charger les utilisateurs (agents) avec leur projet
     const { data: users, error: usersErr } = await supabaseClient
@@ -3322,7 +3726,7 @@ app.get('/api/admin/project-summary', authenticateToken, authenticateSupervisorO
         plans = Array.isArray(plansAll) ? plansAll.filter(p => {
           const raw = p.date || p.date_planned || p.planned_date || p.date_start || p.jour || p.day;
           if (!raw) return false;
-          const day = (String(raw)).slice(0,10);
+          const day = (String(raw)).slice(0, 10);
           return day >= from && day <= to;
         }) : [];
       }
@@ -3339,7 +3743,7 @@ app.get('/api/admin/project-summary', authenticateToken, authenticateSupervisorO
       if (!plansByAgent.has(p.agent_id)) plansByAgent.set(p.agent_id, new Set());
       const raw = p.date || p.date_planned || p.planned_date || p.date_start || p.jour || p.day;
       if (!raw) return;
-      const day = (String(raw)).slice(0,10);
+      const day = (String(raw)).slice(0, 10);
       plansByAgent.get(p.agent_id).add(day);
     });
 
@@ -3383,7 +3787,7 @@ app.get('/api/admin/project-summary', authenticateToken, authenticateSupervisorO
       amissions.forEach(m => {
         const cks = checkinsByMission.get(m.id) || [];
         cks.forEach(ck => {
-          const day = new Date(ck.created_at).toISOString().slice(0,10);
+          const day = new Date(ck.created_at).toISOString().slice(0, 10);
           presentDays.add(day);
         });
       });
@@ -3394,7 +3798,7 @@ app.get('/api/admin/project-summary', authenticateToken, authenticateSupervisorO
       bucket.checkins_count += totalCheckins;
     });
 
-    const items = Array.from(byProject.values()).sort((a,b) => a.project_name.localeCompare(b.project_name));
+    const items = Array.from(byProject.values()).sort((a, b) => a.project_name.localeCompare(b.project_name));
     res.json({ success: true, from, to, items });
 
   } catch (error) {
@@ -3415,7 +3819,7 @@ app.get('/api/presence/check-today', async (req, res) => {
       .select('id')
       .eq('email', email)
       .single();
-    if (uerr || !u) return res.status(404).json({ success: true, has_presence: false });
+    if (uerr || !u) return res.status(200).json({ success: true, has_presence: false });
 
     // Début/fin du jour (UTC)
     const now = new Date();
@@ -3601,7 +4005,7 @@ app.post('/api/profile', authenticateToken, async (req, res) => {
     if (typeof hire_date !== 'undefined') usersUpdate.hire_date = hire_date || null;
     if (typeof age !== 'undefined') usersUpdate.age = (payload.age ?? null);
     if (Object.keys(usersUpdate).length > 0) {
-      try { await supabaseClient.from('users').update(usersUpdate).eq('id', userId); } catch {}
+      try { await supabaseClient.from('users').update(usersUpdate).eq('id', userId); } catch { }
     }
 
     return res.json({ success: true, profile: data });
@@ -3707,10 +4111,21 @@ app.post('/api/me/profile', authenticateToken, async (req, res) => {
 // Missions
 app.get('/api/me/missions', authenticateToken, async (req, res) => {
   try {
+    const requestedAgentId = Number(req.query.agent_id);
+    const currentUserId = Number(req.user.id);
+    let targetAgentId = currentUserId;
+    
+    if (Number.isFinite(requestedAgentId)) {
+      if (requestedAgentId !== currentUserId && !isPrivilegedRequest(req)) {
+        return res.status(403).json({ error: 'Accès interdit pour cet agent' });
+      }
+      targetAgentId = requestedAgentId;
+    }
+
     const { data: missions, error } = await supabaseClient
       .from('missions')
       .select('*')
-      .eq('agent_id', req.user.id)
+      .eq('agent_id', targetAgentId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -3952,7 +4367,7 @@ app.post('/api/messages', authenticateToken, async (req, res) => {
             }
           }
         }
-      } catch {}
+      } catch { }
 
       if (!foundConv) {
         // Créer la conversation et ajouter les participants
@@ -4016,7 +4431,8 @@ app.post('/api/messages', authenticateToken, async (req, res) => {
 
     // Diffuser en temps réel aux clients WebSocket
     try {
-      broadcastRealtime({ type: 'message', payload: {
+      broadcastRealtime({
+        type: 'message', payload: {
         id: message.id,
         conversation_id: message.conversation_id,
         content: message.content,
@@ -4024,7 +4440,8 @@ app.post('/api/messages', authenticateToken, async (req, res) => {
         sender_id: message.sender_id,
         sender_user_id: message.sender_user_id,
         created_at: message.created_at
-      }});
+        }
+      });
     } catch (e) {
       console.warn('Broadcast message failed:', e?.message);
     }
@@ -4142,7 +4559,7 @@ app.get('/api/forum/categories', async (req, res) => {
         .select('id, name, description, icon, order_index')
         .order('order_index', { ascending: true });
       if (!error && Array.isArray(data)) categories = data;
-    } catch {}
+    } catch { }
 
     if (!categories || categories.length === 0) {
       categories = [
@@ -4174,7 +4591,7 @@ app.get('/api/forum/messages', authenticateToken, async (req, res) => {
         .eq('name', categoryId)
         .single();
       if (!convErr && conv) convId = conv.id;
-    } catch {}
+    } catch { }
     if (!convId) {
       const { data: newConv, error: createErr } = await supabaseClient
         .from('conversations')
@@ -4218,7 +4635,7 @@ app.post('/api/forum/messages', authenticateToken, async (req, res) => {
         .eq('name', category_id)
         .single();
       if (!convErr && conv) convId = conv.id;
-    } catch {}
+    } catch { }
     if (!convId) {
       const { data: newConv } = await supabaseClient
         .from('conversations')
@@ -4246,7 +4663,8 @@ app.post('/api/forum/messages', authenticateToken, async (req, res) => {
 
     // Broadcast temps réel
     try {
-      broadcastRealtime({ type: 'message', payload: {
+      broadcastRealtime({
+        type: 'message', payload: {
         id: message.id,
         conversation_id: message.conversation_id,
         content: message.content,
@@ -4254,8 +4672,9 @@ app.post('/api/forum/messages', authenticateToken, async (req, res) => {
         sender_id: message.sender_id,
         sender_user_id: message.sender_user_id,
         created_at: message.created_at
-      }});
-    } catch {}
+        }
+      });
+    } catch { }
 
     return res.json({ success: true, message, conversation_id: convId });
   } catch (e) {
@@ -4273,6 +4692,1590 @@ app.get('/api/admin-units', async (req, res) => {
   } catch (error) {
     console.error('Erreur admin-units:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ===== PERMISSIONS ENDPOINTS =====
+// GET /api/permissions - Récupérer les demandes de permission
+app.get('/api/permissions', authenticateToken, async (req, res) => {
+  try {
+    if (!supabaseClient) {
+      return res.status(500).json({ success: false, error: 'Supabase non configuré' });
+    }
+
+    const requesterId = Number(req.user?.id);
+    const isPrivileged = isPrivilegedRequest(req);
+    const status = req.query.status; // Filtrer par statut si fourni
+
+    // Essayer de récupérer les permissions
+    let query = supabaseClient
+      .from('permissions')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    // Si l'utilisateur n'est pas privilégié, ne montrer que ses propres permissions
+    if (!isPrivileged) {
+      query = query.eq('agent_id', requesterId);
+    }
+
+    // Filtrer par statut si fourni
+    if (status && status !== 'all') {
+      query = query.eq('status', status);
+    }
+
+    // Essayer d'exécuter la requête avec gestion d'erreur complète
+    let data = null;
+    let error = null;
+    
+    try {
+      const result = await query;
+      data = result.data;
+      error = result.error;
+    } catch (queryError) {
+      // Capturer les erreurs lancées par Supabase
+      error = queryError;
+    }
+
+    // Gérer toutes les erreurs possibles (table manquante, relation manquante, etc.)
+    if (error) {
+      const errorCode = String(error.code || '');
+      const errorMessage = String(error.message || '');
+      const errorDetails = String(error.details || '');
+      
+      // Vérifier tous les types d'erreurs possibles
+      const isTableOrRelationError = 
+        isMissingTable(error) || 
+        errorCode === 'PGRST200' || 
+        errorCode === 'PGRST205' ||
+        errorCode === '42P01' ||
+        errorMessage.toLowerCase().includes('could not find') ||
+        errorMessage.toLowerCase().includes('relationship') ||
+        errorMessage.toLowerCase().includes('schema cache') ||
+        errorMessage.toLowerCase().includes('does not exist') ||
+        errorDetails.toLowerCase().includes('relationship') ||
+        errorDetails.toLowerCase().includes('schema cache');
+      
+      if (isTableOrRelationError) {
+        console.warn('Table permissions non trouvée ou relation manquante, retour d\'un tableau vide:', {
+          code: errorCode,
+          message: errorMessage,
+          details: errorDetails
+        });
+        return res.json({ success: true, permissions: [] });
+      }
+      
+      // Si ce n'est pas une erreur de table/relation, la logger et la relancer
+      console.error('Erreur API permissions (GET) - erreur non gérée:', {
+        code: errorCode,
+        message: errorMessage,
+        details: errorDetails,
+        error: error
+      });
+      throw error;
+    }
+
+    // Enrichir avec les données utilisateurs
+    let enrichedPermissions = data || [];
+    if (enrichedPermissions.length > 0) {
+      const agentIds = [...new Set(enrichedPermissions.map(p => p.agent_id).filter(Boolean))];
+      
+      // Récupérer les utilisateurs seulement s'il y a des IDs valides
+      if (agentIds.length > 0) {
+        try {
+          const { data: users, error: usersError } = await supabaseClient
+            .from('users')
+            .select('id, name, first_name, last_name, email, project_name')
+            .in('id', agentIds);
+
+          if (!usersError && users && users.length > 0) {
+            const usersMap = new Map();
+            users.forEach(user => {
+              usersMap.set(user.id, user);
+            });
+
+            enrichedPermissions = enrichedPermissions.map(perm => ({
+              ...perm,
+              agent: usersMap.get(perm.agent_id) || null
+            }));
+          } else {
+            // Si erreur lors de la récupération des users, continuer sans enrichir
+            enrichedPermissions = enrichedPermissions.map(perm => ({
+              ...perm,
+              agent: null
+            }));
+          }
+        } catch (userFetchError) {
+          console.warn('Erreur lors de la récupération des utilisateurs pour enrichir les permissions:', userFetchError);
+          // Continuer sans enrichir en cas d'erreur
+          enrichedPermissions = enrichedPermissions.map(perm => ({
+            ...perm,
+            agent: null
+          }));
+        }
+      } else {
+        // Pas d'IDs utilisateurs, retourner sans enrichir
+        enrichedPermissions = enrichedPermissions.map(perm => ({
+          ...perm,
+          agent: null
+        }));
+      }
+    }
+
+    console.log(`✅ API permissions (GET): ${enrichedPermissions.length} permission(s) retournée(s)`);
+    if (enrichedPermissions.length > 0) {
+      console.log('📋 Exemple de permission retournée:', {
+        id: enrichedPermissions[0].id,
+        agent_id: enrichedPermissions[0].agent_id,
+        has_agent: !!enrichedPermissions[0].agent,
+        status: enrichedPermissions[0].status
+      });
+    }
+    res.json({ success: true, permissions: enrichedPermissions });
+  } catch (error) {
+    console.error('Erreur API permissions (GET) dans le catch:', error);
+    
+    // Vérifier à nouveau si c'est une erreur de table/relation manquante
+    const errorCode = String(error.code || '');
+    const errorMessage = String(error.message || '');
+    const errorDetails = String(error.details || '');
+    
+    const isTableOrRelationError = 
+      isMissingTable(error) || 
+      errorCode === 'PGRST200' || 
+      errorCode === 'PGRST205' ||
+      errorCode === '42P01' ||
+      errorMessage.toLowerCase().includes('could not find') ||
+      errorMessage.toLowerCase().includes('relationship') ||
+      errorMessage.toLowerCase().includes('schema cache') ||
+      errorMessage.toLowerCase().includes('does not exist') ||
+      errorDetails.toLowerCase().includes('relationship') ||
+      errorDetails.toLowerCase().includes('schema cache');
+    
+    if (isTableOrRelationError) {
+      console.warn('Erreur de table/relation dans le catch, retour d\'un tableau vide:', {
+        code: errorCode,
+        message: errorMessage,
+        details: errorDetails
+      });
+      return res.json({ success: true, permissions: [] });
+    }
+    
+    res.status(error.statusCode || 500).json({ success: false, error: error.message || 'Erreur serveur' });
+  }
+});
+
+// POST /api/permissions - Créer une nouvelle demande de permission
+app.post('/api/permissions', authenticateToken, async (req, res) => {
+  try {
+    if (!supabaseClient) {
+      return res.status(500).json({ success: false, error: 'Supabase non configuré' });
+    }
+
+    const requesterId = Number(req.user?.id);
+    const { start_date, end_date, status = 'pending', reason } = req.body;
+
+    if (!start_date || !end_date) {
+      return res.status(400).json({ success: false, error: 'start_date et end_date sont requis' });
+    }
+
+    if (new Date(end_date) < new Date(start_date)) {
+      return res.status(400).json({ success: false, error: 'La date de fin doit être supérieure ou égale à la date de début' });
+    }
+
+    const permissionData = {
+      agent_id: requesterId,
+      start_date,
+      end_date,
+      status,
+      rejection_reason: reason || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: insertedData, error } = await supabaseClient
+      .from('permissions')
+      .insert([permissionData])
+      .select('*')
+      .single();
+
+    if (error && isMissingTable(error)) {
+      return res.status(404).json({ success: false, error: 'Table permissions non trouvée' });
+    }
+
+    if (error) throw error;
+
+    // Enrichir avec les données utilisateur
+    let data = insertedData;
+    if (data && data.agent_id) {
+      const { data: user, error: userError } = await supabaseClient
+        .from('users')
+        .select('id, name, first_name, last_name, email, project_name')
+        .eq('id', data.agent_id)
+        .single();
+
+      if (!userError && user) {
+        data = {
+          ...data,
+          agent: user
+        };
+      }
+    }
+
+    res.json({ success: true, permission: data });
+  } catch (error) {
+    console.error('Erreur API permissions (POST):', error);
+    res.status(error.statusCode || 500).json({ success: false, error: error.message || 'Erreur serveur' });
+  }
+});
+
+// PUT /api/permissions/:id - Mettre à jour une demande de permission
+app.put('/api/permissions/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!supabaseClient) {
+      return res.status(500).json({ success: false, error: 'Supabase non configuré' });
+    }
+
+    const permissionId = Number(req.params.id);
+    const requesterId = Number(req.user?.id);
+    const isPrivileged = isPrivilegedRequest(req);
+    const { start_date, end_date, status, reason } = req.body;
+
+    if (!Number.isFinite(permissionId)) {
+      return res.status(400).json({ success: false, error: 'ID invalide' });
+    }
+
+    // Vérifier que la permission existe et que l'utilisateur a le droit de la modifier
+    const { data: existing, error: fetchError } = await supabaseClient
+      .from('permissions')
+      .select('agent_id, status')
+      .eq('id', permissionId)
+      .single();
+
+    if (fetchError && isMissingTable(fetchError)) {
+      return res.status(404).json({ success: false, error: 'Table permissions non trouvée' });
+    }
+
+    if (fetchError || !existing) {
+      return res.status(404).json({ success: false, error: 'Permission non trouvée' });
+    }
+
+    // Vérifier les droits d'accès
+    if (!isPrivileged && Number(existing.agent_id) !== requesterId) {
+        return res.status(403).json({ success: false, error: 'Accès refusé' });
+      }
+
+    // Construire l'objet de mise à jour
+    const updateData = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (start_date) updateData.start_date = start_date;
+    if (end_date) updateData.end_date = end_date;
+    if (status) updateData.status = status;
+    if (reason !== undefined) updateData.rejection_reason = reason;
+
+    // Vérifier les dates si fournies
+    const finalStartDate = updateData.start_date || existing.start_date;
+    const finalEndDate = updateData.end_date || existing.end_date;
+    if (new Date(finalEndDate) < new Date(finalStartDate)) {
+      return res.status(400).json({ success: false, error: 'La date de fin doit être supérieure ou égale à la date de début' });
+    }
+
+    const { data: updatedData, error } = await supabaseClient
+      .from('permissions')
+      .update(updateData)
+      .eq('id', permissionId)
+      .select('*')
+      .single();
+
+    if (error && isMissingTable(error)) {
+      return res.status(404).json({ success: false, error: 'Table permissions non trouvée' });
+    }
+
+    if (error) throw error;
+
+    // Enrichir avec les données utilisateur
+    let data = updatedData;
+    if (data && data.agent_id) {
+      const { data: user, error: userError } = await supabaseClient
+        .from('users')
+        .select('id, name, first_name, last_name, email, project_name')
+        .eq('id', data.agent_id)
+        .single();
+
+      if (!userError && user) {
+        data = {
+          ...data,
+          agent: user
+        };
+      }
+    }
+
+    res.json({ success: true, permission: data });
+  } catch (error) {
+    console.error('Erreur API permissions (PUT):', error);
+    res.status(error.statusCode || 500).json({ success: false, error: error.message || 'Erreur serveur' });
+  }
+});
+
+// DELETE /api/permissions/:id - Supprimer une demande de permission
+app.delete('/api/permissions/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!supabaseClient) {
+      return res.status(500).json({ success: false, error: 'Supabase non configuré' });
+    }
+
+    const permissionId = Number(req.params.id);
+    const requesterId = Number(req.user?.id);
+    const isPrivileged = isPrivilegedRequest(req);
+
+    if (!Number.isFinite(permissionId)) {
+      return res.status(400).json({ success: false, error: 'ID invalide' });
+    }
+
+    // Vérifier que la permission existe et que l'utilisateur a le droit de la supprimer
+    const { data: existing, error: fetchError } = await supabaseClient
+      .from('permissions')
+      .select('agent_id')
+      .eq('id', permissionId)
+      .single();
+
+    if (fetchError && isMissingTable(fetchError)) {
+      return res.status(404).json({ success: false, error: 'Table permissions non trouvée' });
+    }
+
+    if (fetchError || !existing) {
+      return res.status(404).json({ success: false, error: 'Permission non trouvée' });
+    }
+
+    // Vérifier les droits d'accès (seulement si draft ou pending pour les agents)
+    if (!isPrivileged) {
+      if (Number(existing.agent_id) !== requesterId) {
+        return res.status(403).json({ success: false, error: 'Accès refusé' });
+      }
+    }
+
+    const { error } = await supabaseClient
+      .from('permissions')
+      .delete()
+      .eq('id', permissionId);
+
+    if (error) throw error;
+
+    res.json({ success: true, message: 'Permission supprimée avec succès' });
+  } catch (error) {
+    console.error('Erreur API permissions (DELETE):', error);
+    res.status(error.statusCode || 500).json({ success: false, error: error.message || 'Erreur serveur' });
+  }
+});
+
+// PUT /api/permissions/:id/approve - Approuver une demande de permission
+app.put('/api/permissions/:id/approve', authenticateToken, async (req, res) => {
+  try {
+    if (!isPrivilegedRequest(req)) {
+      return res.status(403).json({ success: false, error: 'Accès refusé' });
+    }
+
+    if (!supabaseClient) {
+      return res.status(500).json({ success: false, error: 'Supabase non configuré' });
+    }
+
+    const permissionId = Number(req.params.id);
+    if (!Number.isFinite(permissionId)) {
+      return res.status(400).json({ success: false, error: 'ID invalide' });
+    }
+
+    const { data: updatedData, error } = await supabaseClient
+      .from('permissions')
+      .update({
+        status: 'approved',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', permissionId)
+      .select('*')
+      .single();
+
+    if (error && isMissingTable(error)) {
+      return res.status(404).json({ success: false, error: 'Table permissions non trouvée' });
+    }
+
+    if (error) throw error;
+
+    // Enrichir avec les données utilisateur
+    let data = updatedData;
+    if (data && data.agent_id) {
+      const { data: user, error: userError } = await supabaseClient
+        .from('users')
+        .select('id, name, first_name, last_name, email, project_name')
+        .eq('id', data.agent_id)
+        .single();
+
+      if (!userError && user) {
+        data = {
+          ...data,
+          agent: user
+        };
+      }
+    }
+
+    if (error && isMissingTable(error)) {
+      return res.status(404).json({ success: false, error: 'Table permissions non trouvée' });
+    }
+
+    if (error) throw error;
+
+    if (!data) {
+      return res.status(404).json({ success: false, error: 'Permission non trouvée' });
+    }
+
+    res.json({ success: true, permission: data });
+  } catch (error) {
+    console.error('Erreur API permissions (APPROVE):', error);
+    res.status(error.statusCode || 500).json({ success: false, error: error.message || 'Erreur serveur' });
+  }
+});
+
+// PUT /api/permissions/:id/reject - Rejeter une demande de permission
+app.put('/api/permissions/:id/reject', authenticateToken, async (req, res) => {
+  try {
+    if (!isPrivilegedRequest(req)) {
+      return res.status(403).json({ success: false, error: 'Accès refusé' });
+    }
+
+    if (!supabaseClient) {
+      return res.status(500).json({ success: false, error: 'Supabase non configuré' });
+    }
+
+    const permissionId = Number(req.params.id);
+    const { reason, rejection_reason } = req.body;
+    const rejectionReason = reason || rejection_reason;
+
+    if (!Number.isFinite(permissionId)) {
+      return res.status(400).json({ success: false, error: 'ID invalide' });
+    }
+
+    if (!rejectionReason || !String(rejectionReason).trim()) {
+      return res.status(400).json({ success: false, error: 'Le motif de rejet est obligatoire' });
+    }
+
+    const { data: updatedData, error } = await supabaseClient
+      .from('permissions')
+      .update({
+        status: 'rejected',
+        rejection_reason: String(rejectionReason).trim(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', permissionId)
+      .select('*')
+      .single();
+
+    if (error && isMissingTable(error)) {
+      return res.status(404).json({ success: false, error: 'Table permissions non trouvée' });
+    }
+
+    if (error) throw error;
+
+    // Enrichir avec les données utilisateur
+    let data = updatedData;
+    if (data && data.agent_id) {
+      const { data: user, error: userError } = await supabaseClient
+        .from('users')
+        .select('id, name, first_name, last_name, email, project_name')
+        .eq('id', data.agent_id)
+        .single();
+
+      if (!userError && user) {
+        data = {
+          ...data,
+          agent: user
+        };
+      }
+    }
+
+    if (error && isMissingTable(error)) {
+      return res.status(404).json({ success: false, error: 'Table permissions non trouvée' });
+    }
+
+    if (error) throw error;
+
+    if (!data) {
+      return res.status(404).json({ success: false, error: 'Permission non trouvée' });
+    }
+
+    res.json({ success: true, permission: data });
+  } catch (error) {
+    console.error('Erreur API permissions (REJECT):', error);
+    res.status(error.statusCode || 500).json({ success: false, error: error.message || 'Erreur serveur' });
+  }
+});
+
+// Helper function to ensure we always have a valid date range
+function ensureDateRange(record) {
+  // If we have both start_date and end_date, ensure they're valid
+  if (record.start_date && record.end_date) {
+    const start = new Date(record.start_date);
+    const end = new Date(record.end_date);
+
+    // If end_date is before start_date, swap them
+    if (end < start) {
+      [record.start_date, record.end_date] = [record.end_date, record.start_date];
+    }
+
+    // Calculate days if not set
+    if (!record.days) {
+      const diffTime = Math.abs(end - start);
+      record.days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end dates
+    }
+
+    // Ensure month is set
+    if (!record.month && record.start_date) {
+      record.month = record.start_date.substring(0, 7); // YYYY-MM format
+    }
+  }
+  // If we have month but no dates, set default dates
+  else if (record.month) {
+    const monthStart = new Date(record.month + '-01');
+    const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+
+    record.start_date = monthStart.toISOString().split('T')[0];
+    record.end_date = monthEnd.toISOString().split('T')[0];
+
+    // Calculate days if not set
+    if (!record.days) {
+      const diffTime = Math.abs(monthEnd - monthStart);
+      record.days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    }
+  }
+
+  return record;
+}
+
+// GET /api/permission-days - Get permission days for a user
+app.get('/api/permission-days', authenticateToken, async (req, res) => {
+  try {
+    if (!supabaseClient) {
+      throw new Error('Supabase client not initialized');
+    }
+
+    const requesterId = req.user?.id;
+    const isPrivileged = isPrivilegedRequest(req);
+    const agentId = req.query.agent_id;
+    const month = req.query.month ? normalizeMonthValue(req.query.month) : null;
+
+    // Determine target agent ID
+    let targetAgentId = agentId || requesterId;
+
+    // Authorization check
+    if (!isPrivileged && agentId && agentId !== requesterId) {
+      return res.status(403).json({ success: false, error: 'Accès refusé' });
+    }
+
+    if (!targetAgentId) {
+      return res.status(400).json({ success: false, error: 'Agent ID manquant' });
+    }
+
+    // Convert the ID to UUID if needed
+    const userId = await getUserId(targetAgentId);
+    if (!userId) {
+      return res.status(404).json({
+        success: false,
+        error: `Utilisateur avec l'ID ${targetAgentId} non trouvé`,
+        details: process.env.NODE_ENV === 'development' ? `ID type: ${typeof targetAgentId}` : undefined
+      });
+    }
+
+    // Use the resolved UUID
+    targetAgentId = userId;
+
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 500);
+
+    // First, check if the table exists
+    const { data: tableInfo, error: tableError } = await supabaseClient
+      .rpc('table_exists', { table_name: 'permission_days' });
+
+    if (tableError || !tableInfo) {
+      console.warn('Table permission_days non trouvée, retour d\'un tableau vide');
+      return res.json({ success: true, data: [] });
+    }
+
+    // Get the table columns to determine the schema
+    const { data: columns, error: columnsError } = await supabaseClient
+      .rpc('get_columns', { table_name: 'permission_days' });
+
+    if (columnsError) {
+      console.error('Erreur lors de la récupération des colonnes:', columnsError);
+      return res.status(500).json({ success: false, error: 'Erreur de configuration de la base de données' });
+    }
+
+    const hasDaysColumn = columns.some(col => col.column_name === 'days');
+    const hasStartDateColumn = columns.some(col => col.column_name === 'start_date');
+
+    // Build the base query
+    let query = supabaseClient
+      .from('permission_days')
+      .select('*')
+      .eq('user_id', targetAgentId)
+      .order('start_date', { ascending: false });
+
+    // Apply month filter if provided
+    if (month) {
+      query = query.eq('month', month);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching permission days:', error);
+      if (isMissingTable(error)) {
+        // If table doesn't exist, return empty array
+        return res.json({ success: true, data: [] });
+      }
+      throw error;
+    }
+
+    // Transform and validate data
+    const transformedData = [];
+
+    for (const item of data || []) {
+      try {
+        // Ensure we have all required fields
+        const record = {
+          id: item.id,
+          user_id: item.user_id,
+          month: item.month || null,
+          days: item.days ? parseInt(item.days, 10) : null,
+          start_date: item.start_date || null,
+          end_date: item.end_date || null,
+          reason: item.reason || null,
+          status: item.status || 'pending',
+          created_at: item.created_at || new Date().toISOString(),
+          updated_at: item.updated_at || new Date().toISOString(),
+          created_by: item.created_by || null,
+          approved_by: item.approved_by || null
+        };
+
+        // Ensure we have valid dates and calculated fields
+        const validatedRecord = ensureDateRange(record);
+        transformedData.push(validatedRecord);
+      } catch (err) {
+        console.error('Error processing permission day record:', err);
+        // Skip invalid records
+        continue;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: transformedData,
+      count: transformedData.length
+    });
+  } catch (error) {
+    console.error('Error in GET /api/permission-days:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erreur interne du serveur',
+      details: process.env.NODE_ENV === 'development' ? {
+        message: error.message,
+        stack: error.stack,
+        query: req.query
+      } : undefined
+    });
+  }
+});
+
+/**
+ * POST /api/permission-days - Crée ou met à jour des jours de permission
+ * Nécessite un token JWT valide et des privilèges d'administration
+ */
+/**
+ * Marque un agent comme absent pour une date donnée
+ * POST /api/presence/mark-absent?email=email@example.com
+ * Body: { date: '2023-11-26' }
+ */
+app.post('/api/presence/mark-absent', authenticateToken, async (req, res) => {
+  try {
+    console.log('🔵 POST /api/presence/mark-absent - Début du traitement');
+    
+    // Récupération des paramètres
+    const { email } = req.query;
+    const { date } = req.body;
+
+    console.log('🔍 Données reçues:', { email, date });
+
+    // Validation de l'email
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      console.log('❌ Email invalide ou manquant');
+      return res.status(400).json({
+        success: false,
+        error: 'Un email valide est requis dans les paramètres de requête (ex: /api/presence/mark-absent?email=user@example.com)'
+      });
+    }
+
+    // Validation de la date
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      console.log('❌ Date manquante ou format invalide (attendu: YYYY-MM-DD)');
+      return res.status(400).json({
+        success: false,
+        error: 'Une date valide est requise dans le corps de la requête (format: YYYY-MM-DD)'
+      });
+    }
+
+    // Vérification de la date (ne pas permettre les dates futures)
+    const today = new Date().toISOString().split('T')[0];
+    if (date > today) {
+      console.log('❌ Date future non autorisée');
+      return res.status(400).json({
+        success: false,
+        error: 'La date ne peut pas être dans le futur'
+      });
+    }
+
+    // Vérifier si l'utilisateur existe
+    console.log(`🔍 Recherche de l'utilisateur avec l'email: ${email}`);
+    const { data: user, error: userError } = await supabaseClient
+      .from('users')
+      .select('id, email, auth_uuid, name, first_name, last_name')
+      .eq('email', email)
+      .maybeSingle(); // Utilisation de maybeSingle pour éviter les erreurs 406
+
+    // Gestion des erreurs de requête
+    if (userError) {
+      console.error('❌ Erreur lors de la recherche de l\'utilisateur:', userError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erreur serveur lors de la recherche de l\'utilisateur',
+        details: process.env.NODE_ENV === 'development' ? userError.message : undefined
+      });
+    }
+
+    // Vérification de l'existence de l'utilisateur
+    if (!user) {
+      console.log(`❌ Aucun utilisateur trouvé avec l'email: ${email}`);
+      return res.status(404).json({
+        success: false,
+        error: 'Aucun utilisateur trouvé avec cet email',
+        details: process.env.NODE_ENV === 'development' ? `Email: ${email}` : undefined
+      });
+    }
+
+    console.log(`✅ Utilisateur trouvé:`, { 
+      id: user.id, 
+      name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Non renseigné',
+      email: user.email
+    });
+
+    // Vérifier si une entrée existe déjà pour cette date
+    console.log(`🔍 Vérification des entrées existantes pour le ${date}`);
+    const { data: existing, error: existingError } = await supabaseClient
+      .from('presences')
+      .select('id, status, notes')
+      .eq('user_id', user.id)
+      .eq('date', date)
+      .maybeSingle();
+
+    if (existingError) {
+      console.error('❌ Erreur lors de la vérification des entrées existantes:', existingError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erreur lors de la vérification des entrées existantes',
+        details: process.env.NODE_ENV === 'development' ? existingError.message : undefined
+      });
+    }
+
+    // Si une entrée existe déjà
+    if (existing) {
+      console.log(`ℹ️ Une entrée existe déjà pour cette date (ID: ${existing.id}, Statut: ${existing.status})`);
+      return res.status(409).json({
+        success: false,
+        error: 'Une entrée existe déjà pour cette date',
+        data: {
+          id: existing.id,
+          status: existing.status,
+          notes: existing.notes,
+          date: date
+        },
+        message: 'Utilisez la méthode PUT pour mettre à jour cette entrée'
+      });
+    }
+
+    // Créer une nouvelle entrée d'absence
+    console.log(`➕ Création d'une nouvelle entrée d'absence pour le ${date}`);
+    
+    const newAbsenceData = {
+      user_id: user.id,
+      date,
+      status: 'absent',
+      check_in: null,
+      check_out: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      notes: 'Marqué comme absent automatiquement',
+      validated: false,
+      created_by: req.user?.id || 'system' // Ajout de l'utilisateur qui a créé l'entrée
+    };
+
+    console.log('📝 Données de l\'absence:', newAbsenceData);
+
+    const { data: newAbsence, error: createError } = await supabaseClient
+      .from('presences')
+      .insert(newAbsenceData)
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('❌ Erreur lors de la création de l\'absence:', createError);
+      
+      // Gestion spécifique des erreurs de contrainte
+      if (createError.code === '23505') { // Violation de contrainte d'unicité
+        return res.status(409).json({
+          success: false,
+          error: 'Une entrée existe déjà pour cette date et cet utilisateur',
+          details: process.env.NODE_ENV === 'development' ? createError.message : undefined
+        });
+      }
+      
+      // Autres erreurs
+      return res.status(500).json({
+        success: false,
+        error: 'Erreur lors de la création de l\'absence',
+        details: process.env.NODE_ENV === 'development' ? createError.message : undefined,
+        code: createError.code
+      });
+    }
+
+    console.log('✅ Absence enregistrée avec succès:', newAbsence?.id);
+    return res.status(201).json({
+      success: true,
+      message: 'Absence enregistrée avec succès',
+      data: newAbsence
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur inattendue dans /api/presence/mark-absent:', {
+      message: error.message,
+      stack: error.stack,
+      query: req.query,
+      body: req.body,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Envoyer une réponse d'erreur plus détaillée en mode développement
+    const errorResponse = {
+      success: false,
+      error: 'Une erreur inattendue est survenue',
+      timestamp: new Date().toISOString()
+    };
+    
+    if (process.env.NODE_ENV === 'development') {
+      errorResponse.details = {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+        code: error.code
+      };
+    }
+    
+    return res.status(500).json(errorResponse);
+  }
+});
+
+/**
+ * Gestion des jours de permission
+ * POST /api/permission-days
+ */
+app.post('/api/permission-days', authenticateToken, async (req, res) => {
+  const requestId = 'req_' + Math.random().toString(36).substr(2, 9);
+  
+  const log = (message, data = {}) => {
+    const timestamp = new Date().toISOString();
+    const logData = {
+      timestamp,
+      requestId,
+      ...data
+    };
+    console.log(`[${timestamp}] [${requestId}] ${message}`, JSON.stringify(logData, null, 2));
+  };
+  
+  // Réponse d'erreur standardisée
+  const sendError = (status, message, errorDetails = {}) => {
+    log(`❌ Erreur ${status}: ${message}`, errorDetails);
+    return res.status(status).json({
+      success: false,
+      error: message,
+      ...(process.env.NODE_ENV === 'development' && { details: errorDetails })
+    });
+  };
+  
+  log('🔵 Début du traitement de la requête', { 
+    method: 'POST',
+    url: '/api/permission-days',
+    body: req.body
+  });
+  
+  try {
+    log('🔵 Début du traitement de la requête', { 
+      method: req.method,
+      url: req.originalUrl,
+      headers: req.headers,
+      body: req.body,
+      user: req.user ? { id: req.user.id, role: req.user.role } : 'non authentifié'
+    });
+
+    // Vérification des privilèges
+    log('🔍 Vérification des privilèges...');
+    if (!isPrivilegedRequest(req)) {
+      return sendError(403, 'Accès refusé. Privilèges insuffisants.', {
+        user: req.user ? { id: req.user.id, role: req.user.role } : 'non authentifié'
+      });
+    }
+    
+    // Vérification du client Supabase
+    log('🔍 Vérification du client Supabase...');
+    if (!supabaseClient) {
+      return sendError(500, 'Erreur serveur: client Supabase non initialisé');
+    }
+
+    // Extraction et validation des données de la requête
+    log('🔍 Extraction des données de la requête...');
+    const {
+      id,
+      agent_id,
+      user_id,
+      month,
+      days,
+      start_date,
+      end_date,
+      reason = 'Jours de permission',
+      status = 'pending',
+      ...rest
+    } = req.body || {};
+    
+    log('📦 Données extraites', {
+      id,
+      agent_id,
+      user_id,
+      month,
+      days,
+      start_date,
+      end_date,
+      reason,
+      status
+    });
+
+    // Validation de l'utilisateur authentifié
+    if (!req.user?.id) {
+      return sendError(401, 'Erreur d\'authentification: token invalide', {
+        hasUser: !!req.user,
+        userId: req.user?.id
+      });
+    }
+    
+    // Récupération de l'UUID de l'utilisateur authentifié
+    log('🔄 Récupération des informations de l\'utilisateur authentifié...');
+    let authenticatedUserUuid;
+    try {
+      authenticatedUserUuid = await getUserId(req.user.id);
+      log('✅ Utilisateur authentifié', { 
+        id: req.user.id, 
+        uuid: authenticatedUserUuid,
+        role: req.user.role 
+      });
+    } catch (authError) {
+      log('❌ Erreur lors de la récupération de l\'utilisateur authentifié', {
+        error: authError.message,
+        userId: req.user.id
+      });
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Erreur d\'authentification: ' + authError.message
+      });
+    }
+
+    // Détermination de l'ID de l'utilisateur cible
+    const targetUserId = user_id || agent_id;
+    if (!targetUserId) {
+      return sendError(400, 'ID utilisateur cible requis (user_id ou agent_id)');
+    }
+    log('🎯 ID utilisateur cible fourni', { targetUserId });
+
+    // Récupération de l'UUID de l'utilisateur cible
+    log('🔄 Résolution de l\'ID utilisateur cible...');
+    let targetUserUuid;
+    try {
+      targetUserUuid = await getUserId(targetUserId);
+      log('✅ Utilisateur cible résolu', { 
+        input: targetUserId, 
+        uuid: targetUserUuid 
+      });
+    } catch (userError) {
+      return sendError(404, `Utilisateur non trouvé: ${userError.message}`, {
+        targetUserId,
+        error: userError.message
+      });
+    }
+
+    // Validation et calcul des dates
+    let startDate = start_date;
+    let endDate = end_date;
+    
+    // Validation du format du mois si fourni (YYYY-MM)
+    if (month && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+      return sendError(400, 'Format de mois invalide. Utilisez le format YYYY-MM.', {
+        monthProvided: month,
+        expectedFormat: 'YYYY-MM'
+      });
+    }
+    
+    // Si le mois est fourni mais pas la date de début, utiliser le premier jour du mois
+    if (month && !startDate) {
+      startDate = `${month}-01`;
+      log('📅 Date de début déduite du mois', { month, startDate });
+    } else if (!startDate && !endDate) {
+      // Si aucune date n'est fournie, utiliser aujourd'hui
+      startDate = new Date().toISOString().split('T')[0];
+      endDate = startDate;
+      log('📅 Aucune date fournie, utilisation de la date du jour', { startDate, endDate });
+    }
+    
+    // Si le nombre de jours est fourni mais pas la date de fin, la calculer
+    if (startDate && days && !endDate) {
+      try {
+        const date = new Date(startDate);
+        if (isNaN(date.getTime())) {
+          throw new Error(`Date de début invalide: ${startDate}`);
+        }
+        
+        // S'assurer que days est un nombre valide
+        const daysNum = parseInt(days, 10);
+        if (isNaN(daysNum) || daysNum < 1) {
+          throw new Error(`Nombre de jours invalide: ${days}`);
+        }
+        
+        // Calculer la date de fin (début + jours - 1)
+        date.setDate(date.getDate() + (daysNum - 1));
+        endDate = date.toISOString().split('T')[0];
+        
+        log('📅 Date de fin calculée', { 
+          startDate, 
+          days: daysNum, 
+          endDate 
+        });
+        
+      } catch (dateError) {
+        return sendError(400, 'Format de date ou de nombre de jours invalide', {
+          error: dateError.message,
+          startDate,
+          days,
+          endDate
+        });
+      }
+    }
+    
+    // Si la date de fin est fournie mais pas la date de début, utiliser la même date
+    if (endDate && !startDate) {
+      startDate = endDate;
+      log('📅 Date de début définie comme date de fin', { startDate, endDate });
+    }
+    
+    // S'assurer que les dates sont valides
+    let startDateObj, endDateObj;
+    try {
+      startDateObj = new Date(startDate);
+      endDateObj = new Date(endDate || startDate);
+      
+      if (isNaN(startDateObj.getTime())) {
+        throw new Error(`Date de début invalide: ${startDate}`);
+      }
+      if (isNaN(endDateObj.getTime())) {
+        throw new Error(`Date de fin invalide: ${endDate}`);
+      }
+      
+      // Vérifier que la date de début est avant ou égale à la date de fin
+      if (startDateObj > endDateObj) {
+        throw new Error('La date de début doit être antérieure ou égale à la date de fin');
+      }
+      
+      // Formater les dates au format YYYY-MM-DD
+      startDate = startDateObj.toISOString().split('T')[0];
+      endDate = endDateObj.toISOString().split('T')[0];
+      
+    } catch (dateError) {
+      return sendError(400, dateError.message, {
+        startDate,
+        endDate,
+        error: dateError.message
+      });
+    }
+    
+
+
+    // Validation du nombre de jours
+    let daysCount = 1;
+    if (days) {
+      daysCount = parseInt(days, 10);
+      if (isNaN(daysCount) || daysCount < 1) {
+        return sendError(400, 'Le nombre de jours doit être un entier positif', {
+          daysProvided: days,
+          daysParsed: daysCount
+        });
+      }
+      
+      // Vérifier la cohérence entre les dates et le nombre de jours
+      const diffTime = Math.abs(endDateObj - startDateObj);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 pour inclure le premier jour
+      
+      if (diffDays !== daysCount) {
+        log('⚠️ Incohérence détectée entre les dates et le nombre de jours', {
+          startDate,
+          endDate,
+          daysProvided: daysCount,
+          daysCalculated: diffDays
+        });
+        
+        // Mettre à jour le nombre de jours pour refléter la réalité des dates
+        daysCount = diffDays;
+        log('ℹ️ Nombre de jours ajusté pour correspondre aux dates', { daysCount });
+      }
+    }
+
+    // Création du payload pour la base de données
+    const payload = {
+      user_id: targetUserUuid,
+      month: month || startDate.substring(0, 7), // Format YYYY-MM
+      days: daysCount,
+      start_date: startDate,
+      end_date: endDate,
+      reason: reason,
+      status: status,
+      created_by: authenticatedUserUuid,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    // Si c'est une mise à jour, inclure l'ID
+    if (id) {
+      payload.id = id;
+      log('🔄 Préparation de la mise à jour', { permissionId: id });
+    } else {
+      log('➕ Préparation de la création d\'une nouvelle entrée');
+    }
+    
+    // Validation finale du payload
+    if (!payload.user_id) {
+      return sendError(400, 'ID utilisateur manquant', { payload });
+    }
+    
+    if (!payload.start_date || !payload.end_date) {
+      return sendError(400, 'Dates de début et de fin requises', { payload });
+    }
+    
+    if (payload.days < 1) {
+      return sendError(400, 'Le nombre de jours doit être supérieur à 0', { payload });
+    }
+    
+    log('📦 Payload pour Supabase', payload);
+
+    try {
+      // Vérifier d'abord si l'utilisateur existe
+      log('🔍 Vérification de l\'existence de l\'utilisateur cible...');
+      const { data: userCheck, error: userCheckError } = await supabaseClient
+        .from('users')
+        .select('id')
+        .eq('id', targetUserUuid)
+        .single();
+      
+      if (userCheckError || !userCheck) {
+        return sendError(404, 'L\'utilisateur spécifié n\'existe pas', {
+          targetUserId,
+          targetUserUuid,
+          error: userCheckError?.message || 'Utilisateur non trouvé'
+        });
+      }
+      
+      // Vérifier les conflits de dates
+      log('🔍 Vérification des conflits de dates...');
+      const { data: conflicts, error: conflictError } = await supabaseClient
+      .from('permission_days')
+        .select('id, start_date, end_date')
+        .eq('user_id', targetUserUuid)
+        .not('id', 'eq', id || '')
+        .lte('start_date', endDate)
+        .gte('end_date', startDate);
+      
+      if (conflictError) {
+        log('⚠️ Erreur lors de la vérification des conflits', {
+          error: conflictError.message
+        });
+      } else if (conflicts && conflicts.length > 0) {
+        return sendError(409, 'Conflit de dates avec une autre période de permission existante', {
+          conflicts,
+          requested: { startDate, endDate }
+        });
+      }
+      
+      // Construction de la requête d'upsert
+      log('⚡ Préparation de la requête d\'upsert...');
+      const query = supabaseClient
+        .from('permission_days')
+        .upsert(payload, { 
+          onConflict: 'id',
+          returning: 'representation'
+        });
+      
+      log('⚡ Exécution de la requête...');
+      const { data, error } = await query.select().single();
+      
+      if (error) {
+        // Gestion des erreurs spécifiques
+        let errorMessage = 'Erreur lors de l\'enregistrement dans la base de données';
+        let statusCode = 500;
+        
+        switch (error.code) {
+          case '23503': // foreign_key_violation
+            statusCode = 400;
+            if (error.message.includes('user_id')) {
+              errorMessage = 'L\'utilisateur spécifié n\'existe pas';
+            } else if (error.message.includes('created_by')) {
+              errorMessage = 'Erreur d\'authentification';
+              statusCode = 401;
+            } else {
+              errorMessage = 'Violation de contrainte de clé étrangère';
+            }
+            break;
+            
+          case '23505': // unique_violation
+            statusCode = 409;
+            errorMessage = 'Une entrée similaire existe déjà pour cette période';
+            break;
+            
+          case '22P02': // invalid_text_representation
+            statusCode = 400;
+            errorMessage = 'Format de données invalide';
+            break;
+            
+          case '23514': // check_violation
+            statusCode = 400;
+            errorMessage = 'Données invalides: ' + (error.message || 'contrainte non respectée');
+            break;
+            
+          default:
+            // Utiliser le message d'erreur de la base de données si disponible
+            if (error.message) {
+              errorMessage = error.message;
+            }
+        }
+        
+        return sendError(statusCode, errorMessage, {
+          code: error.code,
+          hint: error.hint,
+          details: error.details,
+          ...(process.env.NODE_ENV === 'development' && { 
+            message: error.message,
+            stack: error.stack 
+          })
+        });
+      }
+      
+      log('✅ Permission enregistrée avec succès', { 
+        id: data.id,
+        user_id: data.user_id,
+        status: data.status,
+        start_date: data.start_date,
+        end_date: data.end_date,
+        days: data.days
+      });
+      
+      // Récupérer les données complètes pour la réponse
+      log('🔍 Récupération des données complètes...');
+      const { data: fullData, error: fetchError } = await supabaseClient
+        .from('permission_days')
+        .select('*')
+        .eq('id', data.id)
+      .single();
+
+      if (fetchError || !fullData) {
+        log('⚠️ Impossible de récupérer les données complètes, utilisation des données partielles', {
+          error: fetchError?.message || 'Données non trouvées'
+        });
+        // Utiliser les données partielles si la récupération échoue
+        fullData = data;
+      }
+      
+      // Formatage de la réponse
+      const responseData = {
+        id: fullData.id,
+        user_id: fullData.user_id,
+        month: fullData.month || (fullData.start_date ? fullData.start_date.substring(0, 7) : null),
+        days: fullData.days || 1,
+        start_date: fullData.start_date,
+        end_date: fullData.end_date,
+        reason: fullData.reason || 'Jours de permission',
+        status: fullData.status || 'pending',
+        created_at: fullData.created_at,
+        updated_at: fullData.updated_at || new Date().toISOString(),
+        created_by: fullData.created_by
+      };
+      
+      log('📤 Envoi de la réponse', { 
+        success: true,
+        permissionId: responseData.id,
+        userId: responseData.user_id,
+        period: `${responseData.start_date} - ${responseData.end_date}`
+      });
+      
+      return res.json({ 
+        success: true, 
+        data: responseData 
+      });
+      
+  } catch (error) {
+      // Gestion des erreurs inattendues
+      const errorId = `err_${Math.random().toString(36).substr(2, 9)}`;
+      const errorDetails = {
+        errorId,
+        name: error.name,
+        message: error.message,
+        code: error.code,
+        ...(process.env.NODE_ENV === 'development' && {
+          stack: error.stack,
+          payload,
+          targetUserId,
+          targetUserUuid,
+          authenticatedUserUuid
+        })
+      };
+      
+      log(`❌ [${errorId}] Erreur inattendue lors de l'enregistrement`, errorDetails);
+      
+      return sendError(500, 'Une erreur inattendue est survenue lors de l\'enregistrement', {
+        errorId,
+        ...(process.env.NODE_ENV === 'development' && {
+          details: errorDetails
+        })
+      });
+    }
+
+  } catch (error) {
+    // Gestion des erreurs globales de la route
+    const errorId = `global_${Math.random().toString(36).substr(2, 9)}`;
+    const errorDetails = {
+      errorId,
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      ...(process.env.NODE_ENV === 'development' && {
+        stack: error.stack,
+        request: {
+          method: req.method,
+          url: req.originalUrl,
+          headers: req.headers,
+          body: req.body
+        },
+        user: req.user ? {
+          id: req.user.id,
+          role: req.user.role,
+          email: req.user.email
+        } : 'non authentifié'
+      })
+    };
+    
+    log(`❌ [${errorId}] Erreur inattendue dans /api/permission-days`, errorDetails);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Erreur lors du traitement de la demande',
+      errorId,
+      ...(process.env.NODE_ENV === 'development' && {
+        details: errorDetails
+      })
+    });
+    
+    // En production, vous pourriez vouloir logger cette erreur dans un service externe
+    if (process.env.NODE_ENV === 'production') {
+      // Exemple: envoyer l'erreur à un service de suivi comme Sentry
+      // Sentry.captureException(error, { extra: { requestId, ... } });
+    }
+  }
+});
+
+app.put('/api/permission-days/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!isPrivilegedRequest(req)) {
+      return res.status(403).json({ success: false, error: 'Accès refusé' });
+    }
+    if (!supabaseClient) {
+      throw new Error('Supabase client not initialized');
+    }
+
+    const permissionId = req.params.id;
+    if (!permissionId) {
+      return res.status(400).json({ success: false, error: 'ID de permission requis' });
+    }
+
+    // Get the table columns to determine the schema
+    const { data: columns, error: columnsError } = await supabaseClient
+      .rpc('get_columns', { table_name: 'permission_days' });
+
+    if (columnsError) {
+      console.error('Erreur lors de la récupération des colonnes:', columnsError);
+      return res.status(500).json({ success: false, error: 'Erreur de configuration de la base de données' });
+    }
+
+    const hasDaysColumn = columns.some(col => col.column_name === 'days');
+    const hasStartDateColumn = columns.some(col => col.column_name === 'start_date');
+
+    // First, get the existing record to preserve any fields not in the update
+    const { data: existingRecord, error: fetchError } = await supabaseClient
+      .from('permission_days')
+      .select('*')
+      .eq('id', permissionId)
+      .single();
+
+    if (fetchError) {
+      if (fetchError.code === 'PGRST116') { // Not found
+        return res.status(404).json({ success: false, error: 'Permission non trouvée' });
+      }
+      throw fetchError;
+    }
+
+    const {
+      id, // Don't allow updating the ID
+      agent_id,
+      user_id,
+      month,
+      days,
+      start_date,
+      end_date,
+      reason,
+      status,
+      ...rest
+    } = req.body || {};
+
+    // Build the update payload
+    const updatePayload = {
+      ...existingRecord,
+      ...rest,
+      updated_at: new Date().toISOString()
+    };
+
+    // Only update these fields if they are provided in the request
+    if (reason !== undefined) updatePayload.reason = reason;
+    if (status !== undefined) updatePayload.status = status;
+
+    // Handle schema-specific fields
+    if (hasStartDateColumn) {
+      // New schema with start_date and end_date
+      const startDate = start_date || updatePayload.start_date || new Date().toISOString().split('T')[0];
+      let endDate = end_date || updatePayload.end_date || startDate;
+
+      // If days is provided but end_date is not, calculate end_date
+      if (days !== undefined && !end_date) {
+        const date = new Date(startDate);
+        date.setDate(date.getDate() + (parseInt(days, 10) - 1));
+        endDate = date.toISOString().split('T')[0];
+      }
+
+      updatePayload.start_date = startDate;
+      updatePayload.end_date = endDate;
+
+      // Keep month for backward compatibility if not provided
+      if (month) {
+        updatePayload.month = normalizeMonthValue(month) || startDate.substring(0, 7);
+      } else if (!updatePayload.month) {
+        updatePayload.month = startDate.substring(0, 7);
+      }
+
+      if (hasDaysColumn) {
+        // Calculate days if not provided
+        if (days === undefined) {
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          updatePayload.days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+        } else {
+          updatePayload.days = Math.max(0, parseInt(days, 10) || 0);
+        }
+      }
+    } else if (hasDaysColumn) {
+      // Old schema with month and days
+      if (month !== undefined) {
+        const effectiveMonth = normalizeMonthValue(month);
+        if (!effectiveMonth) {
+        return res.status(400).json({ success: false, error: 'Format de mois invalide' });
+      }
+        updatePayload.month = effectiveMonth;
+      }
+
+      if (days !== undefined) {
+        updatePayload.days = Math.max(0, parseInt(days, 10) || 0);
+      }
+
+      // Ensure start_date and end_date are set for backward compatibility
+      const effectiveMonth = updatePayload.month || new Date().toISOString().substring(0, 7);
+      updatePayload.start_date = updatePayload.start_date || `${effectiveMonth}-01`;
+      updatePayload.end_date = updatePayload.end_date || `${effectiveMonth}-${new Date(effectiveMonth).getDate()}`;
+    }
+
+    // Update the record in the database
+    const { data: updatedRecord, error: updateError } = await supabaseClient
+      .from('permission_days')
+      .update(updatePayload)
+      .eq('id', permissionId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    // Prepare the response data with all required fields
+    const responseData = {
+      id: updatedRecord.id,
+      user_id: updatedRecord.user_id,
+      month: updatedRecord.month || (updatedRecord.start_date ? updatedRecord.start_date.substring(0, 7) : null),
+      days: updatedRecord.days || 1,
+      start_date: updatedRecord.start_date || `${updatedRecord.month}-01`,
+      end_date: updatedRecord.end_date || updatedRecord.start_date || `${updatedRecord.month}-01`,
+      reason: updatedRecord.reason || null,
+      status: updatedRecord.status || 'pending',
+      created_at: updatedRecord.created_at,
+      updated_at: updatedRecord.updated_at
+    };
+
+    res.json({ success: true, data: responseData });
+  } catch (error) {
+    console.error('Erreur API permission-days (PUT):', error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message || 'Erreur serveur',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// DELETE /api/permission-days/:id
+app.delete('/api/permission-days/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!isPrivilegedRequest(req)) {
+      return res.status(403).json({ success: false, error: 'Accès refusé' });
+    }
+    if (!supabaseClient) {
+      throw new Error('Supabase client not initialized');
+    }
+
+    const permissionId = Number(req.params.id);
+    if (!Number.isFinite(permissionId)) {
+      return res.status(400).json({ success: false, error: 'ID invalide' });
+    }
+
+    const { error } = await supabaseClient
+      .from('permission_days')
+      .delete()
+      .eq('id', permissionId);
+
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erreur API permission-days (DELETE):', error);
+    res.status(error.statusCode || 500).json({ success: false, error: error.message || 'Erreur serveur' });
   }
 });
 
@@ -4294,7 +6297,7 @@ app.get('/api/users', authenticateToken, async (req, res) => {
 
     let query = supabaseClient
       .from('users')
-      .select('id,name,email,role,phone,departement,project_name,status,photo_path,last_activity');
+      .select('id,auth_uuid,name,email,role,phone,departement,project_name,status,photo_path,last_activity');
 
     if (search) {
       query = query.ilike('name', `%${search}%`).or(`email.ilike.%${search}%`);
@@ -4335,6 +6338,30 @@ app.get('/api/users', authenticateToken, async (req, res) => {
   }
 });
 
+app.get('/api/agents/monthly-report', authenticateToken, async (req, res) => {
+  try {
+    const query = req.query || {};
+    const aiParam = query.ai ?? query.include_ai ?? query.includeAi ?? query.generate_ai;
+    const includeAiSummary = typeof aiParam === 'undefined'
+      ? true
+      : ['1', 'true', 'yes', 'on'].includes(String(aiParam).toLowerCase());
+    const report = await buildAgentMonthlyReport({
+      supabaseClient,
+      agentId: query.agentId || query.agent_id,
+      monthValue: query.month || query.period,
+      includeAiSummary,
+      geminiApiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+      requester: req.user
+    });
+    res.json(report);
+  } catch (error) {
+    console.error('Erreur rapport mensuel agent:', error);
+    res
+      .status(error.statusCode || 500)
+      .json({ success: false, error: error.message || 'Erreur serveur' });
+  }
+});
+
 app.get('/api/push/public-key', async (req, res) => {
   try {
     // Clé publique VAPID pour les notifications push
@@ -4372,7 +6399,7 @@ app.post('/api/profile/photo', async (req, res) => {
     try {
       const { data: prof } = await supabaseClient.from('profiles').select('id').eq('user_id', userId).single();
       if (prof && prof.id) profileId = prof.id;
-    } catch {}
+    } catch { }
     if (!profileId) {
       // Créer/assurer le profil minimal pour récupérer un id
       try {
@@ -4382,7 +6409,7 @@ app.post('/api/profile/photo', async (req, res) => {
           .select('id')
           .single();
         if (created && created.id) profileId = created.id;
-      } catch {}
+      } catch { }
     }
     // Fallback si pas d'id profil: utiliser userId
     const keyName = `${profileId || 'user_' + userId}.png`;
@@ -4395,7 +6422,7 @@ app.post('/api/profile/photo', async (req, res) => {
     if (hasSb) {
       try {
         // S'assurer que le bucket existe (ignorer les erreurs si déjà présent)
-        try { await supabaseClient.storage.createBucket('avatars', { public: true }); } catch {}
+        try { await supabaseClient.storage.createBucket('avatars', { public: true }); } catch { }
         await supabaseClient.storage.from('avatars').upload(keyName, buffer, { upsert: true, contentType: 'image/png' });
         const { data: pub } = await supabaseClient.storage.from('avatars').getPublicUrl(keyName);
         photoUrl = pub?.publicUrl || '';
@@ -4407,7 +6434,7 @@ app.post('/api/profile/photo', async (req, res) => {
     // 3) Si pas d'URL (local/dev), enregistrer sous Media/uploads/avatars
     if (!photoUrl) {
       const avatarsDir = path.join(__dirname, 'Media', 'uploads', 'avatars');
-      try { fs.mkdirSync(avatarsDir, { recursive: true }); } catch {}
+      try { fs.mkdirSync(avatarsDir, { recursive: true }); } catch { }
       const filePath = path.join(avatarsDir, keyName);
       fs.writeFileSync(filePath, buffer);
       const publicBase = (process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/$/, '');
@@ -4416,8 +6443,8 @@ app.post('/api/profile/photo', async (req, res) => {
     }
 
     // 4) Mettre à jour le chemin dans profiles et users
-    try { await supabaseClient.from('profiles').update({ photo_path: photoUrl }).eq('user_id', userId); } catch {}
-    try { await supabaseClient.from('users').update({ photo_path: photoUrl }).eq('id', userId); } catch {}
+    try { await supabaseClient.from('profiles').update({ photo_path: photoUrl }).eq('user_id', userId); } catch { }
+    try { await supabaseClient.from('users').update({ photo_path: photoUrl }).eq('id', userId); } catch { }
 
     return res.json({ success: true, photo_url: photoUrl });
   } catch (e) {
@@ -4489,6 +6516,183 @@ app.post('/api/sync/offline-checkins', authenticateToken, async (req, res) => {
     
   } catch (error) {
     console.error('❌ Erreur générale synchronisation checkins:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la synchronisation',
+      error: error.message
+    });
+  }
+});
+
+// Endpoint pour synchroniser les missions en attente (démarrage et fin)
+app.post('/api/sync/pending-missions', authenticateToken, async (req, res) => {
+  try {
+    const { missions } = req.body || {};
+    
+    if (!Array.isArray(missions) || missions.length === 0) {
+      return res.json({ success: true, message: 'Aucune mission à synchroniser', synced: 0 });
+    }
+    
+    console.log(`🔄 Synchronisation de ${missions.length} mission(s) en attente pour user ${req.user.id}...`);
+    
+    let syncedCount = 0;
+    const errors = [];
+    const syncedMissions = [];
+    
+    for (const mission of missions) {
+      try {
+        const missionType = mission.type; // 'start' ou 'end'
+        const missionData = mission.data || {};
+        
+        if (missionType === 'start') {
+          // Démarrer une mission
+          // Vérifier s'il y a déjà une mission active
+          const { data: activeMission } = await supabaseClient
+            .from('missions')
+            .select('id')
+            .eq('user_id', req.user.id)
+            .eq('status', 'active')
+            .single();
+          
+          if (activeMission) {
+            // Mission déjà active, utiliser celle-ci
+            syncedMissions.push({ id: mission.id, missionId: activeMission.id, type: 'start' });
+            syncedCount++;
+            continue;
+          }
+          
+          // Créer une nouvelle mission
+          const { data: newMission, error: missionError } = await supabaseClient
+            .from('missions')
+            .insert([{
+              user_id: req.user.id,
+              status: 'active',
+              start_time: missionData.captured_at || new Date().toISOString(),
+              start_lat: missionData.lat ? Number(missionData.lat) : null,
+              start_lon: missionData.lon ? Number(missionData.lon) : null
+            }])
+            .select()
+            .single();
+          
+          if (missionError) {
+            throw missionError;
+          }
+          
+          // Créer le check-in de début
+          const { error: checkinError } = await supabaseClient
+            .from('checkins')
+            .insert([{
+              user_id: req.user.id,
+              mission_id: newMission.id,
+              lat: missionData.lat ? Number(missionData.lat) : null,
+              lon: missionData.lon ? Number(missionData.lon) : null,
+              type: 'checkin',
+              start_time: missionData.captured_at || new Date().toISOString(),
+              accuracy: missionData.accuracy ? Number(missionData.accuracy) : null,
+              note: missionData.note || 'Début de mission (synchronisé)'
+            }]);
+          
+          if (checkinError) {
+            console.warn('Erreur création check-in:', checkinError);
+          }
+          
+          syncedMissions.push({ id: mission.id, missionId: newMission.id, type: 'start' });
+          syncedCount++;
+          
+        } else if (missionType === 'end') {
+          // Terminer une mission
+          const missionId = missionData.mission_id || null;
+          
+          if (!missionId) {
+            // Essayer de trouver la mission active
+            const { data: activeMission } = await supabaseClient
+              .from('missions')
+              .select('id')
+              .eq('user_id', req.user.id)
+              .eq('status', 'active')
+              .single();
+            
+            if (!activeMission) {
+              throw new Error('Aucune mission active trouvée');
+            }
+            
+            const finalMissionId = activeMission.id;
+            
+            // Mettre à jour la mission
+            const { error: updateError } = await supabaseClient
+              .from('missions')
+              .update({
+                status: 'completed',
+                end_time: new Date().toISOString(),
+                end_lat: missionData.lat ? Number(missionData.lat) : null,
+                end_lon: missionData.lon ? Number(missionData.lon) : null
+              })
+              .eq('id', finalMissionId);
+            
+            if (updateError) {
+              throw updateError;
+            }
+            
+            // Créer le check-in de fin
+            const { error: checkinError } = await supabaseClient
+              .from('checkins')
+              .insert([{
+                user_id: req.user.id,
+                mission_id: finalMissionId,
+                lat: missionData.lat ? Number(missionData.lat) : null,
+                lon: missionData.lon ? Number(missionData.lon) : null,
+                type: 'checkout',
+                start_time: new Date().toISOString(),
+                accuracy: missionData.accuracy ? Number(missionData.accuracy) : null,
+                note: missionData.note || 'Fin de mission (synchronisé)'
+              }]);
+            
+            if (checkinError) {
+              console.warn('Erreur création check-in:', checkinError);
+            }
+            
+            syncedMissions.push({ id: mission.id, missionId: finalMissionId, type: 'end' });
+            syncedCount++;
+          } else {
+            // Mission ID fourni
+            const { error: updateError } = await supabaseClient
+              .from('missions')
+              .update({
+                status: 'completed',
+                end_time: new Date().toISOString(),
+                end_lat: missionData.lat ? Number(missionData.lat) : null,
+                end_lon: missionData.lon ? Number(missionData.lon) : null
+              })
+              .eq('id', missionId)
+              .eq('user_id', req.user.id);
+            
+            if (updateError) {
+              throw updateError;
+            }
+            
+            syncedMissions.push({ id: mission.id, missionId: missionId, type: 'end' });
+            syncedCount++;
+          }
+        }
+      } catch (e) {
+        console.error(`❌ Erreur synchronisation mission ${mission.id || 'unknown'}:`, e);
+        errors.push({ missionId: mission.id || 'unknown', type: mission.type, error: e.message });
+      }
+    }
+    
+    console.log(`🎉 Synchronisation terminée: ${syncedCount}/${missions.length} mission(s) synchronisée(s)`);
+    
+    return res.json({
+      success: true,
+      message: `${syncedCount} mission(s) synchronisée(s) avec succès`,
+      synced: syncedCount,
+      total: missions.length,
+      syncedMissions: syncedMissions,
+      errors: errors.length > 0 ? errors : undefined
+    });
+    
+  } catch (error) {
+    console.error('❌ Erreur générale synchronisation missions:', error);
     return res.status(500).json({
       success: false,
       message: 'Erreur lors de la synchronisation',
@@ -4840,7 +7044,7 @@ app.get('/api/admin/agents', async (req, res) => {
         role = decoded && decoded.role ? String(decoded.role).toLowerCase() : '';
         userId = decoded && decoded.id ? Number(decoded.id) : null;
       }
-    } catch {}
+    } catch { }
     const isPrivileged = role === 'admin' || role === 'superviseur' || role === 'supervisor';
 
     if (isPrivileged) {
@@ -5121,7 +7325,7 @@ app.post('/api/presence/validate', authenticateToken, async (req, res) => {
     const R = 6371000;
     const dLat = toRad(latitude - Number(refLat));
     const dLon = toRad(longitude - Number(refLon));
-    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(refLat)) * Math.cos(toRad(latitude)) * Math.sin(dLon/2)**2;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(refLat)) * Math.cos(toRad(latitude)) * Math.sin(dLon / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = Math.round(R * c);
 
@@ -5578,7 +7782,7 @@ app.post('/api/missions/:id/distance', authenticateToken, async (req, res) => {
       if (mission && mission.agent_id) {
         allowed = (mission.agent_id === req.user.id) || req.user.role === 'admin' || req.user.role === 'superviseur' || req.user.role === 'supervisor';
       }
-    } catch {}
+    } catch { }
     if (!allowed) return res.status(403).json({ success: false, message: 'Accès refusé' });
 
     // Mettre à jour la mission avec la distance et le timestamp
@@ -5767,7 +7971,7 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
     let startPhotoUrl = null;
     try {
       if (req.file && req.file.buffer && supabaseClient) {
-        try { await supabaseClient.storage.createBucket('photos', { public: true }); } catch {}
+        try { await supabaseClient.storage.createBucket('photos', { public: true }); } catch { }
         const ts = Date.now();
         const key = `checkins/${userId}/${missionId || 'no_mission'}/start_${ts}.jpg`;
         const contentType = (req.file.mimetype && typeof req.file.mimetype === 'string') ? req.file.mimetype : 'image/jpeg';
@@ -5775,7 +7979,7 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
         const { data: pub } = await supabaseClient.storage.from('photos').getPublicUrl(key);
         startPhotoUrl = pub && pub.publicUrl ? pub.publicUrl : null;
       }
-    } catch {}
+    } catch { }
 
     // 3) Insérer le premier check-in lié à la mission (si mission créée) et enregistrer la validation
     let insertedCheckinId = null;
@@ -5814,7 +8018,7 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
 
         // Charger planification du jour
         const dayIso = new Date(start_time);
-        const todayDate = `${dayIso.getFullYear()}-${String(dayIso.getMonth()+1).padStart(2,'0')}-${String(dayIso.getDate()).padStart(2,'0')}`;
+        const todayDate = `${dayIso.getFullYear()}-${String(dayIso.getMonth() + 1).padStart(2, '0')}-${String(dayIso.getDate()).padStart(2, '0')}`;
         const { data: plan } = await supabaseClient
           .from('planifications')
           .select('planned_start_time, planned_end_time')
@@ -5829,7 +8033,7 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
           const R = 6371000;
           const dLat = toRad(latitude - Number(refLat));
           const dLon = toRad(longitude - Number(refLon));
-          const a = Math.sin(dLat/2) ** 2 + Math.cos(toRad(Number(refLat))) * Math.cos(toRad(latitude)) * Math.sin(dLon/2) ** 2;
+          const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(Number(refLat))) * Math.cos(toRad(latitude)) * Math.sin(dLon / 2) ** 2;
           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
           distance = Math.round(R * c);
         }
@@ -5928,7 +8132,7 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
         const isOwner = m && m.agent_id === userId;
         const isPrivileged = req.user && (req.user.role === 'admin' || req.user.role === 'supervisor');
         updateByIdOnly = Boolean(isOwner || isPrivileged);
-      } catch {}
+      } catch { }
     }
     if (!targetMissionId || !Number.isFinite(targetMissionId)) {
       try {
@@ -5941,7 +8145,7 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
           .limit(1)
           .single();
         if (!lastErr && last) targetMissionId = last.id;
-      } catch {}
+      } catch { }
     }
     if (!targetMissionId) {
       return res.status(404).json({ success: false, message: 'Aucune mission active' });
@@ -5951,7 +8155,7 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
     let endPhotoUrl = null;
     try {
       if (req.file && req.file.buffer && supabaseClient) {
-        try { await supabaseClient.storage.createBucket('photos', { public: true }); } catch {}
+        try { await supabaseClient.storage.createBucket('photos', { public: true }); } catch { }
         const ts = Date.now();
         const key = `checkins/${userId}/${targetMissionId || 'no_mission'}/end_${ts}.jpg`;
         const contentType = (req.file.mimetype && typeof req.file.mimetype === 'string') ? req.file.mimetype : 'image/jpeg';
@@ -5959,7 +8163,7 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
         const { data: pub } = await supabaseClient.storage.from('photos').getPublicUrl(key);
         endPhotoUrl = pub && pub.publicUrl ? pub.publicUrl : null;
       }
-    } catch {}
+    } catch { }
 
     // Clôturer la mission
     try {
@@ -6007,7 +8211,7 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
         .eq('id', targetMissionId)
         .single();
       missionAfter = m2 || null;
-    } catch {}
+    } catch { }
 
     return res.json({ success: true, data: { message: 'Mission terminée', mission_id: targetMissionId, mission: missionAfter, photo_url: endPhotoUrl, force_end: !Number.isFinite(latitude) || !Number.isFinite(longitude) } });
   } catch (error) {
@@ -6579,19 +8783,42 @@ app.get('/api/work-zones', authenticateToken, async (req, res) => {
 // Contacts endpoint
 app.get('/api/contacts', authenticateToken, async (req, res) => {
   try {
-    // Temporarily return mock data since contacts table doesn't exist
-    const contacts = [
-      { id: 1, name: 'John Doe', email: 'john.doe@example.com', phone: '123-456-7890' },
-      { id: 2, name: 'Jane Doe', email: 'jane.doe@example.com', phone: '987-654-3210' },
-      { id: 3, name: 'Bob Smith', email: 'bob.smith@example.com', phone: '555-123-4567' }
-    ];
     const { data, error } = await supabaseClient
-      .from('contacts')
-      .select('*')
-      .order('name');
+      .from('users')
+      .select('id, name, first_name, last_name, email, phone, role, project_name, departement, commune')
+      .in('role', ['agent', 'superviseur', 'supervisor'])
+      .order('name', { ascending: true });
     
-    if (error) throw error;
-    res.json({ success: true, data: data || [] });
+    if (error && !isMissingTable(error)) throw error;
+    
+    let contacts = Array.isArray(data) ? data : [];
+    contacts = contacts.map(user => ({
+      id: user.id,
+      name: getUserDisplayName(user),
+      email: user.email || '',
+      phone: user.phone || '',
+      role: user.role || 'agent',
+      project: user.project_name || null,
+      departement: user.departement || null,
+      commune: user.commune || null
+    }));
+    
+    if (contacts.length === 0) {
+      contacts = [
+        {
+          id: 'support',
+          name: 'Support CCRB',
+          email: 'support@ccrb.local',
+          phone: '+229 01 96 91 13 46',
+          role: 'support',
+          project: null,
+          departement: null,
+          commune: null
+        }
+      ];
+    }
+    
+    res.json(contacts);
   } catch (error) {
     console.error('Erreur API contacts:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
@@ -6619,11 +8846,52 @@ app.get('/api/help/content', authenticateToken, async (req, res) => {
   try {
     const { data, error } = await supabaseClient
       .from('help_content')
-      .select('*')
+      .select('id, title, content, category')
       .order('title');
     
+    // Handle missing table gracefully
+    if (error && isMissingTable(error)) {
+      console.warn('Table help_content non trouvée, utilisation des sections statiques');
+      const sections = getStaticHelpSections();
+      const structuredContent = {};
+      sections.forEach((section, index) => {
+        const key = section.id || `section-${index + 1}`;
+        structuredContent[key] = {
+          title: section.title,
+          description: section.content,
+          tips: [],
+          shortcuts: []
+        };
+      });
+      return res.json({ success: true, content: structuredContent, tutorials: [], faqs: [] });
+    }
+
     if (error) throw error;
-    res.json({ success: true, data: data || [] });
+    
+    let sections = Array.isArray(data) ? data : [];
+    sections = sections.map(section => ({
+      id: section.id,
+      title: section.title || 'Section',
+      content: section.content || '',
+      category: section.category || 'general'
+    }));
+    
+    if (sections.length === 0) {
+      sections = getStaticHelpSections();
+    }
+    
+    const structuredContent = {};
+    sections.forEach((section, index) => {
+      const key = section.id || `section-${index + 1}`;
+      structuredContent[key] = {
+        title: section.title,
+        description: section.content,
+        tips: [],
+        shortcuts: []
+      };
+    });
+    
+    res.json({ success: true, content: structuredContent, tutorials: [], faqs: [] });
   } catch (error) {
     console.error('Erreur API help/content:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
@@ -6649,65 +8917,432 @@ app.get('/api/missions', authenticateToken, async (req, res) => {
 // Analytics endpoints
 app.get('/api/analytics/presence', authenticateToken, authenticateSupervisorOrAdmin, async (req, res) => {
   try {
-    const { data, error } = await supabaseClient
-      .from('presence_analytics')
-      .select('*')
-      .order('date', { ascending: false });
-    
-    if (error) throw error;
-    res.json({ success: true, data: data || [] });
+    const days = clampDays(req.query.days, { fallback: 30, min: 7, max: 120 });
+    const endDate = new Date();
+    const startDate = new Date(endDate);
+    startDate.setUTCDate(startDate.getUTCDate() - (days - 1));
+
+    const [presencesResult, absencesResult] = await Promise.all([
+      supabaseClient
+        .from('presences')
+        .select('id, user_id, start_time, end_time, status, location_name, location_lat, location_lng, users(id, name, first_name, last_name, email)')
+        .gte('start_time', startDate.toISOString())
+        .lte('start_time', endDate.toISOString())
+        .order('start_time', { ascending: true })
+        .limit(5000),
+      supabaseClient
+        .from('absences')
+        .select('id, user_id, date, reason, users(id, name, first_name, last_name, email)')
+        .gte('date', isoDateOnly(startDate))
+        .lte('date', isoDateOnly(endDate))
+        .order('date', { ascending: true })
+        .limit(2000)
+    ]);
+
+    if (presencesResult.error && !isMissingTable(presencesResult.error)) throw presencesResult.error;
+    if (absencesResult.error && !isMissingTable(absencesResult.error)) throw absencesResult.error;
+
+    const presences = Array.isArray(presencesResult.data) ? presencesResult.data : [];
+    const absences = Array.isArray(absencesResult.data) ? absencesResult.data : [];
+
+    const dataset = [];
+    const presenceDays = new Set();
+
+    presences.forEach(presence => {
+      const dayKey = isoDateOnly(presence.start_time);
+      if (dayKey) {
+        presenceDays.add(dayKey);
+      }
+      dataset.push({
+        id: `presence-${presence.id}`,
+        user_id: presence.user_id,
+        user_name: getUserDisplayName(presence.users),
+        date: dayKey,
+        type: 'arrival',
+        timestamp: presence.start_time,
+        present: true,
+        status: presence.status || 'completed',
+        location: presence.location_name || null,
+        lat: presence.location_lat || null,
+        lon: presence.location_lng || null,
+        duration_hours: computeDurationHours(presence.start_time, presence.end_time) || null
+      });
+
+      if (presence.end_time) {
+        dataset.push({
+          id: `presence-${presence.id}-departure`,
+          user_id: presence.user_id,
+          user_name: getUserDisplayName(presence.users),
+          date: isoDateOnly(presence.end_time) || dayKey,
+          type: 'departure',
+          timestamp: presence.end_time,
+          present: true,
+          status: presence.status || 'completed',
+          location: presence.location_name || null,
+          lat: presence.location_lat || null,
+          lon: presence.location_lng || null
+        });
+      }
+    });
+
+    absences.forEach(absence => {
+      dataset.push({
+        id: `absence-${absence.id}`,
+        user_id: absence.user_id,
+        user_name: getUserDisplayName(absence.users),
+        date: absence.date,
+        type: 'absence',
+        timestamp: absence.date ? `${absence.date}T12:00:00Z` : null,
+        present: false,
+        status: 'absence',
+        reason: absence.reason || 'Absence déclarée'
+      });
+    });
+
+    // Ajouter des entrées pour les jours sans présence détectée
+    for (let cursor = new Date(startDate); cursor <= endDate; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+      const key = cursor.toISOString().split('T')[0];
+      if (!presenceDays.has(key)) {
+        dataset.push({
+          id: `absence-day-${key}`,
+          user_id: null,
+          user_name: 'Aucun agent',
+          date: key,
+          type: 'absence',
+          timestamp: `${key}T00:00:00Z`,
+          present: false,
+          status: 'absence',
+          reason: 'Aucune présence enregistrée'
+        });
+      }
+    }
+
+    dataset.sort((a, b) => {
+      const timeA = new Date(a.timestamp || `${a.date || '1970-01-01'}T00:00:00Z`).getTime();
+      const timeB = new Date(b.timestamp || `${b.date || '1970-01-01'}T00:00:00Z`).getTime();
+      return timeA - timeB;
+    });
+
+    res.json(dataset);
   } catch (error) {
     console.error('Erreur API analytics/presence:', error);
-    res.status(500).json({ success: false, error: 'Erreur serveur' });
+    res.status(500).json([]);
   }
 });
 
 app.get('/api/analytics/missions', authenticateToken, authenticateSupervisorOrAdmin, async (req, res) => {
   try {
+    const days = clampDays(req.query.days, { fallback: 60, min: 7, max: 180 });
+    const endDate = new Date();
+    const startDate = new Date(endDate);
+    startDate.setUTCDate(startDate.getUTCDate() - (days - 1));
+
     const { data, error } = await supabaseClient
-      .from('mission_analytics')
-      .select('*')
-      .order('date', { ascending: false });
+      .from('missions')
+      .select('id, agent_id, status, date_start, date_end, created_at, updated_at, total_distance_m')
+      .gte('created_at', startDate.toISOString())
+      .order('created_at', { ascending: true })
+      .limit(5000);
     
     if (error) throw error;
-    res.json({ success: true, data: data || [] });
+
+    const missions = Array.isArray(data) ? data : [];
+    const dataset = missions.map(mission => {
+      const start = mission.date_start || mission.created_at;
+      const end = mission.date_end || mission.updated_at || start;
+      return {
+        id: mission.id,
+        agent_id: mission.agent_id,
+        status: mission.status || 'pending',
+        start_time: start,
+        end_time: end,
+        date: isoDateOnly(start),
+        duration_hours: computeDurationHours(start, end) || null,
+        total_distance_m: mission.total_distance_m || null
+      };
+    });
+    
+    res.json(dataset);
   } catch (error) {
     console.error('Erreur API analytics/missions:', error);
-    res.status(500).json({ success: false, error: 'Erreur serveur' });
+    res.status(500).json([]);
   }
 });
 
 app.get('/api/analytics/performance', authenticateToken, authenticateSupervisorOrAdmin, async (req, res) => {
   try {
-    const { data, error } = await supabaseClient
-      .from('performance_analytics')
-      .select('*')
-      .order('date', { ascending: false });
-    
-    if (error) throw error;
-    res.json({ success: true, data: data || [] });
+    const days = clampDays(req.query.days, { fallback: 30, min: 7, max: 120 });
+    const endDate = new Date();
+    const startDate = new Date(endDate);
+    startDate.setUTCDate(startDate.getUTCDate() - (days - 1));
+
+    const [missionsResult, presencesResult] = await Promise.all([
+      supabaseClient
+        .from('missions')
+        .select('id, status, date_start, date_end, created_at, updated_at')
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: true })
+        .limit(5000),
+      supabaseClient
+        .from('presences')
+        .select('id, user_id, start_time, end_time, status')
+        .gte('start_time', startDate.toISOString())
+        .order('start_time', { ascending: true })
+        .limit(5000)
+    ]);
+
+    if (missionsResult.error) throw missionsResult.error;
+    if (presencesResult.error) throw presencesResult.error;
+
+    const missions = Array.isArray(missionsResult.data) ? missionsResult.data : [];
+    const presences = Array.isArray(presencesResult.data) ? presencesResult.data : [];
+
+    const dailyMap = new Map();
+    const ensureDay = (date) => {
+      if (!dailyMap.has(date)) {
+        dailyMap.set(date, { date, hoursWorked: 0, missionsCompleted: 0, missionsTotal: 0, presenceCount: 0 });
+      }
+      return dailyMap.get(date);
+    };
+
+    presences.forEach(presence => {
+      const day = isoDateOnly(presence.start_time);
+      if (!day) return;
+      const bucket = ensureDay(day);
+      bucket.presenceCount += 1;
+      bucket.hoursWorked += computeDurationHours(presence.start_time, presence.end_time) || 0;
+    });
+
+    missions.forEach(mission => {
+      const day = isoDateOnly(mission.date_start || mission.created_at);
+      if (!day) return;
+      const bucket = ensureDay(day);
+      bucket.missionsTotal += 1;
+      if (['completed', 'realise', 'terminée', 'terminé'].includes(String(mission.status || '').toLowerCase())) {
+        bucket.missionsCompleted += 1;
+        bucket.hoursWorked += computeDurationHours(mission.date_start || mission.created_at, mission.date_end || mission.updated_at) || 0;
+      }
+    });
+
+    // Garantir une entrée pour chaque jour de la période
+    for (let cursor = new Date(startDate); cursor <= endDate; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+      const key = cursor.toISOString().split('T')[0];
+      ensureDay(key);
+    }
+
+    const maxPresence = Array.from(dailyMap.values()).reduce((acc, item) => Math.max(acc, item.presenceCount), 1);
+    const sortedDays = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+    const dataset = sortedDays.map(entry => {
+      const attendanceRate = maxPresence > 0
+        ? Math.round((entry.presenceCount / maxPresence) * 100)
+        : 0;
+      const missionSuccessRate = entry.missionsTotal > 0
+        ? Math.round((entry.missionsCompleted / entry.missionsTotal) * 100)
+        : 0;
+      const value = Math.round(attendanceRate * 0.6 + missionSuccessRate * 0.4);
+
+      return {
+        date: entry.date,
+        value,
+        attendanceRate,
+        missionSuccessRate,
+        hoursWorked: Math.round(entry.hoursWorked * 10) / 10,
+        missionsCompleted: entry.missionsCompleted,
+        missionsTotal: entry.missionsTotal,
+        presenceCount: entry.presenceCount
+      };
+    });
+
+    res.json(dataset);
   } catch (error) {
     console.error('Erreur API analytics/performance:', error);
-    res.status(500).json({ success: false, error: 'Erreur serveur' });
+    res.status(500).json([]);
   }
 });
 
 // Agent achievements endpoint
 app.get('/api/agent/achievements', authenticateToken, async (req, res) => {
   try {
-    const { agent_id } = req.query;
-    if (!agent_id) {
+    console.log('🔍 /api/agent/achievements called with query:', req.query);
+
+    // Get the agent ID from query params or the authenticated user
+    const agentId = req.query.agent_id || req.user?.id;
+
+    if (!agentId) {
+      console.error('❌ No agent ID provided');
       return res.status(400).json({ success: false, error: 'Agent ID requis' });
     }
     
-    const { data, error } = await supabaseClient
-      .from('achievements')
-      .select('*')
-      .eq('agent_id', agent_id)
-      .order('earned_at', { ascending: false });
-    
-    if (error) throw error;
-    res.json({ success: true, data: data || [] });
+    console.log('🔢 Processing agent ID:', { agentId, type: typeof agentId });
+
+    // Convert the ID to UUID if needed
+    const userId = await getUserId(agentId);
+
+    if (!userId) {
+      console.error('❌ User not found for ID:', agentId);
+      return res.status(404).json({
+        success: false,
+        error: `Utilisateur avec l'ID ${agentId} non trouvé`,
+        details: process.env.NODE_ENV === 'development' ? `ID type: ${typeof agentId}` : undefined
+      });
+    }
+
+    console.log('✅ Using user ID:', { originalId: agentId, resolvedId: userId });
+
+    // Initialize empty arrays for each data type
+    let checkins = [];
+    let missions = [];
+    let presences = [];
+
+    // Try to fetch checkins if the table exists
+    try {
+      const { data: checkinsData, error: checkinsError } = await supabaseClient
+        .from('checkins')
+        .select('id, user_id, start_time, created_at, timestamp, mission_id')
+        .eq('user_id', userId)  // Use the resolved UUID
+        .order('created_at', { ascending: true })
+        .limit(500);
+
+      if (checkinsError && !isMissingTable(checkinsError)) {
+        console.error('Error fetching checkins:', checkinsError);
+      } else if (checkinsData) {
+        checkins = checkinsData;
+      }
+    } catch (e) {
+      console.error('Exception when fetching checkins:', e);
+    }
+
+    // Try to fetch missions if the table exists
+    try {
+      const { data: missionsData, error: missionsError } = await supabaseClient
+        .from('missions')
+        .select('id, status, date_start, date_end, created_at, agent_id')
+        .eq('agent_id', userId)  // Use the resolved UUID
+        .order('created_at', { ascending: true })
+        .limit(500);
+
+      if (missionsError && !isMissingTable(missionsError)) {
+        console.error('Error fetching missions:', missionsError);
+      } else if (missionsData) {
+        missions = missionsData;
+      }
+    } catch (e) {
+      console.error('Exception when fetching missions:', e);
+    }
+
+    // Try to fetch presences if the table exists
+    try {
+      const { data: presencesData, error: presencesError } = await supabaseClient
+        .from('presences')
+        .select('id, start_time, end_time, user_id')
+        .eq('user_id', userId)  // Use the resolved UUID
+        .order('start_time', { ascending: true })
+        .limit(500);
+
+      if (presencesError && !isMissingTable(presencesError)) {
+        console.error('Error fetching presences:', presencesError);
+      } else if (presencesData) {
+        presences = presencesData;
+      }
+    } catch (e) {
+      console.error('Exception when fetching presences:', e);
+    }
+
+    const achievements = [];
+    const pushAchievement = (id, payload) => {
+      if (!achievements.find(item => item.id === id)) {
+        achievements.push({ id, ...payload });
+      }
+    };
+    const firstCheckin = checkins[0];
+    if (firstCheckin) {
+      const date = firstCheckin.start_time || firstCheckin.created_at || firstCheckin.timestamp;
+      pushAchievement('first-checkin', {
+        title: 'Premier check-in',
+        description: 'Vous avez enregistré votre première présence sur le terrain.',
+        icon: '📍',
+        date: date || new Date().toISOString()
+      });
+    }
+
+    const totalCheckins = checkins.length;
+    if (totalCheckins >= 5) {
+      pushAchievement('checkins-5', {
+        title: 'Routine installée',
+        description: `Déjà ${totalCheckins} check-ins réalisés, continuez !`,
+        icon: '✅',
+        date: checkins[Math.min(4, totalCheckins - 1)].start_time || new Date().toISOString()
+      });
+    }
+    if (totalCheckins >= 25) {
+      pushAchievement('checkins-25', {
+        title: 'Explorateur confirmé',
+        description: `${totalCheckins} points de présence saisis.`,
+        icon: '🧭',
+        date: checkins[Math.min(24, totalCheckins - 1)].start_time || new Date().toISOString()
+      });
+    }
+
+    const missionsCompleted = missions.filter(m => ['completed', 'realise', 'terminée'].includes(String(m.status || '').toLowerCase())).length;
+    if (missionsCompleted >= 1) {
+      pushAchievement('mission-first', {
+        title: 'Première mission',
+        description: 'Une mission a été clôturée avec succès.',
+        icon: '🎯',
+        date: missions.find(m => ['completed', 'realise', 'terminée'].includes(String(m.status || '').toLowerCase()))?.date_end || new Date().toISOString()
+      });
+    }
+    const lastCompletedMission = (() => {
+      for (let i = missions.length - 1; i >= 0; i -= 1) {
+        const mission = missions[i];
+        if (['completed', 'realise', 'terminée'].includes(String(mission.status || '').toLowerCase())) {
+          return mission;
+        }
+      }
+      return null;
+    })();
+
+    if (missionsCompleted >= 10) {
+      pushAchievement('mission-10', {
+        title: 'Série de missions',
+        description: `${missionsCompleted} missions finalisées.`,
+        icon: '🏆',
+        date: lastCompletedMission?.date_end || new Date().toISOString()
+      });
+    }
+
+    const totalHours = presences.reduce((acc, presence) => acc + (computeDurationHours(presence.start_time, presence.end_time) || 0), 0);
+    if (totalHours >= 100) {
+      pushAchievement('hours-100', {
+        title: '100 heures terrain',
+        description: 'Vous avez passé plus de 100 heures sur le terrain.',
+        icon: '⏱️',
+        date: new Date().toISOString()
+      });
+    }
+
+    const streak = calculateRecentStreak(checkins.map(c => c.start_time || c.created_at || c.timestamp));
+    if (streak >= 5) {
+      pushAchievement('streak-5', {
+        title: 'Série de 5 jours',
+        description: 'Présence enregistrée cinq jours de suite.',
+        icon: '🔥',
+        date: new Date().toISOString()
+      });
+    }
+
+    if (achievements.length === 0) {
+      pushAchievement('onboarding', {
+        title: 'Bienvenue sur Presence CCRB',
+        description: 'Connectez-vous et réalisez vos premières activités pour débloquer des distinctions.',
+        icon: '👋',
+        date: new Date().toISOString()
+      });
+    }
+
+    achievements.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    res.json({ success: true, achievements: achievements.slice(0, 20) });
   } catch (error) {
     console.error('Erreur API agent/achievements:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
@@ -6717,14 +9352,151 @@ app.get('/api/agent/achievements', authenticateToken, async (req, res) => {
 // Agent leaderboard endpoint
 app.get('/api/agent/leaderboard', authenticateToken, async (req, res) => {
   try {
-    const { data, error } = await supabaseClient
-      .from('agent_leaderboard')
-      .select('*')
-      .order('score', { ascending: false })
-      .limit(50);
-    
-    if (error) throw error;
-    res.json({ success: true, data: data || [] });
+    const days = clampDays(req.query.days, { fallback: 45, min: 7, max: 180 });
+    const endDate = new Date();
+    const startDate = new Date(endDate);
+    startDate.setUTCDate(startDate.getUTCDate() - (days - 1));
+
+    const { data: agentsData, error: agentsError } = await supabaseClient
+      .from('users')
+      .select('id, name, email, project_name, role')
+      .eq('role', 'agent')
+      .order('name', { ascending: true })
+      .limit(500);
+
+    if (agentsError) throw agentsError;
+
+    const agents = Array.isArray(agentsData) ? agentsData : [];
+    if (agents.length === 0) {
+      return res.json({ success: true, leaderboard: [], data: [] });
+    }
+
+    const [missionsResult, presencesResult, checkinsResult] = await Promise.all([
+      supabaseClient
+        .from('missions')
+        .select('id, agent_id, status, date_start, date_end, created_at, updated_at')
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: true })
+        .limit(5000),
+      supabaseClient
+        .from('presences')
+        .select('id, user_id, start_time, end_time')
+        .gte('start_time', startDate.toISOString())
+        .order('start_time', { ascending: true })
+        .limit(5000),
+      supabaseClient
+        .from('checkins')
+        .select('id, user_id, created_at, start_time')
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: true })
+        .limit(5000)
+    ]);
+
+    if (missionsResult.error) throw missionsResult.error;
+    if (presencesResult.error) throw presencesResult.error;
+    if (checkinsResult.error) throw checkinsResult.error;
+
+    const stats = new Map();
+    const ensureStats = (agentId) => {
+      if (!stats.has(agentId)) {
+        stats.set(agentId, {
+          missionsCompleted: 0,
+          missionsTotal: 0,
+          checkins: 0,
+          hours: 0,
+          presenceDays: new Set(),
+          permissionDays: 0
+        });
+      }
+      return stats.get(agentId);
+    };
+
+    const missions = Array.isArray(missionsResult.data) ? missionsResult.data : [];
+    missions.forEach(mission => {
+      if (!mission.agent_id) return;
+      const bucket = ensureStats(mission.agent_id);
+      bucket.missionsTotal += 1;
+      if (['completed', 'realise', 'terminée'].includes(String(mission.status || '').toLowerCase())) {
+        bucket.missionsCompleted += 1;
+      }
+      bucket.hours += computeDurationHours(mission.date_start || mission.created_at, mission.date_end || mission.updated_at) || 0;
+    });
+
+    const presences = Array.isArray(presencesResult.data) ? presencesResult.data : [];
+    presences.forEach(presence => {
+      if (!presence.user_id) return;
+      const bucket = ensureStats(presence.user_id);
+      bucket.hours += computeDurationHours(presence.start_time, presence.end_time) || 0;
+      const day = isoDateOnly(presence.start_time);
+      if (day) {
+        bucket.presenceDays.add(day);
+      }
+    });
+
+    const checkins = Array.isArray(checkinsResult.data) ? checkinsResult.data : [];
+    checkins.forEach(checkin => {
+      if (!checkin.user_id) return;
+      const bucket = ensureStats(checkin.user_id);
+      bucket.checkins += 1;
+    });
+
+    try {
+      const startMonthKey = formatMonthKey(startDate);
+      const endMonthKey = formatMonthKey(endDate);
+      const { data: permissionRows, error: permissionError } = await supabaseClient
+        .from('permission_days')
+        .select('agent_id, month, days')
+        .gte('month', startMonthKey)
+        .lte('month', endMonthKey);
+
+      if (permissionError) throw permissionError;
+
+      (permissionRows || []).forEach(row => {
+        if (!row || !row.agent_id) return;
+        const bucket = ensureStats(row.agent_id);
+        // Calculer le nombre de jours entre start_date et end_date (inclus)
+        const start = new Date(row.start_date);
+        const end = new Date(row.end_date);
+        const diffTime = Math.abs(end - start);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 pour inclure le jour de fin
+
+        bucket.permissionDays = (bucket.permissionDays || 0) + Math.max(0, diffDays);
+      });
+    } catch (permissionError) {
+      console.warn('Erreur récupération permission_days (leaderboard):', permissionError.message || permissionError);
+    }
+
+    const leaderboard = agents.map(agent => {
+      const stat = stats.get(agent.id) || { missionsCompleted: 0, missionsTotal: 0, checkins: 0, hours: 0, presenceDays: new Set() };
+      const fieldTime = Math.round(stat.hours * 10) / 10;
+      const permissionDays = stat.permissionDays || 0;
+      const score = Math.round(stat.missionsCompleted * 5 + stat.checkins * 1 + fieldTime * 0.5);
+      return {
+        id: agent.id,
+        name: getUserDisplayName(agent),
+        project: agent.project_name || null,
+        score,
+        missions: stat.missionsCompleted,
+        totalMissions: stat.missionsTotal,
+        checkins: stat.checkins,
+        fieldTime,
+        permissionDays,
+        attendanceDays: stat.presenceDays.size
+      };
+    });
+
+    leaderboard.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (b.missions !== a.missions) return b.missions - a.missions;
+      return b.checkins - a.checkins;
+    });
+
+    const trimmed = leaderboard.slice(0, 50).map((entry, index) => ({
+      ...entry,
+      rank: index + 1
+    }));
+
+    res.json({ success: true, leaderboard: trimmed, data: trimmed });
   } catch (error) {
     console.error('Erreur API agent/leaderboard:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
@@ -6735,6 +9507,19 @@ app.get('/api/agent/leaderboard', authenticateToken, async (req, res) => {
 app.get('/api/checkins', authenticateToken, async (req, res) => {
   try {
     const { from, to, user_id } = req.query;
+    let targetUserId = null;
+    
+    if (typeof user_id !== 'undefined') {
+      const parsed = Number(user_id);
+      if (!Number.isFinite(parsed)) {
+        return res.status(400).json({ success: false, error: 'user_id invalide' });
+      }
+      if (parsed !== Number(req.user?.id) && !isPrivilegedRequest(req)) {
+        return res.status(403).json({ success: false, error: 'Accès non autorisé à cet utilisateur' });
+      }
+      targetUserId = parsed;
+    }
+    
     let query = supabaseClient
       .from('checkins')
       .select('*')
@@ -6744,8 +9529,10 @@ app.get('/api/checkins', authenticateToken, async (req, res) => {
       query = query.gte('start_time', from).lte('start_time', to);
     }
     
-    if (user_id) {
-      query = query.eq('user_id', user_id);
+    if (targetUserId !== null) {
+      query = query.eq('user_id', targetUserId);
+    } else if (!isPrivilegedRequest(req)) {
+      query = query.eq('user_id', req.user.id);
     }
     
     const { data, error } = await query;
@@ -6810,8 +9597,21 @@ app.get('/api/locations', authenticateToken, async (req, res) => {
       .select('*')
       .order('name');
     
+    // Handle missing table gracefully
+    if (error && isMissingTable(error)) {
+      console.warn('Table locations non trouvée, utilisation des localisations de secours');
+      const locations = await buildFallbackLocations();
+      return res.json({ success: true, data: locations });
+    }
+
     if (error) throw error;
-    res.json({ success: true, data: data || [] });
+    
+    let locations = Array.isArray(data) ? data : [];
+    if (locations.length === 0) {
+      locations = await buildFallbackLocations();
+    }
+    
+    res.json({ success: true, data: locations });
   } catch (error) {
     console.error('Erreur API locations:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
@@ -7081,7 +9881,7 @@ app.post('/api/presence-validations', authenticateToken, async (req, res) => {
       const R = 6371000; // Rayon de la Terre en mètres
       const dLat = toRad(checkin_lat - Number(user.reference_lat));
       const dLon = toRad(checkin_lng - Number(user.reference_lon));
-      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(user.reference_lat)) * Math.cos(toRad(checkin_lat)) * Math.sin(dLon/2)**2;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(user.reference_lat)) * Math.cos(toRad(checkin_lat)) * Math.sin(dLon / 2) ** 2;
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       distance_from_reference_m = Math.round(R * c);
       
@@ -7259,34 +10059,38 @@ app.get('/', (req, res) => {
   res.redirect('/index.html');
 });
 
-// Démarrage du serveur
+// Démarrer le serveur HTTP d'abord
+// Démarrer le serveur HTTP d'abord
 const server = app.listen(PORT, () => {
-  console.log(`Serveur démarré sur http://localhost:${PORT}`);
+  console.log(`Serveur en cours d'exécution sur le port ${PORT}`);
 });
 
 // WebSocket Server (for real-time features like messaging)
 const WebSocket = require('ws');
-const wss = new WebSocket.Server({ server: server });
+
+// Initialiser le serveur WebSocket avec le serveur HTTP
+const wss = new WebSocket.Server({ server });
 // Expose instance for other handlers
-let wssInstance = wss;
+const wssInstance = wss;
 
 // Simple broadcast helper
 function broadcastRealtime(event) {
+  if (!event || !event.type) return;
+
   try {
-    if (!wssInstance) return;
     const payload = JSON.stringify(event);
     wssInstance.clients.forEach(client => {
       if (client && client.readyState === WebSocket.OPEN) {
-        try { client.send(payload); } catch {}
+        try { client.send(payload); } catch (e) { console.error('Error sending WebSocket message:', e); }
       }
     });
   } catch (e) {
     console.error('Broadcast error:', e);
   }
-}
+};
 
-wss.on('connection', ws => {
-  console.log('Client connecté via WebSocket');
+wss.on('connection', (ws) => {
+  console.log('Client connected via WebSocket');
 
   ws.on('message', async (raw) => {
     try {
@@ -7295,18 +10099,37 @@ wss.on('connection', ws => {
         // Optionnel: prise en charge d'envoi via WS (fallback REST existe déjà)
         broadcastRealtime({ type: 'message', payload: msg.payload });
       } else if (msg && msg.type === 'ping') {
-        try { ws.send(JSON.stringify({ type: 'heartbeat', timestamp: Date.now() })); } catch {}
+        try {
+          ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
+        } catch (e) {
+          console.error('Error sending pong:', e);
       }
-    } catch {}
+      }
+    } catch (e) {
+      console.error('Error processing WebSocket message:', e);
+    }
   });
 
   ws.on('close', () => {
     console.log('Client disconnected from WebSocket');
   });
 
-  ws.on('error', error => {
+  ws.on('error', (error) => {
     console.error('WebSocket error:', error);
   });
 });
 
-module.exports = app;
+// Export the app and WebSocket server for testing and other modules
+module.exports = { app, server, wss, wssInstance };
+
+// Log server startup
+console.log('Server initialization complete');
+
+// Gestion des erreurs non capturées
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});

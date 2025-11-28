@@ -9,9 +9,60 @@
     <meta name="theme-color" content="#0ea5e9" />
     <title>Presence CCR-B - Agent</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <!-- Session Manager - Chargé en premier pour restaurer la session rapidement -->
+    <script src="/session-manager.js"></script>
     <script src="/auth.js?v=2" defer></script>
   <script src="/components/circular-nav.js" type="module"></script>
   <link rel="stylesheet" href="/styles-shared.css">
+    <script>
+      (() => {
+        if (window.__authFetchPatched) return;
+        window.__authFetchPatched = true;
+        const TOKEN_KEYS = ['jwt', 'access_token', 'token', 'sb-access-token', 'sb:token'];
+        const originalFetch = window.fetch;
+
+        const resolveToken = () => {
+          for (const key of TOKEN_KEYS) {
+            const value = localStorage.getItem(key) || sessionStorage.getItem(key);
+            if (value && value.length > 20) return value.trim();
+          }
+          if (typeof window.jwt === 'string' && window.jwt.length > 20) return window.jwt.trim();
+          return '';
+        };
+
+        const shouldAttachAuth = (targetUrl) => {
+          try {
+            const absolute = new URL(targetUrl, window.location.origin);
+            return absolute.origin === window.location.origin && absolute.pathname.startsWith('/api');
+          } catch {
+            return false;
+          }
+        };
+
+        window.fetch = function patchedFetch(input, init = {}) {
+          try {
+            const requestUrl = typeof input === 'string' ? input : input?.url;
+            if (requestUrl && shouldAttachAuth(requestUrl)) {
+              const token = resolveToken();
+              if (token) {
+                const baseHeaders =
+                  init.headers ||
+                  (input instanceof Request ? input.headers : undefined) ||
+                  {};
+                const headers = new Headers(baseHeaders);
+                if (!headers.has('Authorization')) {
+                  headers.set('Authorization', `Bearer ${token}`);
+                }
+                init = { ...init, headers };
+              }
+            }
+          } catch (error) {
+            console.warn('Auth fetch interceptor error:', error);
+          }
+          return originalFetch.call(this, input, init);
+        };
+      })();
+    </script>
     <!-- Redirection automatique vers la page home -->
     <script>
       // Vérifier si l'utilisateur est déjà connecté et rediriger si nécessaire
@@ -489,9 +540,36 @@
         align-items: center;
       }
       
+      .navbar-brand-link {
+        display: flex;
+        align-items: center;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        border-radius: 8px;
+        padding: 4px;
+        margin-right: 12px;
+      }
+      
+      .navbar-brand-link:hover {
+        background: rgba(255, 255, 255, 0.1);
+        transform: scale(1.05);
+      }
+      
       .navbar-logo {
-        height: 50px;
-        margin-right: 15px;
+        height: 40px;
+        width: auto;
+        max-width: 40px;
+        border-radius: 8px;
+        padding: 2px;
+        background: rgba(255, 255, 255, 0.15);
+        object-fit: contain;
+        transition: transform 0.3s ease;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+      }
+      
+      .navbar-brand-link:hover .navbar-logo {
+        transform: scale(1.1);
+        filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
       }
       
       .navbar-title h1 {
@@ -558,9 +636,36 @@
         flex-grow: 1;
       }
       
+      .navbar-brand-link {
+        display: flex;
+        align-items: center;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        border-radius: 8px;
+        padding: 4px;
+        margin-right: 12px;
+      }
+      
+      .navbar-brand-link:hover {
+        background: rgba(255, 255, 255, 0.1);
+        transform: scale(1.05);
+      }
+      
       .navbar-logo {
-        height: 50px;
-        margin-right: 15px;
+        height: 40px;
+        width: auto;
+        max-width: 40px;
+        border-radius: 8px;
+        padding: 2px;
+        background: rgba(255, 255, 255, 0.15);
+        object-fit: contain;
+        transition: transform 0.3s ease;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+      }
+      
+      .navbar-brand-link:hover .navbar-logo {
+        transform: scale(1.1);
+        filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
       }
       
       .navbar-title h1 {
@@ -737,20 +842,25 @@
         100% { background-position: 0% 50%; }
       }
       
-      .navbar-brand {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-      }
-      
-      .navbar-logo {
-        width: 48px;
-        height: 48px;
-        object-fit: contain;
-        border-radius: 8px;
-        background: rgba(255, 255, 255, 0.1);
-        padding: 4px;
-      }
+        .navbar-brand {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+        
+        .navbar-brand-link {
+          margin-right: 8px;
+        }
+        
+        .navbar-logo {
+          width: 35px;
+          height: 35px;
+          max-width: 35px;
+          object-fit: contain;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.1);
+          padding: 2px;
+        }
       
       .navbar-title h1 {
         margin: 0;
@@ -1012,8 +1122,8 @@
     <!-- Barre de navigation -->
     <nav class="navbar">
       <div class="navbar-brand">
-        <a href="/" class="navbar-logo-link">
-          <img src="/Media/logo-ccrb.png" alt="Logo CCR-B" class="navbar-logo">
+        <a href="/index.html" class="navbar-brand-link" title="Accueil - Presence CCR-B">
+          <img src="/Media/logo-ccrb.png" alt="Logo CCR-B" class="navbar-logo" title="CCR-B - Conseil de Concertation des Riziculteurs du Bénin">
         </a>
         <div class="navbar-title">
           <h1>Présence CCR-B</h1>
@@ -1021,26 +1131,28 @@
         </div>
       </div>
       
-      <!-- Barre de navigation dynamique -->
-      <div id="navbar-placeholder"></div>
-      
       <div class="navbar-menu">
-        <a href="/" class="navbar-link" title="Accueil">
-          <i class="fas fa-home"></i>
-          <span>Accueil</span>
+        <a href="/index.html" class="navbar-link" title="Présence">
+          <span style="font-size: 24px;">📍</span>
+          <span>Présence</span>
         </a>
-        <a href="/planning.html" class="navbar-link" title="Planning">
-          <i class="fas fa-calendar-alt"></i>
-          <span>Planning</span>
+        <a href="/planning.html" class="navbar-link" title="Planification">
+          <span style="font-size: 24px;">🗓️</span>
+          <span>Planification</span>
         </a>
-        <a href="/agent-activity-tracking.html" class="navbar-link" title="Suivi des agents">
-          <i class="fas fa-user-check"></i>
-          <span>Suivi</span>
+        <a href="/agent-activity-tracking.html" class="navbar-link" title="Suivi Activité">
+          <span style="font-size: 24px;">📋</span>
+          <span>Suivi Activité</span>
         </a>
-        <a href="/agent-dashboard.html" class="navbar-link" title="Mes objectifs">
-          <i class="fas fa-bullseye"></i>
-          <span>Objectifs</span>
+        <a href="/agent-dashboard.html" class="navbar-link" title="Profil">
+          <span style="font-size: 24px;">👤</span>
+          <span>Profil</span>
         </a>
+        <button id="sync-offline-checkins-btn" class="navbar-link" title="Synchroniser les check-ins en attente" style="display: none; background: transparent; border: none; cursor: pointer; position: relative;">
+          <span style="font-size: 24px;">🔄</span>
+          <span>Sync</span>
+          <span id="sync-checkins-badge" class="badge bg-danger" style="position: absolute; top: -5px; right: -5px; font-size: 10px; padding: 2px 5px; display: none;">0</span>
+        </button>
       </div>
       
       <div class="navbar-nav">
@@ -1317,6 +1429,14 @@
         <div class="card" id="sync-card" style="display: none;">
           <button id="sync-offline-data-index" class="btn-warning" style="width: 100%; padding: 12px; font-size: 16px;">
             <i class="fas fa-sync me-2"></i>Synchroniser les données en attente
+          </button>
+        </div>
+
+        <!-- Bouton de synchronisation des missions (caché par défaut) -->
+        <div class="card" id="sync-missions-card" style="display: none; margin-top: 15px;">
+          <button id="sync-missions-btn" class="btn-primary" style="width: 100%; padding: 12px; font-size: 16px; position: relative;">
+            <i class="fas fa-sync-alt me-2"></i>Synchroniser les missions en attente
+            <span id="sync-missions-badge" class="badge bg-danger" style="position: absolute; top: -8px; right: -8px; display: none;">0</span>
           </button>
         </div>
 
@@ -26620,21 +26740,187 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
-    <script src="/geo-data.js"></script>
-    <script src="/capacitor-native.js"></script>
-    <!-- Mobile GPS Detector -->
-    <script src="/test-render-auth.js"></script>
-    <script src="/clear-cache.js"></script>
-    <script src="/mobile-gps-detector.js"></script>
-    <!-- GPS Enhanced -->
-    <script src="/gps-enhanced.js"></script>
-    <!-- Offline Manager -->
+    <!-- Scripts critiques chargés immédiatement -->
     <script src="/offline-manager.js"></script>
-    <!-- Navigation Manager -->
-    <script src="/navigation.js"></script>
-    <!-- Cascade Selectors -->
-    <script src="/cascade-selectors.js"></script>
+    <script src="/mission-sync.js"></script>
     <script src="/app.js?v=5" type="module"></script>
+    
+    <!-- Scripts non critiques chargés en différé pour optimiser le chargement -->
+    <script>
+      // Charger les scripts non critiques après le chargement de la page
+      // Utiliser requestIdleCallback si disponible, sinon setTimeout
+      const loadNonCriticalScripts = () => {
+        const scripts = [
+          '/test-render-auth.js',
+          '/clear-cache.js',
+          '/mobile-gps-detector.js',
+          '/gps-enhanced.js',
+          '/navigation.js',
+          '/cascade-selectors.js',
+          '/geo-data.js',
+          '/capacitor-native.js'
+        ];
+        
+        scripts.forEach((src, index) => {
+          setTimeout(() => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.async = true;
+            script.defer = true;
+            document.body.appendChild(script);
+          }, index * 150); // Charger avec un délai pour éviter la surcharge
+        });
+      };
+      
+      if (window.requestIdleCallback) {
+        requestIdleCallback(loadNonCriticalScripts, { timeout: 2000 });
+      } else {
+        window.addEventListener('load', loadNonCriticalScripts);
+      }
+    </script>
+    <script>
+      // Gestionnaire pour le bouton de synchronisation des missions
+      (function() {
+        async function setupMissionSyncButton() {
+          const syncBtn = document.getElementById('sync-missions-btn');
+          if (!syncBtn) return;
+          
+          syncBtn.addEventListener('click', async function() {
+            if (!window.missionSync) {
+              alert('Système de synchronisation non disponible');
+              return;
+            }
+            
+            const originalText = syncBtn.innerHTML;
+            syncBtn.disabled = true;
+            syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Synchronisation en cours...';
+            
+            try {
+              const result = await window.missionSync.syncPendingMissions();
+              
+              if (result.success) {
+                if (result.synced > 0) {
+                  showNotification(`${result.synced} mission(s) synchronisée(s) avec succès !`, 'success');
+                } else {
+                  showNotification('Aucune mission à synchroniser', 'info');
+                }
+                
+                // Masquer le bouton si plus de missions en attente
+                await window.missionSync.updateSyncButton();
+                const syncCard = document.getElementById('sync-missions-card');
+                if (syncCard && result.synced > 0) {
+                  const hasPending = await window.missionSync.hasPendingMissions();
+                  if (!hasPending) {
+                    syncCard.style.display = 'none';
+                  }
+                }
+              } else {
+                throw new Error(result.message || 'Erreur de synchronisation');
+              }
+            } catch (error) {
+              console.error('Erreur synchronisation missions:', error);
+              showNotification('Erreur lors de la synchronisation: ' + error.message, 'error');
+            } finally {
+              syncBtn.disabled = false;
+              syncBtn.innerHTML = originalText;
+            }
+          });
+        }
+        
+        // Attendre que missionSync soit chargé
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', setupMissionSyncButton);
+        } else {
+          setTimeout(setupMissionSyncButton, 1000); // Attendre le chargement de mission-sync.js
+        }
+      })();
+      
+      // Gestionnaire pour le bouton de synchronisation des check-ins dans la navbar
+      (function() {
+        async function setupCheckinsSyncButton() {
+          const syncBtn = document.getElementById('sync-offline-checkins-btn');
+          if (!syncBtn) return;
+          
+          // Vérifier périodiquement s'il y a des check-ins en attente
+          async function updateSyncButton() {
+            if (!window.offlineManager) return;
+            
+            try {
+              const unsyncedCheckins = await window.offlineManager.getOfflineData('checkins', { synced: false });
+              const unsyncedPresence = await window.offlineManager.getOfflineData('presence', { synced: false });
+              const totalUnsynced = unsyncedCheckins.length + unsyncedPresence.length;
+              
+              if (totalUnsynced > 0) {
+                syncBtn.style.display = 'flex';
+                const badge = document.getElementById('sync-checkins-badge');
+                if (badge) {
+                  badge.textContent = totalUnsynced;
+                  badge.style.display = 'inline-block';
+                }
+              } else {
+                syncBtn.style.display = 'none';
+                const badge = document.getElementById('sync-checkins-badge');
+                if (badge) badge.style.display = 'none';
+              }
+            } catch (error) {
+              console.warn('Erreur vérification check-ins offline:', error);
+            }
+          }
+          
+          syncBtn.addEventListener('click', async function() {
+            if (!window.syncOfflineDataIndex) {
+              // Utiliser la fonction existante si disponible
+              if (typeof syncOfflineDataIndex === 'function') {
+                await syncOfflineDataIndex();
+              } else {
+                alert('Système de synchronisation non disponible');
+              }
+              return;
+            }
+            
+            const originalText = syncBtn.innerHTML;
+            syncBtn.disabled = true;
+            syncBtn.innerHTML = '<span style="font-size: 24px;">⏳</span><span>Sync...</span>';
+            
+            try {
+              // Utiliser la fonction globale si disponible
+              if (typeof window.syncOfflineDataIndex === 'function') {
+                await window.syncOfflineDataIndex();
+              } else if (typeof syncOfflineDataIndex === 'function') {
+                await syncOfflineDataIndex();
+              } else {
+                // Fallback: synchroniser directement via offlineManager
+                if (window.offlineManager) {
+                  await window.offlineManager.syncPendingData();
+                }
+              }
+              await updateSyncButton();
+            } catch (error) {
+              console.error('Erreur synchronisation check-ins:', error);
+              if (typeof showNotification === 'function') {
+                showNotification('Erreur lors de la synchronisation: ' + error.message, 'error');
+              } else {
+                alert('Erreur lors de la synchronisation: ' + error.message);
+              }
+            } finally {
+              syncBtn.disabled = false;
+              syncBtn.innerHTML = originalText;
+            }
+          });
+          
+          // Vérifier toutes les 10 secondes
+          setInterval(updateSyncButton, 10000);
+          // Vérifier immédiatement après le chargement
+          setTimeout(updateSyncButton, 2000);
+        }
+        
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', setupCheckinsSyncButton);
+        } else {
+          setTimeout(setupCheckinsSyncButton, 2000);
+        }
+      })();
+    </script>
     <script>
       // File: index.html inline fallback to ensure navbar links are always clickable
       (function(){
@@ -26654,7 +26940,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const logo = document.querySelector('.navbar-brand-link');
             if (logo && !logo._hardBound) {
               logo._hardBound = true;
-              logo.addEventListener('click', (ev)=>{ ev.preventDefault(); window.location.assign('/home.html'); }, { capture: true });
+              logo.addEventListener('click', (ev)=>{ ev.preventDefault(); window.location.assign('/index.html'); }, { capture: true });
             }
           };
           if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ensureNav); else ensureNav();

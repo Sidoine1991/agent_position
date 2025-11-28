@@ -6,15 +6,14 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#0ea5e9" />
     <title>Gestion des Agents - Presence CCRB</title>
-    <link href="/bootstrap-5.3.8-dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link rel="stylesheet" href="/styles.css?v=2" />
     <link rel="stylesheet" href="/modern-ui.css?v=1" />
   </head>
   <body>
     <!-- Navigation Bar -->
     <nav class="navbar">
-      <div class="navbar-brand">
-        <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
+        <div class="navbar-brand">
         <div class="navbar-title">
           <h1>Presence CCRB</h1>
           <span class="navbar-subtitle">Gestion des Agents</span>
@@ -123,6 +122,291 @@
         <h3>👥 Liste des Agents</h3>
         <!-- Nouveau design: simple liste compacte -->
         <style>
+          /* Styles pour la section de gestion des permissions */
+          .permission-management-section {
+            margin-top: 2rem;
+          }
+          
+          .permission-management-section .section-header {
+            margin-bottom: 1.5rem;
+          }
+          
+          .permission-management-section .section-header h2 {
+            display: flex;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0 0 0.5rem 0;
+            color: #1a365d;
+          }
+          
+          .permission-management-section .section-header h2 i {
+            margin-right: 0.75rem;
+            color: #3182ce;
+          }
+          
+          .permission-management-section .section-header p {
+            color: #4a5568;
+            margin: 0;
+          }
+          
+          .permission-management-section .card {
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+          }
+          
+          .permission-management-section .card-body {
+            padding: 1.5rem;
+          }
+          
+          .permission-management-section .filters-section {
+            margin-bottom: 1.5rem;
+          }
+          
+          .permission-management-section .filters-grid {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 1rem;
+            align-items: end;
+          }
+          
+          .permission-management-section .filter-group {
+            margin-bottom: 0;
+          }
+          
+          .permission-management-section .filter-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+          }
+          
+          .permission-management-section .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #3182ce;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.875rem;
+          }
+          
+          .permission-management-section .empty-state {
+            padding: 2rem 1rem;
+            text-align: center;
+            color: #718096;
+          }
+          
+          .permission-management-section .empty-state i {
+            font-size: 2rem;
+            margin-bottom: 0.75rem;
+            color: #cbd5e0;
+            display: block;
+          }
+          
+          .permission-management-section .empty-state p {
+            margin: 0.5rem 0 0 0;
+            color: #a0aec0;
+          }
+          
+          .permission-management-section .status-row {
+            background-color: #f8fafc;
+          }
+          
+          .permission-management-section .status-row td {
+            padding: 0.5rem 1rem !important;
+            border-top: none;
+          }
+          
+          /* Styles pour la modale de détails */
+          .permission-details-header {
+            background-color: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+          }
+          
+          .permission-details-header h4 {
+            margin: 0;
+            font-weight: 600;
+          }
+          
+          .permission-details-header h6 {
+            color: #4a5568;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: 0 0 0.25rem 0;
+          }
+          
+          .permission-details-header .badge {
+            font-size: 0.875rem;
+            padding: 0.35em 0.65em;
+          }
+          
+          .permission-reason {
+            background-color: #f8fafc;
+          }
+          
+          .permission-reason td {
+            padding: 0.5rem 1rem !important;
+            font-size: 0.875rem;
+            color: #4a5568;
+          }
+          
+          /* Styles pour les badges de statut */
+          .badge.bg-warning {
+            background-color: #ecc94b !important;
+            color: #744210;
+          }
+          
+          .badge.bg-success {
+            background-color: #48bb78 !important;
+          }
+          
+          .badge.bg-danger {
+            background-color: #f56565 !important;
+          }
+          
+          /* Styles pour les boutons d'action */
+          .btn-approve.active {
+            background-color: #48bb78 !important;
+            color: white !important;
+          }
+          
+          .btn-reject.active {
+            background-color: #f56565 !important;
+            color: white !important;
+          }
+          
+          /* Styles pour les toasts */
+          .toast-container {
+            z-index: 1100;
+          }
+          
+          .toast {
+            margin-bottom: 0.75rem;
+            border: none;
+            border-radius: 0.375rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          }
+          
+          .toast.bg-success {
+            background-color: #48bb78 !important;
+          }
+          
+          .toast.bg-error {
+            background-color: #f56565 !important;
+          }
+          
+          .toast.bg-warning {
+            background-color: #ecc94b !important;
+          }
+          
+          .toast.bg-info {
+            background-color: #3182ce !important;
+          }
+          
+          .toast-header {
+            border-bottom: none;
+            padding: 0.5rem 1rem;
+            border-top-left-radius: 0.375rem;
+            border-top-right-radius: 0.375rem;
+          }
+          
+          .toast-body {
+            padding: 1rem;
+          }
+          
+          /* Styles pour les tableaux */
+          .table th {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            color: #4a5568;
+            background-color: #f8fafc;
+            border-bottom-width: 1px;
+          }
+          
+          .table td {
+            vertical-align: middle;
+            padding: 1rem;
+          }
+          
+          /* Styles pour les formulaires */
+          .form-label {
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: #4a5568;
+          }
+          
+          .form-control, .form-select {
+            border: 1px solid #e2e8f0;
+            border-radius: 0.375rem;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+          }
+          
+          .form-control:focus, .form-select:focus {
+            border-color: #3182ce;
+            box-shadow: 0 0 0 1px #3182ce;
+          }
+          
+          /* Styles pour les boutons */
+          .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+            transition: all 0.15s ease-in-out;
+          }
+          
+          .btn i {
+            margin-right: 0.5rem;
+          }
+          
+          .btn-primary {
+            background-color: #3182ce;
+            border-color: #3182ce;
+            color: white;
+          }
+          
+          .btn-primary:hover {
+            background-color: #2c5282;
+            border-color: #2c5282;
+          }
+          
+          .btn-outline-primary {
+            color: #3182ce;
+            border: 1px solid #3182ce;
+            background-color: transparent;
+          }
+          
+          .btn-outline-primary:hover {
+            background-color: #ebf8ff;
+          }
+          
+          .btn-outline-secondary {
+            color: #4a5568;
+            border: 1px solid #e2e8f0;
+            background-color: white;
+          }
+          
+          .btn-outline-secondary:hover {
+            background-color: #f7fafc;
+          }
+          
+          .btn-sm {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+          }
+          
           .agent-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 8px;border-bottom:1px solid #e5e7eb}
           .agent-main{display:flex;align-items:center;gap:12px;min-width:0}
           .agent-avatar{width:40px;height:40px;border-radius:9999px;object-fit:cover}
@@ -133,9 +417,103 @@
           .btn-small{padding:6px 10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer}
           .btn-small:hover{background:#f9fafb}
           #agents-simple-list .loading{padding:12px;color:#6b7280}
+          .agent-report-card{margin-top:32px;padding:24px;border-radius:16px;background:#fff;box-shadow:0 10px 30px rgba(15,23,42,.08);border:1px solid #e5e7eb;display:block !important;visibility:visible !important}
+          .agent-report-card h3{margin-bottom:8px;font-size:1.25rem;font-weight:600}
+          .report-header{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;align-items:flex-start}
+          .report-header p{margin:0;color:#64748b;font-size:.95rem;max-width:560px}
+          .report-controls{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}
+          .report-controls label{display:flex;flex-direction:column;font-size:.85rem;color:#475569;font-weight:500}
+          .report-controls select,.report-controls input{border:1px solid #d0d7e2;border-radius:10px;padding:8px 12px;min-width:210px}
+          .report-meta{margin:16px 0 8px;font-size:.95rem;color:#0f172a;font-weight:500}
+          .report-status{padding:16px;border:1px dashed #cbd5f5;border-radius:12px;background:#f8fbff;color:#1d4ed8;font-size:.95rem}
+          .report-status.error{background:#fef2f2;border-color:#fecaca;color:#b91c1c}
+          .report-status.loading{background:#fff8eb;border-color:#fde68a;color:#b45309}
+          .report-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:18px}
+          .report-tile{padding:18px;border:1px solid #e2e8f0;border-radius:14px;min-height:180px;background:#fafbff}
+          .report-tile h4{margin-top:0;margin-bottom:12px;font-size:1rem;font-weight:600;color:#0f172a}
+          .report-list{display:flex;flex-direction:column;gap:10px}
+          .report-list p{margin:0;color:#475569;font-size:.9rem}
+          .objective-item{padding:10px;border-radius:12px;background:#fff;border:1px solid #edf2ff}
+          .objective-progress{height:6px;border-radius:999px;background:#e2e8f0;margin-top:6px;overflow:hidden}
+          .objective-progress span{display:block;height:100%;background:#22c55e}
+          .presence-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+          .presence-stats div{padding:10px;border-radius:12px;background:#fff;border:1px solid #e2e8f0;text-align:center}
+          .presence-value{font-size:1.3rem;font-weight:600;color:#0f172a}
+          .report-tags{display:flex;flex-wrap:wrap;gap:8px}
+          .report-tag{padding:6px 10px;border-radius:999px;background:#eef2ff;color:#4338ca;font-size:.83rem}
+          .suggestions-list{padding-left:18px;margin:0;color:#475569;font-size:.9rem}
+          .suggestions-list li{margin-bottom:6px}
+          .photos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px}
+          .photos-grid img{width:100%;height:110px;object-fit:cover;border-radius:12px;border:1px solid #e2e8f0}
+          .report-downloads{margin-top:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+          .report-downloads span{font-weight:500;color:#475569}
+          @media (max-width:768px){
+            .report-controls{flex-direction:column;align-items:stretch}
+            .report-controls select,.report-controls input{width:100%}
+            .agent-report-card{padding:18px}
+          }
         </style>
         <div id="agents-simple-list">
           <div class="loading">Chargement des agents...</div>
+        </div>
+      </div>
+
+      <!-- Rapport mensuel intelligent -->
+      <div class="agent-report-card" id="rapport-mensuel">
+        <div class="report-header">
+          <div>
+            <h3>📝 Rapport Mensuel d'Activités</h3>
+            <p>Générez un résumé complet des objectifs, présences, activités et lieux parcourus pour chaque agent. L'analyse s'appuie sur Gemini pour proposer des commentaires prêts à intégrer dans le rapport mensuel.</p>
+          </div>
+          <div class="report-controls">
+            <label>
+              Agent
+              <select id="report-agent-select">
+                <option value="">Sélectionnez un agent</option>
+              </select>
+            </label>
+            <label>
+              Mois
+              <input type="month" id="report-month-input">
+            </label>
+            <button class="btn-primary" id="report-generate-btn">Analyser le mois</button>
+          </div>
+        </div>
+        <div id="report-meta" class="report-meta"></div>
+        <div id="agent-report-status" class="report-status">
+          Choisissez un agent et un mois pour préparer son rapport mensuel.
+        </div>
+        <div id="agent-report-grid" class="report-grid" style="display: none;">
+          <div class="report-tile">
+            <h4>🎯 Objectifs & progression</h4>
+            <div id="report-objectives-list" class="report-list"></div>
+          </div>
+          <div class="report-tile">
+            <h4>📍 Présence & check-ins</h4>
+            <div class="presence-stats" id="report-presence-stats"></div>
+          </div>
+          <div class="report-tile">
+            <h4>📋 Activités du mois</h4>
+            <div id="report-activities-list" class="report-list"></div>
+          </div>
+          <div class="report-tile">
+            <h4>🤖 Commentaire IA</h4>
+            <p id="report-ai-summary" class="report-ai-summary"></p>
+            <ul id="report-suggestions" class="suggestions-list"></ul>
+          </div>
+          <div class="report-tile">
+            <h4>🗺️ Lieux parcourus</h4>
+            <div id="report-locations" class="report-tags"></div>
+          </div>
+          <div class="report-tile">
+            <h4>📷 Photos des check-ins</h4>
+            <div id="report-photos" class="photos-grid"></div>
+          </div>
+        </div>
+        <div id="report-download-actions" class="report-downloads" style="display: none;">
+          <span>Exporter le rapport :</span>
+          <button class="btn-secondary" id="download-html-btn" disabled>Télécharger en HTML</button>
+          <button class="btn-secondary" id="download-txt-btn" disabled>Télécharger en TXT</button>
         </div>
       </div>
 
@@ -170,7 +548,170 @@
           </div>
         </div>
       </div>
+      <!-- Section Gestion des jours permissionnaires -->
+      <!-- Section Gestion des jours permissionnaires -->
+      <section class="permission-management-section">
+        <div class="section-header">
+          <h2><i class="bi bi-calendar-check"></i> Gestion des Jours Permissionnaires</h2>
+          <p>Visualisez et gérez les demandes de congés de vos équipes</p>
+        </div>
+        
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <div class="filters-section">
+              <div class="filters-grid">
+                <div class="filter-group">
+                  <label for="monthFilter" class="form-label">Période</label>
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-calendar-month"></i></span>
+                    <input type="month" class="form-control" id="monthFilter">
+                  </div>
+                </div>
+                <div class="filter-actions">
+                  <button id="filterBtn" class="btn btn-primary">
+                    <i class="bi bi-funnel"></i> Appliquer le filtre
+                  </button>
+                  <button id="exportPermissionsBtn" class="btn btn-outline-secondary">
+                    <i class="bi bi-download"></i> Exporter
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <div class="table-responsive mt-4">
+              <table class="table table-hover align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th><i class="bi bi-person"></i> Agent</th>
+                    <th><i class="bi bi-briefcase"></i> Projet</th>
+                    <th><i class="bi bi-calendar"></i> Mois</th>
+                    <th class="text-center"><i class="bi bi-clock-history"></i> Jours demandés</th>
+                    <th class="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adminPermissionsList">
+                  <tr>
+                    <td colspan="5" class="text-center py-4">
+                      <div class="empty-state">
+                        <i class="bi bi-calendar-x"></i>
+                        <p>Sélectionnez une période pour afficher les demandes</p>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            
+            <div class="d-flex justify-content-between align-items-center mt-3">
+              <div class="text-muted small" id="permissionsCount">0 demandes trouvées</div>
+              <nav aria-label="Pagination" class="pagination-container">
+                <ul class="pagination pagination-sm mb-0">
+                  <li class="page-item disabled">
+                    <a class="page-link" href="#" tabindex="-1">Précédent</a>
+                  </li>
+                  <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                  <li class="page-item"><a class="page-link" href="#">2</a></li>
+                  <li class="page-item">
+                    <a class="page-link" href="#">Suivant</a>
+                  </li>
+                </ul>
+              </nav>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
+
+    <!-- Modal pour les détails des permissions -->
+    <div class="modal fade" id="permissionDetailsModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title"><i class="bi bi-calendar2-check me-2"></i>Détails des permissions</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-0">
+            <div class="permission-details-header p-4 border-bottom">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                  <h6 class="mb-1 text-muted">Agent</h6>
+                  <h4 id="permissionAgentName" class="mb-0">-</h4>
+                </div>
+                <div class="text-end">
+                  <h6 class="mb-1 text-muted">Période</h6>
+                  <div id="permissionPeriod" class="h4 mb-0">-</div>
+                </div>
+              </div>
+              <div class="d-flex">
+                <div class="me-4">
+                  <span class="text-muted">Projet</span>
+                  <div id="permissionProject" class="fw-medium">-</div>
+                </div>
+                <div class="me-4">
+                  <span class="text-muted">Total jours</span>
+                  <div id="permissionTotalDays" class="badge bg-primary rounded-pill px-3 py-2 fw-normal">0</div>
+                </div>
+                <div>
+                  <span class="text-muted">Statut</span>
+                  <div><span id="permissionStatus" class="badge bg-secondary">-</span></div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="p-4">
+              <h6 class="mb-3"><i class="bi bi-list-ul me-2"></i>Périodes de permission</h6>
+              <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Période</th>
+                      <th>Durée</th>
+                      <th>Type</th>
+                      <th>Statut</th>
+                      <th class="text-end">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="permissionDetailsContent">
+                    <!-- Le contenu sera chargé dynamiquement -->
+                  </tbody>
+                </table>
+              </div>
+              
+              <div class="mt-4">
+                <h6 class="mb-2"><i class="bi bi-chat-left-text me-2"></i>Commentaire</h6>
+                <div class="card bg-light">
+                  <div class="card-body p-3" id="permissionComment">
+                    Aucun commentaire
+                  </div>
+                </div>
+              </div>
+              
+              <div class="mt-4" id="adminActionsSection">
+                <h6 class="mb-3"><i class="bi bi-gear-wide-connected me-2"></i>Actions</h6>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-success" id="approveBtn">
+                    <i class="bi bi-check-lg me-1"></i> Approuver
+                  </button>
+                  <button class="btn btn-outline-danger" id="rejectBtn">
+                    <i class="bi bi-x-lg me-1"></i> Rejeter
+                  </button>
+                  <div class="ms-auto">
+                    <button class="btn btn-outline-secondary" id="exportPermissionBtn">
+                      <i class="bi bi-download me-1"></i> Exporter en PDF
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+              <i class="bi bi-x-lg me-1"></i> Fermer
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Modal de création/modification d'agent -->
     <div id="agent-modal" class="modal hidden">
@@ -249,6 +790,667 @@
     </script>
     <script src="/agents.js"></script>
     <script>
+      // Gestion des jours permissionnaires
+      document.addEventListener('DOMContentLoaded', async function() {
+        // Vérifier si l'utilisateur est admin
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser) {
+          window.location.href = '/login.html';
+          return;
+        }
+
+        const { data: currentUser, error: userError } = await supabase
+          .from('users')
+          .select('role')
+          .eq('auth_uuid', authUser.id)
+          .single();
+
+        // Si l'utilisateur n'est pas admin, masquer la section admin
+        if (userError || currentUser?.role !== 'admin') {
+          document.querySelector('.permission-management-section').remove();
+          return;
+        }
+
+        // Éléments du DOM
+        const monthFilter = document.getElementById('monthFilter');
+        const filterBtn = document.getElementById('filterBtn');
+        const exportBtn = document.getElementById('exportPermissionsBtn');
+        const permissionsList = document.getElementById('adminPermissionsList');
+        const permissionsCount = document.getElementById('permissionsCount');
+        const now = new Date();
+        
+        // Initialisation du filtre de date (mois en cours)
+        monthFilter.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+        // Chargement initial des données
+        loadPermissions();
+
+        // Événements
+        filterBtn.addEventListener('click', loadPermissions);
+        exportBtn.addEventListener('click', exportPermissions);
+
+        // Fonction pour formater la date en français
+        function formatDate(dateString) {
+          const options = { year: 'numeric', month: 'long' };
+          return new Date(dateString).toLocaleDateString('fr-FR', options);
+        }
+
+        // Fonction pour obtenir le statut avec badge coloré
+        function getStatusBadge(status) {
+          const statusMap = {
+            'pending': { text: 'En attente', class: 'warning' },
+            'approved': { text: 'Approuvé', class: 'success' },
+            'rejected': { text: 'Rejeté', class: 'danger' }
+          };
+          const statusInfo = statusMap[status] || { text: 'Inconnu', class: 'secondary' };
+          return `<span class="badge bg-${statusInfo.class}">${statusInfo.text}</span>`;
+        }
+
+        // Charger les permissions
+        async function loadPermissions() {
+          const selectedMonth = monthFilter.value;
+          if (!selectedMonth) return;
+
+          try {
+            // Afficher le chargement
+            permissionsList.innerHTML = `
+              <tr>
+                <td colspan="5" class="text-center py-4">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Chargement...</span>
+                  </div>
+                </td>
+              </tr>`;
+
+            // Récupérer les permissions avec les données utilisateur
+            const { data: permissions, error } = await supabase
+              .from('permission_days')
+              .select(`
+                *,
+                user:user_id (
+                  id,
+                  first_name,
+                  last_name,
+                  project_name,
+                  email
+                )
+              `)
+              .gte('start_date', `${selectedMonth}-01`)
+              .lte('start_date', `${selectedMonth}-31`)
+              .order('start_date', { ascending: true });
+
+            if (error) throw error;
+
+            // Grouper les permissions par utilisateur
+            const usersMap = new Map();
+            
+            permissions.forEach(permission => {
+              const userId = permission.user_id;
+              if (!usersMap.has(userId)) {
+                usersMap.set(userId, {
+                  user: permission.user || { first_name: 'Utilisateur', last_name: 'inconnu', project_name: 'Non défini' },
+                  permissions: [],
+                  totalDays: 0
+                });
+              }
+              
+              const userData = usersMap.get(userId);
+              userData.permissions.push(permission);
+              userData.totalDays += permission.days || 0;
+            });
+
+            // Mettre à jour l'interface
+            updatePermissionsList(Array.from(usersMap.values()), selectedMonth);
+            
+          } catch (error) {
+            console.error('Erreur lors du chargement des permissions:', error);
+            showError('Erreur lors du chargement des données. Veuillez réessayer.');
+          }
+        }
+
+        // Mettre à jour la liste des permissions
+        function updatePermissionsList(usersData, selectedMonth) {
+          if (usersData.length === 0) {
+            permissionsList.innerHTML = `
+              <tr>
+                <td colspan="5" class="text-center py-4">
+                  <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <p>Aucune demande de permission trouvée pour cette période</p>
+                  </div>
+                </td>
+              </tr>`;
+            permissionsCount.textContent = 'Aucune demande trouvée';
+            return;
+          }
+
+          // Mettre à jour le compteur
+          permissionsCount.textContent = `${usersData.length} ${usersData.length > 1 ? 'agents trouvés' : 'agent trouvé'}`;
+          
+          // Générer le HTML de la liste
+          let html = '';
+          
+          usersData.forEach(userData => {
+            const user = userData.user;
+            const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Utilisateur inconnu';
+            const project = user.project_name || 'Non défini';
+            
+            // Compter les statuts
+            const statusCounts = userData.permissions.reduce((acc, p) => {
+              acc[p.status || 'pending'] = (acc[p.status] || 0) + 1;
+              return acc;
+            }, {});
+            
+            // Générer les badges de statut
+            const statusBadges = Object.entries(statusCounts).map(([status, count]) => {
+              const statusText = {
+                'pending': 'En attente',
+                'approved': 'Approuvées',
+                'rejected': 'Rejetées'
+              }[status] || status;
+              
+              const statusClass = {
+                'pending': 'warning',
+                'approved': 'success',
+                'rejected': 'danger'
+              }[status] || 'secondary';
+              
+              return `<span class="badge bg-${statusClass} me-1">${count} ${statusText}</span>`;
+            }).join('');
+            
+            html += `
+              <tr>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div class="avatar me-3">${(user.first_name?.[0] || '') + (user.last_name?.[0] || '')}</div>
+                    <div>
+                      <div class="fw-semibold">${fullName}</div>
+                      <div class="text-muted small">${user.email || ''}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span class="badge bg-light text-dark">${project}</span>
+                </td>
+                <td>${formatDate(selectedMonth + '-01')}</td>
+                <td class="text-center">
+                  <span class="badge bg-primary rounded-pill px-3 py-1">${userData.totalDays} jour(s)</span>
+                </td>
+                <td class="text-end">
+                  <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-primary btn-view-details" 
+                            data-user-id="${user.id}" 
+                            data-user-name="${fullName}"
+                            data-month="${selectedMonth}">
+                      <i class="bi bi-eye me-1"></i> Détails
+                    </button>
+                    <div class="dropdown">
+                      <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" 
+                              data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-three-dots-vertical"></i>
+                      </button>
+                      <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="#" data-action="approve-all" data-user-id="${user.id}" data-month="${selectedMonth}">
+                          <i class="bi bi-check-circle me-2 text-success"></i>Tout approuver
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" data-action="reject-all" data-user-id="${user.id}" data-month="${selectedMonth}">
+                          <i class="bi bi-x-circle me-2 text-danger"></i>Tout rejeter
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="#" data-action="delete-all" data-user-id="${user.id}" data-month="${selectedMonth}">
+                          <i class="bi bi-trash me-2"></i>Supprimer tout
+                        </a></li>
+                      </ul>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              <tr class="status-row">
+                <td colspan="5" class="small text-muted">
+                  ${statusBadges}
+                </td>
+              </tr>
+            `;
+          });
+          
+          permissionsList.innerHTML = html;
+          
+          // Ajouter les écouteurs d'événements
+          document.querySelectorAll('.btn-view-details').forEach(btn => {
+            btn.addEventListener('click', showPermissionDetails);
+          });
+          
+          document.querySelectorAll('[data-action]').forEach(btn => {
+            btn.addEventListener('click', handleBatchAction);
+          });
+        }
+
+        // Afficher les détails des permissions d'un utilisateur
+        async function showPermissionDetails(e) {
+          const button = e.currentTarget;
+          const userId = button.dataset.userId;
+          const userName = button.dataset.userName;
+          const month = button.dataset.month;
+          
+          try {
+            // Afficher l'indicateur de chargement
+            const modalContent = document.getElementById('permissionDetailsContent');
+            modalContent.innerHTML = `
+              <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Chargement...</span>
+                </div>
+                <p class="mt-2">Chargement des détails...</p>
+              </div>`;
+            
+            // Afficher la modale
+            const modal = new bootstrap.Modal(document.getElementById('permissionDetailsModal'));
+            modal.show();
+            
+            // Mettre à jour l'en-tête de la modale
+            document.getElementById('permissionAgentName').textContent = userName;
+            document.getElementById('permissionPeriod').textContent = formatDate(month + '-01');
+            
+            // Récupérer les détails des permissions
+            const { data: permissions, error } = await supabase
+              .from('permission_days')
+              .select('*')
+              .eq('user_id', userId)
+              .gte('start_date', `${month}-01`)
+              .lte('start_date', `${month}-31`)
+              .order('start_date', { ascending: true });
+            
+            if (error) throw error;
+            
+            // Calculer le total des jours
+            const totalDays = permissions.reduce((sum, p) => sum + (p.days || 0), 0);
+            
+            // Mettre à jour les informations de l'utilisateur
+            document.getElementById('permissionTotalDays').textContent = `${totalDays} jour(s)`;
+            
+            // Générer le tableau des permissions
+            let permissionsHtml = '';
+            
+            if (permissions.length === 0) {
+              permissionsHtml = `
+                <tr>
+                  <td colspan="5" class="text-center py-4">
+                    <div class="empty-state">
+                      <i class="bi bi-inbox"></i>
+                      <p>Aucune permission trouvée</p>
+                    </div>
+                  </td>
+                </tr>`;
+            } else {
+              permissions.forEach(permission => {
+                const startDate = new Date(permission.start_date).toLocaleDateString('fr-FR');
+                const endDate = new Date(permission.end_date).toLocaleDateString('fr-FR');
+                const days = permission.days || 0;
+                const reason = permission.reason || 'Aucun motif spécifié';
+                
+                permissionsHtml += `
+                  <tr data-permission-id="${permission.id}">
+                    <td>${startDate} au ${endDate}</td>
+                    <td>${days} jour(s)</td>
+                    <td>${permission.type || 'Permission'}</td>
+                    <td>${getStatusBadge(permission.status || 'pending')}</td>
+                    <td class="text-end">
+                      <div class="btn-group btn-group-sm">
+                        <button class="btn btn-sm btn-outline-success btn-approve" data-id="${permission.id}" title="Approuver">
+                          <i class="bi bi-check-lg"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger btn-reject" data-id="${permission.id}" title="Rejeter">
+                          <i class="bi bi-x-lg"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary btn-delete" data-id="${permission.id}" title="Supprimer">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  ${reason ? `
+                  <tr class="permission-reason">
+                    <td colspan="5" class="small text-muted">
+                      <i class="bi bi-chat-left-text me-1"></i>${reason}
+                    </td>
+                  </tr>` : ''}
+                `;
+              });
+            }
+            
+            // Mettre à jour le contenu de la modale
+            document.querySelector('#permissionDetailsContent tbody').innerHTML = permissionsHtml;
+            
+            // Ajouter les écouteurs d'événements pour les boutons d'action
+            document.querySelectorAll('.btn-approve').forEach(btn => {
+              btn.addEventListener('click', (e) => updatePermissionStatus(e.target.closest('button').dataset.id, 'approved'));
+            });
+            
+            document.querySelectorAll('.btn-reject').forEach(btn => {
+              btn.addEventListener('click', (e) => updatePermissionStatus(e.target.closest('button').dataset.id, 'rejected'));
+            });
+            
+            document.querySelectorAll('.btn-delete').forEach(btn => {
+              btn.addEventListener('click', (e) => deletePermission(e.target.closest('button').dataset.id));
+            });
+            
+          } catch (error) {
+            console.error('Erreur lors du chargement des détails:', error);
+            showError('Une erreur est survenue lors du chargement des détails.');
+          }
+        }
+
+        // Mettre à jour le statut d'une permission
+        async function updatePermissionStatus(permissionId, status) {
+          try {
+            const { error } = await supabase
+              .from('permission_days')
+              .update({ 
+                status,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', permissionId);
+            
+            if (error) throw error;
+            
+            // Mettre à jour l'interface
+            const row = document.querySelector(`tr[data-permission-id="${permissionId}"]`);
+            if (row) {
+              const statusCell = row.cells[3];
+              statusCell.innerHTML = getStatusBadge(status);
+              
+              // Mettre à jour les boutons
+              const btnApprove = row.querySelector('.btn-approve');
+              const btnReject = row.querySelector('.btn-reject');
+              
+              if (status === 'approved') {
+                btnApprove?.classList.add('active');
+                btnReject?.classList.remove('active');
+              } else if (status === 'rejected') {
+                btnApprove?.classList.remove('active');
+                btnReject?.classList.add('active');
+              }
+              
+              showToast('Succès', 'Le statut a été mis à jour avec succès', 'success');
+            }
+            
+            // Recharger la liste principale
+            loadPermissions();
+            
+          } catch (error) {
+            console.error('Erreur lors de la mise à jour du statut:', error);
+            showError('Une erreur est survenue lors de la mise à jour du statut.');
+          }
+        }
+
+        // Supprimer une permission
+        async function deletePermission(permissionId) {
+          if (!confirm('Êtes-vous sûr de vouloir supprimer cette demande de permission ? Cette action est irréversible.')) {
+            return;
+          }
+          
+          try {
+            const { error } = await supabase
+              .from('permission_days')
+              .delete()
+              .eq('id', permissionId);
+            
+            if (error) throw error;
+            
+            // Supprimer la ligne du tableau
+            const row = document.querySelector(`tr[data-permission-id="${permissionId}"]`);
+            if (row) {
+              // Supprimer également la ligne de raison si elle existe
+              const nextRow = row.nextElementSibling;
+              if (nextRow && nextRow.classList.contains('permission-reason')) {
+                nextRow.remove();
+              }
+              row.remove();
+              showToast('Succès', 'La demande a été supprimée avec succès', 'success');
+            }
+            
+            // Recharger la liste principale
+            loadPermissions();
+            
+          } catch (error) {
+            console.error('Erreur lors de la suppression:', error);
+            showError('Une erreur est survenue lors de la suppression de la demande.');
+          }
+        }
+
+        // Gérer les actions groupées
+        async function handleBatchAction(e) {
+          e.preventDefault();
+          const action = e.currentTarget.dataset.action;
+          const userId = e.currentTarget.dataset.userId;
+          const month = e.currentTarget.dataset.month;
+          
+          if (action === 'delete-all') {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer toutes les demandes de cet agent pour ce mois ? Cette action est irréversible.')) {
+              return;
+            }
+          } else if (action === 'approve-all' || action === 'reject-all') {
+            if (!confirm(`Êtes-vous sûr de vouloir ${action === 'approve-all' ? 'approuver' : 'rejeter'} toutes les demandes de cet agent pour ce mois ?`)) {
+              return;
+            }
+          }
+          
+          try {
+            // Construire la requête en fonction de l'action
+            let query = supabase
+              .from('permission_days')
+              .select('id')
+              .eq('user_id', userId)
+              .gte('start_date', `${month}-01`)
+              .lte('start_date', `${month}-31`);
+            
+            const { data: permissions, error: findError } = await query;
+            
+            if (findError) throw findError;
+            
+            if (!permissions.length) {
+              showToast('Information', 'Aucune demande trouvée pour cet agent', 'info');
+              return;
+            }
+            
+            // Exécuter l'action en fonction du type
+            if (action === 'delete-all') {
+              const { error: deleteError } = await supabase
+                .from('permission_days')
+                .delete()
+                .in('id', permissions.map(p => p.id));
+                
+              if (deleteError) throw deleteError;
+              
+              showToast('Succès', `Toutes les demandes ont été supprimées (${permissions.length})`, 'success');
+              
+            } else {
+              const status = action === 'approve-all' ? 'approved' : 'rejected';
+              
+              const { error: updateError } = await supabase
+                .from('permission_days')
+                .update({ 
+                  status,
+                  updated_at: new Date().toISOString()
+                })
+                .in('id', permissions.map(p => p.id));
+                
+              if (updateError) throw updateError;
+              
+              showToast('Succès', `${permissions.length} demande(s) ${status === 'approved' ? 'approuvée(s)' : 'rejetée(s)'} avec succès`, 'success');
+            }
+            
+            // Recharger les données
+            loadPermissions();
+            
+          } catch (error) {
+            console.error(`Erreur lors de l'action groupée ${action}:`, error);
+            showError(`Une erreur est survenue lors de l'exécution de l'action.`);
+          }
+        }
+
+        // Exporter les permissions
+        async function exportPermissions() {
+          const selectedMonth = monthFilter.value;
+          if (!selectedMonth) {
+            showToast('Erreur', 'Veuillez sélectionner un mois', 'error');
+            return;
+          }
+          
+          try {
+            // Afficher un indicateur de chargement
+            const exportBtn = document.getElementById('exportPermissionsBtn');
+            const originalText = exportBtn.innerHTML;
+            exportBtn.disabled = true;
+            exportBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Export en cours...';
+            
+            // Récupérer toutes les données nécessaires
+            const { data: permissions, error } = await supabase
+              .from('permission_days')
+              .select(`
+                *,
+                user:user_id (
+                  first_name,
+                  last_name,
+                  email,
+                  project_name
+                )
+              `)
+              .gte('start_date', `${selectedMonth}-01`)
+              .lte('start_date', `${selectedMonth}-31`)
+              .order('user_id', { ascending: true })
+              .order('start_date', { ascending: true });
+            
+            if (error) throw error;
+            
+            if (!permissions.length) {
+              showToast('Information', 'Aucune donnée à exporter pour cette période', 'info');
+              return;
+            }
+            
+            // Formater les données pour l'export
+            const monthName = formatDate(selectedMonth + '-01');
+            const fileName = `permissions_${selectedMonth}.csv`;
+            
+            // Créer le contenu CSV
+            let csvContent = 'Agent,Email,Projet,Période,Jours,Type,Statut,Motif\n';
+            
+            permissions.forEach(permission => {
+              const user = permission.user || {};
+              const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+              const period = `${new Date(permission.start_date).toLocaleDateString('fr-FR')} au ${new Date(permission.end_date).toLocaleDateString('fr-FR')}`;
+              const reason = (permission.reason || '').replace(/"/g, '""'); // Échapper les guillemets
+              
+              csvContent += `"${fullName}","${user.email || ''}","${user.project_name || ''}","${period}",${permission.days || 0},"${permission.type || 'Permission'}","${permission.status || 'pending'}","${reason}"\n`;
+            });
+            
+            // Créer un blob et un lien de téléchargement
+            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', fileName);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showToast('Succès', `Export réussi (${permissions.length} enregistrements)`, 'success');
+            
+          } catch (error) {
+            console.error('Erreur lors de l\'export:', error);
+            showError('Une erreur est survenue lors de l\'export des données.');
+          } finally {
+            // Restaurer le bouton d'export
+            const exportBtn = document.getElementById('exportPermissionsBtn');
+            if (exportBtn) {
+              exportBtn.disabled = false;
+              exportBtn.innerHTML = '<i class="bi bi-download me-1"></i> Exporter';
+            }
+          }
+        }
+
+        // Afficher une notification toast
+        function showToast(title, message, type = 'info') {
+          const toastContainer = document.getElementById('toast-container') || createToastContainer();
+          const toastId = 'toast-' + Date.now();
+          const icon = {
+            'success': 'check-circle',
+            'error': 'exclamation-triangle',
+            'warning': 'exclamation-triangle',
+            'info': 'info-circle'
+          }[type] || 'info-circle';
+          
+          const toast = document.createElement('div');
+          toast.id = toastId;
+          toast.className = `toast show bg-${type} text-white`;
+          toast.role = 'alert';
+          toast.setAttribute('aria-live', 'assertive');
+          toast.setAttribute('aria-atomic', 'true');
+          
+          toast.innerHTML = `
+            <div class="toast-header bg-${type} text-white">
+              <i class="bi bi-${icon} me-2"></i>
+              <strong class="me-auto">${title}</strong>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Fermer"></button>
+            </div>
+            <div class="toast-body">
+              ${message}
+            </div>
+          `;
+          
+          toastContainer.appendChild(toast);
+          
+          // Fermer automatiquement après 5 secondes
+          setTimeout(() => {
+            const toastElement = document.getElementById(toastId);
+            if (toastElement) {
+              toastElement.classList.remove('show');
+              setTimeout(() => toastElement.remove(), 150);
+            }
+          }, 5000);
+        }
+        
+        // Créer le conteneur des toasts s'il n'existe pas
+        function createToastContainer() {
+          const container = document.createElement('div');
+          container.id = 'toast-container';
+          container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+          container.style.zIndex = '1100';
+          document.body.appendChild(container);
+          return container;
+        }
+        
+        // Afficher un message d'erreur
+        function showError(message) {
+          showToast('Erreur', message, 'error');
+        }
+      });
+
+      // Vérification de la section rapport après chargement
+      document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+          const reportSection = document.getElementById('rapport-mensuel');
+          if (reportSection) {
+            console.log('✅ Section rapport-mensuel trouvée dans le DOM');
+            console.log('   Visible:', reportSection.offsetHeight > 0);
+            console.log('   Position:', reportSection.getBoundingClientRect());
+            // Forcer la visibilité
+            reportSection.style.display = 'block';
+            reportSection.style.visibility = 'visible';
+            reportSection.style.opacity = '1';
+            
+            // Scroll vers l'ancre si présente dans l'URL
+            if (window.location.hash === '#rapport-mensuel') {
+              setTimeout(() => {
+                reportSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 100);
+            }
+          } else {
+            console.error('❌ Section rapport-mensuel NON trouvée dans le DOM');
+          }
+        }, 500);
+      });
       // Vercel Speed Insights
       if (typeof window !== 'undefined') {
         /* Vercel Speed Insights désactivé pour éviter les erreurs CSP */
@@ -270,6 +1472,6 @@
         </div>
       </div>
     </footer>
-    <script src="/bootstrap-5.3.8-dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
   </body>
 </html>

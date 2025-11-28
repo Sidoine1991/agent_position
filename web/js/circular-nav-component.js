@@ -100,6 +100,12 @@ class CircularNav extends HTMLElement {
         roles: ['AGENT', 'SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
       },
       { 
+        href: '/permissions.html', 
+        icon: '📋', 
+        label: 'Permissions',
+        roles: ['AGENT', 'SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
+      },
+      { 
         href: '/help.html', 
         icon: '❓', 
         label: 'Aide',
@@ -165,27 +171,57 @@ class CircularNav extends HTMLElement {
           align-items: center;
           margin-right: 20px;
           text-decoration: none;
+          padding: 8px;
+          border-radius: 12px;
+          transition: all 0.3s ease;
+          background: rgba(255, 255, 255, 0.1);
+          backdrop-filter: blur(10px);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .logo-container:hover {
+          background: rgba(255, 255, 255, 0.2);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          transform: translateY(-2px);
         }
         
         .logo-container img {
-          height: 50px;
+          height: 45px;
           width: auto;
           border-radius: 8px;
           transition: transform 0.3s ease;
           margin-right: 10px;
+          object-fit: contain;
+          filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
         }
         
         .logo-text {
           color: #333;
           font-weight: bold;
-          font-size: 1.2rem;
+          font-size: 1.1rem;
           white-space: nowrap;
           text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
         }
         
         .logo-container img:hover {
-          transform: scale(1.05);
+          transform: scale(1.1);
           cursor: pointer;
+        }
+        
+        @media (max-width: 768px) {
+          .logo-container {
+            padding: 6px;
+            margin-right: 10px;
+          }
+          
+          .logo-container img {
+            height: 35px;
+            margin-right: 6px;
+          }
+          
+          .logo-text {
+            font-size: 0.9rem;
+          }
         }
         
         .circle-actions {
@@ -284,8 +320,8 @@ class CircularNav extends HTMLElement {
         }
       </style>
       <div class="nav-container">
-        <a href="/home.html" class="logo-container">
-          <img src="/Media/logo-ccrb.png" alt="Presence CCR-B" title="Accueil">
+        <a href="/index.html" class="logo-container" title="Retour à l'accueil - Presence CCR-B">
+          <img src="/Media/logo-ccrb.png" alt="Logo CCR-B" title="CCR-B - Conseil de Concertation des Riziculteurs du Bénin">
           <span class="logo-text">Presence CCR-B</span>
         </a>
         <nav class="circle-actions">

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nettoyage du Cache - Presence CCRB</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #0d6efd;
+            margin-bottom: 20px;
+        }
+        .btn {
+            padding: 12px 24px;
+            margin: 10px 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: #0d6efd;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #0b5ed7;
+            transform: translateY(-2px);
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #bb2d3b;
+        }
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #0d6efd;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .success {
+            background: #d1e7dd;
+            border-left: 4px solid #198754;
+            color: #0f5132;
+        }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            color: #856404;
+        }
+        code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        .manual-steps {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #dee2e6;
+        }
+        .manual-steps h3 {
+            color: #495057;
+            margin-bottom: 15px;
+        }
+        .manual-steps ol {
+            line-height: 2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Nettoyage du Cache du Navigateur</h1>
+        
+        <div class="info-box warning">
+            <strong>⚠️ Attention :</strong> Cette action va vider le cache de votre navigateur. Vous devrez peut-être vous reconnecter à certaines applications.
+        </div>
+
+        <div id="result"></div>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <button class="btn btn-primary" onclick="clearCache()">
+                🗑️ Vider le Cache
+            </button>
+            <button class="btn btn-danger" onclick="clearAllStorage()">
+                🧹 Vider Tout (Cache + LocalStorage)
+            </button>
+            <button class="btn btn-primary" onclick="reloadWithoutCache()">
+                🔄 Recharger Sans Cache
+            </button>
+        </div>
+
+        <div class="manual-steps">
+            <h3>📋 Instructions Manuelles par Navigateur</h3>
+            
+            <h4>🌐 Chrome / Edge / Brave</h4>
+            <ol>
+                <li>Appuyez sur <code>Ctrl + Shift + Delete</code> (Windows) ou <code>Cmd + Shift + Delete</code> (Mac)</li>
+                <li>Sélectionnez "Images et fichiers en cache"</li>
+                <li>Choisissez "Tout le temps"</li>
+                <li>Cliquez sur "Effacer les données"</li>
+            </ol>
+
+            <h4>🦊 Firefox</h4>
+            <ol>
+                <li>Appuyez sur <code>Ctrl + Shift + Delete</code> (Windows) ou <code>Cmd + Shift + Delete</code> (Mac)</li>
+                <li>Sélectionnez "Cache"</li>
+                <li>Choisissez "Tout" dans la période</li>
+                <li>Cliquez sur "Effacer maintenant"</li>
+            </ol>
+
+            <h4>🧭 Safari</h4>
+            <ol>
+                <li>Menu Safari → Préférences → Avancé</li>
+                <li>Cochez "Afficher le menu Développement"</li>
+                <li>Menu Développement → Vider les caches</li>
+            </ol>
+
+            <h4>⚡ Raccourci Rapide (Tous Navigateurs)</h4>
+            <ol>
+                <li><strong>Rechargement forcé :</strong> <code>Ctrl + F5</code> ou <code>Ctrl + Shift + R</code></li>
+                <li><strong>Ouvrir les outils développeur :</strong> <code>F12</code></li>
+                <li><strong>Recharger sans cache (dans DevTools) :</strong> Clic droit sur le bouton actualiser → "Vider le cache et actualiser"</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function showMessage(message, type = 'info') {
+            const resultDiv = document.getElementById('result');
+            const className = type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info-box';
+            resultDiv.innerHTML = `<div class="${className}">${message}</div>`;
+            setTimeout(() => {
+                resultDiv.innerHTML = '';
+            }, 5000);
+        }
+
+        function clearCache() {
+            try {
+                // Vider le cache du Service Worker si présent
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                        for(let registration of registrations) {
+                            registration.unregister();
+                        }
+                    });
+                }
+
+                // Vider le cache API
+                if ('caches' in window) {
+                    caches.keys().then(function(names) {
+                        for (let name of names) {
+                            caches.delete(name);
+                        }
+                    });
+                }
+
+                showMessage('✅ Cache vidé avec succès ! Veuillez recharger la page (Ctrl + F5).', 'success');
+            } catch (error) {
+                showMessage('⚠️ Erreur lors du vidage du cache : ' + error.message, 'warning');
+            }
+        }
+
+        function clearAllStorage() {
+            try {
+                // Vider localStorage
+                localStorage.clear();
+                
+                // Vider sessionStorage
+                sessionStorage.clear();
+                
+                // Vider le cache
+                if ('caches' in window) {
+                    caches.keys().then(function(names) {
+                        for (let name of names) {
+                            caches.delete(name);
+                        }
+                    });
+                }
+
+                // Vider les Service Workers
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                        for(let registration of registrations) {
+                            registration.unregister();
+                        }
+                    });
+                }
+
+                showMessage('✅ Tout a été vidé (Cache + LocalStorage + SessionStorage) ! Redirection dans 2 secondes...', 'success');
+                
+                setTimeout(() => {
+                    window.location.href = '/index.html';
+                }, 2000);
+            } catch (error) {
+                showMessage('⚠️ Erreur : ' + error.message, 'warning');
+            }
+        }
+
+        function reloadWithoutCache() {
+            // Recharger la page sans utiliser le cache
+            if (window.location.search.indexOf('reload=true') === -1) {
+                window.location.href = window.location.href + '?reload=true&t=' + new Date().getTime();
+            } else {
+                // Forcer le rechargement sans cache
+                window.location.reload(true);
+            }
+        }
+
+        // Afficher un message au chargement
+        window.addEventListener('load', function() {
+            if (window.location.search.indexOf('reload=true') !== -1) {
+                showMessage('✅ Page rechargée sans cache !', 'success');
+            }
+        });
+    </script>
+</body>
+</html>
+

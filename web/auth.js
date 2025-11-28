@@ -15,6 +15,7 @@ const PAGE_ACCESS = {
   '/agent-dashboard.html': [ROLES.AGENT, ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN],
   '/planning.html': [ROLES.AGENT, ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN],
   '/profile.html': [ROLES.AGENT, ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN],
+  '/permissions.html': [ROLES.AGENT, ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN],
   
   // Pages pour Superviseurs (et plus)
   '/dashboard.html': [ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN], // Dashboard superviseur
@@ -192,7 +193,17 @@ async function protectPage() {
 }
 
 // Appeler la protection sur chaque chargement de page
+// Optimisation: vérifier la session d'abord pour éviter les redirections inutiles
 document.addEventListener('DOMContentLoaded', async () => {
+  // Si une session existe, restaurer rapidement avant la protection
+  if (window.sessionManager) {
+    const restored = await window.sessionManager.init();
+    if (restored) {
+      // Session restaurée, déclencher l'événement pour que les autres scripts le sachent
+      window.dispatchEvent(new CustomEvent('sessionRestored'));
+    }
+  }
+  
   await protectPage();
   await renderNavbar();
   // Initialiser l'affichage global des messages (bulle) sur toutes les pages
@@ -209,6 +220,7 @@ async function renderNavbar() {
   const allLinks = [
     // Liens principaux
     { name: 'Objectifs', href: '/agent-dashboard.html', icon: '🎯', roles: [ROLES.AGENT, ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN] },
+    { name: 'Permissions', href: '/permissions.html', icon: '📋', roles: [ROLES.AGENT, ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN] },
     { name: 'Aide', href: '/help.html', icon: '❓', roles: 'public' },
     { name: 'Administration', href: '/admin.html', icon: '⚙️', roles: [ROLES.SUPERADMIN] }
   ];

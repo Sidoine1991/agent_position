@@ -91,7 +91,6 @@
     <!-- Navigation Bar -->
     <nav class="navbar">
       <div class="navbar-brand">
-        <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
         <div class="navbar-title">
           <h1>Presence CCRB</h1>
           <span class="navbar-subtitle">Système de Gestion de Présence</span>
@@ -25689,6 +25688,307 @@ document.addEventListener('DOMContentLoaded', function() {
         /* Vercel Analytics désactivé pour éviter les erreurs CSP */
       }
     </script>
+
+    <!-- Script pour la gestion des demandes de permission -->
+    <script>
+      // Fonction pour charger les demandes de permission
+      async function loadPermissionRequests() {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+
+          // Afficher le chargement
+          const tbody = document.getElementById('permissionRequestsList');
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="6" class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Chargement...</span>
+                </div>
+              </td>
+            </tr>
+          `;
+
+          // Récupérer les demandes de permission
+          const { data: requests, error } = await supabase
+            .from('permission_requests')
+            .select(`
+              id,
+              user_id,
+              start_date,
+              end_date,
+              type,
+              status,
+              reason,
+              created_at,
+              users:user_id (first_name, last_name)
+            `)
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+
+          if (requests.length === 0) {
+            tbody.innerHTML = `
+              <tr>
+                <td colspan="6" class="text-center py-4 text-muted">
+                  <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                  Aucune demande de permission trouvée
+                </td>
+              </tr>
+            `;
+            return;
+          }
+
+          // Afficher les demandes
+          tbody.innerHTML = requests.map(request => `
+            <tr>
+              <td>${request.users?.first_name} ${request.users?.last_name || ''}</td>
+              <td>${new Date(request.created_at).toLocaleDateString()}</td>
+              <td>${formatDateRange(request.start_date, request.end_date)}</td>
+              <td>${getPermissionTypeLabel(request.type)}</td>
+              <td>
+                <span class="badge permission-badge ${request.status}">
+                  ${getStatusLabel(request.status)}
+                </span>
+              </td>
+              <td class="text-end permission-actions">
+                <button class="btn btn-sm btn-outline-primary view-permission" data-id="${request.id}">
+                  <i class="bi bi-eye"></i>
+                </button>
+                ${request.status === 'pending' ? `
+                  <button class="btn btn-sm btn-outline-success approve-permission" data-id="${request.id}">
+                    <i class="bi bi-check-lg"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger reject-permission" data-id="${request.id}">
+                    <i class="bi bi-x-lg"></i>
+                  </button>
+                ` : ''}
+              </td>
+            </tr>
+          `).join('');
+
+          // Ajouter les écouteurs d'événements
+          addPermissionEventListeners();
+
+        } catch (error) {
+          console.error('Erreur lors du chargement des demandes de permission:', error);
+          showToast('Erreur', 'Impossible de charger les demandes de permission', 'error');
+        }
+      }
+
+      // Fonction utilitaire pour formater la période
+      function formatDateRange(startDate, endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        if (start.toDateString() === end.toDateString()) {
+          return start.toLocaleDateString();
+        }
+        
+        return `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
+      }
+
+      // Fonction utilitaire pour obtenir le libellé du type de permission
+      function getPermissionTypeLabel(type) {
+        const types = {
+          'vacation': 'Congé',
+          'sick_leave': 'Arrêt maladie',
+          'personal': 'Personnel',
+          'other': 'Autre'
+        };
+        return types[type] || type;
+      }
+
+      // Fonction utilitaire pour obtenir le libellé du statut
+      function getStatusLabel(status) {
+        const statuses = {
+          'pending': 'En attente',
+          'approved': 'Approuvé',
+          'rejected': 'Rejeté'
+        };
+        return statuses[status] || status;
+      }
+
+      // Fonction pour gérer l'approbation d'une demande
+      async function approvePermission(requestId) {
+        try {
+          const { error } = await supabase
+            .from('permission_requests')
+            .update({ status: 'approved' })
+            .eq('id', requestId);
+          
+          if (error) throw error;
+          
+          showToast('Succès', 'Demande approuvée avec succès', 'success');
+          loadPermissionRequests();
+        } catch (error) {
+          console.error('Erreur lors de l\'approbation de la demande:', error);
+          showToast('Erreur', 'Impossible d\'approuver la demande', 'error');
+        }
+      }
+
+      // Fonction pour gérer le rejet d'une demande
+      async function rejectPermission(requestId) {
+        try {
+          const { error } = await supabase
+            .from('permission_requests')
+            .update({ status: 'rejected' })
+            .eq('id', requestId);
+          
+          if (error) throw error;
+          
+          showToast('Succès', 'Demande rejetée avec succès', 'success');
+          loadPermissionRequests();
+        } catch (error) {
+          console.error('Erreur lors du rejet de la demande:', error);
+          showToast('Erreur', 'Impossible de rejeter la demande', 'error');
+        }
+      }
+
+      // Fonction pour afficher les détails d'une demande
+      function showPermissionDetails(requestId) {
+        // Implémentez l'affichage des détails de la demande
+        // Par exemple, ouvrir une modale avec les détails complets
+        console.log('Afficher les détails de la demande:', requestId);
+      }
+
+      // Fonction pour ajouter les écouteurs d'événements
+      function addPermissionEventListeners() {
+        // Approbation d'une demande
+        document.querySelectorAll('.approve-permission').forEach(button => {
+          button.addEventListener('click', (e) => {
+            const requestId = e.currentTarget.dataset.id;
+            if (confirm('Êtes-vous sûr de vouloir approuver cette demande ?')) {
+              approvePermission(requestId);
+            }
+          });
+        });
+
+        // Rejet d'une demande
+        document.querySelectorAll('.reject-permission').forEach(button => {
+          button.addEventListener('click', (e) => {
+            const requestId = e.currentTarget.dataset.id;
+            if (confirm('Êtes-vous sûr de vouloir rejeter cette demande ?')) {
+              rejectPermission(requestId);
+            }
+          });
+        });
+
+        // Affichage des détails
+        document.querySelectorAll('.view-permission').forEach(button => {
+          button.addEventListener('click', (e) => {
+            const requestId = e.currentTarget.dataset.id;
+            showPermissionDetails(requestId);
+          });
+        });
+      }
+
+      // Fonction utilitaire pour afficher des notifications
+      function showToast(title, message, type = 'info') {
+        // Implémentez votre propre système de notification ou utilisez un toast existant
+        console.log(`[${type.toUpperCase()}] ${title}: ${message}`);
+        alert(`${title}: ${message}`);
+      }
+
+      // Rafraîchir les demandes au clic sur le bouton
+      document.getElementById('refreshPermissions')?.addEventListener('click', loadPermissionRequests);
+
+      // Charger les demandes au chargement de la page pour les administrateurs
+      document.addEventListener('DOMContentLoaded', async () => {
+        // Vérifier si l'utilisateur est admin
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        
+        const { data: userData, error } = await supabase
+          .from('users')
+          .select('role')
+          .eq('auth_uuid', user.id)
+          .single();
+        
+        if (error) {
+          console.error('Erreur lors de la vérification du rôle:', error);
+          return;
+        }
+        
+        if (userData?.role === 'admin' || userData?.role === 'superadmin') {
+          loadPermissionRequests();
+        } else {
+          // Masquer la section pour les non-administrateurs
+          const permissionSection = document.querySelector('.card-header:has(i.bi-calendar-check)')?.closest('.card');
+          if (permissionSection) {
+            permissionSection.style.display = 'none';
+          }
+        }
+      });
+    </script>
+    <!-- Section Gestion des Demandes de Permission -->
+    <div class="container mt-4">
+      <div class="card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-calendar-check me-2"></i>Gestion des Demandes de Permission</h5>
+          <div>
+            <button id="refreshPermissions" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-arrow-clockwise"></i> Actualiser
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Date de demande</th>
+                  <th>Période</th>
+                  <th>Type</th>
+                  <th>Statut</th>
+                  <th class="text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="permissionRequestsList">
+                <tr>
+                  <td colspan="6" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                      <span class="visually-hidden">Chargement...</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Styles pour la section des demandes de permission -->
+    <style>
+      .permission-badge {
+        font-size: 0.75rem;
+        padding: 0.35em 0.65em;
+      }
+
+      .permission-badge.pending {
+        background-color: #ffc107;
+        color: #000;
+      }
+
+      .permission-badge.approved {
+        background-color: #198754;
+        color: #fff;
+      }
+
+      .permission-badge.rejected {
+        background-color: #dc3545;
+        color: #fff;
+      }
+
+      .permission-actions .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+        margin-left: 0.25rem;
+      }
+    </style>
+
     <footer class="footer">
       <div class="footer-content">
         <div class="footer-left">

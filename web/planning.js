@@ -34,7 +34,37 @@
     selectedDepartmentId: '',
     selectedCommuneId: '',
     selectedStatus: '',
-    isReloading: false // Flag pour éviter les rechargements multiples
+    isReloading: false, // Flag pour éviter les rechargements multiples
+    permissionSectionInitialized: false
+  };
+
+  const formatMonthValue = (date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  };
+
+  const permissionState = {
+    month: formatMonthValue(),
+    records: [],
+    editingId: null,
+    loading: false
+  };
+
+  const permissionElements = {
+    form: null,
+    monthInput: null,
+    startDateInput: null,
+    endDateInput: null,
+    statusSelect: null,
+    agentSelect: null,
+    daysInput: null,
+    reasonInput: null,
+    saveBtn: null,
+    resetBtn: null,
+    tableBody: null,
+    statusBadge: null,
+    container: null
   };
 
   // Données géographiques intégrées
@@ -140,7 +170,7 @@
   // ----------------------------
   // 3. UTILITAIRES (HELPERS)
   // ----------------------------
-  
+
   /**
    * Applique les filtres côté client aux planifications
    * @param {Array} plans - Les planifications à filtrer
@@ -148,54 +178,54 @@
    */
   const applyClientSideFilters = (plans) => {
     let filteredPlans = [...plans];
-    
+
     // Filtre par superviseur (si un superviseur est sélectionné)
     if (state.selectedSupervisorId) {
       const supervisorId = String(state.selectedSupervisorId).trim();
       console.log(`Application du filtre superviseur côté client: ${supervisorId} (type: ${typeof supervisorId})`);
-      
+
       // Filtrer les planifications selon le superviseur
       // Le superviseur peut voir :
       // 1. Ses propres planifications (user_id = supervisor_id)
       // 2. Les planifications de ses agents supervisés (user.supervisor_id = supervisor_id)
       filteredPlans = filteredPlans.filter(plan => {
         if (!plan) return false;
-        
+
         // Cas 1: Planification du superviseur lui-même
         if (String(plan.user_id) === supervisorId) {
           console.log(`✅ Planification du superviseur trouvée: user_id=${plan.user_id}, date=${plan.date}`);
           return true;
         }
-        
+
         // Cas 2: Planification d'un agent sous sa supervision
         const user = state.usersMap?.get(String(plan.user_id));
         if (!user) {
           console.log(`⚠️ Utilisateur non trouvé pour planification user_id=${plan.user_id}`);
           return false;
         }
-        
+
         // Vérifier le superviseur de l'utilisateur
         const userSupervisorId = user.supervisor_id || user.supervisor || user.supervisor_email;
         const isSupervised = String(userSupervisorId) === supervisorId;
-        
+
         if (isSupervised) {
           console.log(`✅ Planification d'agent supervisé trouvée: user_id=${plan.user_id}, supervisor_id=${userSupervisorId}, date=${plan.date}`);
         }
-        
+
         return isSupervised;
       });
-      
+
       console.log(`Planifications filtrées par superviseur: ${filteredPlans.length} sur ${plans.length}`);
     }
-    
+
     // Filtre par département (si un département est sélectionné)
     if (state.selectedDepartmentId) {
       console.log(`Application du filtre département côté client: ${state.selectedDepartmentId}`);
-      
+
       filteredPlans = filteredPlans.filter(plan => {
         const user = state.usersMap?.get(plan.user_id);
         if (!user) return false;
-        
+
         // Mapper l'ID du département vers le nom
         const departmentNames = {
           '1': 'Atlantique', '2': 'Borgou', '3': 'Collines', '4': 'Couffo', '5': 'Donga',
@@ -204,24 +234,24 @@
         const departmentName = departmentNames[state.selectedDepartmentId];
         return user.departement === departmentName || user.department === departmentName;
       });
-      
+
       console.log(`Planifications filtrées par département: ${filteredPlans.length}`);
     }
-    
+
     // Filtre par commune (si une commune est sélectionnée)
     if (state.selectedCommuneId) {
       console.log(`Application du filtre commune côté client: ${state.selectedCommuneId}`);
-      
+
       filteredPlans = filteredPlans.filter(plan => {
         const user = state.usersMap?.get(plan.user_id);
         if (!user) return false;
-        
+
         return user.commune === state.selectedCommuneId;
       });
-      
+
       console.log(`Planifications filtrées par commune: ${filteredPlans.length}`);
     }
-    
+
     return filteredPlans;
   };
 
@@ -249,7 +279,7 @@
       if (value.split('.').length >= 3 && value.length > 60) {
         console.log(`Token trouvé dans localStorage.${key}`);
         return value;
-    }
+      }
     }
     console.log('Aucun token JWT trouvé');
     return '';
@@ -264,7 +294,7 @@
     try {
       // 1. Récupérer le token actuel
       let token = findToken();
-      
+
       // 2. Si pas de token, essayer de rafraîchir la page pour en obtenir un nouveau
       if (!token) {
         console.warn('Aucun token trouvé, tentative de rafraîchissement...');
@@ -456,7 +486,7 @@
 
   // ----------------------------
   // 4.5. GESTION DES ÉVÉNEMENTS DE SAUVEGARDE
-  
+
   /**
    * Attache les événements de sauvegarde aux boutons du Gantt
    * @param {HTMLElement} ganttElement
@@ -466,13 +496,13 @@
       btn.addEventListener('click', async () => {
         const date = btn.getAttribute('data-date');
         const today = toISODate(new Date());
-        
+
         // Vérifier si la date est dans le passé
         if (date < today) {
           showToast('Impossible de modifier un jour passé', 'error');
           return;
         }
-        
+
         // Préparer les données de planification
         const planningData = {
           date,
@@ -483,43 +513,43 @@
           user_id: state.selectedAgentId ? parseInt(state.selectedAgentId, 10) : null,
           resultat_journee: 'en_cours'
         };
-        
+
         // Validation des champs requis
         if (!planningData.planned_start_time || !planningData.planned_end_time) {
           showToast('Veuillez spécifier une heure de début et de fin', 'error');
           return;
         }
-        
+
         try {
           // Vérifier si un rechargement est déjà en cours
           if (state.isReloading) {
             console.log('⚠️ Rechargement déjà en cours, ignoré');
             return;
           }
-          
+
           // Utiliser la fonction savePlanning centralisée
           await savePlanning(planningData, btn);
-          
+
           // Afficher un message de succès
           showToast('Planification enregistrée avec succès', 'success');
-          
+
           // Marquer le début du rechargement
           state.isReloading = true;
           console.log('🔄 Rechargement des données après sauvegarde...');
-          
+
           // Recharger uniquement les données nécessaires (éviter la cascade)
           await loadWeek($('week-start')?.value || toISODate(new Date()));
-          
+
           // Programmer le rechargement du mois avec un délai plus long pour éviter les conflits
           scheduleMonthRefresh(500);
-          
+
           // Recharger le récapitulatif avec un délai pour éviter les conflits
           setTimeout(async () => {
             await loadWeeklySummary();
             // Marquer la fin du rechargement
             state.isReloading = false;
           }, 200);
-          
+
         } catch (error) {
           // L'erreur est déjà gérée dans savePlanning
           console.error('Erreur lors de la sauvegarde de la planification:', error);
@@ -531,7 +561,7 @@
 
   // ----------------------------
   // 5. CHARGEMENT DES DONNÉES
-  
+
   /**
    * Charge la liste des utilisateurs (agents et superviseurs) depuis l'API avec pagination
    * @returns {Promise<void>}
@@ -539,7 +569,7 @@
   const loadUsers = async () => {
     console.log('🔄 Début du chargement des utilisateurs...');
     const loadingToastId = showToast('Chargement des utilisateurs...', 'info', { autoClose: false });
-    
+
     try {
       // Vérifier la connexion Internet
       if (!navigator.onLine) {
@@ -559,9 +589,9 @@
       try {
         console.log('🌐 Chargement des utilisateurs depuis /api/users...');
         console.log('📤 Headers utilisés:', headers);
-        
+
         const startTime = Date.now();
-        const response = await fetch(`${API_BASE}/users`, { 
+        const response = await fetch(`${API_BASE}/users`, {
           headers: {
             ...headers,
             'Accept': 'application/json'
@@ -590,85 +620,94 @@
               ? raw.data
               : [];
         console.log(`✅ ${allUsers.length} utilisateurs chargés depuis l'API en ${loadTime}ms`);
-        
+
         // Traiter les données reçues avec filtrage correct des rôles
         state.agents = allUsers.filter(user => user.role === 'agent');
         state.supervisors = allUsers.filter(user => user.role === 'superviseur');
         state.admins = allUsers.filter(user => user.role === 'admin');
-        
+
         // Pour l'affichage, on peut combiner superviseurs et admins si nécessaire
         state.allSupervisors = [...state.supervisors, ...state.admins];
-        
-      // Créer une map des utilisateurs pour un accès rapide (nécessaire pour le filtrage)
-      const usersMap = new Map();
-      allUsers.forEach(user => {
-        if (user && user.id !== undefined) {
-          // S'assurer que l'ID est une chaîne pour éviter les problèmes de comparaison
-          const userId = String(user.id);
-          
-          // S'assurer que l'utilisateur a un nom valide
-          if (!user.name) {
-            const firstName = user.first_name || '';
-            const lastName = user.last_name || '';
-            user.name = `${firstName} ${lastName}`.trim() || user.email || `Agent ${user.id}`;
+
+        // Créer une map des utilisateurs pour un accès rapide (nécessaire pour le filtrage)
+        const usersMap = new Map();
+        allUsers.forEach(user => {
+          if (user && user.id !== undefined) {
+            // S'assurer que l'ID est une chaîne pour éviter les problèmes de comparaison
+            const userId = String(user.id);
+
+            // S'assurer que l'utilisateur a un nom valide
+            if (!user.name) {
+              const firstName = user.first_name || '';
+              const lastName = user.last_name || '';
+              user.name = `${firstName} ${lastName}`.trim() || user.email || `Agent ${user.id}`;
+            }
+
+            usersMap.set(userId, user);
+
+            // Ajouter également l'ID numérique si c'est différent
+            if (user.id !== userId) {
+              usersMap.set(user.id, user);
+            }
           }
-          
-          usersMap.set(userId, user);
-          
-          // Ajouter également l'ID numérique si c'est différent
-          if (user.id !== userId) {
-            usersMap.set(user.id, user);
-          }
+        });
+
+        // Assigner la map à state pour qu'elle soit accessible dans les filtres
+        state.usersMap = usersMap;
+
+        console.log(`📊 Répartition: ${state.agents.length} agents, ${state.supervisors.length} superviseurs, ${state.admins.length} admins`);
+        console.log(`🗺️ Map des utilisateurs créée avec ${usersMap.size} entrées`);
+
+        // Déclencher le rechargement du Gantt après le chargement des utilisateurs
+        if (typeof loadWeeklySummary === 'function') {
+          console.log('🔄 Rechargement du Gantt après chargement des utilisateurs...');
+          setTimeout(() => {
+            loadWeeklySummary();
+          }, 500);
         }
-      });
-      
-      // Assigner la map à state pour qu'elle soit accessible dans les filtres
-      state.usersMap = usersMap;
-      
-      console.log(`📊 Répartition: ${state.agents.length} agents, ${state.supervisors.length} superviseurs, ${state.admins.length} admins`);
-      console.log(`🗺️ Map des utilisateurs créée avec ${usersMap.size} entrées`);
-      
-      // Déclencher le rechargement du Gantt après le chargement des utilisateurs
-      if (typeof loadWeeklySummary === 'function') {
-        console.log('🔄 Rechargement du Gantt après chargement des utilisateurs...');
-        setTimeout(() => {
-          loadWeeklySummary();
-        }, 500);
-      }
-        
+
         // Si aucun utilisateur n'est trouvé, afficher un message
         if (state.agents.length === 0 && state.supervisors.length === 0 && state.admins.length === 0) {
           console.warn('⚠️ Aucun utilisateur trouvé dans la base de données');
           showToast('Aucun utilisateur trouvé dans la base de données', 'warning', { id: loadingToastId });
           return;
         }
-        
+
         console.log('🔄 Mise à jour de l\'interface utilisateur...');
         // Mettre à jour l'interface
         updateAgentSelect();
         updateSupervisorSelect();
-        
+        if (document.getElementById('permission-days-section')) {
+          if (!state.permissionSectionInitialized) {
+            initializePermissionDaysSection();
+            state.permissionSectionInitialized = true;
+          } else {
+            updatePermissionAgentOptions();
+            loadPermissionDaysRecords();
+          }
+        }
+
         showToast(
-          `✅ ${state.agents.length} agents, ${state.supervisors.length} superviseurs et ${state.admins.length} admins chargés`, 
-          'success', 
+          `✅ ${state.agents.length} agents, ${state.supervisors.length} superviseurs et ${state.admins.length} admins chargés`,
+          'success',
           { id: loadingToastId }
         );
-        
+
       } catch (error) {
         console.error('❌ Erreur lors du chargement des utilisateurs:', error);
-        
+
         // Afficher un message d'erreur et ne pas utiliser les données de test
-          const errorMessage = `Erreur: ${error.message || 'Impossible de charger les utilisateurs'}`;
-          showToast(errorMessage, 'error', { id: loadingToastId });
-          
+        const errorMessage = `Erreur: ${error.message || 'Impossible de charger les utilisateurs'}`;
+        showToast(errorMessage, 'error', { id: loadingToastId });
+
         // Réessayer après un délai seulement si c'est une erreur réseau
         if (navigator.onLine && error.message.includes('Failed to fetch')) {
           const retryTime = 5000; // 5 secondes
           console.log(`🔄 Nouvelle tentative dans ${retryTime / 1000} secondes...`);
-            setTimeout(loadUsers, retryTime);
+          setTimeout(loadUsers, retryTime);
         }
       }
-      
+
     } catch (error) {
       console.error('Erreur critique lors du chargement des utilisateurs:', error);
       showToast(`Erreur: ${error.message || 'Erreur inconnue'}`, 'error');
@@ -681,14 +720,14 @@
   const loadProjects = async () => {
     try {
       const headers = await authHeaders();
-      
+
       // Essayer d'abord l'endpoint dédié aux projets
-      let response = await fetch(`${API_BASE}/users/projects`, { 
+      let response = await fetch(`${API_BASE}/users/projects`, {
         headers,
         credentials: 'include',
         method: 'GET'
       });
-      
+
       if (response.ok) {
         const projects = await response.json();
         if (Array.isArray(projects)) {
@@ -701,35 +740,35 @@
       } else {
         // Fallback: récupérer tous les utilisateurs pour extraire les projets uniques
         console.warn('Endpoint projets non disponible, fallback vers les utilisateurs');
-        response = await fetch(`${API_BASE}/users`, { 
+        response = await fetch(`${API_BASE}/users`, {
           headers,
           credentials: 'include',
           method: 'GET'
         });
-        
+
         if (response.ok) {
           const users = await response.json();
-          
+
           // Extraire les projets uniques depuis la colonne project_name
           const projects = users
             .map(user => user.project_name)
             .filter(project => project && project.trim() !== '')
             .map(project => project.trim());
-          
+
           // Supprimer les doublons et trier
           state.projectList = [...new Set(projects)].sort();
           state.projects = state.projectList;
-          
+
           console.log(`${state.projectList.length} projets chargés depuis les utilisateurs:`, state.projectList);
         } else {
           throw new Error(`Erreur HTTP ${response.status} lors du chargement des projets`);
         }
       }
-      
+
       // Mettre à jour les sélecteurs de projet
       updateProjectSelect();
       updateProjectFilterSelect();
-      
+
     } catch (error) {
       console.error('Erreur lors du chargement des projets:', error);
       state.projectList = [];
@@ -737,12 +776,936 @@
     }
   };
 
+  // ----------------------------
+  // 5.b Gestion des jours permissionnaires
+  // ----------------------------
+
+  const setPermissionStatus = (message, variant = 'secondary') => {
+    const badge = permissionElements.statusBadge;
+    if (!badge) return;
+    const baseClass = variant === 'light' ? 'badge bg-light text-dark' : `badge bg-${variant}`;
+    badge.className = baseClass;
+    badge.textContent = message;
+  };
+
+  const updatePermissionAgentOptions = () => {
+    const select = permissionElements.agentSelect;
+    if (!select) return;
+    const previousValue = select.value;
+    const options = ['<option value="">Sélectionnez un agent</option>'];
+    (state.agents || []).forEach(agent => {
+      const label = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email || `Agent ${agent.id}`;
+      options.push(`<option value="${agent.id}">${label}</option>`);
+    });
+    select.innerHTML = options.join('');
+    if (previousValue) {
+      select.value = previousValue;
+    }
+  };
+
+  const formatPermissionMonthLabel = (value) => {
+    if (!value) return '--';
+    const normalized = /^\d{4}-\d{2}$/.test(value) ? value : formatMonthValue(new Date(value));
+    const date = new Date(`${normalized}-01T00:00:00Z`);
+    if (Number.isNaN(date.getTime())) return normalized;
+    return date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  };
+
+  const renderPermissionDaysTable = () => {
+    const tbody = permissionElements.tableBody;
+    if (!tbody) return;
+
+    if (!permissionState.records.length) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6" class="text-center text-muted py-3">
+            ${permissionState.loading ? 'Chargement...' : 'Aucun enregistrement pour ce mois.'}
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    // Vérifier si l'utilisateur est admin
+    const userRole = localStorage.getItem('userRole') || '';
+    const isAdmin = userRole === 'admin';
+
+    const rows = permissionState.records.map(record => {
+      const agent = state.usersMap?.get(String(record.agent_id));
+      const name = agent?.name || `Agent ${record.agent_id}`;
+      const project = agent?.project_name || agent?.project || '-';
+
+      // Formater les dates
+      const formatDate = (dateStr) => {
+        if (!dateStr) return '-';
+        const options = { day: '2-digit', month: 'short', year: 'numeric' };
+        return new Date(dateStr).toLocaleDateString('fr-FR', options);
+      };
+
+      // Déterminer la classe CSS en fonction du statut
+      const statusClass = {
+        'pending': 'bg-warning text-dark',
+        'approved': 'bg-success text-white',
+        'rejected': 'bg-danger text-white'
+      }[record.status] || 'bg-secondary text-white';
+
+      // Texte du statut lisible
+      const statusText = {
+        'pending': 'En attente',
+        'approved': 'Approuvé',
+        'rejected': 'Rejeté'
+      }[record.status] || record.status;
+
+      // Boutons de validation/refus (uniquement pour les admins et si le statut est "pending")
+      const approvalButtons = (isAdmin && record.status === 'pending') ? `
+        <button class="btn btn-sm btn-success me-1" data-permission-approve="${record.id}" 
+                title="Approuver">
+          <i class="bi bi-check-circle"></i>
+        </button>
+        <button class="btn btn-sm btn-danger me-2" data-permission-reject="${record.id}"
+                title="Rejeter">
+          <i class="bi bi-x-circle"></i>
+        </button>
+      ` : '';
+
+      return `
+        <tr>
+          <td>
+            <div class="fw-semibold">${name}</div>
+            <small class="text-muted">ID ${record.agent_id}</small>
+          </td>
+          <td>${project}</td>
+          <td class="text-nowrap">${formatDate(record.start_date)}</td>
+          <td class="text-nowrap">${formatDate(record.end_date)}</td>
+          <td class="text-center fw-bold">${record.days || 0} j</td>
+          <td class="text-center">
+            <span class="badge ${statusClass} px-2 py-1">${statusText}</span>
+          </td>
+          <td class="text-end">
+            ${approvalButtons}
+            <button class="btn btn-sm btn-outline-primary me-1" data-permission-edit="${record.id}" 
+                    title="Modifier">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger" data-permission-delete="${record.id}"
+                    title="Supprimer">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    tbody.innerHTML = `
+      <thead class="table-light">
+        <tr>
+          <th>Agent</th>
+          <th>Projet</th>
+          <th>Début</th>
+          <th>Fin</th>
+          <th class="text-center">Jours</th>
+          <th class="text-center">Statut</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    `;
+  };
+
+  const resetPermissionForm = () => {
+    permissionState.editingId = null;
+
+    // Réinitialiser tous les champs du formulaire
+    if (permissionElements.form) {
+      permissionElements.form.reset();
+    }
+
+    // Réinitialiser les valeurs spécifiques
+    const today = new Date();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+
+    if (permissionElements.monthInput) {
+      permissionElements.monthInput.value = `${year}-${month}`;
+    }
+
+    if (permissionElements.startDateInput) {
+      permissionElements.startDateInput.value = today.toISOString().split('T')[0];
+    }
+
+    if (permissionElements.endDateInput) {
+      const nextWeek = new Date(today);
+      nextWeek.setDate(today.getDate() + 7);
+      permissionElements.endDateInput.value = nextWeek.toISOString().split('T')[0];
+    }
+
+    if (permissionElements.statusSelect) {
+      permissionElements.statusSelect.value = 'pending';
+    }
+
+    // Mettre à jour l'état de l'interface utilisateur
+    if (permissionElements.saveBtn) {
+      permissionElements.saveBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Enregistrer';
+      permissionElements.saveBtn.disabled = false;
+      permissionElements.saveBtn.classList.remove('btn-primary');
+      permissionElements.saveBtn.classList.add('btn-success');
+    }
+
+    if (permissionElements.resetBtn) {
+      permissionElements.resetBtn.disabled = true;
+    }
+
+    // Mettre le focus sur le premier champ
+    if (permissionElements.agentSelect) {
+      setTimeout(() => permissionElements.agentSelect.focus(), 100);
+    }
+  };
+
+  const startPermissionEdit = (record) => {
+    permissionState.editingId = record.id;
+
+    // Mettre à jour les champs du formulaire avec les données de l'enregistrement
+    if (permissionElements.agentSelect) {
+      permissionElements.agentSelect.value = String(record.agent_id);
+    }
+
+    if (permissionElements.daysInput) {
+      permissionElements.daysInput.value = record.days || 0;
+    }
+
+    if (permissionElements.startDateInput) {
+      permissionElements.startDateInput.value = record.start_date || '';
+    }
+
+    if (permissionElements.endDateInput) {
+      permissionElements.endDateInput.value = record.end_date || '';
+    }
+
+    if (permissionElements.reasonInput) {
+      permissionElements.reasonInput.value = record.reason || '';
+    }
+
+    if (permissionElements.statusSelect) {
+      permissionElements.statusSelect.value = record.status || 'pending';
+    }
+
+    // Mettre à jour le bouton de sauvegarde
+    if (permissionElements.saveBtn) {
+      permissionElements.saveBtn.innerHTML = '<i class="bi bi-save me-1"></i>Mettre à jour';
+      permissionElements.saveBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    if (permissionElements.resetBtn) {
+      permissionElements.resetBtn.disabled = false;
+    }
+
+    // Faire défiler jusqu'au formulaire
+    permissionElements.form.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const loadPermissionDaysRecords = async () => {
+    if (!permissionElements.tableBody) return;
+
+    // Show loading state
+    permissionState.loading = true;
+    const originalStatus = permissionElements.statusBadge?.textContent;
+    setPermissionStatus('Chargement en cours...', 'warning');
+
+    // Show loading indicator in table
+    if (permissionElements.tableBody) {
+      permissionElements.tableBody.innerHTML = `
+        <tr>
+          <td colspan="5" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Chargement...</span>
+            </div>
+          </td>
+        </tr>`;
+    }
+
+    try {
+      // Add a small delay to prevent UI flickering on fast networks
+      const [_, response] = await Promise.all([
+        new Promise(resolve => setTimeout(resolve, 300)),
+        (async () => {
+          const headers = await authHeaders();
+          const params = new URLSearchParams({
+            month: permissionState.month,
+            _t: new Date().getTime() // Cache buster
+          });
+
+          return fetch(`${API_BASE}/permission-days?${params.toString()}`, {
+            headers,
+            credentials: 'include',
+            cache: 'no-cache'
+          });
+        })()
+      ]);
+
+      if (!response.ok) {
+        let errorMessage = 'Erreur inconnue';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || response.statusText;
+        } catch (e) {
+          errorMessage = await response.text() || response.statusText;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      permissionState.records = Array.isArray(result?.data) ? result.data : [];
+
+      // Update UI
+      renderPermissionDaysTable();
+
+      // Update status with count and last updated time
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const recordCount = permissionState.records.length;
+
+      setPermissionStatus(
+        recordCount > 0
+          ? `${recordCount} enregistrement(s) • Mis à jour à ${timeStr}`
+          : `Aucun enregistrement • Mis à jour à ${timeStr}`,
+        recordCount > 0 ? 'success' : 'secondary'
+      );
+
+    } catch (error) {
+      console.error('Erreur chargement des jours permissionnaires:', error);
+      permissionState.records = [];
+
+      // Show error in table
+      if (permissionElements.tableBody) {
+        permissionElements.tableBody.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-center text-danger py-4">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              ${error.status === 403 ? 'Accès refusé' : 'Erreur de chargement'}
+              <div class="small text-muted mt-1">${error.message || 'Veuillez réessayer'}</div>
+            </td>
+          </tr>`;
+      }
+
+      setPermissionStatus(
+        error.status === 403 ? 'Accès refusé' : 'Erreur de chargement',
+        'danger'
+      );
+
+      if (error.status !== 403) { // Don't show toast for permission errors (handled by auth system)
+        showToast(
+          `Impossible de charger les jours permissionnaires: ${error.message || 'Erreur inconnue'}`,
+          'error',
+          { autoClose: 5000 }
+        );
+      }
+    } finally {
+      permissionState.loading = false;
+    }
+  };
+
+  const validatePermissionForm = () => {
+    // Vérifier que tous les éléments du formulaire sont présents
+    const requiredElements = [
+      'monthInput', 'startDateInput', 'endDateInput', 'statusSelect',
+      'agentSelect', 'daysInput', 'reasonInput'
+    ];
+
+    for (const element of requiredElements) {
+      if (!permissionElements[element]) {
+        return { valid: false, message: 'Configuration du formulaire invalide' };
+      }
+    }
+
+    // Valider les dates
+    const startDate = new Date(permissionElements.startDateInput.value);
+    const endDate = new Date(permissionElements.endDateInput.value);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return { valid: false, message: 'Veuillez sélectionner des dates valides' };
+    }
+
+    if (startDate > endDate) {
+      return { valid: false, message: 'La date de fin doit être postérieure à la date de début' };
+    }
+
+    // Valider le mois de référence
+    const monthValue = permissionElements.monthInput.value || permissionState.month;
+    if (!monthValue) {
+      return { valid: false, message: 'Veuillez sélectionner un mois de référence' };
+    }
+
+    // Valider l'agent
+    const agentIdValue = Number(permissionElements.agentSelect.value);
+    if (!Number.isFinite(agentIdValue) || agentIdValue <= 0) {
+      return { valid: false, message: 'Veuillez sélectionner un agent valide' };
+    }
+
+    // Valider le nombre de jours
+    const daysValue = parseFloat(permissionElements.daysInput.value);
+    if (isNaN(daysValue) || daysValue < 0 || daysValue > 31) {
+      return { valid: false, message: 'Le nombre de jours doit être compris entre 0 et 31' };
+    }
+
+    // Valider la raison
+    const reason = permissionElements.reasonInput.value.trim();
+    if (!reason) {
+      return { valid: false, message: 'Veuillez saisir une raison pour cette permission' };
+    }
+
+    // Valider le statut
+    const status = permissionElements.statusSelect.value;
+    if (!['pending', 'approved', 'rejected'].includes(status)) {
+      return { valid: false, message: 'Statut de permission invalide' };
+    }
+
+    return {
+      valid: true,
+      monthValue,
+      agentIdValue,
+      daysValue,
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
+      reason,
+      status
+    };
+  };
+
+  const handlePermissionSave = async () => {
+    console.log('🔵 Début de la sauvegarde des jours de permission...');
+
+    // Validate form
+    const validation = validatePermissionForm();
+    if (!validation.valid) {
+      console.warn('❌ Validation du formulaire échouée:', validation.message);
+      showToast(validation.message, 'warning');
+      return;
+    }
+
+    const {
+      monthValue,
+      agentIdValue,
+      daysValue,
+      startDate: formStartDate,
+      endDate: formEndDate,
+      reason,
+      status
+    } = validation;
+    permissionState.month = monthValue;
+
+    // Prepare payload with additional validation
+    const currentDate = new Date();
+    const currentMonth = currentDate.toISOString().slice(0, 7);
+    const isCurrentOrFutureMonth = monthValue >= currentMonth;
+
+    // Créer un identifiant de suivi pour les logs
+    const requestId = 'req_' + Math.random().toString(36).substr(2, 9);
+
+    // Récupérer l'utilisateur sélectionné pour obtenir son auth_uuid
+    const selectedAgent = state.agents.find(agent => agent.id == agentIdValue);
+    if (!selectedAgent) {
+      throw new Error('Agent sélectionné introuvable');
+    }
+
+    // Vérifier que l'utilisateur a un auth_uuid
+    if (!selectedAgent.auth_uuid) {
+      console.error('❌ Aucun auth_uuid trouvé pour l\'agent:', selectedAgent);
+      throw new Error('Impossible de trouver l\'identifiant unique de l\'utilisateur');
+    }
+
+    // Préparer le payload avec les champs attendus par l'API
+    const payload = {
+      user_id: selectedAgent.auth_uuid, // Utiliser l'auth_uuid au lieu de l'ID numérique
+      start_date: formStartDate, // Utiliser la date de début du formulaire
+      end_date: formEndDate,     // Utiliser la date de fin du formulaire
+      days: daysValue,
+      status: status,
+      reason: reason,
+      month: monthValue,
+      updated_at: new Date().toISOString()
+    };
+
+    console.log('📤 Payload de la requête:', {
+      ...payload,
+      agentId: agentIdValue,
+      agentName: selectedAgent.name,
+      requestId
+    });
+
+    // If editing, include the ID
+    if (permissionState.editingId) {
+      payload.id = permissionState.editingId;
+    } else {
+      payload.created_at = new Date().toISOString();
+      payload.created_by = state.currentUser?.id || null;
+    }
+
+    // Show loading state
+    if (permissionElements.saveBtn) {
+      const originalText = permissionElements.saveBtn.innerHTML;
+      permissionElements.saveBtn.disabled = true;
+      permissionElements.saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enregistrement...';
+
+      try {
+        console.log('🔑 Récupération des en-têtes d\'authentification...');
+        const headers = await authHeaders();
+        const method = permissionState.editingId ? 'PUT' : 'POST';
+        const url = permissionState.editingId
+          ? `/api/permission-days/${permissionState.editingId}`
+          : '/api/permission-days';
+
+        console.log(`🌐 Envoi de la requête ${method} à ${url}...`);
+
+        const startTime = performance.now();
+        const response = await fetch(url, {
+          method: method,
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json',
+            'X-Request-ID': requestId
+          },
+          credentials: 'include',
+          body: JSON.stringify(payload)
+        });
+
+        const endTime = performance.now();
+        console.log(`⏱️  Réponse reçue en ${(endTime - startTime).toFixed(2)}ms`, {
+          status: response.status,
+          statusText: response.statusText,
+          url: response.url
+        });
+
+        if (!response.ok) {
+          let errorMessage = 'Erreur inconnue';
+          let errorDetails = null;
+
+          try {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('📄 Détails de l\'erreur:', errorData);
+
+            errorMessage = errorData.error || errorData.message || response.statusText;
+            errorDetails = errorData.details || null;
+          } catch (e) {
+            const text = await response.text().catch(() => 'Impossible de lire la réponse');
+            console.error('❌ Réponse d\'erreur brute:', text);
+            errorMessage = text || response.statusText;
+          }
+
+          const error = new Error(errorMessage);
+          error.status = response.status;
+          error.details = errorDetails;
+          throw error;
+        }
+
+        const result = await response.json();
+        const action = permissionState.editingId ? 'mis à jour' : 'ajouté';
+
+        showToast(`Jours permissionnaires ${action} avec succès`, 'success');
+        resetPermissionForm();
+        await loadPermissionDaysRecords();
+
+      } catch (error) {
+        console.error('❌ Erreur lors de la sauvegarde des jours permissionnaires:', {
+          message: error.message,
+          status: error.status,
+          details: error.details,
+          stack: error.stack
+        });
+
+        let errorMessage = 'Une erreur est survenue';
+
+        if (error.status === 403) {
+          errorMessage = 'Vous n\'avez pas les droits pour effectuer cette action';
+        } else if (error.status === 404) {
+          errorMessage = 'Ressource non trouvée. Veuillez rafraîchir la page et réessayer.';
+        } else if (error.status === 500) {
+          errorMessage = 'Erreur serveur. Veuillez réessayer plus tard.';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+
+        showToast(`Erreur: ${errorMessage}`, 'error');
+
+        // Afficher plus de détails dans la console pour le débogage
+        if (error.details) {
+          console.error('🔍 Détails supplémentaires:', error.details);
+        }
+      } finally {
+        // Restore button state
+        if (permissionElements.saveBtn) {
+          permissionElements.saveBtn.disabled = false;
+          permissionElements.saveBtn.innerHTML = permissionState.editingId
+            ? '<i class="bi bi-save me-1"></i>Mettre à jour'
+            : '<i class="bi bi-check2-circle me-1"></i>Enregistrer';
+        }
+      }
+    }
+  };
+
+  const handlePermissionDelete = async (recordId) => {
+    if (!recordId) return;
+
+    // Show confirmation dialog with more details
+    const record = permissionState.records.find(r => r.id === recordId);
+    if (!record) return;
+
+    const agent = state.usersMap?.get(String(record.agent_id)) || {};
+    const agentName = agent.name || `Agent ${record.agent_id}`;
+    const month = formatPermissionMonthLabel(record.month);
+
+    const confirmed = await Swal.fire({
+      title: 'Confirmer la suppression',
+      html: `
+        <div class="text-start">
+          <p>Êtes-vous sûr de vouloir supprimer les jours de permission pour :</p>
+          <ul class="mb-0">
+            <li><strong>Agent :</strong> ${escapeHtml(agentName)}</li>
+            <li><strong>Mois :</strong> ${escapeHtml(month)}</li>
+            <li><strong>Jours :</strong> ${escapeHtml(record.days)}</li>
+          </ul>
+        </div>
+      `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Oui, supprimer',
+      cancelButtonText: 'Annuler',
+      confirmButtonColor: '#dc3545',
+      cancelButtonColor: '#6c757d',
+      reverseButtons: true,
+      backdrop: true,
+      allowOutsideClick: false,
+      allowEscapeKey: true,
+      focusCancel: true
+    });
+
+    if (!confirmed.isConfirmed) return;
+
+    try {
+      const headers = await authHeaders();
+
+      // Show loading state
+      const result = await Swal.fire({
+        title: 'Suppression en cours',
+        html: 'Veuillez patienter...',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      const response = await fetch(`${API_BASE}/permission-days/${recordId}`, {
+        method: 'DELETE',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Erreur inconnue';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || response.statusText;
+        } catch (e) {
+          errorMessage = await response.text() || response.statusText;
+        }
+        throw new Error(errorMessage);
+      }
+
+      // Close loading dialog
+      await Swal.close();
+
+      // Show success message
+      await Swal.fire({
+        title: 'Supprimé !',
+        text: 'Les jours de permission ont été supprimés avec succès.',
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false,
+        timerProgressBar: true
+      });
+
+      // Reset form if editing the deleted record
+      if (permissionState.editingId === recordId) {
+        resetPermissionForm();
+      }
+
+      // Reload data
+      await loadPermissionDaysRecords();
+
+    } catch (error) {
+      console.error('Erreur lors de la suppression des jours permissionnaires:', error);
+
+      await Swal.fire({
+        title: 'Erreur',
+        html: `
+          <div class="text-start">
+            <p>Impossible de supprimer l'enregistrement :</p>
+            <div class="alert alert-danger mb-0">
+              ${escapeHtml(error.message || 'Une erreur inconnue est survenue')}
+            </div>
+          </div>
+        `,
+        icon: 'error',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#dc3545'
+      });
+    }
+  };
+
+  /**
+   * Gère l'approbation ou le rejet d'une demande de permission
+   * @param {string} recordId - ID de l'enregistrement
+   * @param {string} newStatus - Nouveau statut ('approved' ou 'rejected')
+   */
+  const handlePermissionApproval = async (recordId, newStatus) => {
+    if (!recordId || !['approved', 'rejected'].includes(newStatus)) return;
+
+    // Vérifier que l'utilisateur est admin
+    const userRole = localStorage.getItem('userRole') || '';
+    if (userRole !== 'admin') {
+      showToast('Seuls les administrateurs peuvent valider ou rejeter les permissions', 'error');
+      return;
+    }
+
+    const record = permissionState.records.find(r => r.id === recordId);
+    if (!record) return;
+
+    const agent = state.usersMap?.get(String(record.agent_id)) || {};
+    const agentName = agent.name || `Agent ${record.agent_id}`;
+    const actionText = newStatus === 'approved' ? 'approuver' : 'rejeter';
+    const actionTextPast = newStatus === 'approved' ? 'approuvée' : 'rejetée';
+
+    const confirmed = await Swal.fire({
+      title: `Confirmer ${newStatus === 'approved' ? 'l\'approbation' : 'le rejet'}`,
+      html: `
+        <div class="text-start">
+          <p>Êtes-vous sûr de vouloir ${actionText} la demande de permission pour :</p>
+          <ul class="mb-0">
+            <li><strong>Agent :</strong> ${escapeHtml(agentName)}</li>
+            <li><strong>Période :</strong> ${new Date(record.start_date).toLocaleDateString('fr-FR')} - ${new Date(record.end_date).toLocaleDateString('fr-FR')}</li>
+            <li><strong>Jours :</strong> ${record.days}</li>
+            <li><strong>Raison :</strong> ${escapeHtml(record.reason || '-')}</li>
+          </ul>
+        </div>
+      `,
+      icon: newStatus === 'approved' ? 'question' : 'warning',
+      showCancelButton: true,
+      confirmButtonText: newStatus === 'approved' ? 'Oui, approuver' : 'Oui, rejeter',
+      cancelButtonText: 'Annuler',
+      confirmButtonColor: newStatus === 'approved' ? '#28a745' : '#dc3545',
+      cancelButtonColor: '#6c757d',
+      reverseButtons: true
+    });
+
+    if (!confirmed.isConfirmed) return;
+
+    try {
+      const headers = await authHeaders();
+
+      // Afficher l'état de chargement
+      Swal.fire({
+        title: 'Traitement en cours',
+        html: 'Veuillez patienter...',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      const response = await fetch(`${API_BASE}/permission-days/${recordId}`, {
+        method: 'PUT',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          ...record,
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Erreur HTTP ${response.status}`);
+      }
+
+      await Swal.fire({
+        title: 'Succès',
+        text: `Demande de permission ${actionTextPast} avec succès`,
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false,
+        timerProgressBar: true
+      });
+
+      // Recharger les données
+      await loadPermissionDaysRecords();
+
+    } catch (error) {
+      console.error(`Erreur lors de ${actionText} la permission:`, error);
+
+      await Swal.fire({
+        title: 'Erreur',
+        html: `
+          <div class="text-start">
+            <p>Impossible de ${actionText} la demande :</p>
+            <div class="alert alert-danger mb-0">
+              ${escapeHtml(error.message || 'Une erreur inconnue est survenue')}
+            </div>
+          </div>
+        `,
+        icon: 'error',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#dc3545'
+      });
+    }
+  };
+
+  const initializePermissionDaysSection = async () => {
+    if (state.permissionSectionInitialized) return;
+
+    // Initialize elements
+    permissionElements.form = document.getElementById('permission-form');
+    permissionElements.monthInput = document.getElementById('permission-month-input');
+    permissionElements.startDateInput = document.getElementById('permission-start-date');
+    permissionElements.endDateInput = document.getElementById('permission-end-date');
+    permissionElements.statusSelect = document.getElementById('permission-status');
+    permissionElements.agentSelect = document.getElementById('permission-agent-select');
+    permissionElements.daysInput = document.getElementById('permission-days-input');
+    permissionElements.reasonInput = document.getElementById('permission-reason');
+    permissionElements.saveBtn = document.getElementById('permission-save-btn');
+    permissionElements.resetBtn = document.getElementById('permission-reset-btn');
+    permissionElements.tableBody = document.getElementById('permission-days-table');
+    permissionElements.statusBadge = document.getElementById('permission-days-status');
+    permissionElements.container = document.getElementById('permission-days-section');
+
+    if (!permissionElements.container) {
+      console.warn('Section des jours permissionnaires non trouvée');
+      return;
+    }
+
+    // Set initial values
+    const today = new Date();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+
+    if (permissionElements.monthInput) {
+      permissionElements.monthInput.value = `${year}-${month}`;
+      permissionState.month = `${year}-${month}`;
+    }
+
+    if (permissionElements.startDateInput) {
+      permissionElements.startDateInput.value = today.toISOString().split('T')[0];
+    }
+
+    if (permissionElements.endDateInput) {
+      const nextWeek = new Date(today);
+      nextWeek.setDate(today.getDate() + 7);
+      permissionElements.endDateInput.value = nextWeek.toISOString().split('T')[0];
+    }
+
+    // Masquer le champ de statut pour les non-admins
+    const userRole = localStorage.getItem('userRole') || '';
+    const statusContainer = document.getElementById('permission-status-container');
+    if (statusContainer) {
+      if (userRole !== 'admin') {
+        statusContainer.style.display = 'none';
+        // Définir le statut par défaut sur "pending" pour les non-admins
+        if (permissionElements.statusSelect) {
+          permissionElements.statusSelect.value = 'pending';
+          permissionElements.statusSelect.removeAttribute('required');
+        }
+      } else {
+        statusContainer.style.display = 'block';
+      }
+    }
+
+    // Set up event listeners
+    if (permissionElements.form) {
+      permissionElements.form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        handlePermissionSave();
+      });
+    }
+
+    if (permissionElements.monthInput) {
+      permissionElements.monthInput.addEventListener('change', (e) => {
+        permissionState.month = e.target.value;
+        loadPermissionDaysRecords();
+      });
+    }
+
+    if (permissionElements.resetBtn) {
+      permissionElements.resetBtn.addEventListener('click', resetPermissionForm);
+    }
+
+    // Mettre à jour automatiquement le nombre de jours lors du changement des dates
+    const updateDaysCount = () => {
+      if (!permissionElements.startDateInput || !permissionElements.endDateInput || !permissionElements.daysInput) return;
+
+      const startDate = new Date(permissionElements.startDateInput.value);
+      const endDate = new Date(permissionElements.endDateInput.value);
+
+      if (isNaN(startDate) || isNaN(endDate) || startDate > endDate) return;
+
+      // Calculer la différence en jours (y compris les jours partiels)
+      const diffTime = Math.abs(endDate - startDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 pour inclure le jour de début
+
+      permissionElements.daysInput.value = diffDays.toFixed(1);
+    };
+
+    if (permissionElements.startDateInput) {
+      permissionElements.startDateInput.addEventListener('change', updateDaysCount);
+    }
+
+    if (permissionElements.endDateInput) {
+      permissionElements.endDateInput.addEventListener('change', updateDaysCount);
+    }
+
+    // Handle edit/delete/approve/reject clicks with event delegation
+    permissionElements.container.addEventListener('click', (e) => {
+      const editBtn = e.target.closest('[data-permission-edit]');
+      const deleteBtn = e.target.closest('[data-permission-delete]');
+      const approveBtn = e.target.closest('[data-permission-approve]');
+      const rejectBtn = e.target.closest('[data-permission-reject]');
+
+      if (editBtn) {
+        const recordId = editBtn.dataset.permissionEdit;
+        const record = permissionState.records.find(r => r.id === recordId);
+        if (record) startPermissionEdit(record);
+      }
+
+      if (deleteBtn) {
+        const recordId = deleteBtn.dataset.permissionDelete;
+        if (recordId) handlePermissionDelete(recordId);
+      }
+
+      if (approveBtn) {
+        const recordId = approveBtn.dataset.permissionApprove;
+        if (recordId) handlePermissionApproval(recordId, 'approved');
+      }
+
+      if (rejectBtn) {
+        const recordId = rejectBtn.dataset.permissionReject;
+        if (recordId) handlePermissionApproval(recordId, 'rejected');
+      }
+    });
+
+    // Load initial data
+    await loadPermissionDaysRecords();
+
+    state.permissionSectionInitialized = true;
+    console.log('Section des jours permissionnaires initialisée');
+  };
+
   /**
    * Charge la liste des départements depuis l'API ou utilise les données intégrées en cas d'échec.
    */
   const loadDepartments = async () => {
     console.log('Chargement des départements...');
-    
+
     // Fonction pour charger les données intégrées
     const loadIntegratedData = () => {
       console.warn('Utilisation des données intégrées pour les départements');
@@ -774,24 +1737,24 @@
       const timeoutId = setTimeout(() => controller.abort(), 5000); // Timeout de 5 secondes
 
       try {
-        const response = await fetch(`${API_BASE}/departments`, { 
+        const response = await fetch(`${API_BASE}/departments`, {
           headers,
           signal: controller.signal
         });
-        
+
         clearTimeout(timeoutId);
 
         if (response.ok) {
           const data = await response.json();
           state.departments = data.items || data || [];
-          
+
           // Si aucun département n'est retourné, utiliser les données intégrées
           if (state.departments.length === 0) {
             console.warn('Aucun département trouvé dans la réponse, utilisation des données intégrées');
             loadIntegratedData();
             return;
           }
-          
+
           console.log(`${state.departments.length} départements chargés depuis l'API`);
           updateDepartmentSelect();
         } else {
@@ -801,14 +1764,14 @@
         }
       } catch (error) {
         clearTimeout(timeoutId);
-        
+
         // En cas d'erreur réseau ou de timeout, utiliser les données intégrées
         if (error.name === 'AbortError' || error.message.includes('Failed to fetch')) {
           console.warn('Délai d\'attente dépassé ou erreur réseau, utilisation des données intégrées');
         } else {
           console.error('Erreur lors du chargement des départements:', error);
         }
-        
+
         loadIntegratedData();
       }
     } catch (error) {
@@ -831,7 +1794,7 @@
     try {
       const headers = await authHeaders();
       const response = await fetch(`${API_BASE}/communes?department_id=eq.${departmentId}`, { headers });
-      
+
       if (response.ok) {
         const data = await response.json();
         state.communes = data.items || data || [];
@@ -842,7 +1805,7 @@
         state.communes = geoData.communes[departmentId] || [];
         console.log(`${state.communes.length} communes chargées depuis les données intégrées pour le département ${departmentId}`);
       }
-      
+
       updateCommuneSelect();
     } catch (error) {
       console.error('Erreur chargement communes:', error);
@@ -886,17 +1849,17 @@
       console.error('Sélecteur de superviseur non trouvé: supervisor-filter-select');
       return;
     }
-    
+
     // Utiliser allSupervisors qui combine superviseurs et admins
     const supervisorsToShow = state.allSupervisors || [];
     console.log(`Nombre de superviseurs à afficher: ${supervisorsToShow.length} (${state.supervisors?.length || 0} superviseurs + ${state.admins?.length || 0} admins)`);
-    
+
     const prevValue = select.value;
-    
+
     console.log(`Mise à jour du sélecteur de superviseurs avec ${supervisorsToShow.length} superviseurs/admins`);
-    
+
     select.innerHTML = '<option value="">Tous les superviseurs</option>';
-    
+
     supervisorsToShow.forEach(supervisor => {
       const option = document.createElement('option');
       option.value = String(supervisor.id || supervisor.email || '');
@@ -906,9 +1869,9 @@
       select.appendChild(option);
       console.log(`Ajout du superviseur: ${name}${roleLabel} (ID: ${supervisor.id})`);
     });
-    
+
     if (prevValue) select.value = prevValue;
-    
+
     // Déclencher un événement de changement si la valeur a changé
     if (select.value !== prevValue) {
       select.dispatchEvent(new Event('change'));
@@ -936,20 +1899,20 @@
   const updateProjectFilterSelect = () => {
     const select = getElementById('project-filter-select');
     if (!select) return;
-    
+
     const prevValue = select.value;
-    
+
     // Vider la liste tout en conservant l'option par défaut
     select.innerHTML = '<option value="">Tous les projets</option>';
-    
+
     // Vérifier si des projets sont disponibles
     if (!state.projects || state.projects.length === 0) {
       console.warn('Aucun projet disponible pour le filtre');
       return;
     }
-    
+
     console.log(`Mise à jour du sélecteur de projets avec ${state.projects.length} projets`);
-    
+
     // Ajouter chaque projet comme option
     state.projects.forEach(project => {
       if (project) { // S'assurer que le projet n'est pas vide
@@ -959,12 +1922,12 @@
         select.appendChild(option);
       }
     });
-    
+
     // Restaurer la valeur précédente si elle existe toujours
     if (prevValue && state.projects.includes(prevValue)) {
       select.value = prevValue;
     }
-    
+
     // Déclencher un événement de changement si la valeur a changé
     if (select.value !== prevValue) {
       select.dispatchEvent(new Event('change'));
@@ -1092,7 +2055,7 @@
   // ----------------------------
   // 6. GESTION DE LA PLANIFICATION
   // ----------------------------
-  
+
   /**
    * Sauvegarde une planification via l'API avec gestion améliorée des erreurs et du rafraîchissement du token
    * @param {Object} planningData - Les données de planification à sauvegarder
@@ -1103,7 +2066,7 @@
   const savePlanning = async (planningData, buttonElement = null, retryCount = 0) => {
     // Limite de tentatives de réessai
     const MAX_RETRIES = 2;
-    
+
     // Sauvegarder l'état original du bouton
     let originalButtonState = null;
     if (buttonElement) {
@@ -1114,12 +2077,12 @@
       buttonElement.disabled = true;
       buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enregistrement...';
     }
-    
+
     // Vérifier si on doit rafraîchir le token
     const shouldRefreshToken = () => {
       const token = findToken();
       if (!token) return true;
-      
+
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
         const expiry = payload.exp;
@@ -1142,7 +2105,7 @@
           console.error('Échec du rafraîchissement du token:', refreshError);
         }
       }
-      
+
       // 2. Récupérer les en-têtes d'authentification
       let auth;
       try {
@@ -1189,12 +2152,12 @@
         headers,
         body: requestData
       });
-      
+
       // 5. Envoi de la requête avec timeout
       let response;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // Timeout de 10 secondes
-      
+
       try {
         console.log('Envoi de la requête à l\'API...');
         response = await fetch(`${API_BASE}/planifications`, {
@@ -1208,12 +2171,12 @@
       } catch (networkError) {
         clearTimeout(timeoutId);
         console.error('Erreur réseau:', networkError);
-        
+
         // Gestion spécifique des timeouts
         if (networkError.name === 'AbortError') {
           console.error('Délai d\'attente dépassé lors de la requête');
         }
-        
+
         // En cas d'erreur réseau, on peut réessayer
         if (retryCount < MAX_RETRIES) {
           const delay = 1000 * (retryCount + 1);
@@ -1222,7 +2185,7 @@
           await new Promise(resolve => setTimeout(resolve, delay));
           return savePlanning(planningData, buttonElement, retryCount + 1);
         }
-        
+
         // Si c'est une erreur de réseau et qu'on a une connexion, c'est peut-être un problème de CORS
         if (navigator.onLine) {
           throw new Error('Impossible de se connecter au serveur. Vérifiez votre connexion ou contactez l\'administrateur.');
@@ -1252,7 +2215,7 @@
           statusText: response.statusText,
           data: responseData
         });
-        
+
         // Si erreur d'authentification, on redirige vers la page de connexion
         if (response.status === 401) {
           console.log('Session expirée, redirection vers la page de connexion...');
@@ -1263,7 +2226,7 @@
           window.location.href = '/login';
           return;
         }
-        
+
         // Gestion des erreurs spécifiques
         let errorMessage = `Erreur ${response.status} lors de l'enregistrement`;
         if (responseData) {
@@ -1271,25 +2234,25 @@
           else if (responseData.message) errorMessage = responseData.message;
           else if (typeof responseData === 'string') errorMessage = responseData;
         }
-        
+
         throw new Error(errorMessage);
       }
 
       // 8. Succès
       console.log('Planification enregistrée avec succès:', responseData);
-      
+
       // Vérifier si la réponse contient des données valides
       if (!responseData || (responseData.success === false)) {
         const errorMsg = responseData?.message || 'Réponse inattendue du serveur';
         console.error('Erreur dans la réponse du serveur:', errorMsg);
         throw new Error(errorMsg);
       }
-      
+
       return responseData;
-      
+
     } catch (error) {
       console.error('Erreur lors de la sauvegarde de la planification:', error);
-      
+
       // Si c'est une erreur réseau et qu'on peut réessayer
       if ((error.message.includes('network') || error.name === 'TypeError') && retryCount < MAX_RETRIES) {
         const delay = 1000 * Math.pow(2, retryCount); // Délai exponentiel
@@ -1297,10 +2260,10 @@
         await new Promise(resolve => setTimeout(resolve, delay));
         return savePlanning(planningData, buttonElement, retryCount + 1);
       }
-      
+
       // Gestion des erreurs spécifiques
       let errorMessage = 'Une erreur est survenue lors de l\'enregistrement';
-      
+
       if (error.message.includes('Failed to fetch')) {
         errorMessage = 'Impossible de se connecter au serveur. Vérifiez votre connexion Internet.';
       } else if (error.message.includes('401')) {
@@ -1310,13 +2273,13 @@
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       // Afficher l'erreur à l'utilisateur
       showError(errorMessage);
-      
+
       // Propager l'erreur pour une gestion plus haut niveau
       throw new Error(errorMessage);
-      
+
     } finally {
       // Restaurer l'état du bouton
       if (buttonElement && originalButtonState) {
@@ -1336,7 +2299,7 @@
         console.log('⚠️ Rechargement déjà en cours, loadWeek ignoré');
         return;
       }
-      
+
       const start = startOfWeek(dateStr ? new Date(dateStr) : new Date());
       if (isNaN(start.getTime())) {
         throw new Error('Date de début invalide');
@@ -1363,7 +2326,7 @@
       const planificationsUrl = new URL(`${API_BASE}/planifications`, window.location.origin);
       planificationsUrl.searchParams.append('from', from);
       planificationsUrl.searchParams.append('to', to);
-      
+
       // Appliquer les filtres
       if (state.selectedProjectFilter) {
         planificationsUrl.searchParams.append('project_name', state.selectedProjectFilter);
@@ -1436,19 +2399,19 @@
           planned_end_time: p.planned_end_time,
           activity: p.activity_name || p.description_activite
         })));
-        
+
         // Appliquer les filtres côté client
         const originalCount = plans.length;
         plans = applyClientSideFilters(plans);
         console.log(`🔍 DEBUG: ${originalCount} planifications avant filtrage → ${plans.length} après filtrage côté client (vue semaine)`);
-        
+
         if (originalCount > plans.length) {
           console.log(`⚠️ ${originalCount - plans.length} planifications filtrées par les filtres côté client`);
         }
       }
       if (checkinsRes.ok) checkins = (await checkinsRes.json()).items || [];
       if (validationsRes.ok) validations = (await validationsRes.json()).items || [];
-      
+
       hideAuthBanner();
 
       // Créer une map des planifications par date (utiliser planned_date si disponible, sinon date)
@@ -1463,7 +2426,7 @@
         activity: p.activity_name || p.description_activite,
         project: p.project_name
       })));
-      
+
       plans.forEach(p => {
         const dateKey = String(p.planned_date || p.date).slice(0, 10);
         plansByDate.set(dateKey, p);
@@ -1475,11 +2438,11 @@
           project: p.project_name
         });
       });
-      
+
       console.log(`🗺️ PlansByDate créé avec ${plansByDate.size} entrées:`, Array.from(plansByDate.keys()));
       const checkinDates = new Set(checkins.map(c => String(c.created_at).slice(0, 10)));
       const validatedDates = new Set(validations.filter(v => v.valid && v.created_at).map(v => toISODate(new Date(v.created_at))));
-      
+
       const gantt = $('week-gantt');
       if (!gantt) {
         console.error('Erreur: Élément week-gantt introuvable dans le DOM');
@@ -1501,10 +2464,10 @@
       let weeklyMinutes = 0;
       weekDays.forEach((d) => {
         if (!d || isNaN(d.getTime())) return;
-        
+
         const iso = toISODate(d);
         const plan = plansByDate.get(iso);
-        
+
         // Debug pour voir ce qui se passe
         console.log(`🔍 Jour ${iso}:`, {
           plan: plan ? {
@@ -1515,12 +2478,12 @@
           } : 'Aucune planification',
           plansByDateKeys: Array.from(plansByDate.keys())
         });
-        
+
         const startMin = hoursToMinutes(plan?.planned_start_time);
         const endMin = hoursToMinutes(plan?.planned_end_time);
         const planned = Boolean(plan && (plan.planned_start_time || plan.planned_end_time));
         const duration = (endMin > startMin) ? (endMin - startMin) : 0;
-        
+
         // Debug spécifique pour les heures
         if (plan) {
           console.log(`⏰ DEBUG Heures pour ${iso}:`, {
@@ -1584,7 +2547,7 @@
     try {
       const base = monthStr ? new Date(monthStr + '-01T12:00:00Z') : new Date();
       if ($('month')) {
-         $('month').value = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`;
+        $('month').value = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`;
       }
       const year = base.getFullYear();
       const month = base.getMonth();
@@ -1598,7 +2561,7 @@
       const planificationsUrl = new URL(`${API_BASE}/planifications`, window.location.origin);
       planificationsUrl.searchParams.append('from', from);
       planificationsUrl.searchParams.append('to', to);
-      
+
       // Appliquer tous les filtres
       if (state.selectedProjectFilter) {
         planificationsUrl.searchParams.append('project_name', state.selectedProjectFilter);
@@ -1627,9 +2590,9 @@
       }
 
       const plansRes = await fetch(planificationsUrl.toString(), { headers, credentials: 'include' });
-      
+
       if (!plansRes.ok) throw new Error('Erreur API lors du chargement du mois');
-      
+
       const plansData = await plansRes.json();
       let plans = plansData.items || [];
       // Appliquer les filtres côté client
@@ -1667,7 +2630,7 @@
         });
         cursor = addDays(we, 1);
       }
-      
+
       const table = document.createElement('table');
       table.className = 'table table-striped table-sm';
       table.innerHTML = `
@@ -1690,7 +2653,7 @@
       }
 
       const totalMinutes = weeks.reduce((acc, w) => acc + (w.hours * 60 + w.minutes), 0);
-      if($('month-summary')) {
+      if ($('month-summary')) {
         $('month-summary').textContent = `Total: ${Math.floor(totalMinutes / 60)}h${String(totalMinutes % 60).padStart(2, '0')}`;
       }
     } catch (error) {
@@ -1710,7 +2673,7 @@
       console.error('Conteneur weekly-summary introuvable dans le DOM');
       return;
     }
-    
+
     // Afficher un indicateur de chargement
     summaryContainer.innerHTML = `
       <div class="text-center py-5">
@@ -1730,52 +2693,52 @@
       const today = new Date();
       const startDate = addDays(today, -42); // 6 semaines avant
       const endDate = addDays(today, 42);    // 6 semaines après
-      
+
       console.log(`Période de chargement: ${toISODate(startDate)} au ${toISODate(endDate)}`);
-      
+
       // Construire l'URL des planifications
       const planificationsUrl = new URL(`${API_BASE}/planifications`, window.location.origin);
       planificationsUrl.searchParams.append('from', toISODate(startDate));
       planificationsUrl.searchParams.append('to', toISODate(endDate));
-      
+
       // Appliquer tous les filtres
       if (state.selectedProjectFilter) {
         planificationsUrl.searchParams.append('project_name', state.selectedProjectFilter);
         console.log(`Filtre projet: ${state.selectedProjectFilter}`);
       }
-      
+
       if (state.selectedAgentId) {
         planificationsUrl.searchParams.append('agent_id', state.selectedAgentId);
         console.log(`Filtre agent: ${state.selectedAgentId}`);
       }
-      
+
       // Note: Les filtres superviseur, département et commune seront appliqués côté client
       if (state.selectedSupervisorId) {
         console.log(`Filtre superviseur à appliquer côté client: ${state.selectedSupervisorId}`);
       }
-      
+
       if (state.selectedDepartmentId) {
         console.log(`Filtre département à appliquer côté client: ${state.selectedDepartmentId}`);
       }
-      
+
       if (state.selectedCommuneId) {
         console.log(`Filtre commune à appliquer côté client: ${state.selectedCommuneId}`);
       }
 
       // 2. Effectuer l'appel API pour les planifications
       console.log('Début de l\'appel API pour les planifications...');
-      
-      const plansRes = await fetch(planificationsUrl.toString(), { 
-        headers, 
-        credentials: 'include' 
+
+      const plansRes = await fetch(planificationsUrl.toString(), {
+        headers,
+        credentials: 'include'
       }).catch(err => {
         console.error('Erreur lors de la récupération des planifications:', err);
         return { ok: false, status: 500, json: async () => ({ items: [] }) };
       });
-      
+
       // Utiliser les agents déjà chargés dans state.agents et state.supervisors
       let usersData = [];
-      
+
       // Vérifier si state.agents est défini et contient des données
       if (state.agents && Array.isArray(state.agents) && state.agents.length > 0) {
         usersData = [...state.agents];
@@ -1788,13 +2751,13 @@
           console.log(`${usersData.length} agents chargés après rechargement`);
         }
       }
-      
+
       // Ajouter les superviseurs et admins s'ils existent
       if (state.allSupervisors && Array.isArray(state.allSupervisors) && state.allSupervisors.length > 0) {
         usersData = [...usersData, ...state.allSupervisors];
         console.log(`${state.allSupervisors.length} superviseurs/admins ajoutés`);
       }
-      
+
       console.log(`${usersData.length} utilisateurs chargés (${state.agents?.length || 0} agents, ${state.supervisors?.length || 0} superviseurs, ${state.admins?.length || 0} admins)`);
 
       // 3. Vérifier la réponse
@@ -1808,23 +2771,23 @@
       const plansData = await plansRes.json();
       let plans = Array.isArray(plansData.items) ? plansData.items : [];
       console.log(`${plans.length} planifications chargées avant filtrage côté client`);
-      
+
       // Debug: afficher les premières planifications pour voir la structure
       if (plans.length > 0) {
         console.log('Première planification:', plans[0]);
       }
-      
+
       // Appliquer les filtres côté client
       plans = applyClientSideFilters(plans);
       console.log(`${plans.length} planifications après filtrage côté client`);
-      
+
       // Vérifier que nous avons bien des données d'utilisateurs
       if (usersData.length === 0) {
         console.warn('Aucun utilisateur trouvé dans le state, tentative de rechargement...');
         await loadUsers(); // Recharger les utilisateurs si nécessaire
         usersData = [...(state.agents || []), ...(state.allSupervisors || [])];
         console.log(`${usersData.length} utilisateurs après rechargement`);
-        
+
         // Si toujours aucun utilisateur, essayer de charger directement depuis l'API
         if (usersData.length === 0) {
           console.warn('Tentative de chargement direct depuis l\'API...');
@@ -1844,34 +2807,34 @@
 
       // Créer une map des utilisateurs pour un accès rapide
       const usersMap = new Map();
-      
+
       // Remplir la map avec les utilisateurs
       usersData.forEach(user => {
         if (user && user.id !== undefined) {
           // S'assurer que l'ID est une chaîne pour éviter les problèmes de comparaison
           const userId = String(user.id);
-          
+
           // S'assurer que l'utilisateur a un nom valide
           if (!user.name) {
             const firstName = user.first_name || '';
             const lastName = user.last_name || '';
             user.name = `${firstName} ${lastName}`.trim() || user.email || `Agent ${user.id}`;
           }
-          
+
           usersMap.set(userId, user);
-          
+
           // Ajouter également l'ID numérique si c'est différent
           if (user.id !== userId) {
             usersMap.set(user.id, user);
           }
         }
       });
-      
+
       console.log(`Map des utilisateurs créée avec ${usersMap.size} entrées`);
-      
+
       // Assigner la map à state pour qu'elle soit accessible dans les filtres
       state.usersMap = usersMap;
-      
+
       // Debug: afficher les utilisateurs chargés
       console.log('Utilisateurs chargés:', Array.from(usersMap.values()).map(u => ({
         id: u.id,
@@ -1885,7 +2848,7 @@
       plans.forEach(plan => {
         try {
           if (!plan || !plan.date) return;
-          
+
           const planDate = new Date(plan.date);
           if (isNaN(planDate.getTime())) {
             console.warn('Date de planification invalide:', plan.date);
@@ -1895,7 +2858,7 @@
           // Ignorer les week-ends
           const dayOfWeek = planDate.getDay();
           if (dayOfWeek === 0 || dayOfWeek === 6) return;
-          
+
           const weekStart = startOfWeek(planDate);
           const weekKey = `${toISODate(weekStart)}_${plan.user_id || plan.agent_id}_${plan.project_name || 'general'}`;
 
@@ -1905,7 +2868,7 @@
             let userName = `Agent ${plan.user_id || plan.agent_id}`;
             let userEmail = '';
             let projectName = 'Projet Général';
-            
+
             // Utiliser les données utilisateur enrichies si disponibles
             if (plan.user && plan.user.name) {
               userName = plan.user.name;
@@ -1924,7 +2887,7 @@
                 userEmail = user.email || '';
               }
             }
-            
+
             // Utiliser le nom du projet depuis l'utilisateur (table users, colonne project_name)
             if (plan.user && plan.user.project_name && plan.user.project_name.trim() !== '') {
               projectName = plan.user.project_name;
@@ -1935,11 +2898,11 @@
                 projectName = user.project_name;
               }
             }
-            
+
             console.log(`Nom d'agent récupéré: ${userName} pour l'ID ${plan.user_id || plan.agent_id}`);
             console.log(`Projet récupéré: ${projectName}`);
             console.log(`Données utilisateur enrichies:`, plan.user);
-            
+
             summaryMap.set(weekKey, {
               week_start_date: toISODate(weekStart),
               user_id: plan.user_id || plan.agent_id,
@@ -1954,19 +2917,19 @@
 
           // Mettre à jour le résumé de la semaine
           const summary = summaryMap.get(weekKey);
-          
+
           // Calculer la durée planifiée
           if (plan.planned_start_time && plan.planned_end_time) {
             const startMinutes = hoursToMinutes(plan.planned_start_time);
             const endMinutes = hoursToMinutes(plan.planned_end_time);
-            
+
             if (startMinutes >= 0 && endMinutes > startMinutes) {
               const durationHours = (endMinutes - startMinutes) / 60;
               summary.total_planned_hours += durationHours;
               summary.planned_days.add(toISODate(planDate));
             }
           }
-          
+
           // Ajouter l'activité si elle n'existe pas déjà
           if (plan.description_activite && !summary.activities.includes(plan.description_activite)) {
             summary.activities.push(plan.description_activite);
@@ -1985,26 +2948,26 @@
           // Formater les heures avec une décimale
           total_planned_hours: Math.round(s.total_planned_hours * 10) / 10
         }))
-        .sort((a, b) => 
-          b.week_start_date.localeCompare(a.week_start_date) || 
+        .sort((a, b) =>
+          b.week_start_date.localeCompare(a.week_start_date) ||
           a.user_name.localeCompare(b.user_name)
         );
 
       console.log(`${weeklySummaries.length} semaines à afficher`);
-      
+
       // 7. Afficher les résultats
       displayWeeklySummary(weeklySummaries);
 
     } catch (error) {
       console.error('Erreur lors du chargement du récapitulatif hebdomadaire:', error);
-      
+
       let errorMessage = 'Erreur lors du chargement du récapitulatif';
       if (error.message.includes('401') || error.message.includes('403')) {
         errorMessage = 'Session expirée. Veuillez vous reconnecter.';
       } else if (error.message.includes('NetworkError')) {
         errorMessage = 'Erreur de connexion au serveur. Vérifiez votre connexion Internet.';
       }
-      
+
       if (summaryContainer) {
         summaryContainer.innerHTML = `
           <div class="alert alert-danger">
@@ -2035,24 +2998,24 @@
       container.innerHTML = `<div class="alert alert-info">Aucune activité planifiée trouvée pour les filtres sélectionnés.</div>`;
       return;
     }
-    
+
     // Regrouper par semaine
     const weeksMap = new Map();
     summaries.forEach(summary => {
-        const weekKey = summary.week_start_date;
-        if (!weeksMap.has(weekKey)) {
-            weeksMap.set(weekKey, []);
-        }
-        weeksMap.get(weekKey).push(summary);
+      const weekKey = summary.week_start_date;
+      if (!weeksMap.has(weekKey)) {
+        weeksMap.set(weekKey, []);
+      }
+      weeksMap.get(weekKey).push(summary);
     });
 
     const sortedWeeks = Array.from(weeksMap.keys()).sort((a, b) => b.localeCompare(a));
-    
+
     let html = '';
     sortedWeeks.forEach(weekKey => {
-        const weekSummaries = weeksMap.get(weekKey);
-        const weekStartDate = new Date(weekKey + 'T12:00:00Z');
-        html += `
+      const weekSummaries = weeksMap.get(weekKey);
+      const weekStartDate = new Date(weekKey + 'T12:00:00Z');
+      html += `
             <div class="card mb-4">
                 <div class="card-header">
                     Semaine du ${formatDate(weekStartDate, 'dd/MM/yyyy')}
@@ -2118,43 +3081,43 @@
       toast.role = 'alert';
       toast.style.marginBottom = '10px';
       toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-      
+
       // Icône selon le type
       let icon = 'info-circle';
       if (type === 'success') icon = 'check-circle';
       else if (type === 'error') icon = 'exclamation-triangle';
       else if (type === 'warning') icon = 'exclamation-circle';
-      
+
       toast.innerHTML = `
         <i class="bi bi-${icon} me-2"></i>
         ${message}
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       `;
-      
+
       toastContainer.appendChild(toast);
-      
+
       // Animation d'entrée
       setTimeout(() => {
         toast.style.opacity = '1';
         toast.style.transform = 'translateX(0)';
       }, 10);
-      
+
       // Supprimer automatiquement après 5 secondes
       const removeToast = () => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateX(100%)';
         setTimeout(() => toast.remove(), 300);
       };
-      
+
       const timeoutId = setTimeout(removeToast, 5000);
-      
+
       // Annuler la suppression automatique si l'utilisateur survole le toast
       toast.addEventListener('mouseenter', () => clearTimeout(timeoutId));
       toast.addEventListener('mouseleave', () => {
         const newTimeoutId = setTimeout(removeToast, 2000);
         toast.dataset.timeoutId = newTimeoutId;
       });
-      
+
       // Gérer la fermeture manuelle
       const closeBtn = toast.querySelector('.btn-close');
       if (closeBtn) {
@@ -2183,7 +3146,7 @@
       const end = hoursToMinutes(endTime);
       if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
         const duration = (end - start);
-        const hours = Math.floor(duration/60);
+        const hours = Math.floor(duration / 60);
         const minutes = Math.round(duration % 60);
         return `${hours}h${minutes.toString().padStart(2, '0')}`;
       }
@@ -2236,22 +3199,22 @@
       communeId: $('commune-filter-select')?.value || '',
       status: $('status-filter-select')?.value || ''
     };
-    
+
     console.log('Application des filtres:', filters);
-    
+
     // Mettre à jour l'état global
     state.selectedAgentId = filters.agentId;
     state.selectedSupervisorId = filters.supervisorId;
     state.selectedProjectFilter = filters.project;
     state.selectedDepartmentId = filters.departmentId;
     state.selectedCommuneId = filters.communeId;
-    
+
     // Mettre à jour l'URL avec les filtres
     updateUrlWithFilters(filters);
-    
+
     // Recharger les données avec les nouveaux filtres
     console.log('Rechargement des vues avec les filtres appliqués...');
-    
+
     // Recharger la vue hebdomadaire avec les filtres
     const weekStartInput = $('week-start');
     if (weekStartInput && weekStartInput.value) {
@@ -2259,10 +3222,10 @@
     } else {
       loadWeek();
     }
-    
+
     // Recharger le récapitulatif hebdomadaire avec les filtres
     loadWeeklySummary();
-    
+
     // Recharger la vue mensuelle avec les filtres
     const monthInput = $('month');
     if (monthInput && monthInput.value) {
@@ -2270,41 +3233,41 @@
     } else {
       loadMonth();
     }
-    
+
     console.log('Filtres appliqués avec succès');
   };
-  
+
   /**
    * Met à jour l'URL avec les filtres actuels
    */
   const updateUrlWithFilters = (filters) => {
     const params = new URLSearchParams();
-    
+
     if (filters.agentId) params.set('agent', filters.agentId);
     if (filters.supervisorId) params.set('supervisor', filters.supervisorId);
     if (filters.project) params.set('project', filters.project);
     if (filters.departmentId) params.set('department', filters.departmentId);
     if (filters.communeId) params.set('commune', filters.communeId);
     if (filters.status) params.set('status', filters.status);
-    
+
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.pushState({}, '', newUrl);
   };
-  
+
   /**
    * Charge les filtres depuis l'URL
    */
   const loadFiltersFromUrl = () => {
     const params = new URLSearchParams(window.location.search);
-    
+
     if (params.has('agent') && $('agent-select')) $('agent-select').value = params.get('agent');
     if (params.has('supervisor') && $('supervisor-filter-select')) $('supervisor-filter-select').value = params.get('supervisor');
     if (params.has('project') && $('project-filter-select')) $('project-filter-select').value = params.get('project');
-    
+
     if (params.has('department') && $('department-filter-select')) {
       const deptId = params.get('department');
       $('department-filter-select').value = deptId;
-      
+
       // Si une commune est spécifiée, charger les communes du département
       if (params.has('commune') && deptId) {
         loadCommunes(deptId).then(() => {
@@ -2314,12 +3277,12 @@
         });
       }
     }
-    
+
     if (params.has('status') && $('status-filter-select')) {
       $('status-filter-select').value = params.get('status');
     }
   };
-  
+
   /**
    * Affiche un message d'erreur à l'utilisateur
    */
@@ -2331,7 +3294,7 @@
       ${message}
       <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     `;
-    
+
     const container = document.querySelector('.container');
     if (container) {
       container.insertBefore(alertDiv, container.firstChild);
@@ -2357,7 +3320,7 @@
     if ($('department-filter-select')) $('department-filter-select').value = '';
     if ($('commune-filter-select')) $('commune-filter-select').value = '';
     if ($('status-filter-select')) $('status-filter-select').value = '';
-    
+
     // Réinitialiser l'état global
     state.selectedAgentId = '';
     state.selectedSupervisorId = '';
@@ -2370,53 +3333,53 @@
    * Gère la soumission du formulaire de planification
    */
   const handlePlanningSubmit = async (event) => {
-  event.preventDefault();
-  
-  const form = event.target;
-  const formData = new FormData(form);
-  const payload = Object.fromEntries(formData.entries());
-  
-  // Validation des champs requis
-  if (!payload.agent_id || !payload.start_date || !payload.start_time || !payload.end_time) {
-    showError('Veuillez remplir tous les champs obligatoires');
-    return;
-  }
-  
-  const submitBtn = form.querySelector('button[type="submit"]');
-  
-  try {
-    // Préparer les données pour l'API
-    const planningData = {
-      user_id: payload.agent_id,  // Ne pas parser en nombre si l'API attend une chaîne
-      date: payload.start_date,
-      planned_start_time: payload.start_time,
-      planned_end_time: payload.end_time,
-      description_activite: payload.notes || '',
-      resultat_journee: 'en_cours',
-      project_name: payload.project_id || 'PARSAD'  // Valeur par défaut si non spécifiée
-    };
-    
-    console.log('Données à envoyer:', planningData);
-    
-    // Utiliser la fonction savePlanning centralisée
-    const result = await savePlanning(planningData, submitBtn);
-    console.log('Réponse du serveur:', result);
-    
-    // Afficher un message de succès
-    showToast('Planification enregistrée avec succès', 'success');
-    
-    // Recharger les données
-    const currentDate = payload.start_date || toISODate(new Date());
-    await loadWeek(currentDate);
-    await loadWeeklySummary();
-    
-    // Réinitialiser le formulaire
-    form.reset();
-    
-  } catch (error) {
-    console.error('Erreur lors de l\'enregistrement de la planification:', error);
-    showError(error.message || 'Une erreur est survenue lors de l\'enregistrement');
-  }
+    event.preventDefault();
+
+    const form = event.target;
+    const formData = new FormData(form);
+    const payload = Object.fromEntries(formData.entries());
+
+    // Validation des champs requis
+    if (!payload.agent_id || !payload.start_date || !payload.start_time || !payload.end_time) {
+      showError('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+
+    try {
+      // Préparer les données pour l'API
+      const planningData = {
+        user_id: payload.agent_id,  // Ne pas parser en nombre si l'API attend une chaîne
+        date: payload.start_date,
+        planned_start_time: payload.start_time,
+        planned_end_time: payload.end_time,
+        description_activite: payload.notes || '',
+        resultat_journee: 'en_cours',
+        project_name: payload.project_id || 'PARSAD'  // Valeur par défaut si non spécifiée
+      };
+
+      console.log('Données à envoyer:', planningData);
+
+      // Utiliser la fonction savePlanning centralisée
+      const result = await savePlanning(planningData, submitBtn);
+      console.log('Réponse du serveur:', result);
+
+      // Afficher un message de succès
+      showToast('Planification enregistrée avec succès', 'success');
+
+      // Recharger les données
+      const currentDate = payload.start_date || toISODate(new Date());
+      await loadWeek(currentDate);
+      await loadWeeklySummary();
+
+      // Réinitialiser le formulaire
+      form.reset();
+
+    } catch (error) {
+      console.error('Erreur lors de l\'enregistrement de la planification:', error);
+      showError(error.message || 'Une erreur est survenue lors de l\'enregistrement');
+    }
   };
 
   /**
@@ -2435,7 +3398,7 @@
     const departmentSelect = $('department-filter-select');
     const communeSelect = $('commune-filter-select');
     const statusSelect = $('status-filter-select');
-    
+
     if (agentSelect) agentSelect.addEventListener('change', applyFilters);
     if (supervisorSelect) supervisorSelect.addEventListener('change', applyFilters);
     if (projectSelect) projectSelect.addEventListener('change', applyFilters);
@@ -2453,11 +3416,11 @@
     }
     if (communeSelect) communeSelect.addEventListener('change', applyFilters);
     if (statusSelect) statusSelect.addEventListener('change', applyFilters);
-    
+
     // Écouteur pour le bouton d'application des filtres
     const applyBtn = $('apply-filters-btn');
     if (applyBtn) applyBtn.addEventListener('click', applyFilters);
-    
+
     // Écouteur pour le chargement de la semaine
     const weekStartInput = $('week-start');
     if (weekStartInput) {
@@ -2467,13 +3430,13 @@
         }
       });
     }
-    
+
     // Écouteurs pour les boutons de navigation
     const prevWeekBtn = $('prev-week');
     const nextWeekBtn = $('next-week');
     const prevMonthBtn = $('prev-month');
     const nextMonthBtn = $('next-month');
-    
+
     if (prevWeekBtn) {
       prevWeekBtn.addEventListener('click', () => {
         const currentDate = $('week-start')?.value ? new Date($('week-start').value) : new Date();
@@ -2481,7 +3444,7 @@
         loadWeek(toISODate(newDate));
       });
     }
-    
+
     if (nextWeekBtn) {
       nextWeekBtn.addEventListener('click', () => {
         const currentDate = $('week-start')?.value ? new Date($('week-start').value) : new Date();
@@ -2489,7 +3452,7 @@
         loadWeek(toISODate(newDate));
       });
     }
-    
+
     if (prevMonthBtn) {
       prevMonthBtn.addEventListener('click', () => {
         const currentDate = $('month')?.value ? new Date($('month').value + '-01') : new Date();
@@ -2497,7 +3460,7 @@
         loadMonth(toISODate(newDate).slice(0, 7));
       });
     }
-    
+
     if (nextMonthBtn) {
       nextMonthBtn.addEventListener('click', () => {
         const currentDate = $('month')?.value ? new Date($('month').value + '-01') : new Date();
@@ -2512,13 +3475,13 @@
    */
   const init = async () => {
     console.log('🚀 Initialisation de l\'application Planning...');
-    
+
     // Vérifier l'authentification
     const token = findToken();
     if (!token) {
       console.log('❌ Aucun token trouvé, affichage de la bannière d\'authentification');
       showAuthBanner();
-      
+
       // Essayer de démarrer si le token apparaît plus tard (ex: connexion dans un autre onglet)
       window.addEventListener('storage', (e) => {
         if (e.key && DEFAULT_TOKEN_CANDIDATES.includes(e.key) && e.newValue) {
@@ -2529,15 +3492,15 @@
       });
       return;
     }
-    
+
     console.log('✅ Token trouvé, démarrage de l\'initialisation');
     // Cacher la bannière d'authentification si l'utilisateur est connecté
     hideAuthBanner();
-    
+
     try {
       console.log('📋 Étape 1: Chargement des informations utilisateur...');
       await loadUserInfo();
-      
+
       console.log('📋 Étape 2: Chargement des données en parallèle...');
       // Charger les données initiales en parallèle pour améliorer les performances
       const [usersResult, projectsResult, departmentsResult] = await Promise.allSettled([
@@ -2545,47 +3508,53 @@
         loadProjects(),
         loadDepartments()
       ]);
-      
+
       // Vérifier les résultats
       if (usersResult.status === 'rejected') {
         console.error('❌ Erreur lors du chargement des utilisateurs:', usersResult.reason);
       } else {
         console.log('✅ Utilisateurs chargés avec succès');
+
+        // Initialiser la section des permissions si elle existe
+        if (document.getElementById('permission-days-section')) {
+          console.log('🔧 Initialisation de la section des permissions...');
+          initializePermissionDaysSection();
+        }
       }
-      
+
       if (projectsResult.status === 'rejected') {
         console.error('❌ Erreur lors du chargement des projets:', projectsResult.reason);
       } else {
         console.log('✅ Projets chargés avec succès');
       }
-      
+
       if (departmentsResult.status === 'rejected') {
         console.error('❌ Erreur lors du chargement des départements:', departmentsResult.reason);
       } else {
         console.log('✅ Départements chargés avec succès');
       }
-      
+
       console.log('📋 Étape 3: Initialisation du Gantt...');
       // Initialiser le Gantt
       setupGantt();
-      
+
       console.log('📋 Étape 4: Configuration des écouteurs d\'événements...');
       // Configurer les écouteurs d'événements
       setupEventListeners();
-      
+
       console.log('📋 Étape 5: Chargement des filtres depuis l\'URL...');
       // Charger les filtres depuis l'URL
       loadFiltersFromUrl();
-      
+
       console.log('📋 Étape 6: Chargement des données du planning...');
       // Charger les données initiales du planning
       loadWeek();
       loadWeeklySummary();
-      
+
       console.log('📋 Étape 7: Réinitialisation du formulaire...');
       // Réinitialiser le formulaire
       resetPlanningForm();
-      
+
       console.log('🎉 Initialisation terminée avec succès!');
     } catch (error) {
       console.error('❌ Erreur lors de l\'initialisation:', error);
@@ -2597,35 +3566,35 @@
   // ----------------------------
   // 8. FONCTIONS D'AMÉLIORATION DU GANTT
   // ----------------------------
-  
+
   // Fonction pour améliorer l'affichage du Gantt avec les données de planification
   const enhanceGanttDisplay = () => {
     console.log('🎨 Amélioration de l\'affichage du Gantt...');
-    
+
     // Vérifier si le Gantt est initialisé
     if (typeof window.gantt !== 'undefined' && window.gantt) {
       // Configurer le Gantt pour une meilleure visibilité
       window.gantt.config.show_links = true;
       window.gantt.config.show_critical_path = true;
       window.gantt.config.highlight_critical_path = true;
-      
+
       // Améliorer les couleurs selon le statut
-      window.gantt.templates.task_class = function(start, end, task) {
+      window.gantt.templates.task_class = function (start, end, task) {
         if (task.status === 'validated') return 'gantt-task-validated';
         if (task.status === 'pending') return 'gantt-task-pending';
         if (task.status === 'completed') return 'gantt-task-completed';
         return 'gantt-task-default';
       };
-      
+
       // Ajouter des tooltips informatifs
-      window.gantt.templates.tooltip_text = function(start, end, task) {
+      window.gantt.templates.tooltip_text = function (start, end, task) {
         return `<b>${task.text}</b><br/>
                 Agent: ${task.agent_name || 'N/A'}<br/>
                 Statut: ${task.status || 'En attente'}<br/>
                 Début: ${window.gantt.templates.date_format(start)}<br/>
                 Fin: ${window.gantt.templates.date_format(end)}`;
       };
-      
+
       console.log('✅ Affichage du Gantt amélioré');
     } else {
       console.log('⚠️ Gantt non initialisé, tentative d\'initialisation...');
@@ -2636,26 +3605,26 @@
   // Fonction pour créer une vue complète du Gantt pour les agents
   const createCompleteGanttView = () => {
     console.log('📊 Création de la vue complète du Gantt...');
-    
+
     // Vérifier le rôle de l'utilisateur
     const userRole = localStorage.getItem('userRole') || '';
     const isAgent = userRole === 'agent';
-    
+
     if (isAgent) {
       // Pour les agents, afficher toutes les planifications de leur superviseur
       const userId = localStorage.getItem('userId');
       const user = state.usersMap?.get(userId);
-      
+
       if (user && user.supervisor_id) {
         console.log(`👤 Agent ${user.name} sous supervision de ${user.supervisor_id}`);
-        
+
         // Filtrer les planifications par superviseur
-        const supervisorPlannings = state.planifications?.filter(p => 
+        const supervisorPlannings = state.planifications?.filter(p =>
           p.user_id && state.usersMap?.get(p.user_id)?.supervisor_id === user.supervisor_id
         ) || [];
-        
+
         console.log(`📋 ${supervisorPlannings.length} planifications trouvées pour le superviseur`);
-        
+
         // Mettre à jour le Gantt avec ces données
         if (window.gantt && supervisorPlannings.length > 0) {
           const ganttData = supervisorPlannings.map(p => ({
@@ -2665,14 +3634,14 @@
             end_date: p.planned_date,
             agent_name: state.usersMap?.get(p.user_id)?.name || 'Agent',
             status: p.resultat_journee || 'pending',
-            color: p.resultat_journee === 'validated' ? '#28a745' : 
-                   p.resultat_journee === 'rejected' ? '#dc3545' : '#ffc107'
+            color: p.resultat_journee === 'validated' ? '#28a745' :
+              p.resultat_journee === 'rejected' ? '#dc3545' : '#ffc107'
           }));
-          
+
           window.gantt.clearAll();
-          window.gantt.parse({data: ganttData});
+          window.gantt.parse({ data: ganttData });
           window.gantt.render();
-          
+
           console.log('✅ Vue complète du Gantt créée pour l\'agent');
         }
       }
@@ -2682,39 +3651,39 @@
   // Fonction pour permettre l'édition des planifications validées
   const enablePlanningEdit = () => {
     console.log('✏️ Activation du mode édition des planifications...');
-    
+
     // Vérifier les permissions
     const userRole = localStorage.getItem('userRole') || '';
     if (userRole !== 'admin' && userRole !== 'superviseur') {
       console.log('❌ Permissions insuffisantes pour l\'édition');
       return false;
     }
-    
+
     // Activer les interactions avec le Gantt
     if (window.gantt) {
       window.gantt.config.readonly = false;
       window.gantt.config.drag_links = true;
       window.gantt.config.drag_progress = true;
       window.gantt.config.drag_resize = true;
-      
+
       // Ajouter des gestionnaires d'événements pour l'édition
-      window.gantt.attachEvent("onTaskClick", function(id, e) {
+      window.gantt.attachEvent("onTaskClick", function (id, e) {
         console.log('🖱️ Clic sur la tâche:', id);
         // Ici vous pouvez ajouter la logique pour ouvrir un modal d'édition
         return true;
       });
-      
-      window.gantt.attachEvent("onAfterTaskUpdate", function(id, task) {
+
+      window.gantt.attachEvent("onAfterTaskUpdate", function (id, task) {
         console.log('💾 Mise à jour de la tâche:', id, task);
         // Ici vous pouvez ajouter la logique pour sauvegarder les modifications
         return true;
       });
-      
+
       window.gantt.render();
       console.log('✅ Mode édition activé');
       return true;
     }
-    
+
     return false;
   };
 

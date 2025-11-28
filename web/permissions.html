@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <title>Demandes de Permission - Presence CCRB</title>
+    <script src="/auth.js?v=2" defer></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/styles.css?v=2" />
+    <link rel="stylesheet" href="/contrast-fixes.css" />
+    <style>
+      .permission-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        background: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: box-shadow 0.3s ease;
+      }
+      
+      .permission-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+      }
+      
+      .permission-card.pending {
+        border-left: 4px solid #ffc107;
+      }
+      
+      .permission-card.approved {
+        border-left: 4px solid #28a745;
+      }
+      
+      .permission-card.rejected {
+        border-left: 4px solid #dc3545;
+      }
+      
+      .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 0.875rem;
+        font-weight: 600;
+      }
+      
+      .status-badge.pending {
+        background-color: #fff3cd;
+        color: #856404;
+      }
+      
+      .status-badge.approved {
+        background-color: #d4edda;
+        color: #155724;
+      }
+      
+      .status-badge.rejected {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+      
+      .status-badge.draft {
+        background-color: #e9ecef;
+        color: #495057;
+      }
+      
+      .permission-card.draft {
+        border-left: 4px solid #6c757d;
+      }
+      
+      .rejection-reason-input {
+        font-size: 0.875rem;
+      }
+      
+      .btn-sm {
+        white-space: nowrap;
+        font-size: 0.875rem;
+        padding: 0.375rem 0.75rem;
+      }
+      
+      .action-buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 15px;
+      }
+      
+      .table-actions {
+        white-space: nowrap;
+        min-width: 250px;
+      }
+      
+      .table-actions .btn {
+        margin: 2px;
+        font-weight: 500;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        transition: all 0.2s ease;
+      }
+      
+      .table-actions .btn:hover {
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        transform: translateY(-1px);
+      }
+      
+      .table-actions .btn-success {
+        background-color: #28a745;
+        border-color: #28a745;
+      }
+      
+      .table-actions .btn-warning {
+        background-color: #ffc107;
+        border-color: #ffc107;
+        color: #000;
+      }
+      
+      .table-actions .btn-danger {
+        background-color: #dc3545;
+        border-color: #dc3545;
+      }
+      
+      .table-actions .btn-primary {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+      }
+      
+      #new-permission-btn {
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
+      }
+      
+      #new-permission-btn:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        transform: translateY(-1px);
+      }
+      
+      .form-section .btn {
+        min-width: 150px;
+        font-weight: 500;
+      }
+      
+      #create-permission-section .card {
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      
+      #create-permission-section .card-header {
+        border-radius: 0;
+        padding: 1.25rem 1.5rem;
+      }
+      
+      #create-permission-section .card-body {
+        background: #ffffff;
+      }
+      
+      #create-permission-section .btn-lg {
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+      }
+      
+      #create-permission-section .btn-lg:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      }
+      
+      #create-permission-section .form-control-lg {
+        border-radius: 8px;
+        border: 2px solid #dee2e6;
+        transition: all 0.3s ease;
+      }
+      
+      #create-permission-section .form-control-lg:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+      }
+      
+      #create-permission-section .alert-info {
+        border-radius: 8px;
+        border-left: 4px solid #0d6efd;
+      }
+      
+      #my-permissions-section .card {
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      
+      #my-permissions-section .table-actions .btn {
+        min-width: 100px;
+        font-weight: 500;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
+      }
+      
+      #my-permissions-section .table-actions .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+      }
+      
+      #my-permissions-section .table-actions .btn-primary {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+      }
+      
+      #my-permissions-section .table-actions .btn-danger {
+        background-color: #dc3545;
+        border-color: #dc3545;
+      }
+      
+      /* Styles pour la section superviseur */
+      #supervisor-section .card {
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      
+      #supervisor-section .card-header {
+        padding: 1.25rem 1.5rem;
+      }
+      
+      #supervisor-section .stats-cards .card {
+        transition: transform 0.2s ease;
+      }
+      
+      #supervisor-section .stats-cards .card:hover {
+        transform: translateY(-5px);
+      }
+      
+      #supervisor-section .form-select,
+      #supervisor-section .form-control {
+        border-radius: 8px;
+        border: 2px solid #dee2e6;
+        transition: all 0.3s ease;
+      }
+      
+      #supervisor-section .form-select:focus,
+      #supervisor-section .form-control:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+      }
+      
+      #supervisor-section .table {
+        font-size: 0.95rem;
+      }
+      
+      #supervisor-section .table thead th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
+        padding: 1rem 0.75rem;
+        border-bottom: 2px solid #dee2e6;
+      }
+      
+      #supervisor-section .table tbody tr {
+        transition: background-color 0.2s ease;
+      }
+      
+      #supervisor-section .table tbody tr:hover {
+        background-color: #f8f9fa;
+      }
+      
+      #supervisor-section .table-actions .btn {
+        min-width: 120px;
+        font-weight: 500;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
+        margin: 2px;
+      }
+      
+      #supervisor-section .table-actions .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+      }
+      
+      #supervisor-section .rejection-reason-input {
+        border-radius: 6px;
+        border: 2px solid #dee2e6;
+        transition: all 0.3s ease;
+      }
+      
+      #supervisor-section .rejection-reason-input:focus {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+      }
+      
+      #supervisor-section .badge {
+        font-size: 1rem;
+        padding: 0.5rem 0.75rem;
+      }
+      
+      @media (max-width: 768px) {
+        .table-actions {
+          min-width: auto;
+        }
+        
+        .table-actions .btn {
+          font-size: 0.75rem;
+          padding: 0.25rem 0.5rem;
+        }
+        
+        .form-section .btn {
+          min-width: auto;
+          width: 100%;
+          margin-bottom: 0.5rem;
+        }
+      }
+      
+      .rejection-reason {
+        margin-top: 10px;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        border-left: 3px solid #dc3545;
+      }
+      
+      .form-section {
+        background: white;
+        border-radius: 8px;
+        padding: 25px;
+        margin-bottom: 30px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      
+      .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6c757d;
+      }
+      
+      .empty-state-icon {
+        font-size: 64px;
+        margin-bottom: 20px;
+        opacity: 0.5;
+      }
+      
+      .form-control-lg {
+        font-size: 1rem;
+        padding: 0.75rem 1rem;
+      }
+      
+      .filters-section {
+        border: 1px solid #dee2e6;
+      }
+      
+      .filters-section h5 {
+        color: #495057;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+      
+      .table thead th {
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.875rem;
+        letter-spacing: 0.5px;
+      }
+      
+      .rejection-reason-input:focus {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+      }
+      
+      #duration-info {
+        border-left: 4px solid #0d6efd;
+      }
+      
+      #create-permission-section .btn-lg {
+        min-width: 180px;
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+        font-weight: 500;
+      }
+      
+      #permission-form button[type="submit"],
+      #permission-form button[type="button"],
+      #create-permission-section button {
+        visibility: visible !important;
+        opacity: 1 !important;
+        display: inline-flex !important;
+      }
+      
+      #create-permission-section {
+        visibility: visible !important;
+      }
+      
+      #create-permission-section[style*="block"] {
+        display: block !important;
+      }
+      
+    </style>
+    <link rel="stylesheet" href="/modern-ui.css?v=1" />
+  </head>
+  <body>
+    <!-- Barre de navigation circulaire -->
+    <script src="/js/circular-nav-component.js"></script>
+    <circular-nav></circular-nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <h2>Demandes de Permission</h2>
+        <p>Gérez vos demandes de permission et validez celles de vos agents</p>
+      </div>
+
+      <!-- Section pour créer/modifier une demande (Agents uniquement - EN PREMIER pour agents) -->
+      <div id="create-permission-section" class="form-section" style="display: none;">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-primary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+              <h4 class="mb-0" id="form-title">
+                <i class="bi bi-calendar-plus me-2"></i>Nouvelle demande de permission
+              </h4>
+              <button type="button" class="btn btn-light btn-sm" onclick="cancelEdit()" id="close-form-btn" title="Fermer le formulaire">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+          </div>
+          <div class="card-body p-4">
+            <form id="permission-form" class="needs-validation" novalidate>
+              <input type="hidden" id="permission-id" value="">
+              
+              <div class="row mb-4">
+                <div class="col-md-6 mb-3">
+                  <label for="start-date" class="form-label fw-bold">
+                    <i class="bi bi-calendar-event me-2 text-primary"></i>Date de début <span class="text-danger">*</span>
+                  </label>
+                  <input type="date" class="form-control form-control-lg" id="start-date" required>
+                  <div class="invalid-feedback">Veuillez sélectionner une date de début.</div>
+                  <small class="form-text text-muted">Sélectionnez le premier jour de votre permission</small>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label for="end-date" class="form-label fw-bold">
+                    <i class="bi bi-calendar-check me-2 text-primary"></i>Date de fin <span class="text-danger">*</span>
+                  </label>
+                  <input type="date" class="form-control form-control-lg" id="end-date" required>
+                  <div class="invalid-feedback">Veuillez sélectionner une date de fin.</div>
+                  <small class="form-text text-muted">Sélectionnez le dernier jour de votre permission</small>
+                </div>
+              </div>
+              
+              <div id="duration-info" class="alert alert-info mb-4" style="display: none;">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-info-circle me-2 fs-4"></i>
+                  <div>
+                    <strong>Durée de la permission :</strong> <span id="duration-days" class="fw-bold fs-5">0</span> jour(s)
+                  </div>
+                </div>
+              </div>
+              
+              <div class="card bg-light border-0 mt-4 mb-3">
+                <div class="card-body">
+                  <h6 class="card-title mb-3">
+                    <i class="bi bi-lightbulb me-2 text-warning"></i>Actions disponibles
+                  </h6>
+                  <div class="d-flex gap-3 flex-wrap">
+                    <button type="button" class="btn btn-outline-primary btn-lg flex-fill" onclick="savePermissionAsDraft()" style="min-width: 200px;">
+                      <i class="bi bi-save me-2"></i>Sauvegarder en brouillon
+                    </button>
+                    <button type="submit" class="btn btn-primary btn-lg flex-fill" style="min-width: 200px;">
+                      <i class="bi bi-send me-2"></i>Soumettre la demande
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-lg flex-fill" onclick="cancelEdit()" style="min-width: 200px;">
+                      <i class="bi bi-x-circle me-2"></i>Annuler
+                    </button>
+                  </div>
+                  <div class="mt-3">
+                    <small class="text-muted">
+                      <i class="bi bi-info-circle me-1"></i>
+                      <strong>Brouillon :</strong> Sauvegarde sans soumettre | 
+                      <strong>Soumettre :</strong> Envoie la demande à votre superviseur pour validation
+                    </small>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section pour les superviseurs : demandes à valider (EN PREMIER pour superviseurs/admins) -->
+      <div id="supervisor-section" class="form-section" style="display: none;">
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-header bg-success text-white">
+            <div class="d-flex justify-content-between align-items-center">
+              <h4 class="mb-0">
+                <i class="bi bi-clipboard-check me-2"></i>Demandes en attente de validation
+              </h4>
+              <span class="badge bg-light text-dark" id="pending-count">0</span>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="p-4 bg-light border-bottom">
+              <div class="alert alert-info mb-0">
+                <i class="bi bi-info-circle me-2"></i>
+                <strong>Rôle superviseur :</strong> Vous pouvez valider ou rejeter les demandes de permission de vos agents. 
+                Pour rejeter une demande, vous devez obligatoirement indiquer un motif.
+              </div>
+            </div>
+
+            <!-- Statistiques rapides -->
+            <div class="p-4 border-bottom bg-white">
+              <div class="row g-3" id="stats-cards">
+                <div class="col-md-3">
+                  <div class="card border-0 bg-warning bg-opacity-10">
+                    <div class="card-body text-center">
+                      <i class="bi bi-clock-history fs-1 text-warning"></i>
+                      <h5 class="mt-2 mb-0" id="stat-pending">0</h5>
+                      <small class="text-muted">En attente</small>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="card border-0 bg-success bg-opacity-10">
+                    <div class="card-body text-center">
+                      <i class="bi bi-check-circle fs-1 text-success"></i>
+                      <h5 class="mt-2 mb-0" id="stat-approved">0</h5>
+                      <small class="text-muted">Approuvées</small>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="card border-0 bg-danger bg-opacity-10">
+                    <div class="card-body text-center">
+                      <i class="bi bi-x-circle fs-1 text-danger"></i>
+                      <h5 class="mt-2 mb-0" id="stat-rejected">0</h5>
+                      <small class="text-muted">Rejetées</small>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="card border-0 bg-secondary bg-opacity-10">
+                    <div class="card-body text-center">
+                      <i class="bi bi-file-earmark fs-1 text-secondary"></i>
+                      <h5 class="mt-2 mb-0" id="stat-draft">0</h5>
+                      <small class="text-muted">Brouillons</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Filtres améliorés -->
+            <div class="p-4 border-bottom bg-white">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                  <i class="bi bi-funnel me-2 text-primary"></i>Filtres de recherche
+                </h5>
+                <button class="btn btn-outline-secondary btn-sm" onclick="resetFilters()" title="Réinitialiser les filtres">
+                  <i class="bi bi-arrow-counterclockwise me-1"></i>Réinitialiser
+                </button>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-3">
+                  <label for="filter-project" class="form-label fw-bold">
+                    <i class="bi bi-folder me-1 text-primary"></i>Projet
+                  </label>
+                  <select id="filter-project" class="form-select">
+                    <option value="all">📁 Tous les projets</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label for="filter-agent" class="form-label fw-bold">
+                    <i class="bi bi-person me-1 text-primary"></i>Agent
+                  </label>
+                  <select id="filter-agent" class="form-select">
+                    <option value="all">👤 Tous les agents</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label for="filter-supervisor" class="form-label fw-bold">
+                    <i class="bi bi-person-badge me-1 text-primary"></i>Superviseur
+                  </label>
+                  <select id="filter-supervisor" class="form-select">
+                    <option value="all">👔 Tous les superviseurs</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label for="filter-status" class="form-label fw-bold">
+                    <i class="bi bi-info-circle me-1 text-primary"></i>Statut
+                  </label>
+                  <select id="filter-status" class="form-select">
+                    <option value="all">📊 Tous les statuts</option>
+                    <option value="pending" selected>⏳ En attente</option>
+                    <option value="approved">✅ Approuvées</option>
+                    <option value="rejected">❌ Rejetées</option>
+                    <option value="draft">📝 Brouillons</option>
+                  </select>
+                </div>
+              </div>
+              <div class="row g-3 mt-2">
+                <div class="col-md-6">
+                  <label for="filter-start-date" class="form-label fw-bold">
+                    <i class="bi bi-calendar-event me-1 text-primary"></i>Date début
+                  </label>
+                  <input type="date" id="filter-start-date" class="form-control">
+                </div>
+                <div class="col-md-6">
+                  <label for="filter-end-date" class="form-label fw-bold">
+                    <i class="bi bi-calendar-check me-1 text-primary"></i>Date fin
+                  </label>
+                  <input type="date" id="filter-end-date" class="form-control">
+                </div>
+              </div>
+            </div>
+
+            <!-- Tableau des demandes -->
+            <div class="p-4">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="min-width: 150px;"><i class="bi bi-person me-1"></i>Agent</th>
+                      <th style="min-width: 120px;"><i class="bi bi-folder me-1"></i>Projet</th>
+                      <th><i class="bi bi-calendar-event me-1"></i>Date début</th>
+                      <th><i class="bi bi-calendar-check me-1"></i>Date fin</th>
+                      <th><i class="bi bi-clock me-1"></i>Durée</th>
+                      <th><i class="bi bi-calendar me-1"></i>Demandé le</th>
+                      <th style="min-width: 250px;"><i class="bi bi-chat-left-text me-1"></i>Motif de rejet</th>
+                      <th style="min-width: 300px;"><i class="bi bi-gear me-1"></i>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pending-permissions-list">
+                    <tr>
+                      <td colspan="8" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                          <span class="visually-hidden">Chargement...</span>
+                        </div>
+                        <p class="mt-3 text-muted">Chargement des demandes...</p>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section : Liste des agents permissionnaires (Superviseurs/Admins) -->
+      <div id="agents-permissions-section" class="form-section" style="display: none;">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-info text-white">
+            <div class="d-flex justify-content-between align-items-center">
+              <h4 class="mb-0">
+                <i class="bi bi-people me-2"></i>Liste des Agents Permissionnaires
+              </h4>
+              <div class="d-flex gap-2">
+                <select id="agents-permissions-month-filter" class="form-select form-select-sm" style="width: auto;">
+                  <option value="">Tous les mois</option>
+                </select>
+                <button type="button" class="btn btn-light btn-sm" onclick="loadAgentsPermissionsList()" title="Actualiser">
+                  <i class="bi bi-arrow-clockwise"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive p-4">
+              <table class="table table-striped table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th><i class="bi bi-person me-1"></i>Agent</th>
+                    <th><i class="bi bi-folder me-1"></i>Projet</th>
+                    <th><i class="bi bi-calendar me-1"></i>Mois</th>
+                    <th><i class="bi bi-calendar-check me-1"></i>Nombre de jours</th>
+                    <th><i class="bi bi-info-circle me-1"></i>Statut</th>
+                  </tr>
+                </thead>
+                <tbody id="agents-permissions-list">
+                  <tr>
+                    <td colspan="5" class="text-center py-4">
+                      <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                      </div>
+                      <p class="mt-2 text-muted">Chargement des agents permissionnaires...</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section : Mes demandes (Agents - EN SECOND pour agents) -->
+      <div id="my-permissions-section" class="form-section" style="display: none;">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+              <h4 class="mb-0">
+                <i class="bi bi-list-check me-2 text-primary"></i>Mes demandes de permission
+              </h4>
+              <button type="button" class="btn btn-primary" id="new-permission-btn" onclick="showNewPermissionForm()" style="display: none;">
+                <i class="bi bi-plus-circle me-2"></i>Nouvelle demande
+              </button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+        
+            <!-- Filtres pour les agents (application automatique) -->
+            <div id="agent-filters-section" class="filters-section p-4" style="background: #f8f9fa; display: none;">
+              <h5 class="mb-3"><i class="bi bi-funnel me-2"></i>Filtres de recherche</h5>
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label for="filter-my-status" class="form-label form-label-sm fw-bold">Statut</label>
+                  <select id="filter-my-status" class="form-select form-select-sm">
+                    <option value="all">Tous les statuts</option>
+                    <option value="draft">Brouillons</option>
+                    <option value="pending">En attente</option>
+                    <option value="approved">Approuvées</option>
+                    <option value="rejected">Rejetées</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label for="filter-my-start-date" class="form-label form-label-sm fw-bold">Date début</label>
+                  <input type="date" id="filter-my-start-date" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-4">
+                  <label for="filter-my-end-date" class="form-label form-label-sm fw-bold">Date fin</label>
+                  <input type="date" id="filter-my-end-date" class="form-control form-control-sm">
+                </div>
+              </div>
+            </div>
+
+            <div class="table-responsive p-4">
+              <table class="table table-striped table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th><i class="bi bi-calendar-event me-1"></i>Date de début</th>
+                    <th><i class="bi bi-calendar-check me-1"></i>Date de fin</th>
+                    <th><i class="bi bi-clock me-1"></i>Durée</th>
+                    <th><i class="bi bi-info-circle me-1"></i>Statut</th>
+                    <th><i class="bi bi-calendar me-1"></i>Date de demande</th>
+                    <th><i class="bi bi-chat-left-text me-1"></i>Motif de rejet</th>
+                    <th style="min-width: 220px;"><i class="bi bi-gear me-1"></i>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="my-permissions-list">
+                  <tr>
+                    <td colspan="7" class="text-center">Chargement...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="/permissions.js"></script>
+  </body>
+</html>
+
+

@@ -132,11 +132,12 @@ body {
 }
 
 .navbar-logo {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.1);
-  padding: var(--space-xs);
+  padding: 3px;
+  object-fit: contain;
 }
 
 .navbar-title {

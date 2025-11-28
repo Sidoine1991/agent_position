@@ -22,31 +22,74 @@ class SmartPlanning {
   }
 
   async loadData() {
+    // Initialiser les tableaux vides par défaut
+    this.agents = [];
+    this.missions = [];
+    this.locations = [];
+    this.conflicts = [];
+    this.suggestions = [];
+    
     try {
       // Charger les agents
       const agentsResponse = await fetch('/api/admin/agents');
-      if (agentsResponse.ok) {
-        const agentsData = await agentsResponse.json();
-        this.agents = agentsData.agents || agentsData.data || [];
+      if (agentsResponse && agentsResponse.ok) {
+        try {
+          const agentsData = await agentsResponse.json();
+          this.agents = Array.isArray(agentsData.agents) ? agentsData.agents : 
+                       Array.isArray(agentsData.data) ? agentsData.data : 
+                       [];
+        } catch (e) {
+          console.error('Erreur lors du parsing des agents:', e);
+        }
+      } else {
+        console.warn('Échec du chargement des agents:', agentsResponse?.status);
       }
 
       // Charger les missions
       const missionsResponse = await fetch('/api/missions');
-      if (missionsResponse.ok) {
-        const missionsData = await missionsResponse.json();
-        this.missions = missionsData.items || missionsData || [];
+      if (missionsResponse && missionsResponse.ok) {
+        try {
+          const missionsData = await missionsResponse.json();
+          this.missions = Array.isArray(missionsData.items) ? missionsData.items : 
+                         Array.isArray(missionsData) ? missionsData : 
+                         [];
+        } catch (e) {
+          console.error('Erreur lors du parsing des missions:', e);
+        }
+      } else {
+        console.warn('Échec du chargement des missions:', missionsResponse?.status);
       }
 
       // Charger les localisations
       const locationsResponse = await fetch('/api/locations');
-      if (locationsResponse.ok) {
-        const locationsData = await locationsResponse.json();
-        this.locations = locationsData.items || locationsData || [];
+      if (locationsResponse && locationsResponse.ok) {
+        try {
+          const locationsData = await locationsResponse.json();
+          this.locations = Array.isArray(locationsData.items) ? locationsData.items : 
+                          Array.isArray(locationsData) ? locationsData : 
+                          [];
+        } catch (e) {
+          console.error('Erreur lors du parsing des localisations:', e);
+        }
+      } else {
+        console.warn('Échec du chargement des localisations:', locationsResponse?.status);
       }
 
-      console.log('✅ Données de planification chargées');
+      console.log('✅ Données de planification chargées:', {
+        agents: this.agents.length,
+        missions: this.missions.length,
+        locations: this.locations.length
+      });
+      
+      // Vérifier les conflits après le chargement
+      this.checkConflicts();
+      
     } catch (error) {
-      console.error('❌ Erreur chargement données planification:', error);
+      console.error('❌ Erreur lors du chargement des données de planification:', error);
+      
+      // Envoyer une notification d'erreur
+      this.notifyError('Erreur de chargement des données', 
+        'Impossible de charger les données de planification. Veuillez réessayer.');
     }
   }
 
@@ -170,14 +213,36 @@ class SmartPlanning {
   }
 
   checkPlanningConflicts() {
+    // Vérifier que this.missions est un tableau
+    if (!Array.isArray(this.missions)) {
+      console.warn('Aucune mission à analyser ou format invalide');
+      this.missions = []; // Initialiser avec un tableau vide
+      return;
+    }
+
     const agentSchedules = new Map();
     
     for (const mission of this.missions) {
-      if (mission.status === 'assigned') {
+      // Sauter les missions invalides
+      if (!mission || typeof mission !== 'object' || mission.status !== 'assigned') {
+        continue;
+      }
+      
+      try {
         const agentId = mission.agent_id;
-        const missionDate = new Date(mission.date);
+        if (!agentId) continue;
+        
+        // Vérifier et parser les dates
+        if (!mission.start_time || !mission.end_time) continue;
+        
         const startTime = new Date(mission.start_time);
         const endTime = new Date(mission.end_time);
+        
+        // Vérifier la validité des dates
+        if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+          console.warn('Date invalide pour la mission:', mission.id);
+          continue;
+        }
         
         if (!agentSchedules.has(agentId)) {
           agentSchedules.set(agentId, []);
@@ -187,19 +252,17 @@ class SmartPlanning {
         
         // Vérifier les chevauchements
         for (const existingMission of schedule) {
-          if (this.isTimeOverlap(startTime, endTime, existingMission.start, existingMission.end)) {
-            this.conflicts.push({
-              type: 'planning_conflict',
-              severity: 'high',
-              message: `Conflit de planning pour l'agent ${this.getAgentName(agentId)}`,
-              details: {
-                agentId: agentId,
-                mission1: existingMission.mission,
-                mission2: mission,
-                overlapTime: this.getOverlapTime(startTime, endTime, existingMission.start, existingMission.end)
-              }
-            });
-          }
+          this.conflicts.push({
+            type: 'planning_conflict',
+            severity: 'high',
+            message: `Conflit de planning pour l'agent ${this.getAgentName(agentId)}`,
+            details: {
+              agentId: agentId,
+              mission1: existingMission.mission,
+              mission2: mission,
+              overlapTime: this.getOverlapTime(startTime, endTime, existingMission.start, existingMission.end)
+            }
+          });
         }
         
         schedule.push({
@@ -207,6 +270,8 @@ class SmartPlanning {
           start: startTime,
           end: endTime
         });
+      } catch (error) {
+        console.error('Erreur lors de la vérification des conflits de planning:', error);
       }
     }
   }
@@ -607,6 +672,52 @@ class SmartPlanning {
   async removeMissionFromOptimization(missionId) {
     this.missions = this.missions.filter(m => m.id !== missionId);
     await this.optimizeAllRoutes();
+  }
+  
+  /**
+   * Affiche une notification d'erreur à l'utilisateur
+   * @param {string} title - Titre de l'erreur
+   * @param {string} message - Message détaillé
+   * @param {string} [type='error'] - Type de notification (error, warning, info, success)
+   */
+  notifyError(title, message, type = 'error') {
+    console.error(`[${type.toUpperCase()}] ${title}: ${message}`);
+    
+    // Créer une notification visuelle
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+    notification.style.zIndex = '1060'; // Au-dessus des modaux Bootstrap
+    notification.role = 'alert';
+    notification.innerHTML = `
+      <strong>${title}</strong> ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+    `;
+    
+    // Ajouter la notification au conteneur de notifications
+    let container = document.getElementById('notifications-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'notifications-container';
+      container.className = 'position-fixed top-0 end-0 p-3';
+      container.style.zIndex = '1060';
+      document.body.appendChild(container);
+    }
+    
+    container.appendChild(notification);
+    
+    // Supprimer automatiquement après 10 secondes
+    setTimeout(() => {
+      notification.classList.remove('show');
+      setTimeout(() => notification.remove(), 150);
+    }, 10000);
+    
+    // Retourner un objet avec une méthode pour fermer manuellement
+    return {
+      close: () => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 150);
+      }
+    };
   }
 }
 

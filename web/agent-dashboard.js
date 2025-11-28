@@ -6,6 +6,7 @@
 class AgentDashboard {
   constructor() {
     this.currentAgent = null;
+    this.currentUser = null;
     this.goals = [];
     this.achievements = [];
     this.personalStats = {};
@@ -24,7 +25,6 @@ class AgentDashboard {
 
   async loadAgentData() {
     try {
-      // Récupérer les données utilisateur depuis l'API
       const headers = {
         'Authorization': `Bearer ${localStorage.getItem('jwt')}`,
         'Content-Type': 'application/json'
@@ -35,33 +35,55 @@ class AgentDashboard {
         const data = await response.json();
         if (data.success) {
           this.currentAgent = data.user;
+          this.currentUser = data.user;
         } else {
           throw new Error(data.error || 'Impossible de charger le profil utilisateur');
         }
         console.log('👤 Agent chargé:', this.currentAgent);
       } else {
-        // Fallback sur les données locales
         const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
         this.currentAgent = userProfile;
+        this.currentUser = userProfile;
       }
       
-      // Charger les autres données
-      await Promise.all([
-        this.loadPersonalStats(),
-        this.loadPersonalGoals(),
-        this.loadAchievements(),
-        this.loadPerformanceMetrics(),
-        this.loadBadges(),
-        this.loadLeaderboard()
-      ]);
-      
-      console.log('✅ Données du tableau de bord agent chargées');
-      
-      // Déclencher le rendu
-      this.renderDashboard();
+      await this.refreshAllData();
     } catch (error) {
       console.error('❌ Erreur chargement tableau de bord:', error);
     }
+  }
+
+  async refreshAllData() {
+    if (!this.currentAgent || !this.currentAgent.id) {
+      console.warn('Aucun agent actif pour le tableau de bord');
+      return;
+    }
+    
+    await Promise.all([
+      this.loadPersonalStats(),
+      this.loadPersonalGoals(),
+      this.loadAchievements(),
+      this.loadPerformanceMetrics(),
+      this.loadBadges(),
+      this.loadLeaderboard()
+    ]);
+    
+    this.renderDashboard();
+  }
+
+  async setAgent(agent) {
+    if (!agent || !agent.id) {
+      console.warn('setAgent appelé sans agent valide');
+      return;
+    }
+    this.currentAgent = { ...this.currentAgent, ...agent, id: Number(agent.id) };
+    await this.refreshAllData();
+  }
+
+  buildScopedUrl(base, paramName) {
+    const agentId = this.currentAgent?.id;
+    if (!agentId) return base;
+    const separator = base.includes('?') ? '&' : '?';
+    return `${base}${separator}${paramName}=${encodeURIComponent(agentId)}`;
   }
 
   async loadPersonalGoals() {
@@ -165,9 +187,12 @@ class AgentDashboard {
       };
 
       // Récupérer les missions et les check-ins en parallèle
+      const missionsUrl = this.buildScopedUrl('/api/me/missions', 'agent_id');
+      const checkinsUrl = this.buildScopedUrl('/api/checkins', 'user_id');
+
       const [missionsRes, checkinsRes] = await Promise.all([
-        fetch('/api/me/missions', { headers }),
-        fetch('/api/checkins', { headers }) // Endpoint corrigé
+        fetch(missionsUrl, { headers }),
+        fetch(checkinsUrl, { headers })
       ]);
 
       let missions = [];
@@ -344,9 +369,12 @@ class AgentDashboard {
       };
 
       // Récupérer les données de performance depuis les check-ins et missions
+      const missionsUrl = this.buildScopedUrl('/api/me/missions', 'agent_id');
+      const checkinsUrl = this.buildScopedUrl('/api/checkins', 'user_id');
+
       const [checkinsRes, missionsRes] = await Promise.all([
-        fetch('/api/checkins', { headers }), // Endpoint corrigé
-        fetch('/api/me/missions', { headers })
+        fetch(checkinsUrl, { headers }),
+        fetch(missionsUrl, { headers })
       ]);
 
       let checkins = [];
@@ -1068,7 +1096,7 @@ class AgentDashboard {
     if (!container) return;
 
     container.innerHTML = this.leaderboard.map(agent => `
-      <div class="leaderboard-item ${agent.name === this.currentAgent?.name ? 'current-agent' : ''}">
+      <div class="leaderboard-item ${agent.id === this.currentAgent?.id ? 'current-agent' : ''}">
         <div class="rank">#${agent.rank}</div>
         <div class="agent-name">${agent.name}</div>
         <div class="agent-score">${agent.score} pts</div>

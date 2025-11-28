@@ -5017,6 +5017,75 @@ async function updatePresenceSummary() {
       return;
     }
     
+    // Récupérer les permissions approuvées pour le mois/année sélectionné
+    // Map pour stocker les agents avec leurs observations de permissions
+    const agentsWithPermissions = new Map(); // Map<agentId, observations[]>
+    try {
+      const token = localStorage.getItem('jwt');
+      if (token) {
+        // Récupérer toutes les permissions approuvées
+        const permissionsResponse = await fetch('/api/permissions', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (permissionsResponse.ok) {
+          const permissionsData = await permissionsResponse.json();
+          const allPermissions = Array.isArray(permissionsData?.permissions) ? permissionsData.permissions : [];
+          
+          // Filtrer les permissions approuvées pour le mois sélectionné
+          const monthValue = `${year}-${String(month).padStart(2, '0')}`;
+          const approvedPermissions = allPermissions.filter(perm => {
+            if (perm.status !== 'approved') return false;
+            
+            // Vérifier si la permission est dans le mois sélectionné
+            if (perm.start_date) {
+              const permMonth = perm.start_date.substring(0, 7); // YYYY-MM
+              return permMonth === monthValue;
+            }
+            return false;
+          });
+          
+          // Grouper les observations par agent
+          approvedPermissions.forEach(perm => {
+            const agentId = perm.agent_id || perm.agent?.id;
+            if (!agentId) return;
+            
+            const agentIdStr = String(agentId);
+            
+            // Construire l'observation de la permission
+            const startDate = new Date(perm.start_date).toLocaleDateString('fr-FR');
+            const endDate = new Date(perm.end_date).toLocaleDateString('fr-FR');
+            const duration = Math.ceil((new Date(perm.end_date) - new Date(perm.start_date)) / (1000 * 60 * 60 * 24)) + 1;
+            
+            let observation = `Permission du ${startDate} au ${endDate} (${duration} jour${duration > 1 ? 's' : ''})`;
+            
+            // Ajouter le motif de rejet s'il existe (pour les permissions rejetées puis approuvées)
+            if (perm.rejection_reason) {
+              observation += ` - Motif: ${perm.rejection_reason}`;
+            }
+            
+            // Ajouter une note si elle existe
+            if (perm.note) {
+              observation += ` - Note: ${perm.note}`;
+            }
+            
+            // Stocker l'observation pour cet agent
+            if (!agentsWithPermissions.has(agentIdStr)) {
+              agentsWithPermissions.set(agentIdStr, []);
+            }
+            agentsWithPermissions.get(agentIdStr).push(observation);
+          });
+          
+          console.log(`✅ ${approvedPermissions.length} permission(s) approuvée(s) trouvée(s) pour ${monthValue}`);
+        }
+      }
+    } catch (error) {
+      console.warn('Erreur lors de la récupération des permissions:', error);
+    }
+
     // Générer le tableau avec les données filtrées
     const DAYS_REQUIRED = 20; // Nombre de jours requis par mois
     
@@ -5054,6 +5123,22 @@ async function updatePresenceSummary() {
         if (presenceRate < 50) progressClass = 'bg-danger';
         else if (presenceRate < 80) progressClass = 'bg-warning';
 
+        // Construire les observations avec les permissions
+        let observationText = agent.observation || '';
+        const agentIdStr = String(agent.user_id || '');
+        
+        // Ajouter les observations des permissions approuvées
+        if (agentsWithPermissions.has(agentIdStr)) {
+          const permissionObservations = agentsWithPermissions.get(agentIdStr);
+          const permissionsText = permissionObservations.join(' | ');
+          
+          if (observationText) {
+            observationText = `${observationText} | ${permissionsText}`;
+          } else {
+            observationText = permissionsText;
+          }
+        }
+
         tableContent += `
           <tr>
             <td>${agent.name || 'Non renseigné'}</td>
@@ -5080,7 +5165,7 @@ async function updatePresenceSummary() {
                      data-month="${month}" 
                      data-year="${year}"
                      placeholder="Ajouter une note..."
-                     value="${agent.observation || ''}">
+                     value="${(observationText || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}">
             </td>
           </tr>`;
       });

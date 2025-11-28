@@ -300,7 +300,356 @@
     $('month-summary').textContent = `Total planifié: ${Math.round(totalMinutes/60)}h${String(totalMinutes%60).padStart(2,'0')} • Jours planifiés: ${totalDaysPlanned}`;
   }
 
+  // Fonctions pour la gestion des jours permissionnaires
+  let agentsList = [];
+
+  async function loadAgents() {
+    const select = document.getElementById('permission-agent');
+    
+    try {
+      // Afficher un indicateur de chargement
+      select.innerHTML = '<option value="">Chargement des agents...</option>';
+      
+      const headers = await authHeaders();
+      const response = await fetch('/api/agents', { 
+        headers,
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        // En cas d'erreur, on charge quand même la section avec les agents vides
+        console.warn('Impossible de charger la liste des agents, la section sera limitée');
+        return [];
+      }
+      
+      agentsList = await response.json();
+      
+      if (!Array.isArray(agentsList)) {
+        throw new Error('Format de réponse inattendu de l\'API');
+      }
+      
+      // Mettre à jour la liste déroulante
+      select.innerHTML = '<option value="">Sélectionnez un agent</option>';
+      
+      agentsList.forEach(agent => {
+        const option = document.createElement('option');
+        option.value = agent.id;
+        option.textContent = `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email || `Agent ${agent.id}`;
+        select.appendChild(option);
+      });
+      
+      return true;
+      
+    } catch (error) {
+      console.error('Erreur chargement agents:', error);
+      select.innerHTML = `<option value="" disabled>Erreur: ${error.message || 'Impossible de charger les agents'}</option>`;
+      showError(`Erreur lors du chargement des agents: ${error.message || 'Veuillez réessayer plus tard'}`);
+      return false;
+    }
+  }
+
+  async function loadPermissions() {
+    console.log('Début du chargement des permissions...');
+    const tbody = document.getElementById('permissions-list');
+    
+    if (!tbody) {
+      console.error('Élément permissions-list non trouvé dans le DOM');
+      return;
+    }
+    
+    try {
+      console.log('Affichage du spinner de chargement...');
+      // Afficher un indicateur de chargement
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center"><div class="spinner-border spinner-border-sm me-2" role="status"></div>Chargement des permissions...</td></tr>';
+      
+      const headers = await authHeaders();
+      console.log('En-têtes d\'authentification:', headers);
+      
+      // Charger la liste des agents si nécessaire
+      if (!agentsList || agentsList.length === 0) {
+        console.log('Chargement de la liste des agents...');
+        agentsList = await loadAgents();
+        console.log(`${agentsList.length} agents chargés`);
+      }
+      
+      console.log('Requête API vers /api/planifications...');
+      const response = await fetch('/api/planifications?limit=50&order=date.desc', { 
+        headers,
+        credentials: 'include' // Important pour les cookies d'authentification
+      });
+      
+      console.log('Réponse reçue, statut:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Erreur de réponse:', errorText);
+        if (response.status === 401) {
+          throw new Error('Authentification requise');
+        } else if (response.status === 403) {
+          throw new Error('Permissions insuffisantes');
+        } else {
+          throw new Error(`Erreur serveur (${response.status}): ${errorText}`);
+        }
+      }
+      
+      const planifications = await response.json();
+      console.log(`${planifications.length} planifications reçues`, planifications);
+      
+      if (!Array.isArray(planifications)) {
+        console.error('La réponse n\'est pas un tableau:', planifications);
+        throw new Error('Format de réponse inattendu');
+      }
+      
+      if (planifications.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-center text-muted">
+              Aucun jour permissionnaire enregistré
+              <div class="mt-2">
+                <small>Utilisez le formulaire ci-dessus pour ajouter des permissions</small>
+              </div>
+            </td>
+          </tr>`;
+        return;
+      }
+      
+      // Grouper par agent et mois
+      const permissionsByAgentAndMonth = {};
+      
+      planifications.forEach(plan => {
+        try {
+          // Ignorer les entrées sans jours de permission définis
+          if (typeof plan.jours_permission === 'undefined' || plan.jours_permission === null) return;
+          
+          // S'assurer que la date est valide
+          if (!plan.date || !plan.user_id) {
+            console.warn('Entrée de planification invalide (date ou user_id manquant):', plan);
+            return;
+          }
+          
+          const monthYear = String(plan.date).substring(0, 7); // Format YYYY-MM
+          const key = `${plan.user_id}-${monthYear}`;
+          
+          if (!permissionsByAgentAndMonth[key]) {
+            // Trouver le nom de l'agent dans la liste chargée
+            let agentName = `Agent ${plan.user_id}`;
+            if (agentsList && agentsList.length > 0) {
+              const agent = agentsList.find(a => a && a.id === plan.user_id);
+              if (agent) {
+                agentName = [agent.first_name, agent.last_name]
+                  .filter(Boolean)
+                  .join(' ')
+                  .trim() || agent.email || agentName;
+              }
+            }
+            
+            permissionsByAgentAndMonth[key] = {
+              user_id: plan.user_id,
+              month: monthYear,
+              jours_permission: parseInt(plan.jours_permission) || 0,
+              project_name: plan.project_name || 'Non spécifié',
+              agent_name: agentName
+            };
+          }
+        } catch (err) {
+          console.error('Erreur lors du traitement d\'une entrée de planification:', err, plan);
+        }
+      });
+      
+      // Afficher les résultats
+      const permissionsList = Object.values(permissionsByAgentAndMonth);
+      
+      if (permissionsList.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-center text-muted">
+              Aucun jour permissionnaire trouvé
+              <div class="mt-2">
+                <small>Les permissions seront affichées ici après avoir été enregistrées</small>
+              </div>
+            </td>
+          </tr>`;
+        return;
+      }
+      
+      // Trier par mois (du plus récent au plus ancien) puis par nom d'agent
+      permissionsList.sort((a, b) => {
+        if (b.month !== a.month) return b.month.localeCompare(a.month);
+        return a.agent_name.localeCompare(b.agent_name);
+      });
+      
+      tbody.innerHTML = permissionsList.map(perm => `
+        <tr>
+          <td class="align-middle">${escapeHtml(perm.agent_name)}</td>
+          <td class="align-middle">${escapeHtml(perm.project_name)}</td>
+          <td class="align-middle">${formatMonthYear(perm.month)}</td>
+          <td class="align-middle">
+            <span class="badge bg-primary rounded-pill">
+              ${perm.jours_permission} jour${perm.jours_permission > 1 ? 's' : ''}
+            </span>
+          </td>
+          <td class="align-middle">
+            <button class="btn btn-sm btn-outline-primary edit-permission" 
+                    data-user-id="${perm.user_id}" 
+                    data-month="${perm.month}"
+                    title="Modifier les permissions">
+              <i class="bi bi-pencil"></i> Modifier
+            </button>
+          </td>
+        </tr>
+      `).join('');
+      
+      // Ajouter les écouteurs d'événements pour les boutons de modification
+      document.querySelectorAll('.edit-permission').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const userId = parseInt(btn.dataset.userId);
+          const month = btn.dataset.month;
+          const permission = permissionsList.find(p => p.user_id === userId && p.month === month);
+          
+          if (permission) {
+            document.getElementById('permission-agent').value = userId;
+            document.getElementById('permission-month').value = month + '-01';
+            document.getElementById('permission-days').value = permission.jours_permission || 0;
+            
+            // Faire défiler jusqu'au formulaire
+            document.getElementById('permissions-container').scrollIntoView({ behavior: 'smooth' });
+          }
+        });
+      });
+      
+    } catch (error) {
+      console.error('Erreur chargement permissions:', error);
+      const errorMessage = error.message || 'Une erreur est survenue';
+      
+      // Afficher un message d'erreur détaillé dans la console
+      if (error.response) {
+        console.error('Détails de la réponse:', await error.response.text());
+      }
+      
+      // Afficher un message d'erreur convivial à l'utilisateur
+      const errorHtml = `
+        <tr>
+          <td colspan="5" class="text-center">
+            <div class="alert alert-warning mb-0">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              <strong>Impossible de charger les permissions</strong>
+              <div class="small mt-1">${escapeHtml(errorMessage)}</div>
+              <button onclick="loadPermissions()" class="btn btn-sm btn-outline-primary mt-2">
+                <i class="bi bi-arrow-clockwise"></i> Réessayer
+              </button>
+            </div>
+          </td>
+        </tr>`;
+      
+      document.getElementById('permissions-list').innerHTML = errorHtml;
+    }
+  }
+
+  async function savePermissions() {
+    const userId = document.getElementById('permission-agent').value;
+    const month = document.getElementById('permission-month').value;
+    const joursPermission = parseInt(document.getElementById('permission-days').value) || 0;
+    
+    if (!userId || !month) {
+      showError('Veuillez sélectionner un agent et un mois');
+      return;
+    }
+    
+    try {
+      const headers = await authHeaders();
+      headers['Content-Type'] = 'application/json';
+      
+      const response = await fetch('/api/planifications/permissions', {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          user_id: parseInt(userId),
+          mois: month,
+          jours_permission: joursPermission
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || 'Erreur lors de la sauvegarde');
+      }
+      
+      showSuccess('Jours permissionnaires enregistrés avec succès');
+      loadPermissions();
+      
+      // Réinitialiser le formulaire
+      document.getElementById('permission-days').value = '0';
+      
+    } catch (error) {
+      console.error('Erreur sauvegarde permissions:', error);
+      showError(error.message || 'Erreur lors de la sauvegarde des permissions');
+    }
+  }
+
+  function formatMonthYear(monthYear) {
+    const [year, month] = monthYear.split('-');
+    const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+    return `${monthNames[parseInt(month) - 1]} ${year}`;
+  }
+
+  function escapeHtml(unsafe) {
+    if (!unsafe) return '';
+    return unsafe
+      .toString()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function showError(message) {
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-danger alert-dismissible fade show';
+    alert.role = 'alert';
+    alert.innerHTML = `
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+    `;
+    
+    const container = document.querySelector('.container');
+    container.insertBefore(alert, container.firstChild);
+    
+    // Supprimer l'alerte après 5 secondes
+    setTimeout(() => {
+      alert.remove();
+    }, 5000);
+  }
+
+  function showSuccess(message) {
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-success alert-dismissible fade show';
+    alert.role = 'alert';
+    alert.innerHTML = `
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+    `;
+    
+    const container = document.querySelector('.container');
+    container.insertBefore(alert, container.firstChild);
+    
+    // Supprimer l'alerte après 5 secondes
+    setTimeout(() => {
+      alert.remove();
+    }, 5000);
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
+    // Charger les agents et les permissions
+    loadAgents().then(loadPermissions);
+    
+    // Gestionnaire pour le bouton d'enregistrement
+    document.getElementById('save-permissions').addEventListener('click', savePermissions);
+    
+    // Initialisation des champs de date
+    const today = new Date();
+    document.getElementById('permission-month').value = today.toISOString().substring(0, 7) + '-01';
+    
     $('load-week').addEventListener('click', () => loadWeek($('week-start').value));
     $('load-month').addEventListener('click', () => loadMonth($('month').value));
     $('prev-week').addEventListener('click', () => {

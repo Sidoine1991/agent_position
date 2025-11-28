@@ -46,16 +46,44 @@ self.addEventListener('fetch', (e) => {
   if (isDoc || isCode) {
     e.respondWith((async () => {
       try {
-        const fresh = await fetch(e.request, { cache: 'no-store' });
+        // Add a timeout to prevent hanging requests
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
         try {
-          const cache = await caches.open(CACHE_NAME);
-          cache.put(e.request, fresh.clone());
-        } catch {}
-        return fresh;
-      } catch {
-        const cached = await caches.match(e.request, { ignoreSearch: false });
-        if (cached) return cached;
-        throw new Error('offline');
+          const fresh = await fetch(e.request, { 
+            cache: 'no-store',
+            signal: controller.signal 
+          });
+          
+          // Only cache successful responses
+          if (fresh.status === 200) {
+            try {
+              const cache = await caches.open(CACHE_NAME);
+              await cache.put(e.request, fresh.clone());
+            } catch (cacheError) {
+              console.warn('Failed to cache response:', cacheError);
+            }
+          }
+          return fresh;
+        } catch (fetchError) {
+          console.warn('Network request failed, trying cache:', fetchError);
+          const cached = await caches.match(e.request, { ignoreSearch: true });
+          if (cached) {
+            console.log('Serving from cache:', e.request.url);
+            return cached;
+          }
+          throw fetchError;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      } catch (error) {
+        console.error('Failed to fetch and no cache available:', error);
+        return new Response('You are offline, and no cached content is available.', {
+          status: 503,
+          statusText: 'Offline',
+          headers: { 'Content-Type': 'text/plain' }
+        });
       }
     })());
     return;

@@ -11,7 +11,6 @@
   <nav class="navbar">
     <div class="navbar-brand">
       <a href="/" class="navbar-brand-link" style="display:flex;align-items:center;text-decoration:none;color:inherit">
-        <img src="/Media/logo-ccrb.png" alt="CCRB Logo" class="navbar-logo">
         <div class="navbar-title">
           <h1>Presence CCRB</h1>
           <span class="navbar-subtitle">Planification</span>
@@ -96,15 +95,425 @@
         <div id="month-gantt" class="gantt border rounded" style="max-height:60vh; overflow:auto"></div>
       </div>
     </div>
+        </div>
+      </div>
+    </div>
 
     <div class="alert alert-info">
       Les jours planifiés sans présence avant 18:00 seront marqués en rouge.
     </div>
   </div>
 
+  <!-- Section Demandes de Permission -->
+  <div class="card mt-4">
+    <div class="card-header bg-primary text-white">
+      <h2 class="h5 mb-0">Demandes de permission</h2>
+    </div>
+    <div class="card-body">
+      <button id="newPermissionBtn" class="btn btn-primary mb-3">
+        <i class="bi bi-plus-circle"></i> Nouvelle demande
+      </button>
+      
+      <!-- Formulaire de nouvelle demande (caché par défaut) -->
+      <div id="newPermissionForm" class="card mb-4 d-none">
+        <div class="card-body">
+          <h5 class="card-title">Nouvelle demande de permission</h5>
+          <form id="permissionForm">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="startDate" class="form-label">Date de début</label>
+                <input type="date" class="form-control" id="startDate" required>
+              </div>
+              <div class="col-md-6">
+                <label for="endDate" class="form-label">Date de fin</label>
+                <input type="date" class="form-control" id="endDate" required>
+              </div>
+              <div class="col-12">
+                <label for="reason" class="form-label">Motif</label>
+                <textarea class="form-control" id="reason" rows="3" required></textarea>
+              </div>
+              <div class="col-12">
+                <button type="submit" class="btn btn-primary">Envoyer la demande</button>
+                <button type="button" id="cancelPermissionBtn" class="btn btn-outline-secondary">Annuler</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+      
+      <!-- Liste des demandes -->
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Date de début</th>
+              <th>Date de fin</th>
+              <th>Jours</th>
+              <th>Motif</th>
+              <th>Statut</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="permissionsList">
+            <!-- Les demandes seront chargées ici par JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
   <script src="/app.js?v=5"></script>
   <script src="/planning.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async function() {
+      // Vérifier si l'utilisateur est connecté
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        // Rediriger vers la page de connexion si l'utilisateur n'est pas connecté
+        window.location.href = '/login.html';
+        return;
+      }
+      const newPermissionBtn = document.getElementById('newPermissionBtn');
+      const newPermissionForm = document.getElementById('newPermissionForm');
+      const cancelPermissionBtn = document.getElementById('cancelPermissionBtn');
+      const permissionForm = document.getElementById('permissionForm');
+      const permissionsList = document.getElementById('permissionsList');
+      
+      // Afficher le formulaire de nouvelle demande
+      newPermissionBtn.addEventListener('click', () => {
+        newPermissionForm.classList.remove('d-none');
+        newPermissionBtn.classList.add('d-none');
+      });
+      
+      // Cacher le formulaire
+      cancelPermissionBtn.addEventListener('click', () => {
+        newPermissionForm.classList.add('d-none');
+        newPermissionBtn.classList.remove('d-none');
+        permissionForm.reset();
+      });
+      
+      // Soumission du formulaire
+      permissionForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        const reason = document.getElementById('reason').value;
+        
+        // Calculer le nombre de jours entre les dates
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const diffTime = Math.abs(end - start);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          const { data, error } = await supabase
+            .from('permission_days')
+            .insert([
+              { 
+                user_id: user.id,
+                start_date: startDate,
+                end_date: endDate,
+                days: diffDays,
+                reason: reason,
+                status: 'pending',
+                created_by: user.id
+              }
+            ])
+            .select();
+            
+          if (error) throw error;
+          
+          // Recharger la liste des demandes
+          loadPermissions();
+          // Cacher le formulaire et réinitialiser
+          permissionForm.reset();
+          newPermissionForm.classList.add('d-none');
+          newPermissionBtn.classList.remove('d-none');
+          
+          alert('Demande de permission enregistrée avec succès!');
+          
+        } catch (error) {
+          console.error('Erreur lors de la création de la demande:', error);
+          alert('Une erreur est survenue lors de la création de la demande.');
+        }
+      });
+      
+      // Charger les demandes de permission
+      async function loadPermissions() {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          const { data: permissions, error } = await supabase
+            .from('permission_days')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false });
+            
+          if (error) throw error;
+          
+          // Afficher les demandes
+          permissionsList.innerHTML = '';
+          
+          if (permissions.length === 0) {
+            permissionsList.innerHTML = '<tr><td colspan="6" class="text-center">Aucune demande de permission trouvée</td></tr>';
+            return;
+          }
+          
+          permissions.forEach(permission => {
+            const row = document.createElement('tr');
+            let statusClass = '';
+            
+            switch(permission.status) {
+              case 'approved':
+                statusClass = 'text-success';
+                break;
+              case 'rejected':
+                statusClass = 'text-danger';
+                break;
+              default:
+                statusClass = 'text-warning';
+            }
+            
+            row.innerHTML = `
+              <td>${new Date(permission.start_date).toLocaleDateString('fr-FR')}</td>
+              <td>${new Date(permission.end_date).toLocaleDateString('fr-FR')}</td>
+              <td>${permission.days} jour(s)</td>
+              <td>${permission.reason || '-'}</td>
+              <td class="${statusClass}">
+                ${permission.status === 'pending' ? 'En attente' : 
+                  permission.status === 'approved' ? 'Approuvée' : 'Rejetée'}
+              </td>
+              <td>
+                ${permission.status === 'pending' ? `
+                  <button class="btn btn-sm btn-outline-danger btn-delete" data-id="${permission.id}">
+                    Annuler
+                  </button>
+                ` : ''}
+              </td>
+            `;
+            
+            permissionsList.appendChild(row);
+          });
+          
+          // Ajouter les écouteurs d'événements pour les boutons de suppression
+          document.querySelectorAll('.btn-delete').forEach(button => {
+            button.addEventListener('click', handleDeletePermission);
+          });
+          
+        } catch (error) {
+          console.error('Erreur lors du chargement des demandes:', error);
+          permissionsList.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Erreur lors du chargement des demandes</td></tr>';
+        }
+      }
+      
+      // Supprimer une demande
+      async function handleDeletePermission(e) {
+        const permissionId = e.target.getAttribute('data-id');
+        
+        if (!confirm('Êtes-vous sûr de vouloir annuler cette demande ?')) {
+          return;
+        }
+        
+        try {
+          const { error } = await supabase
+            .from('permission_days')
+            .delete()
+            .eq('id', permissionId);
+            
+          if (error) throw error;
+          
+          // Recharger la liste des demandes
+          loadPermissions();
+          
+        } catch (error) {
+          console.error('Erreur lors de la suppression de la demande:', error);
+          alert('Une erreur est survenue lors de l\'annulation de la demande.');
+        }
+      }
+      
+      // Charger les demandes au chargement de la page
+      loadPermissions();
+      
+      // Gestion des filtres admin
+      const monthFilter = document.getElementById('monthFilter');
+      const filterBtn = document.getElementById('filterBtn');
+      
+      // Définir le mois actuel par défaut
+      const now = new Date();
+      monthFilter.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      
+      // Fonction pour charger les permissions
+      async function loadAdminPermissions() {
+        const adminPermissionsList = document.getElementById('adminPermissionsList');
+        const selectedMonth = monthFilter.value;
+        
+        if (!selectedMonth) {
+          adminPermissionsList.innerHTML = '<tr><td colspan="5" class="text-center">Veuillez sélectionner un mois.</td></tr>';
+          return;
+        }
+        
+        try {
+          // Récupérer les demandes de permission pour le mois sélectionné
+          const { data: permissions, error } = await supabase
+            .from('permission_days')
+            .select(`
+              *,
+              user:user_id (
+                id,
+                first_name,
+                last_name,
+                project_name
+              )
+            `)
+            .gte('start_date', `${selectedMonth}-01`)
+            .lte('start_date', `${selectedMonth}-31`);
+            
+          if (error) throw error;
+          
+          // Grouper les permissions par utilisateur
+          const permissionsByUser = {};
+          
+          permissions.forEach(permission => {
+            const userId = permission.user_id;
+            if (!permissionsByUser[userId]) {
+              permissionsByUser[userId] = {
+                user: {
+                  id: permission.user?.id,
+                  full_name: `${permission.user?.first_name || ''} ${permission.user?.last_name || ''}`.trim() || 'Utilisateur inconnu',
+                  project: permission.user?.project_name
+                },
+                permissions: [],
+                totalDays: 0
+              };
+            }
+            permissionsByUser[userId].permissions.push(permission);
+            permissionsByUser[userId].totalDays += permission.days;
+          });
+          
+          // Afficher les résultats
+          adminPermissionsList.innerHTML = '';
+          
+          if (Object.keys(permissionsByUser).length === 0) {
+            adminPermissionsList.innerHTML = '<tr><td colspan="5" class="text-center">Aucune donnée trouvée pour ce mois.</td></tr>';
+            return;
+          }
+          
+          Object.values(permissionsByUser).forEach(userData => {
+            const row = document.createElement('tr');
+            
+            row.innerHTML = `
+              <td>${userData.user?.full_name || 'Utilisateur inconnu'}</td>
+              <td>${userData.user?.project || '-'}</td>
+              <td>${new Date(selectedMonth).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</td>
+              <td>${userData.totalDays} jour(s)</td>
+              <td>
+                <button class="btn btn-sm btn-outline-primary btn-view-details" 
+                        data-user-id="${userData.user?.id}" 
+                        data-month="${selectedMonth}">
+                  Voir détails
+                </button>
+              </td>
+            `;
+            
+            adminPermissionsList.appendChild(row);
+          });
+          
+          // Ajouter les écouteurs d'événements pour les boutons de détail
+          document.querySelectorAll('.btn-view-details').forEach(button => {
+            button.addEventListener('click', showUserPermissionDetails);
+          });
+          
+        } catch (error) {
+          console.error('Erreur lors du chargement des permissions:', error);
+          adminPermissionsList.innerHTML = `
+            <tr>
+              <td colspan="5" class="text-center text-danger">
+                Erreur lors du chargement des données
+              </td>
+            </tr>`;
+        }
+      }
+      
+      // Afficher les détails des permissions d'un utilisateur
+      async function showUserPermissionDetails(e) {
+        const userId = e.target.getAttribute('data-user-id');
+        const month = e.target.getAttribute('data-month');
+        
+        try {
+          // Récupérer les détails des permissions de l'utilisateur
+          const { data: permissions, error } = await supabase
+            .from('permission_days')
+            .select('*')
+            .eq('user_id', userId)
+            .gte('start_date', `${month}-01`)
+            .lte('start_date', `${month}-31`)
+            .order('start_date', { ascending: true });
+            
+          if (error) throw error;
+          
+          // Créer le contenu de la modale
+          let modalContent = `
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Période</th>
+                    <th>Jours</th>
+                    <th>Motif</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+          `;
+          
+          permissions.forEach(permission => {
+            let statusBadge = '';
+            switch(permission.status) {
+              case 'approved':
+                statusBadge = '<span class="badge bg-success">Approuvé</span>';
+                break;
+              case 'rejected':
+                statusBadge = '<span class="badge bg-danger">Rejeté</span>';
+                break;
+              default:
+                statusBadge = '<span class="badge bg-warning">En attente</span>';
+            }
+            
+            modalContent += `
+              <tr>
+                <td>${new Date(permission.start_date).toLocaleDateString('fr-FR')} au 
+                    ${new Date(permission.end_date).toLocaleDateString('fr-FR')}</td>
+                <td>${permission.days} jour(s)</td>
+                <td>${permission.reason || '-'}</td>
+                <td>${statusBadge}</td>
+              </tr>
+            `;
+          });
+          
+          modalContent += `
+                </tbody>
+              </table>
+            </div>
+          `;
+          
+          // Afficher la modale
+          const modal = new bootstrap.Modal(document.getElementById('permissionDetailsModal'));
+          document.getElementById('permissionDetailsContent').innerHTML = modalContent;
+          modal.show();
+          
+        } catch (error) {
+          console.error('Erreur lors du chargement des détails:', error);
+          alert('Une erreur est survenue lors du chargement des détails.');
+        }
+      }
+    });
+  </script>
+  
 </body>
 </html>
 

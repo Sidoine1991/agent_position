@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,7 +8,8 @@
   <script src="/auth.js?v=2" defer></script>
   <script src="/components/circular-nav.js" type="module"></script>
   <link rel="stylesheet" href="/styles-shared.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
   <!-- DEPENDANCE GANTT -->
   <link rel="stylesheet" href="https://cdn.dhtmlx.com/gantt/8.3.0/dhtmlxgantt.css">
@@ -21,28 +23,34 @@
       background-color: #28a745 !important;
       border-color: #1e7e34 !important;
     }
+
     .gantt-task-pending {
       background-color: #ffc107 !important;
       border-color: #e0a800 !important;
     }
+
     .gantt-task-completed {
       background-color: #17a2b8 !important;
       border-color: #117a8b !important;
     }
+
     .gantt-task-default {
       background-color: #6c757d !important;
       border-color: #545b62 !important;
     }
-    
+
     /* Améliorer la visibilité des boutons d'édition */
-    #edit-planning-btn, #edit-planning-month-btn {
+    #edit-planning-btn,
+    #edit-planning-month-btn {
       transition: all 0.3s ease;
     }
-    #edit-planning-btn:hover, #edit-planning-month-btn:hover {
+
+    #edit-planning-btn:hover,
+    #edit-planning-month-btn:hover {
       transform: scale(1.05);
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     }
-    
+
     /* Styles pour les agents - vue complète */
     .agent-complete-view {
       background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
@@ -50,7 +58,7 @@
       padding: 15px;
       margin-bottom: 20px;
     }
-    
+
     /* Améliorer l'affichage des filtres */
     .filter-section {
       background: #f8f9fa;
@@ -74,7 +82,7 @@
       backdrop-filter: blur(10px);
       width: 100%;
     }
-    
+
     .circle-action {
       display: flex;
       flex-direction: column;
@@ -91,66 +99,68 @@
       position: relative;
       overflow: hidden;
     }
-    
+
     .circle-action:hover {
       transform: translateY(-5px) scale(1.1);
       box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
       color: white;
       text-decoration: none;
     }
-    
+
     .circle-action-active {
       background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
       transform: scale(1.1);
       box-shadow: 0 6px 20px rgba(245, 87, 108, 0.4);
     }
-    
+
     .circle-action .icon {
       font-size: 24px;
       margin-bottom: 4px;
     }
-    
+
     .circle-action .label {
       font-size: 10px;
       font-weight: 600;
       text-align: center;
       line-height: 1.2;
     }
-    
+
     @media (max-width: 768px) {
       .circle-action {
         width: 70px;
         height: 70px;
       }
+
       .circle-action .icon {
         font-size: 20px;
       }
+
       .circle-action .label {
         font-size: 9px;
       }
-      
+
       .circle-actions {
         gap: 12px;
         padding: 15px;
       }
     }
-    
+
     @media (max-width: 480px) {
       .circle-actions {
         gap: 8px;
         padding: 10px;
       }
-      
+
       .circle-action {
         width: 60px;
         height: 60px;
       }
-      
+
       .circle-action .icon {
         font-size: 18px;
         margin-bottom: 2px;
       }
-      
+
       .circle-action .label {
         font-size: 8px;
       }
@@ -181,7 +191,7 @@
     .gantt_task_progress {
       background-color: rgba(255, 255, 255, 0.6) !important;
     }
-    
+
     .filter-section {
       background-color: #f8f9fa;
       border-radius: 0.5rem;
@@ -189,30 +199,30 @@
       margin-bottom: 1.5rem;
       box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
     }
-    
+
     .filter-group {
       display: flex;
       flex-wrap: wrap;
       gap: 1rem;
       align-items: flex-end;
     }
-    
+
     .filter-item {
       flex: 1;
       min-width: 180px;
     }
-    
+
     .btn-filter {
       white-space: nowrap;
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
     }
-    
+
     .btn-filter i {
       font-size: 1.1em;
     }
-    
+
     @media (max-width: 992px) {
       .filter-item {
         min-width: 100%;
@@ -230,15 +240,35 @@
     }
 
     @keyframes gradientShift {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
+      0% {
+        background-position: 0% 50%;
+      }
+
+      50% {
+        background-position: 100% 50%;
+      }
+
+      100% {
+        background-position: 0% 50%;
+      }
     }
-    .gantt_task_line.gantt_task_status_completed .gantt_task_content { background-color: #198754; }
-    .gantt_task_line.gantt_task_status_in_progress .gantt_task_content { background-color: #ffc107; }
-    .gantt_task_line.gantt_task_status_cancelled .gantt_task_content { background-color: #dc3545; }
-    .gantt_task_line.gantt_task_status_planned .gantt_task_content { background-color: #0d6efd; }
-    
+
+    .gantt_task_line.gantt_task_status_completed .gantt_task_content {
+      background-color: #198754;
+    }
+
+    .gantt_task_line.gantt_task_status_in_progress .gantt_task_content {
+      background-color: #ffc107;
+    }
+
+    .gantt_task_line.gantt_task_status_cancelled .gantt_task_content {
+      background-color: #dc3545;
+    }
+
+    .gantt_task_line.gantt_task_status_planned .gantt_task_content {
+      background-color: #0d6efd;
+    }
+
     /* NOUVEAUX STYLES INTÉGRÉS POUR LE RÉCAPITULATIF */
     .table-responsive {
       border-radius: 8px;
@@ -280,7 +310,9 @@
     }
 
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     .spinner-border {
@@ -305,11 +337,12 @@
     }
   </style>
 </head>
+
 <body>
   <!-- Barre de navigation circulaire -->
   <script src="/js/circular-nav-component.js"></script>
   <circular-nav></circular-nav>
-  
+
   <div class="container">
     <!-- ... (le reste de votre contenu HTML reste inchangé) ... -->
     <div class="row mb-4">
@@ -333,14 +366,14 @@
           </label>
           <div class="input-group">
             <input type="date" id="week-start" class="form-control" />
-            <button id="load-week" class="btn btn-outline-primary btn-filter"
-                    data-bs-toggle="tooltip" title="Charger la semaine">
+            <button id="load-week" class="btn btn-outline-primary btn-filter" data-bs-toggle="tooltip"
+              title="Charger la semaine">
               <i class="bi bi-arrow-clockwise"></i>
               <span class="d-none d-md-inline">Charger</span>
             </button>
           </div>
         </div>
-        
+
         <!-- Filtre par agent -->
         <div class="filter-item">
           <label for="agent-select" class="form-label">
@@ -350,7 +383,7 @@
             <option value="">Tous les agents</option>
           </select>
         </div>
-        
+
         <!-- Filtre par superviseur -->
         <div class="filter-item" id="supervisor-filter-container">
           <label for="supervisor-filter-select" class="form-label">
@@ -360,7 +393,7 @@
             <option value="">Tous les superviseurs</option>
           </select>
         </div>
-        
+
         <!-- Filtre par projet -->
         <div class="filter-item">
           <label for="project-filter-select" class="form-label">
@@ -370,7 +403,7 @@
             <option value="">Tous les projets</option>
           </select>
         </div>
-        
+
         <!-- Filtre par département -->
         <div class="filter-item">
           <label for="department-filter-select" class="form-label">
@@ -380,7 +413,7 @@
             <option value="">Tous les départements</option>
           </select>
         </div>
-        
+
         <!-- Filtre par commune -->
         <div class="filter-item">
           <label for="commune-filter-select" class="form-label">
@@ -390,7 +423,7 @@
             <option value="">Sélectionnez d'abord un département</option>
           </select>
         </div>
-        
+
         <!-- Filtre par statut -->
         <div class="filter-item">
           <label for="status-filter-select" class="form-label">
@@ -410,58 +443,87 @@
       </div>
     </div>
 
+    <div class="card mb-4 shadow-sm" id="permission-days-section">
+      <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+          <h5 class="mb-1 fw-bold text-primary">Gestion des jours permissionnaires</h5>
+          <th>Agent</th>
+          <th>Projet</th>
+          <th class="text-center">Mois</th>
+          <th class="text-center">Jours permissionnaires</th>
+          <th class="text-end">Actions</th>
+          </tr>
+          </thead>
+          <tbody id="permission-days-table">
+            <tr>
+              <td colspan="5" class="text-center text-muted py-3">
+                Sélectionnez un mois pour afficher les enregistrements.
+              </td>
+            </tr>
+          </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- VUES GANTT (avec onglets) -->
     <ul class="nav nav-tabs" id="ganttViewTab" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="week-view-tab" data-bs-toggle="tab" data-bs-target="#week-view-pane" type="button" role="tab" aria-controls="week-view-pane" aria-selected="true">Vue Hebdomadaire</button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="month-view-tab" data-bs-toggle="tab" data-bs-target="#month-view-pane" type="button" role="tab" aria-controls="month-view-pane" aria-selected="false">Vue Mensuelle</button>
-        </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="week-view-tab" data-bs-toggle="tab" data-bs-target="#week-view-pane"
+          type="button" role="tab" aria-controls="week-view-pane" aria-selected="true">Vue Hebdomadaire</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="month-view-tab" data-bs-toggle="tab" data-bs-target="#month-view-pane"
+          type="button" role="tab" aria-controls="month-view-pane" aria-selected="false">Vue Mensuelle</button>
+      </li>
     </ul>
     <div class="tab-content" id="ganttViewTabContent">
-        <div class="tab-pane fade show active" id="week-view-pane" role="tabpanel" aria-labelledby="week-view-tab" tabindex="0">
-            <div class="card mb-4 border-top-0 rounded-top-0">
-                    <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
-                        <h5 class="mb-0">Tableau de Gantt hebdomadaire</h5>
-                        <div class="d-flex gap-2">
-                            <button id="edit-planning-btn" class="btn btn-sm btn-warning" style="display: none;">
-                                <i class="fas fa-edit"></i> Modifier
-                            </button>
-                            <button id="prev-week" class="btn btn-sm btn-light">← Préc.</button>
-                            <button id="next-week" class="btn btn-sm btn-light">Suiv. →</button>
-                        </div>
-                    </div>
-                <div class="card-body p-0">
-                    <div class="mb-2 small text-muted p-3" data-translate="planning.drag.info">Double-cliquez sur une tâche dans le Gantt pour l'éditer ci-dessus.</div>
-                    <div style="overflow: auto; max-height: 600px; width: 100%;">
-                        <div id="week-gantt" class="gantt" style="height: 600px; min-width: 1200px;"></div>
-                    </div>
-                    <small id="week-summary" class="text-muted p-3 d-block"></small>
-                </div>
+      <div class="tab-pane fade show active" id="week-view-pane" role="tabpanel" aria-labelledby="week-view-tab"
+        tabindex="0">
+        <div class="card mb-4 border-top-0 rounded-top-0">
+          <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
+            <h5 class="mb-0">Tableau de Gantt hebdomadaire</h5>
+            <div class="d-flex gap-2">
+              <button id="edit-planning-btn" class="btn btn-sm btn-warning" style="display: none;">
+                <i class="fas fa-edit"></i> Modifier
+              </button>
+              <button id="prev-week" class="btn btn-sm btn-light">← Préc.</button>
+              <button id="next-week" class="btn btn-sm btn-light">Suiv. →</button>
             </div>
-        </div>
-        <div class="tab-pane fade" id="month-view-pane" role="tabpanel" aria-labelledby="month-view-tab" tabindex="0">
-            <div class="card mb-4 border-top-0 rounded-top-0">
-                <div class="card-header d-flex justify-content-between align-items-center bg-info text-white">
-                    <h5 class="mb-0" data-translate="planning.month.view">Vue mensuelle détaillée (Gantt)</h5>
-                     <div class="d-flex gap-2">
-                        <button id="edit-planning-month-btn" class="btn btn-sm btn-warning" style="display: none;">
-                            <i class="fas fa-edit"></i> Modifier
-                        </button>
-                        <button id="prev-month" class="btn btn-sm btn-light">← Préc.</button>
-                        <button id="next-month" class="btn btn-sm btn-light">Suiv. →</button>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <div class="mb-2 small text-muted p-3" data-translate="planning.month.info">Vue mensuelle des activités. Double-cliquez pour éditer l'activité.</div>
-                    <div id="month-gantt" class="gantt border rounded" style="max-height:60vh; height: 400px; overflow:auto"></div>
-                    <small id="month-summary" class="text-muted p-3 d-block"></small>
-                </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="mb-2 small text-muted p-3" data-translate="planning.drag.info">Double-cliquez sur une tâche dans
+              le Gantt pour l'éditer ci-dessus.</div>
+            <div style="overflow: auto; max-height: 600px; width: 100%;">
+              <div id="week-gantt" class="gantt" style="height: 600px; min-width: 1200px;"></div>
             </div>
+            <small id="week-summary" class="text-muted p-3 d-block"></small>
+          </div>
         </div>
+      </div>
+      <div class="tab-pane fade" id="month-view-pane" role="tabpanel" aria-labelledby="month-view-tab" tabindex="0">
+        <div class="card mb-4 border-top-0 rounded-top-0">
+          <div class="card-header d-flex justify-content-between align-items-center bg-info text-white">
+            <h5 class="mb-0" data-translate="planning.month.view">Vue mensuelle détaillée (Gantt)</h5>
+            <div class="d-flex gap-2">
+              <button id="edit-planning-month-btn" class="btn btn-sm btn-warning" style="display: none;">
+                <i class="fas fa-edit"></i> Modifier
+              </button>
+              <button id="prev-month" class="btn btn-sm btn-light">← Préc.</button>
+              <button id="next-month" class="btn btn-sm btn-light">Suiv. →</button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="mb-2 small text-muted p-3" data-translate="planning.month.info">Vue mensuelle des activités.
+              Double-cliquez pour éditer l'activité.</div>
+            <div id="month-gantt" class="gantt border rounded" style="max-height:60vh; height: 400px; overflow:auto">
+            </div>
+            <small id="month-summary" class="text-muted p-3 d-block"></small>
+          </div>
+        </div>
+      </div>
     </div>
-    
+
     <!-- STRUCTURE HTML POUR LE RÉCAPITULATIF HEBDOMADAIRE (MISE À JOUR) -->
     <div class="card mt-4">
       <div class="card-header d-flex justify-content-between align-items-center">
@@ -496,31 +558,33 @@
   </footer>
 
   <!-- Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+    crossorigin="anonymous"></script>
   <script src="https://cdn.dhtmlx.com/gantt/8.3.0/dhtmlxgantt.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="/app.js?v=5"></script>
   <script src="/planning.js"></script>
   <script src="/translations.js"></script>
-  
+
   <script>
     // --- Variables Globales ---
     let currentGanttWeekDate = new Date();
     let currentGanttMonthDate = new Date();
     let allPlanningsCache = [];
-    
+
     // Charger le récapitulatif hebdomadaire au chargement de la page
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       // Initialiser le chargement du récapitulatif
       if (typeof loadWeeklySummary === 'function') {
         loadWeeklySummary();
       }
-      
+
       // Gérer le rafraîchissement manuel
       const refreshButton = document.getElementById('refresh-weekly-summary');
       if (refreshButton) {
-        refreshButton.addEventListener('click', function() {
+        refreshButton.addEventListener('click', function () {
           loadWeeklySummary();
         });
       }
@@ -528,9 +592,9 @@
       // Gérer les boutons d'édition
       const editBtnWeek = document.getElementById('edit-planning-btn');
       const editBtnMonth = document.getElementById('edit-planning-month-btn');
-      
+
       if (editBtnWeek) {
-        editBtnWeek.addEventListener('click', function() {
+        editBtnWeek.addEventListener('click', function () {
           if (canEditPlanning()) {
             toggleEditMode(true);
             showToast('Mode édition activé. Vous pouvez maintenant modifier les planifications.', 'info');
@@ -539,9 +603,9 @@
           }
         });
       }
-      
+
       if (editBtnMonth) {
-        editBtnMonth.addEventListener('click', function() {
+        editBtnMonth.addEventListener('click', function () {
           if (canEditPlanning()) {
             toggleEditMode(true);
             showToast('Mode édition activé. Vous pouvez maintenant modifier les planifications.', 'info');
@@ -573,42 +637,42 @@
       d.setHours(0, 0, 0, 0);
       return d;
     }
-    
+
     // --- NOUVELLES FONCTIONS UTILITAIRES POUR LE RÉCAPITULATIF ---
-    
+
     // Alias pour la clarté du code
     const startOfWeek = getWeekStart;
 
     function toISODate(date) {
-        return date.toISOString().split('T')[0];
+      return date.toISOString().split('T')[0];
     }
 
     function addDays(date, days) {
-        const result = new Date(date);
-        result.setDate(result.getDate() + days);
-        return result;
+      const result = new Date(date);
+      result.setDate(result.getDate() + days);
+      return result;
     }
 
     // Convertit "HH:MM" en minutes depuis minuit
     function hoursToX(timeStr) {
-        if (!timeStr) return null;
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        return hours * 60 + minutes;
+      if (!timeStr) return null;
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 60 + minutes;
     }
-    
+
     // Pour simuler les headers d'authentification
     async function authHeaders() {
-        return { 'Authorization': 'Bearer FAKE_TOKEN' };
+      return { 'Authorization': 'Bearer FAKE_TOKEN' };
     }
 
     function formatDateRange(startDate, endDate) {
       const start = new Date(startDate);
       const end = new Date(endDate);
-      
+
       if (start.getMonth() === end.getMonth()) {
         return `${start.getDate()}-${end.getDate()} ${start.toLocaleString('fr-FR', { month: 'short' })}`;
       }
-      
+
       return `${start.getDate()} ${start.toLocaleString('fr-FR', { month: 'short' })} - ${end.getDate()} ${end.toLocaleString('fr-FR', { month: 'short' })}`;
     }
 
@@ -619,7 +683,7 @@
       const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
       return weekNo;
     }
-    
+
     // --- NOUVELLES FONCTIONS POUR LE RÉCAPITULATIF HEBDOMADAIRE ---
 
     async function loadWeeklySummary(filters = {}) {
@@ -634,17 +698,17 @@
             <p class="mt-2 mb-0">Chargement des données hebdomadaires...</p>
           </td>
         </tr>`;
-        
+
       // Préparer les paramètres de requête
       const params = new URLSearchParams();
       const today = new Date();
       const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1); // 2 mois en arrière
       const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0); // Fin du mois prochain
-      
+
       // Ajouter les paramètres de date
       params.append('startDate', toISODate(firstDayOfMonth));
       params.append('endDate', toISODate(lastDayOfMonth));
-      
+
       // Ajouter le filtre superviseur s'il est défini
       if (filters.supervisorId) {
         params.append('supervisorId', filters.supervisorId);
@@ -654,17 +718,17 @@
         // Utilisation de la fonction apiCall avec les paramètres construits
         const data = await apiCall(`planifications?${params.toString()}`);
         const plans = (data && data.items) || [];
-        
+
         // Ajout du log pour débogage
         console.log('Données chargées:', plans);
-        
+
         const weeklyPlans = {};
-        
+
         plans.forEach(plan => {
           const date = new Date(plan.date);
           const weekStart = startOfWeek(date);
           const weekKey = toISODate(weekStart);
-          
+
           if (!weeklyPlans[weekKey]) {
             weeklyPlans[weekKey] = {
               weekStart: weekKey,
@@ -674,11 +738,11 @@
               totalHours: 0
             };
           }
-          
+
           const weekData = weeklyPlans[weekKey];
           weekData.activities.push(plan);
           if (plan.project_name) weekData.projects.add(plan.project_name);
-          
+
           if (plan.planned_start_time && plan.planned_end_time) {
             const start = hoursToX(plan.planned_start_time);
             const end = hoursToX(plan.planned_end_time);
@@ -687,11 +751,11 @@
             }
           }
         });
-        
+
         const weeklyData = Object.values(weeklyPlans).sort((a, b) => new Date(a.weekStart) - new Date(b.weekStart));
-        
+
         displayWeeklySummary(weeklyData);
-        
+
       } catch (error) {
         console.error('Erreur lors du chargement du récapitulatif:', error);
         summaryBody.innerHTML = `
@@ -732,26 +796,26 @@
         const hours = Math.floor(week.totalHours);
         const minutes = Math.round((week.totalHours - hours) * 60);
         const duration = `${hours}h${String(minutes).padStart(2, '0')}`;
-        
+
         const statusCounts = week.activities.reduce((acc, activity) => {
           const status = activity.status || 'planned';
           acc[status] = (acc[status] || 0) + 1;
           return acc;
         }, {});
-        
+
         const statusBadges = Object.entries(statusCounts).map(([status, count]) => {
-            let badgeClass = 'bg-secondary';
-            if (status === 'completed') badgeClass = 'bg-success';
-            if (status === 'in_progress') badgeClass = 'bg-warning text-dark';
-            if (status === 'cancelled') badgeClass = 'bg-danger';
-            if (status === 'planned') badgeClass = 'bg-primary';
-            return `<span class="badge ${badgeClass} me-1">${status.replace('_', ' ')} (${count})</span>`;
-          }).join('') || '<span class="text-muted">-</span>';
-        
+          let badgeClass = 'bg-secondary';
+          if (status === 'completed') badgeClass = 'bg-success';
+          if (status === 'in_progress') badgeClass = 'bg-warning text-dark';
+          if (status === 'cancelled') badgeClass = 'bg-danger';
+          if (status === 'planned') badgeClass = 'bg-primary';
+          return `<span class="badge ${badgeClass} me-1">${status.replace('_', ' ')} (${count})</span>`;
+        }).join('') || '<span class="text-muted">-</span>';
+
         const previewActivities = week.activities.slice(0, 3).map(act => act.description_activite || 'Sans titre').join(' • ');
         const moreCount = week.activities.length > 3 ? `+${week.activities.length - 3} autres` : '';
         const fullTitle = week.activities.map(act => act.description_activite || 'Sans titre').join(', ');
-        
+
         return `
           <tr>
             <td>
@@ -781,14 +845,14 @@
           </tr>
         `;
       }).join('');
-      
+
       // Activer les tooltips Bootstrap
       var tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
       tooltipTriggerList.map(function (tooltipTriggerEl) {
-          return new bootstrap.Tooltip(tooltipTriggerEl);
+        return new bootstrap.Tooltip(tooltipTriggerEl);
       });
     }
-    
+
     // Fonctions placeholder pour les actions des boutons
     function viewWeekDetails(weekStart) {
       alert(`Affichage des détails pour la semaine commençant le ${weekStart}`);
@@ -801,28 +865,30 @@
     async function apiCall(endpoint, options = {}) {
       // Données simulées étendues pour le récapitulatif
       const dummyData = {
-        planifications: { items: [
+        planifications: {
+          items: [
             { id: 1, date: toISODate(new Date()), planned_start_time: '09:00', planned_end_time: '11:00', description_activite: 'Démarrage projet Alpha', status: 'completed', project_id: 101, project_name: 'Projet Alpha' },
             { id: 2, date: toISODate(new Date()), planned_start_time: '14:00', planned_end_time: '16:30', description_activite: 'Revue de code Beta', status: 'in_progress', project_id: 102, project_name: 'Projet Beta' },
             { id: 3, date: toISODate(addDays(new Date(), 1)), planned_start_time: '10:00', planned_end_time: '18:30', description_activite: 'Préparation documentation', status: 'planned', project_id: 101, project_name: 'Projet Alpha' },
             { id: 4, date: toISODate(addDays(new Date(), -7)), planned_start_time: '10:00', planned_end_time: '12:00', description_activite: 'Atelier de formation', status: 'completed', project_id: 102, project_name: 'Projet Beta' },
             { id: 5, date: toISODate(addDays(new Date(), -14)), planned_start_time: '09:00', planned_end_time: '17:00', description_activite: 'Réunion d\'équipe', status: 'completed', project_id: 101, project_name: 'Projet Alpha' },
             { id: 6, date: toISODate(addDays(new Date(), -21)), planned_start_time: '13:00', planned_end_time: '15:00', description_activite: 'Formation avancée', status: 'completed', project_id: 102, project_name: 'Projet Beta' },
-        ]},
+          ]
+        },
         projects: { items: [{ id: 101, name: 'Projet Alpha' }, { id: 102, name: 'Projet Beta' }] }
       };
-      
+
       // Simuler un délai de chargement
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       // Si l'endpoint est 'planifications', retourner les données de planification
       if (endpoint.includes('planifications')) {
         return dummyData.planifications;
       }
-      
+
       // Pour les autres endpoints, essayer de trouver une correspondance
       const endpointName = endpoint.split('?')[0];
-      return dummyData[endpointName] || { items: [] }; 
+      return dummyData[endpointName] || { items: [] };
     }
 
     // --- Le reste de votre logique JavaScript (Gantt, formulaires, etc.) reste ici ---
@@ -832,40 +898,40 @@
     async function loadSupervisors() {
       console.log('🔍 Début du chargement des superviseurs...');
       console.log('Supabase client:', typeof supabase !== 'undefined' ? 'Initialisé' : 'Non initialisé');
-      
+
       try {
         // Vérifier si Supabase est initialisé
         if (typeof supabase === 'undefined') {
           console.error('❌ Erreur: Supabase n\'est pas initialisé');
           return [];
         }
-        
+
         console.log('🔎 Requête Supabase en cours...');
         const { data: supervisors, error } = await supabase
           .from('users')
           .select('id, nom, prenom, email, role')
           .or('role.eq.superviseur,role.eq.admin')
           .order('nom', { ascending: true });
-        
+
         if (error) {
           console.error('❌ Erreur Supabase:', error);
           throw new Error('Erreur lors du chargement des superviseurs: ' + error.message);
         }
-        
+
         console.log('✅ Superviseurs chargés:', supervisors);
-        
+
         const select = document.getElementById('supervisor-filter-select');
         if (!select) {
           console.error('❌ Sélecteur de superviseur non trouvé');
           return [];
         }
-        
+
         // Sauvegarder les superviseurs pour une utilisation ultérieure
         window.supervisors = Array.isArray(supervisors) ? supervisors : [];
-        
+
         // Vider et réinitialiser le sélecteur
         select.innerHTML = '<option value="">Tous les superviseurs</option>';
-        
+
         // Ajouter chaque superviseur au sélecteur
         window.supervisors.forEach(supervisor => {
           const option = document.createElement('option');
@@ -875,86 +941,86 @@
           option.textContent = displayName;
           select.appendChild(option);
         });
-        
+
         return window.supervisors;
       } catch (error) {
         console.error('❌ Erreur lors du chargement des superviseurs:', error);
         return [];
       }
     }
-    
+
     // Fonction pour vérifier si l'utilisateur est un superviseur
     function checkIfUserIsSupervisor() {
       const userRole = localStorage.getItem('userRole') || '';
       return userRole.toLowerCase() === 'superviseur' || userRole.toLowerCase() === 'admin';
     }
-    
+
     // --- Initialisation et Événements ---
-    document.addEventListener('DOMContentLoaded', async function() {
-        console.log('🚀 DOM chargé, initialisation en cours...');
-        
-        // Initialisation des tooltips
-        try {
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
-            });
-            console.log('✅ Tooltips initialisés');
-        } catch (error) {
-            console.error('❌ Erreur lors de l\'initialisation des tooltips:', error);
-        }
-        
-        try {
-            // Charger les superviseurs
-            console.log('🔄 Chargement des superviseurs...');
-            const supervisors = await loadSupervisors();
-            console.log(`✅ ${supervisors.length} superviseurs chargés`);
-            
-            // Afficher/masquer le filtre superviseur
-            const supervisorContainer = document.getElementById('supervisor-filter-container');
-            const supervisorSelect = document.getElementById('supervisor-filter-select');
-            
-            if (supervisorSelect && supervisorSelect.options.length > 1) {
-                console.log('👥 Filtre superviseur activé');
-                if (supervisorContainer) supervisorContainer.style.display = 'block';
-            } else {
-                console.log('ℹ️ Aucun superviseur trouvé ou sélecteur non disponible');
-                if (supervisorContainer) supervisorContainer.style.display = 'none';
-            }
-        } catch (error) {
-            console.error('❌ Erreur lors de l\'initialisation des superviseurs:', error);
-        }
-        
-        // --- CHARGEMENT INITIAL ---
-        
-        // Charger les projets, puis charger le récapitulatif et le Gantt
-        loadProjects().then(() => {
-          loadWeeklySummary(); // Appel de la nouvelle fonction
-          updateGanttView(); // Mise à jour du Gantt
+    document.addEventListener('DOMContentLoaded', async function () {
+      console.log('🚀 DOM chargé, initialisation en cours...');
+
+      // Initialisation des tooltips
+      try {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+          return new bootstrap.Tooltip(tooltipTriggerEl);
         });
-        
-        // Rafraîchir le récapitulatif hebdomadaire
-        document.getElementById('refresh-weekly-summary').addEventListener('click', loadWeeklySummary);
-        
-        // Appliquer les filtres lors du clic sur le bouton
-        document.getElementById('apply-filters-btn').addEventListener('click', applyFilters);
-        
-        // Appliquer les filtres automatiquement lors du changement des sélecteurs
-        document.getElementById('agent-select').addEventListener('change', applyFilters);
-        document.getElementById('supervisor-filter-select').addEventListener('change', applyFilters);
-        document.getElementById('project-filter-select').addEventListener('change', applyFilters);
-        document.getElementById('department-filter-select').addEventListener('change', applyFilters);
-        document.getElementById('commune-filter-select').addEventListener('change', applyFilters);
-        document.getElementById('status-filter-select').addEventListener('change', applyFilters);
-        
-        resetPlanningForm();
+        console.log('✅ Tooltips initialisés');
+      } catch (error) {
+        console.error('❌ Erreur lors de l\'initialisation des tooltips:', error);
+      }
+
+      try {
+        // Charger les superviseurs
+        console.log('🔄 Chargement des superviseurs...');
+        const supervisors = await loadSupervisors();
+        console.log(`✅ ${supervisors.length} superviseurs chargés`);
+
+        // Afficher/masquer le filtre superviseur
+        const supervisorContainer = document.getElementById('supervisor-filter-container');
+        const supervisorSelect = document.getElementById('supervisor-filter-select');
+
+        if (supervisorSelect && supervisorSelect.options.length > 1) {
+          console.log('👥 Filtre superviseur activé');
+          if (supervisorContainer) supervisorContainer.style.display = 'block';
+        } else {
+          console.log('ℹ️ Aucun superviseur trouvé ou sélecteur non disponible');
+          if (supervisorContainer) supervisorContainer.style.display = 'none';
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors de l\'initialisation des superviseurs:', error);
+      }
+
+      // --- CHARGEMENT INITIAL ---
+
+      // Charger les projets, puis charger le récapitulatif et le Gantt
+      loadProjects().then(() => {
+        loadWeeklySummary(); // Appel de la nouvelle fonction
+        updateGanttView(); // Mise à jour du Gantt
+      });
+
+      // Rafraîchir le récapitulatif hebdomadaire
+      document.getElementById('refresh-weekly-summary').addEventListener('click', loadWeeklySummary);
+
+      // Appliquer les filtres lors du clic sur le bouton
+      document.getElementById('apply-filters-btn').addEventListener('click', applyFilters);
+
+      // Appliquer les filtres automatiquement lors du changement des sélecteurs
+      document.getElementById('agent-select').addEventListener('change', applyFilters);
+      document.getElementById('supervisor-filter-select').addEventListener('change', applyFilters);
+      document.getElementById('project-filter-select').addEventListener('change', applyFilters);
+      document.getElementById('department-filter-select').addEventListener('change', applyFilters);
+      document.getElementById('commune-filter-select').addEventListener('change', applyFilters);
+      document.getElementById('status-filter-select').addEventListener('change', applyFilters);
+
+      resetPlanningForm();
     });
-    
+
     // Fonction pour appliquer les filtres
     function applyFilters() {
       const supervisorId = document.getElementById('supervisor-filter-select').value;
       const filters = {};
-      
+
       // Ajouter le filtre superviseur si sélectionné
       if (supervisorId) {
         filters.supervisorId = supervisorId;
@@ -962,11 +1028,11 @@
       } else {
         console.log('Aucun filtre de superviseur appliqué');
       }
-      
+
       // Recharger les données avec les filtres
       loadWeeklySummary(filters);
       updateGanttView(filters);
-      
+
       // Ajuster la hauteur après le chargement des données
       setTimeout(adjustGanttHeight, 500);
     }
@@ -974,7 +1040,7 @@
     // Fonction pour mettre à jour la vue Gantt avec filtres
     function updateGanttView(filters = {}) {
       console.log('Mise à jour de la vue Gantt avec les filtres:', filters);
-      
+
       // Vérifier si un filtre de superviseur est appliqué
       if (filters.supervisorId) {
         console.log('Application du filtre superviseur au Gantt:', filters.supervisorId);
@@ -994,14 +1060,14 @@
     function toggleEditMode(isEditMode) {
       const editBtnWeek = document.getElementById('edit-planning-btn');
       const editBtnMonth = document.getElementById('edit-planning-month-btn');
-      
+
       if (editBtnWeek) {
         editBtnWeek.style.display = isEditMode ? 'block' : 'none';
       }
       if (editBtnMonth) {
         editBtnMonth.style.display = isEditMode ? 'block' : 'none';
       }
-      
+
       // Activer/désactiver les interactions avec le Gantt
       if (window.gantt) {
         window.gantt.config.readonly = !isEditMode;
@@ -1045,57 +1111,57 @@
         console.error('Erreur lors de la remise en attente:', error);
       }
     }
-    
+
     // Fonction pour initialiser le Gantt
     function setupGantt() {
       // Initialisation du Gantt
       console.log('Initialisation du Gantt');
-      
+
       // Configuration pour n'afficher que les jours de la semaine (lundi à vendredi)
       gantt.config.work_time = true;
       gantt.config.work_week = true;
-      
+
       // Définir les heures de travail (lundi à vendredi, 8h-18h)
       gantt.config.work_time = true;
-      gantt.templates.timeline_cell_class = function(task, date) {
+      gantt.templates.timeline_cell_class = function (task, date) {
         if (date.getDay() === 0 || date.getDay() === 6) {
           return "weekend";
         }
         return "";
       };
-      
+
       // Masquer les week-ends
       gantt.config.skip_off_time = true;
-      
+
       // Définir la plage horaire de travail (8h-18h)
       gantt.config.scale_unit = "day";
       gantt.config.date_scale = "%d %M";
       gantt.config.subscales = [
-        {unit: "hour", step: 2, date: "%H:%i"}
+        { unit: "hour", step: 2, date: "%H:%i" }
       ];
-      
+
       // Configurer les jours de travail (lundi à vendredi)
       gantt.config.work_week = [1, 1, 1, 1, 1, 0, 0];
-      
+
       // Ajuster la hauteur automatiquement en fonction du contenu
       gantt.config.row_height = 40;
       gantt.config.bar_height = 30;
-      
+
       // Initialiser le Gantt
       gantt.init("week-gantt");
-      
+
       // Initialiser le Gantt mensuel avec la même configuration
       gantt.init("month-gantt");
-      
+
       // Stocker une référence au Gantt
       window.gantt = gantt;
-      
+
       // Ajuster dynamiquement la hauteur du conteneur
       adjustGanttHeight();
-      
+
       console.log('Gantt initialisé avec affichage des jours de la semaine uniquement (lundi à vendredi)');
     }
-    
+
     // Fonction pour ajuster la hauteur du Gantt
     function adjustGanttHeight() {
       const ganttContainer = document.getElementById('week-gantt');
@@ -1105,17 +1171,18 @@
         const windowHeight = window.innerHeight;
         const calculatedHeight = windowHeight - headerHeight - padding * 2;
         ganttContainer.style.height = Math.max(600, calculatedHeight) + 'px';
-        
+
         // Redessiner le Gantt après le redimensionnement
         if (window.gantt) {
           window.gantt.render();
         }
       }
     }
-    
+
     // Écouter le redimensionnement de la fenêtre
     window.addEventListener('resize', adjustGanttHeight);
 
   </script>
 </body>
+
 </html>

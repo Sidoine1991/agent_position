@@ -32,9 +32,21 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (url.origin !== self.location.origin) return; // Only same-origin
 
-  // Always bypass cache for API
+  // Always bypass cache for API - network only, don't intercept if server is down
   if (url.pathname.startsWith('/api/')) {
-    e.respondWith(fetch(e.request));
+    e.respondWith(
+      (async () => {
+        try {
+          const response = await fetch(e.request.clone());
+          return response;
+        } catch (error) {
+          console.error('Service Worker: API fetch failed:', error);
+          // Don't intercept - let the error propagate to the page
+          // This allows the page to handle the error properly
+          throw error;
+        }
+      })()
+    );
     return;
   }
 

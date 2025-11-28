@@ -1,6 +1,55 @@
 // Configuration de l'API — toujours passer par notre proxy /api pour éviter les blocages CSP
 const apiBase = '/api';
 let jwt = localStorage.getItem('jwt') || '';
+
+// Authenticated fetch interceptor (ensures every /api call sends the JWT)
+(function ensureAuthFetchInterceptor() {
+  if (typeof window === 'undefined' || window.__authFetchPatched) return;
+  window.__authFetchPatched = true;
+  const TOKEN_KEYS = ['jwt', 'access_token', 'token', 'sb-access-token', 'sb:token'];
+  const originalFetch = window.fetch;
+
+  const resolveToken = () => {
+    for (const key of TOKEN_KEYS) {
+      const value = localStorage.getItem(key) || sessionStorage.getItem(key);
+      if (value && value.length > 20) return value.trim();
+    }
+    if (typeof window.jwt === 'string' && window.jwt.length > 20) return window.jwt.trim();
+    return '';
+  };
+
+  const shouldAttachAuth = (targetUrl) => {
+    try {
+      const absolute = new URL(targetUrl, window.location.origin);
+      return absolute.origin === window.location.origin && absolute.pathname.startsWith('/api');
+    } catch {
+      return false;
+    }
+  };
+
+  window.fetch = function patchedFetch(input, init = {}) {
+    try {
+      const requestUrl = typeof input === 'string' ? input : input?.url;
+      if (requestUrl && shouldAttachAuth(requestUrl)) {
+        const token = resolveToken();
+        if (token) {
+          const baseHeaders =
+            init.headers ||
+            (input instanceof Request ? input.headers : undefined) ||
+            {};
+          const headers = new Headers(baseHeaders);
+          if (!headers.has('Authorization')) {
+            headers.set('Authorization', `Bearer ${token}`);
+          }
+          init = { ...init, headers };
+        }
+      }
+    } catch (error) {
+      console.warn('Auth fetch interceptor error:', error);
+    }
+    return originalFetch.call(this, input, init);
+  };
+})();
 let currentMissionId = null;
 let currentCalendarDate = new Date();
 let presenceData = {};
@@ -643,6 +692,15 @@ async function autoLogin(email, password) {
       }));
       localStorage.setItem('lastUserEmail', email);
       
+      // Sauvegarder la session pour persistance
+      if (window.sessionManager) {
+        window.sessionManager.saveSession(
+          response.token,
+          email,
+          response.user || null
+        );
+      }
+      
       // Mettre à jour le JWT global
       jwt = response.token;
       
@@ -693,19 +751,39 @@ function normalizeProfileResponse(resp) {
 }
 
 async function init() {
+  // Optimisation: Vérifier la session d'abord pour éviter les requêtes inutiles
+  if (window.sessionManager) {
+    const restored = await window.sessionManager.init();
+    if (restored) {
+      // Session restaurée, mettre à jour jwt immédiatement
+      const session = window.sessionManager.getSession();
+      if (session && session.token) {
+        jwt = session.token;
+        localStorage.setItem('jwt', session.token);
+        if (session.userEmail) {
+          localStorage.setItem('userEmail', session.userEmail);
+        }
+        console.log('✅ Session restaurée, connexion rapide');
+      }
+    }
+  }
+  
   try {
-    const s = await api('/settings');
-    if (s && s.success) appSettings = s.settings || null;
+    // Charger les settings en arrière-plan (non bloquant)
+    api('/settings').then(s => {
+      if (s && s.success) appSettings = s.settings || null;
+    }).catch(() => {});
   } catch {}
   
-  // Assurer que navigation.js est chargé avant de l'utiliser
+  // Assurer que navigation.js est chargé avant de l'utiliser (non bloquant)
   if (!window.navigation || typeof window.navigation.updateForUser !== 'function') {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 50)); // Réduit de 100ms à 50ms
     } catch {}
   }
   if ('serviceWorker' in navigator) {
-    try { await navigator.serviceWorker.register('/service-worker.js'); } catch {}
+    // Enregistrer le service worker en arrière-plan (non bloquant)
+    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
   }
   
   // Vérifier la connexion automatique via les paramètres URL
@@ -760,53 +838,61 @@ async function init() {
     }
   }
   
-  // Initialiser les notifications
-  await initializeNotifications();
+  // Initialiser les notifications en arrière-plan (non bloquant)
+  initializeNotifications().catch(() => {});
   
-    // Gérer la navbar selon l'état de connexion
-  try { await updateNavbar(); } catch {}
+    // Gérer la navbar selon l'état de connexion (non bloquant)
+  updateNavbar().catch(() => {});
   
   const authSection = $('auth-section');
   const appSection = $('app-section');
   if (jwt) { 
-    // Vérifier d'abord la validité du token
-    try {
-      const testResponse = await api('/profile');
-      if (!testResponse || testResponse.error) {
-        console.warn('⚠️ Token possiblement invalide; poursuivre sans déconnecter');
+    // Afficher l'application immédiatement si on a un token (optimisation)
+    hide(authSection);
+    show(appSection);
+    
+    // Vérifier la validité du token en arrière-plan (non bloquant)
+    setTimeout(async () => {
+      try {
+        const testResponse = await api('/profile');
+        if (!testResponse || testResponse.error) {
+          console.warn('⚠️ Token possiblement invalide; poursuivre sans déconnecter');
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur de validation du token; poursuivre sans déconnecter:', error.message);
       }
-    } catch (error) {
-      console.warn('⚠️ Erreur de validation du token; poursuivre sans déconnecter:', error.message);
-    }
+    }, 100);
 
-    // Charger le profil et vérifier l'onboarding (une seule fois)
-    try {
-      const emailForProfile = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
-      let profileData = null;
-      if (emailForProfile) {
-        profileData = normalizeProfileResponse(await api(`/profile?email=${encodeURIComponent(emailForProfile)}`));
-        // Sauvegarder pour d'autres fonctions (notifications)
-        try { localStorage.setItem('userProfile', JSON.stringify(profileData || {})); } catch {}
-      }
-      const alreadyPrompted = localStorage.getItem('onboardingPrompted') === '1';
-      if (!isProfileComplete(profileData) && !alreadyPrompted) {
-        localStorage.setItem('onboardingPrompted', '1');
-        // Ne plus rediriger automatiquement. Afficher une notification et mettre en avant le lien Profil.
-        try {
-          showNotification('Complétez votre profil depuis le menu « Mon Profil »', 'warning', 6000);
-          const profileNav = document.querySelector('a[href="/profile.html"]');
-          if (profileNav) {
-            profileNav.style.boxShadow = '0 0 0 3px rgba(245, 158, 11, 0.6)';
-            profileNav.style.transform = 'scale(1.02)';
-            setTimeout(() => {
-              profileNav.style.boxShadow = '';
-              profileNav.style.transform = '';
-            }, 3000);
-          }
-        } catch {}
-        // Continuer sans forcer la navigation
-      }
-    } catch {}
+    // Charger le profil en arrière-plan (non bloquant pour l'affichage)
+    setTimeout(async () => {
+      try {
+        const emailForProfile = (new URLSearchParams(window.location.search)).get('email') || localStorage.getItem('userEmail');
+        let profileData = null;
+        if (emailForProfile) {
+          profileData = normalizeProfileResponse(await api(`/profile?email=${encodeURIComponent(emailForProfile)}`));
+          // Sauvegarder pour d'autres fonctions (notifications)
+          try { localStorage.setItem('userProfile', JSON.stringify(profileData || {})); } catch {}
+        }
+        const alreadyPrompted = localStorage.getItem('onboardingPrompted') === '1';
+        if (!isProfileComplete(profileData) && !alreadyPrompted) {
+          localStorage.setItem('onboardingPrompted', '1');
+          // Ne plus rediriger automatiquement. Afficher une notification et mettre en avant le lien Profil.
+          try {
+            showNotification('Complétez votre profil depuis le menu « Mon Profil »', 'warning', 6000);
+            const profileNav = document.querySelector('a[href="/profile.html"]');
+            if (profileNav) {
+              profileNav.style.boxShadow = '0 0 0 3px rgba(245, 158, 11, 0.6)';
+              profileNav.style.transform = 'scale(1.02)';
+              setTimeout(() => {
+                profileNav.style.boxShadow = '';
+                profileNav.style.transform = '';
+              }, 3000);
+            }
+          } catch {}
+          // Continuer sans forcer la navigation
+        }
+      } catch {}
+    }, 300); // Charger après l'affichage initial
 
     hide(authSection);
     show(appSection);
@@ -865,6 +951,15 @@ async function init() {
         localStorage.setItem('userEmail', data.user.email || email);
         localStorage.setItem('lastUserEmail', data.user.email || email);
         
+        // Sauvegarder la session pour persistance (30 jours)
+        if (window.sessionManager) {
+          window.sessionManager.saveSession(
+            data.token,
+            data.user.email || email,
+            data.user || null
+          );
+        }
+        
         // Afficher l'application immédiatement
         hide(authSection); 
         show(appSection);
@@ -872,7 +967,7 @@ async function init() {
         // Afficher message de succès rapide
         showNotification('Connexion réussie !', 'success', 2000);
         
-        // Charger les données lourdes en arrière-plan après l'affichage
+        // Charger les données lourdes en arrière-plan après l'affichage (non bloquant)
         setTimeout(async () => {
           try {
             // Vérifier l'onboarding en arrière-plan
@@ -894,22 +989,24 @@ async function init() {
           }
         }, 500);
         
-        // Charger les données essentielles immédiatement
-        await loadAgentProfile();
+        // Charger les données essentielles en arrière-plan (non bloquant)
+        loadAgentProfile().catch(() => {});
         
-        // Forcer le rendu du calendrier immédiatement
-        renderCalendar();
+        // Forcer le rendu du calendrier immédiatement (non bloquant)
+        setTimeout(() => {
+          try { renderCalendar(); } catch {}
+        }, 100);
         
-        // Initialiser les sélecteurs géographiques rapidement
+        // Initialiser les sélecteurs géographiques rapidement (non bloquant)
         setTimeout(() => {
           if (typeof initGeoSelectors === 'function') {
             console.log('🌍 Initialisation des sélecteurs géographiques...');
-            initGeoSelectors();
+            try { initGeoSelectors(); } catch {}
           }
-        }, 100);
+        }, 200);
         
-        // Mettre à jour la navbar
-        await updateNavbar();
+        // Mettre à jour la navbar (non bloquant)
+        updateNavbar().catch(() => {});
         
         // Rendre les actions circulaires
         try { updateCircleActionsVisibility(); } catch {}
@@ -1431,6 +1528,30 @@ async function init() {
       // Pas d'erreur bloquante: mettre en file et notifier doucement
       console.warn('Début mission offline ou erreur réseau, mise en file:', e?.message || e);
       status.textContent = 'Présence en file (offline)';
+      
+      // Stocker la mission en attente dans IndexedDB
+      try {
+        const missionData = {
+          lat: Number(coords.latitude),
+          lon: Number(coords.longitude),
+          accuracy: coords.accuracy ? Number(coords.accuracy) : null,
+          note: $('note').value || 'Début de mission (offline)',
+          departement: $('departement').value || null,
+          commune: $('commune').value || null,
+          arrondissement: $('arrondissement').value || null,
+          village: $('village').value || null,
+          captured_at: new Date().toISOString()
+        };
+        
+        // Stocker dans IndexedDB via missionSync
+        if (window.missionSync) {
+          await window.missionSync.storePendingMission('start', missionData);
+          console.log('✅ Mission de démarrage stockée en attente');
+        }
+      } catch (syncError) {
+        console.error('Erreur stockage mission en attente:', syncError);
+      }
+      
       try {
         const payload = {
           lat: Number(fd.get('lat')),
@@ -1447,7 +1568,7 @@ async function init() {
           });
         }
       } catch {}
-      try { showNotification('Hors ligne: présence mise en file. Elle sera envoyée dès retour réseau.', 'info'); } catch {}
+      try { showNotification('Hors ligne: mission mise en attente. Utilisez le bouton de synchronisation une fois connecté.', 'info'); } catch {}
       // Considérer la mission comme active côté UI pour permettre la fin même offline
       try {
         localStorage.setItem('hasActiveMissionOffline', 'true');
@@ -1459,8 +1580,13 @@ async function init() {
       const endBtn = $('end-mission');
       if (endBtn) endBtn.disabled = false;
       if (button) button.disabled = true;
-      const flushBtn3 = $('flush-queue');
-      if (flushBtn3) flushBtn3.disabled = false;
+      
+      // Afficher le bouton de synchronisation
+      if (window.missionSync) {
+        await window.missionSync.updateSyncButton();
+        const syncCard = document.getElementById('sync-missions-card');
+        if (syncCard) syncCard.style.display = 'block';
+      }
     } finally {
       removeLoadingState(button);
     }
@@ -1592,6 +1718,26 @@ async function init() {
       // Pas d'erreur bloquante: mettre en file et notifier doucement
       console.warn('Fin mission offline ou erreur réseau, mise en file:', e?.message || e);
       status.textContent = 'Fin en file (offline)';
+      
+      // Stocker la fin de mission en attente dans IndexedDB
+      try {
+        const missionData = {
+          mission_id: missionId || localStorage.getItem('activeMissionId') || localStorage.getItem('currentMissionId'),
+          lat: Number(coords.latitude),
+          lon: Number(coords.longitude),
+          accuracy: coords.accuracy ? Number(coords.accuracy) : null,
+          note: $('note').value || 'Fin de mission (offline)'
+        };
+        
+        // Stocker dans IndexedDB via missionSync
+        if (window.missionSync) {
+          await window.missionSync.storePendingMission('end', missionData);
+          console.log('✅ Fin de mission stockée en attente');
+        }
+      } catch (syncError) {
+        console.error('Erreur stockage fin de mission en attente:', syncError);
+      }
+      
       try {
         const payload = {
           mission_id: missionId,
@@ -1607,7 +1753,15 @@ async function init() {
           });
         }
       } catch {}
-      try { showNotification('Hors ligne: fin de mission mise en file. Elle sera envoyée dès retour réseau.', 'info'); } catch {}
+      try { showNotification('Hors ligne: fin de mission mise en attente. Utilisez le bouton de synchronisation une fois connecté.', 'info'); } catch {}
+      
+      // Afficher le bouton de synchronisation
+      if (window.missionSync) {
+        await window.missionSync.updateSyncButton();
+        const syncCard = document.getElementById('sync-missions-card');
+        if (syncCard) syncCard.style.display = 'block';
+      }
+      
       // Fin en offline: marquer la mission locale comme terminée
       try {
         localStorage.removeItem('hasActiveMissionOffline');
@@ -4522,7 +4676,7 @@ async function checkOfflineData() {
 }
 
 // Synchroniser les données en attente (pour la page index)
-async function syncOfflineDataIndex() {
+window.syncOfflineDataIndex = async function syncOfflineDataIndex() {
   const syncBtn = $('sync-offline-data-index');
   if (!syncBtn) return;
 

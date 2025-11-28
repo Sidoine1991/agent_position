@@ -10,6 +10,13 @@
   let currentUserProject = null;
   let cachedActivityData = null; // Cache pour les données d'activités
   
+  const normalizeProjectName = (name) => (name || '').toString().trim().toLowerCase();
+  const formatProjectName = (name) => {
+    const trimmed = (name || '').toString().trim();
+    return trimmed || 'Non spécifié';
+  };
+  const getStatProjectSlug = (stat) => normalizeProjectName(stat?.normalized_project || stat?.project_name);
+  
   // Constantes pour l'authentification (déclarées au début)
   const DEFAULT_TOKEN_CANDIDATES = ['jwt', 'access_token', 'token', 'sb-access-token', 'sb:token'];
 
@@ -96,8 +103,9 @@
     
     // Obtenir tous les agents du projet sélectionné
     const selectedProject = projectFilter ? projectFilter.value : null;
+    const normalizedSelectedProject = normalizeProjectName(selectedProject);
     const projectAgents = selectedProject ? 
-      agents.filter(agent => agent.project_name === selectedProject) : 
+      agents.filter(agent => normalizeProjectName(agent.project_name) === normalizedSelectedProject) : 
       agents;
     
     console.log('📊 Agents du projet:', {
@@ -126,13 +134,16 @@
     // Initialiser tous les agents du projet avec des statistiques vides
     projectAgents.forEach(agent => {
       const agentName = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
-      const agentKey = `${agentName}|${selectedProject || agent.project_name}`;
+      const projectDisplayName = formatProjectName(selectedProject || agent.project_name);
+      const normalizedProject = normalizeProjectName(projectDisplayName);
+      const agentKey = `${agentName}|${normalizedProject}`;
       
       agentsStats.set(agentKey, {
         agent_name: agentName,
         agent_id: agent.id,
         role: agent.role || 'agent',
-        project_name: selectedProject || agent.project_name,
+        project_name: projectDisplayName,
+        normalized_project: normalizedProject,
         total_activities: 0,
         realized_activities: 0,
         not_realized_activities: 0,
@@ -167,12 +178,17 @@
           }
         }
         
+        const projectDisplayName = formatProjectName(projectName);
+        const normalizedProject = normalizeProjectName(projectDisplayName);
+        
         // Créer une clé unique pour l'agent (nom + projet)
-        const agentKey = `${agentName}|${projectName}`;
+        const agentKey = `${agentName}|${normalizedProject}`;
         
         // Mettre à jour les statistiques si l'agent existe dans notre liste
         if (agentsStats.has(agentKey)) {
           const stats = agentsStats.get(agentKey);
+          stats.project_name = projectDisplayName;
+          stats.normalized_project = normalizedProject;
           stats.total_activities++;
           stats.has_activities = true;
           
@@ -221,7 +237,8 @@
     let filteredStats = Array.from(agentsStats.values());
     if (projectFilter && projectFilter.value) {
       // Utiliser le filtre sélectionné par l'utilisateur
-      filteredStats = filteredStats.filter(a => a.project_name === projectFilter.value);
+      const normalizedFilterProject = normalizeProjectName(projectFilter.value);
+      filteredStats = filteredStats.filter(a => (a.normalized_project || normalizeProjectName(a.project_name)) === normalizedFilterProject);
     }
     
     // Filtrer par agent si un filtre est sélectionné
@@ -394,22 +411,29 @@
     
     // Initialiser avec les statistiques existantes
     stats.forEach(stat => {
-      const key = `${stat.agent_name}|${stat.project_name}`;
+      const projectSlug = getStatProjectSlug(stat);
+      const key = `${stat.agent_name}|${projectSlug}`;
       allAgentsStats.set(key, {
         ...stat,
+        project_name: formatProjectName(stat.project_name),
+        normalized_project: projectSlug,
         has_activities: true
       });
     });
     
     // Ajouter tous les agents sans activité
     agents.forEach(agent => {
-      const key = `${agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email}|${agent.project_name}`;
+      const agentDisplayName = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
+      const projectDisplayName = formatProjectName(agent.project_name);
+      const projectSlug = normalizeProjectName(projectDisplayName);
+      const key = `${agentDisplayName}|${projectSlug}`;
       if (!allAgentsStats.has(key)) {
         allAgentsStats.set(key, {
-          agent_name: agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email,
+          agent_name: agentDisplayName,
           agent_id: agent.id,
           role: agent.role || 'agent',
-          project_name: agent.project_name,
+          project_name: projectDisplayName,
+          normalized_project: projectSlug,
           total_activities: 0,
           realized_activities: 0,
           not_realized_activities: 0,
@@ -438,7 +462,7 @@
     const sortedByWeighted = [...weightedRanking].sort((a, b) => b.weighted_score - a.weighted_score);
     
     // Obtenir tous les projets disponibles depuis la variable globale projects
-    const availableProjects = projects.map(p => p.name);
+    const availableProjects = [...new Set(projects.map(p => formatProjectName(p.name)))];
     
     console.log('🏆 Initialisation tableau TEP:', {
       totalAgents: completeStats.length,
@@ -532,12 +556,13 @@
               <tbody id="ranking-tbody">
                 ${sortedByWeighted.map((stats, index) => {
                   const tep = calculateExecutionRate(stats.realized_activities, stats.total_activities);
+                  const statsProjectSlug = getStatProjectSlug(stats);
                   const rank = index + 1;
                   const rankClass = rank <= 3 ? 'text-warning fw-bold' : '';
                   const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
                   
                   // Trouver le classement TEP pour comparaison
-                  const tepRank = sortedByTEP.findIndex(s => s.agent_name === stats.agent_name && s.project_name === stats.project_name) + 1;
+                  const tepRank = sortedByTEP.findIndex(s => s.agent_name === stats.agent_name && getStatProjectSlug(s) === statsProjectSlug) + 1;
                   const rankChange = tepRank - rank;
                   const rankChangeIcon = rankChange > 0 ? '📈' : rankChange < 0 ? '📉' : '➡️';
                   const rankChangeClass = rankChange > 0 ? 'text-success' : rankChange < 0 ? 'text-danger' : 'text-muted';
@@ -667,6 +692,7 @@
     if (!filter || !tbody) return;
     
     const selectedProject = filter.value;
+    const normalizedSelectedProject = normalizeProjectName(selectedProject);
     
     console.log('🔍 Filtrage tableau TEP:', {
       selectedProject,
@@ -676,7 +702,7 @@
     
     // Filtrer les stats
     const filteredStats = selectedProject ? 
-      allStats.filter(s => s.project_name === selectedProject) : 
+      allStats.filter(s => getStatProjectSlug(s) === normalizedSelectedProject) : 
       allStats;
     
     console.log('📊 Résultat filtrage:', {
@@ -719,8 +745,9 @@
     // Filtrer selon le projet sélectionné
     const filter = document.getElementById('ranking-project-filter');
     const selectedProject = filter ? filter.value : '';
+    const normalizedSelectedProject = normalizeProjectName(selectedProject);
     const filteredStats = selectedProject ? 
-      allStats.filter(s => s.project_name === selectedProject) : 
+      allStats.filter(s => getStatProjectSlug(s) === normalizedSelectedProject) : 
       allStats;
     
     // Trier selon le mode
@@ -763,12 +790,13 @@
     
     const rows = sortedStats.map((stats, index) => {
       const tep = calculateExecutionRate(stats.realized_activities, stats.total_activities);
+      const statsProjectSlug = getStatProjectSlug(stats);
       const rank = index + 1;
       const rankClass = rank <= 3 ? 'text-warning fw-bold' : '';
       const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
       
       // Trouver le classement TEP pour comparaison
-      const tepRank = tepRanking.findIndex(s => s.agent_name === stats.agent_name && s.project_name === stats.project_name) + 1;
+      const tepRank = tepRanking.findIndex(s => s.agent_name === stats.agent_name && getStatProjectSlug(s) === statsProjectSlug) + 1;
       const rankChange = tepRank - rank;
       const rankChangeIcon = rankChange > 0 ? '📈' : rankChange < 0 ? '📉' : '➡️';
       const rankChangeClass = rankChange > 0 ? 'text-success' : rankChange < 0 ? 'text-danger' : 'text-muted';
@@ -1835,17 +1863,19 @@
     if (uniqueProjects) {
       // Utiliser les projets uniques fournis
       uniqueProjects.forEach(projectName => {
+        const formattedName = formatProjectName(projectName);
         const option = document.createElement('option');
-        option.value = projectName;
-        option.textContent = projectName;
+        option.value = formattedName;
+        option.textContent = formattedName;
         select.appendChild(option);
       });
     } else {
       // Utiliser la liste projects globale
       projects.forEach(project => {
+        const formattedName = formatProjectName(project.name);
         const option = document.createElement('option');
-        option.value = project.name;
-        option.textContent = project.name;
+        option.value = formattedName;
+        option.textContent = formattedName;
         select.appendChild(option);
       });
     }
@@ -1860,7 +1890,7 @@
     projectFilter.innerHTML = '<option value="">Tous les projets</option>';
     
     // Ajouter les projets uniques triés
-    const projectNames = projects.map(p => p.name).sort();
+    const projectNames = projects.map(p => formatProjectName(p.name)).sort();
     projectNames.forEach(projectName => {
       const option = document.createElement('option');
       option.value = projectName;
@@ -2078,6 +2108,7 @@
     const resultat = activity.resultat_journee || '';
     const observations = activity.observations || '';
 
+    const activityProjectSlug = normalizeProjectName(activity.project_name);
     return `
       <tr data-activity-id="${activity.id}" class="activity-row">
         <td>
@@ -2093,13 +2124,15 @@
           <select class="form-control" data-field="project_name">
             <option value="">Sélectionner un projet</option>
             ${projects && projects.length > 0 ? projects.map(project => {
-              const isSelected = activity.project_name === project.name || 
+              const projectDisplayName = formatProjectName(project.name);
+              const projectSlug = normalizeProjectName(projectDisplayName);
+              const isSelected = (activityProjectSlug && activityProjectSlug === projectSlug) || 
                                 (activity.project_id == project.id) ||
                                 (activity.isNew && project.id === 1); // Sélectionner le projet de l'agent par défaut pour les nouvelles activités
-              return `<option value="${project.name}" ${isSelected ? 'selected' : ''}>${project.name}</option>`;
+              return `<option value="${projectDisplayName}" ${isSelected ? 'selected' : ''}>${projectDisplayName}</option>`;
             }).join('') : ''}
-            ${activity.project_name && !projects.some(p => p.name === activity.project_name) ? 
-              `<option value="${activity.project_name}" selected>${activity.project_name}</option>` : ''}
+            ${activity.project_name && !projects.some(p => normalizeProjectName(p.name) === activityProjectSlug) ? 
+              `<option value="${formatProjectName(activity.project_name)}" selected>${formatProjectName(activity.project_name)}</option>` : ''}
           </select>
         </td>
         <td>

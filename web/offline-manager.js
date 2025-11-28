@@ -51,6 +51,14 @@ class OfflineManager {
           missionsStore.createIndex('synced', 'synced', { unique: false });
         }
         
+        // Store pour les missions en attente (démarrage et fin)
+        if (!db.objectStoreNames.contains('pendingMissions')) {
+          const pendingMissionsStore = db.createObjectStore('pendingMissions', { keyPath: 'id', autoIncrement: true });
+          pendingMissionsStore.createIndex('type', 'type', { unique: false }); // 'start' ou 'end'
+          pendingMissionsStore.createIndex('synced', 'synced', { unique: false });
+          pendingMissionsStore.createIndex('timestamp', 'timestamp', { unique: false });
+        }
+        
         // Store pour les check-ins
         if (!db.objectStoreNames.contains('checkins')) {
           const checkinsStore = db.createObjectStore('checkins', { keyPath: 'id', autoIncrement: true });
