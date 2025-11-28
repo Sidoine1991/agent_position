@@ -2,6 +2,10 @@
 const SUPABASE_URL = 'https://eoamsmtdspedumjmmeui.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVvYW1zbXRkc3BlZHVtam1tZXVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwMjcyMzksImV4cCI6MjA3NDYwMzIzOX0.5F1uBbPfMYNlGgFJI20jexPf_XmPLiEOEtCTO_zZDcw';
 
+// Exposer aussi les constantes sur window pour les scripts non modules
+window.SUPABASE_URL = SUPABASE_URL;
+window.SUPABASE_ANON_KEY = SUPABASE_ANON_KEY;
+
 // Initialisation du client Supabase
 // Le SDK Supabase v2 expose 'supabase' comme variable globale
 (function initSupabaseClient() {

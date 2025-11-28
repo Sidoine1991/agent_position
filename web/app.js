@@ -2340,6 +2340,12 @@ async function loadAgentProfile() {
     console.log('🔄 loadAgentProfile déjà en cours, ignoré');
     return;
   }
+
+  const profileSection = $('agent-profile');
+  if (!profileSection) {
+    // La page actuelle n'affiche pas le widget profil, sortir silencieusement
+    return;
+  }
   
   isLoadingProfile = true;
   
@@ -2377,7 +2383,7 @@ async function loadAgentProfile() {
       $('agent-avatar').src = profile.photo_path;
     }
     
-    $('agent-profile').classList.remove('hidden');
+    profileSection.classList.remove('hidden');
     
     // Mettre à jour la navbar après chargement du profil
     await updateNavbar();
