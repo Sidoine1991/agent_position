@@ -23,18 +23,24 @@ Développée pour répondre aux besoins spécifiques du secteur agricole bénino
 - **Suivi en temps réel** des déplacements
 - **Validation des présences** par les superviseurs
 - **Historique complet** avec horodatage et localisation
+- **Gestion des absences** avec enregistrement automatique
+- **Jours permissionnaires** avec suivi des congés et autorisations
 
 ### 📊 Tableaux de Bord
 - **Vue d'ensemble** des activités en cours
 - **Statistiques** de présence et de productivité
 - **Cartographie** des interventions
 - **Alertes** en temps réel
+- **Classement des agents** par performance
+- **Synthèse mensuelle** avec indicateurs clés
 
-### 🔄 Synchronisation
+### 🔄 Synchronisation et Performance
 - **Mode hors-ligne** avec synchronisation automatique
 - **Multi-appareils** (mobile et web)
 - **Export des données** (PDF, Excel, CSV)
 - **API** pour intégration avec d'autres systèmes
+- **Optimisation des performances** avec mise en cache intelligente
+- **Synchronisation différentielle** pour économiser la bande passante
 
 ## 🛠️ Installation et Configuration
 
@@ -88,26 +94,32 @@ Développée pour répondre aux besoins spécifiques du secteur agricole bénino
 - **Gestion des missions** quotidiennes
 - **Saisie de rapports** et observations
 - **Consultation** de l'historique et du planning
+- **Demande de permissions** et suivi des congés
+- **Tableau de bord personnel** avec statistiques
 
 ### 🔹 Superviseurs
 - **Suivi en temps réel** des équipes
-- **Validation** des présences
-- **Gestion des plannings**
+- **Validation** des présences et permissions
+- **Gestion des plannings** et affectations
 - **Génération de rapports** d'activité
+- **Tableaux de bord** par équipe et par projet
+- **Alertes** sur les écarts de présence
 
-### 🔹 Administrateurs
+### Administrateurs
 - **Configuration** du système
 - **Gestion des utilisateurs** et des droits
 - **Supervision** des données
 - **Maintenance** de l'application
 
-## 📚 Documentation Technique
+## Documentation Technique
 
 ### Architecture
 - **Frontend** : React.js avec Material-UI
 - **Backend** : Node.js avec Express
 - **Base de données** : PostgreSQL via Supabase
-- **Authentification** : JWT
+- **Authentification** : JWT avec renouvellement automatique
+- **Gestion des états** : Redux pour une expérience utilisateur fluide
+- **Géolocalisation** : Intégration avec les APIs natives du navigateur
 
 ### API REST
 Les endpoints principaux sont :
@@ -115,6 +127,9 @@ Les endpoints principaux sont :
 - `GET /api/presence` - Récupérer les présences
 - `POST /api/presence` - Enregistrer une présence
 - `GET /api/reports` - Générer des rapports
+- `GET /api/permission-days` - Gérer les jours de permission
+- `POST /api/presence/mark-absent` - Marquer une absence
+- `GET /api/presence/check-today` - Vérifier la présence du jour
 
 ### Variables d'environnement
 | Variable | Description |
@@ -131,11 +146,13 @@ Les endpoints principaux sont :
 1. Ouvrez votre navigateur (Chrome, Firefox, Safari)
 2. Allez à l'adresse : `https://presence-ccrb-v2.onrender.com`
 3. L'application s'installe automatiquement comme une app
+4. Activez les notifications pour les rappels de présence
 
 ### Sur Ordinateur (Pour superviseurs et admins)
 1. Ouvrez votre navigateur
 2. Allez à l'adresse : `https://presence-ccrb-v2.onrender.com`
 3. Utilisez l'interface web complète
+4. Accédez aux tableaux de bord avancés
 
 ## 📧 Configuration des Emails
 
@@ -171,10 +188,12 @@ Si les emails ne sont pas reçus :
 - Validation des entrées utilisateur
 
 ### Protection des données
-- Chiffrement des données sensibles
-- Sauvegardes automatiques
-- Journalisation des accès
-- Conformité RGPD
+- Chiffrement des données sensibles (AES-256)
+- Sauvegardes automatiques et redondantes
+- Journalisation détaillée des accès et modifications
+- Conformité RGPD et protection de la vie privée
+- Gestion des consentements utilisateurs
+- Audit de sécurité régulier
 
 ### Bonnes pratiques
 - Utilisez des mots de passe complexes
@@ -182,12 +201,27 @@ Si les emails ne sont pas reçus :
 - Ne partagez pas vos identifiants
 - Signalez toute activité suspecte
 
+## 🆕 Dernières Mises à Jour
+
+### Novembre 2025
+- **Nouveau système de rapports mensuels** avec indicateurs clés
+- **Gestion des permissions et absences** améliorée
+- **Optimisation des performances** pour les connexions lentes
+- **Interface utilisateur** revue et améliorée
+- **Synchronisation** plus fiable en mode hors ligne
+- **Sécurité** renforcée avec authentification à deux facteurs
+
+### Octobre 2025
+- Intégration avec les services de cartographie
+- Amélioration de la gestion des photos de présence
+- Optimisation pour les réseaux mobiles
+
 ## 🤝 Contribution
 
 ### Développement
 1. Forkez le dépôt
 2. Créez une branche pour votre fonctionnalité
-3. Soumettez une pull request
+3. Soumettez une pull request avec une description détaillée
 
 ### Signalement de bugs
 Ouvrez une issue sur GitHub avec :

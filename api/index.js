@@ -2331,15 +2331,17 @@ module.exports = async (req, res) => {
     }
 
     // Marquer un agent comme absent pour une date donnée
-    // POST /api/presence/mark-absent?email=email@example.com
-    // Body: { date: '2023-11-26' }
+    // POST /api/presence/mark-absent
+    // Body: { 
+    //   date: '2023-11-26',
+    //   email: 'user@example.com'
+    // }
     if (path === '/api/presence/mark-absent' && method === 'POST') {
       return authenticateToken(req, res, async () => {
         try {
           console.log('🔵 POST /api/presence/mark-absent - Début du traitement');
 
-          // Récupération des paramètres
-          const { email } = req.query;
+          // Récupération des données du corps de la requête
           let bodyData = {};
           try {
             if (req.body && typeof req.body === 'string') {
@@ -2349,17 +2351,22 @@ module.exports = async (req, res) => {
             }
           } catch (e) {
             console.warn('Erreur parsing body:', e);
+            return res.status(400).json({
+              success: false,
+              error: 'Format de requête invalide. Le corps doit être un JSON valide.'
+            });
           }
-          const { date } = bodyData;
+          
+          const { date, email } = bodyData;
 
           console.log('🔍 Données reçues:', { email, date });
 
           // Validation de l'email
           if (!email || typeof email !== 'string' || !email.includes('@')) {
-            console.log('❌ Email invalide ou manquant');
+            console.log('❌ Email invalide ou manquant dans le corps de la requête');
             return res.status(400).json({
               success: false,
-              error: 'Un email valide est requis dans les paramètres de requête (ex: /api/presence/mark-absent?email=user@example.com)'
+              error: 'Un email valide est requis dans le corps de la requête (champ "email")'
             });
           }
 

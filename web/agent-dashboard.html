@@ -1587,45 +1587,91 @@
 
     async function fetchPermissionDaysRecord(agentId, monthValue) {
       try {
-        if (!agentId || !monthValue) return null;
-        const params = new URLSearchParams({
-          agent_id: agentId,
-          month: monthValue
-        });
-        
-        console.log('🔍 Récupération des jours de permission pour:', { agentId, monthValue });
-        
-        const response = await fetch(`/api/permission-days?${params.toString()}`, {
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include'
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Erreur API permission-days:', response.status, errorText);
-          throw new Error(`Erreur ${response.status}: ${errorText}`);
-        }
-        
-        const result = await response.json();
-        
-        if (!result.success) {
-          console.error('Erreur dans la réponse API:', result.error);
+        if (!agentId || !monthValue) {
+          console.warn('⚠️ Paramètres manquants pour fetchPermissionDaysRecord:', { agentId, monthValue });
           return null;
         }
         
-        console.log('✅ Réponse API permission-days:', {
-          totalDays: result.total_days,
-          count: result.count,
-          permissions: result.permission_days?.length || 0
+        const params = new URLSearchParams({
+          agent_id: agentId,
+          month: monthValue,
+          _t: Date.now() // Cache buster
+        });
+        
+        console.log('🔍 Récupération des jours de permission pour:', { 
+          agentId, 
+          monthValue,
+          url: `/api/permission-days?${params.toString()}`
+        });
+        
+        const startTime = performance.now();
+        const response = await fetch(`/api/permission-days?${params.toString()}`, {
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          credentials: 'include',
+          cache: 'no-cache'
+        });
+        
+        const endTime = performance.now();
+        console.log(`⏱️ Temps de réponse: ${(endTime - startTime).toFixed(2)}ms`);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Erreur API permission-days:', {
+            status: response.status,
+            statusText: response.statusText,
+            url: response.url,
+            error: errorText
+          });
+          
+          // Essayer de parser l'erreur comme JSON si possible
+          try {
+            const errorJson = JSON.parse(errorText);
+            console.error('Détails de l\'erreur:', errorJson);
+          } catch (e) {
+            // Si ce n'est pas du JSON, on garde le texte brut
+            console.error('Réponse brute d\'erreur:', errorText);
+          }
+          
+          throw new Error(`Erreur ${response.status}: ${response.statusText || 'Erreur inconnue'}`);
+        }
+        
+        const result = await response.json();
+        console.log('📊 Réponse brute de l\'API:', result);
+        
+        if (!result.success) {
+          console.error('❌ Erreur dans la réponse API:', {
+            error: result.error,
+            details: result.details,
+            response: result
+          });
+          return null;
+        }
+        
+        const totalDays = Number(result.total_days) || 0;
+        const permissionDays = Array.isArray(result.permission_days) ? result.permission_days : [];
+        
+        console.log('✅ Jours de permission récupérés:', {
+          totalDays,
+          count: result.count || 0,
+          permissionsCount: permissionDays.length,
+          permissions: permissionDays
         });
         
         // Retourner un objet avec le nombre total de jours de permission
         return {
-          days: result.total_days || 0,
-          records: result.permission_days || []
+          days: totalDays,
+          records: permissionDays
         };
       } catch (error) {
-        console.warn('Erreur récupération jours permissionnaires:', error);
+        console.error('❌ Erreur dans fetchPermissionDaysRecord:', {
+          message: error.message,
+          stack: error.stack,
+          agentId,
+          monthValue
+        });
         return null;
       }
     }
@@ -4025,10 +4071,18 @@ Commence ton analyse maintenant.`;
           }
 
           try {
+            console.log('🔍 Récupération des jours de permission pour:', { 
+              agentId: resolvedAgentId, 
+              month: monthRange.value 
+            });
             const permissionRecord = await fetchPermissionDaysRecord(resolvedAgentId, monthRange.value);
+            console.log('📊 Réponse de fetchPermissionDaysRecord:', permissionRecord);
             if (permissionRecord && typeof permissionRecord.days !== 'undefined') {
               report.presence = report.presence || {};
               report.presence.permissionDays = Math.max(0, Number(permissionRecord.days) || 0);
+              console.log('✅ Jours de permission définis:', report.presence.permissionDays);
+            } else {
+              console.warn('⚠️ Aucun jour de permission trouvé ou réponse invalide');
             }
           } catch (permissionError) {
             console.warn('Erreur jours permissionnaires (rapport):', permissionError);
