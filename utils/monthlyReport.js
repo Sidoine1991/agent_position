@@ -139,7 +139,7 @@ function startOfWeek(date) {
 function summarizeWeeklyDistribution(checkins = []) {
   const map = new Map();
   checkins.forEach(checkin => {
-    const rawDate = checkin?.created_at || checkin?.timestamp || checkin?.checkin_time;
+    const rawDate = checkin?.created_at || checkin?.start_time;
     if (!rawDate) return;
     const date = new Date(rawDate);
     if (Number.isNaN(date.getTime())) return;
@@ -211,7 +211,7 @@ function summarizePresence(checkins, monthContext, missions = []) {
 
   // Analyser les checkins pour les jours de présence
   checkins.forEach(checkin => {
-    const rawDate = checkin?.created_at || checkin?.timestamp || checkin?.checkin_time;
+    const rawDate = checkin?.created_at || checkin?.start_time;
     if (!rawDate) return;
     const date = new Date(rawDate);
     if (Number.isNaN(date.getTime())) return;
@@ -298,7 +298,7 @@ function summarizePresence(checkins, monthContext, missions = []) {
     const checkinsByDay = new Map();
 
     checkins.forEach(checkin => {
-      const rawDate = checkin?.created_at || checkin?.timestamp || checkin?.checkin_time;
+      const rawDate = checkin?.created_at || checkin?.start_time;
       if (rawDate) {
         const date = new Date(rawDate);
         if (!Number.isNaN(date.getTime())) {
@@ -447,7 +447,7 @@ function summarizeActivities(planifications = [], checkins = []) {
   // Calculer les jours planifiés où l'agent était présent (basé sur les checkins)
   const presentDaysSet = new Set();
   (checkins || []).forEach(checkin => {
-    const rawDate = checkin?.created_at || checkin?.timestamp || checkin?.checkin_time;
+    const rawDate = checkin?.created_at || checkin?.start_time;
     if (!rawDate) return;
     const date = new Date(rawDate);
     if (Number.isNaN(date.getTime())) return;
@@ -680,9 +680,8 @@ function summarizePhotos(checkins = []) {
 
     // Extraire la date depuis différentes sources
     const rawDate = checkin.created_at ||
-      checkin.timestamp ||
-      checkin.checkin_time ||
-      checkin.checkin_timestamp ||
+      checkin.start_time ||
+      checkin.checkin_timestamp ||  // Ajout pour presence_validations
       checkin.taken_at ||
       null;
     const parsedDate = rawDate ? new Date(rawDate) : null;
@@ -1503,64 +1502,31 @@ async function buildAgentMonthlyReport({
         throw new Error(`agentId invalide: ${targetAgentId}`);
       }
 
-      // Essayer d'abord avec user_id direct
+      // Essayer d'abord avec user_id direct depuis presence_validations
       const { data: checkinsByUserId, error: errorByUserId } = await supabaseClient
-        .from('checkins')
-        .select('id, user_id, created_at, timestamp, checkin_time, note, lat, lon, location_name, address, commune, village, photo_url, photo_path, mission_id')
+        .from('presence_validations')
+        .select('id, user_id, checkin_timestamp, validation_notes as note, checkin_lat as lat, checkin_lng as lon, checkin_location_name as location_name, photo_url, presence_id')
         .eq('user_id', targetAgentId)
-        .gte('created_at', monthContext.startIso)
-        .lte('created_at', monthContext.endIso)
-        .order('created_at', { ascending: true })
+        .eq('validation_status', 'validated')  // Seulement les présences validées
+        .gte('checkin_timestamp', monthContext.startIso)
+        .lte('checkin_timestamp', monthContext.endIso)
+        .order('checkin_timestamp', { ascending: true })
         .limit(500);
 
       if (!errorByUserId && checkinsByUserId) {
-        checkinsData = checkinsByUserId;
+        // Mapper les données pour compatibilité avec le code existant
+        checkinsData = checkinsByUserId.map(pv => ({
+          ...pv,
+          created_at: pv.checkin_timestamp,  // Ajouter created_at pour compatibilité
+          start_time: pv.checkin_timestamp
+        }));
       } else {
-        // Si échec, essayer via missions
-        if (errorByUserId) {
-          console.warn('Erreur récupération checkins par user_id, tentative via missions:', {
-            error: errorByUserId.message,
-            code: errorByUserId.code,
-            targetAgentId
-          });
-        }
-
-        try {
-          const { data: missionsData, error: missionsError } = await supabaseClient
-            .from('missions')
-            .select('id')
-            .eq('agent_id', targetAgentId)
-            .gte('date_start', monthContext.startIso.split('T')[0])
-            .lte('date_end', monthContext.endIso.split('T')[0])
-            .limit(100);
-
-          if (!missionsError && missionsData && missionsData.length > 0) {
-            const missionIds = missionsData.map(m => m.id).filter(Boolean);
-            if (missionIds.length > 0) {
-              const { data: checkinsByMission, error: errorByMission } = await supabaseClient
-                .from('checkins')
-                .select('id, user_id, created_at, timestamp, checkin_time, note, lat, lon, location_name, address, commune, village, photo_url, photo_path, mission_id')
-                .in('mission_id', missionIds)
-                .gte('created_at', monthContext.startIso)
-                .lte('created_at', monthContext.endIso)
-                .order('created_at', { ascending: true })
-                .limit(500);
-
-              if (!errorByMission && checkinsByMission) {
-                checkinsData = checkinsByMission;
-              } else {
-                checkinsError = errorByMission || errorByUserId;
-              }
-            } else {
-              checkinsError = errorByUserId;
-            }
-          } else {
-            checkinsError = errorByUserId || missionsError;
-          }
-        } catch (missionError) {
-          console.warn('Erreur lors de la récupération via missions:', missionError);
-          checkinsError = errorByUserId || missionError;
-        }
+        checkinsError = errorByUserId;
+        console.warn('Erreur récupération presence_validations:', {
+          error: errorByUserId?.message,
+          code: errorByUserId?.code,
+          targetAgentId
+        });
       }
     } catch (error) {
       console.error('Erreur lors de la récupération des checkins:', {
@@ -1674,7 +1640,7 @@ async function buildAgentMonthlyReport({
             .order('date', { ascending: true })
             .limit(1000);
 
-      // IMPORTANT: ne pas filtrer en SQL (casse/espaces). On filtrera en JS après récupération
+          // IMPORTANT: ne pas filtrer en SQL (casse/espaces). On filtrera en JS après récupération
 
           const resultByUserId = await query;
 
@@ -1885,18 +1851,18 @@ async function buildAgentMonthlyReport({
     let permissionDays = presenceSummary?.permissionDays ?? 0;
     let permissionsData = { days: 0, details: [] };
     if (!presenceSummary) {
-    try {
-      permissionsData = await fetchMonthlyPermissions(supabaseClient, targetAgentId, monthContext);
+      try {
+        permissionsData = await fetchMonthlyPermissions(supabaseClient, targetAgentId, monthContext);
         console.log('✅ Permissions récupérées (fallback):', {
-        agentId: targetAgentId,
-        month: monthContext.value,
-        days: permissionsData.days,
-        detailsCount: permissionsData.details?.length || 0
-      });
-    } catch (error) {
+          agentId: targetAgentId,
+          month: monthContext.value,
+          days: permissionsData.days,
+          detailsCount: permissionsData.details?.length || 0
+        });
+      } catch (error) {
         console.warn('Erreur lors de la récupération des jours permissionnaires (fallback):', error.message || error);
-      permissionsData = { days: 0, details: [] };
-    }
+        permissionsData = { days: 0, details: [] };
+      }
       permissionDays = permissionsData.days;
     } else {
       // Si presenceSummary existe, essayer quand même de récupérer les détails des permissions
@@ -1999,7 +1965,7 @@ async function buildAgentMonthlyReport({
     try {
       if (presenceSummary) {
         // Utiliser les mêmes agrégats que /reports.html pour les jours attendus/planifiés/préences
-      presence = summarizePresence(checkinsData || [], monthContext, missionsData || []);
+        presence = summarizePresence(checkinsData || [], monthContext, missionsData || []);
         presence.workingDays = presenceSummary.expectedDays ?? presence.workingDays;
         presence.workedDays = presenceSummary.presentDays ?? presence.workedDays;
         presence.presenceRate = presenceSummary.presenceRate ?? presence.presenceRate;
@@ -2033,7 +1999,7 @@ async function buildAgentMonthlyReport({
                 ? presence.presenceRate
                 : (entry.presenceRate || 0)
             };
-            
+
             // Pour le temps terrain, utiliser la valeur de presence si elle est > 0
             // Sinon, garder la valeur du classement (qui peut être > 0 si calculée différemment)
             if (Number.isFinite(presence.fieldTimeHours) && presence.fieldTimeHours > 0) {
@@ -2051,7 +2017,7 @@ async function buildAgentMonthlyReport({
               updatedEntry.fieldTimeHours = 0;
               updatedEntry.avgFieldTimePerDay = 0;
             }
-            
+
             return updatedEntry;
           }
           return entry;
@@ -2181,7 +2147,7 @@ async function buildAgentMonthlyReport({
       activities,
       locations,
       photos,
-        fieldPhoto,
+      fieldPhoto,
       projectRanking,
       fieldTimeHours: presence.fieldTimeHours || 0,
       dailyMissions: presence.dailyMissions || [],  // Nouveau : détail quotidien

@@ -41,10 +41,10 @@
 
     .summary-table-container {
       background: white;
-      border-radius: 15px;
-      padding: 25px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-      overflow-x: auto;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      padding: 1.5rem;
+      margin-top: 1.5rem;
     }
 
     .summary-table {
@@ -52,6 +52,16 @@
       min-width: 1200px;
       border-collapse: collapse;
       font-size: 0.9rem;
+    }
+
+    .summary-table th {
+      background-color: #f8f9fa;
+      color: #212529 !important;
+      font-weight: 600;
+      padding: 0.75rem;
+      vertical-align: middle;
+      text-align: center;
+      border: 1px solid #dee2e6;
     }
 
     .summary-table thead {
@@ -68,6 +78,7 @@
       font-weight: 600;
       border: 1px solid rgba(255, 255, 255, 0.2);
       white-space: nowrap;
+      color: white !important;
     }
 
     .summary-table td {
@@ -148,8 +159,13 @@
     }
 
     @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
     }
 
     .stats-summary {
@@ -320,7 +336,7 @@
 
         const agents = await api('/agents');
         const projectMap = new Map(); // key: nom normalisé, value: libellé à afficher
-        
+
         if (agents && Array.isArray(agents)) {
           agents.forEach(agent => {
             const rawProject = agent.project_name || agent.project || 'Non spécifié';
@@ -427,29 +443,34 @@
           loadingText.textContent = `Chargement des rapports (${i + 1}/${agentsToProcess.length})... ${agent.name || agent.email}`;
 
           try {
-            // Extraire l'année et le mois du format YYYY-MM
-            const [year, month] = monthValue.split('-');
-            
-            const report = await api(`/agents/monthly-report`, {
-              method: 'POST',
-              body: {
-                agentId: agent.id || agent.user_id,
-                month: month,
-                year: year
-              }
+            // Call the monthly report endpoint with GET and query parameters
+            const params = new URLSearchParams({
+              agentId: agent.id || agent.user_id,
+              month: monthValue,
+              ai: '0' // Disable AI for faster processing
             });
 
-            if (report && report.success && report.report) {
-              const reportData = report.report;
-              const presence = reportData.presence || {};
-              const activities = reportData.activities || {};
-              const meta = reportData.meta || {};
+            console.log(`Chargement du rapport pour l'agent ${agent.id || agent.user_id}...`);
+            const report = await api(`/agents/monthly-report?${params.toString()}`);
+            console.log('Réponse brute de l\'API:', JSON.stringify(report, null, 2));
+
+            // Vérifier la structure de la réponse
+            if (report) {
+              // Essayer différentes structures de réponse possibles
+              const data = report.data || report; // Essayer avec ou sans .data
+              console.log('Données extraites:', JSON.stringify(data, null, 2));
+              
+              const presence = data.presence || data.meta?.presence || {};
+              const activities = data.activities || data.meta?.activities || {};
+              
+              console.log('Données de présence:', presence);
+              console.log('Données d\'activités:', activities);
 
               // Calculer le score composite
               const presenceRate = Number(presence.presenceRate || 0);
               const tepRate = Number(activities.performance?.executionRate || 0);
               const fieldTimeHours = Number(presence.fieldTimeHours || 0);
-              
+
               // Normaliser le temps terrain pour le score (max 160h/mois = 100%)
               const fieldTimeScore = Math.min(100, (fieldTimeHours / 160) * 100);
               const compositeScore = (presenceRate * 0.7) + (tepRate * 0.15) + (fieldTimeScore * 0.15);
@@ -469,17 +490,17 @@
                 avgFieldTimePerDay: presence.avgFieldTimePerDay || 0,
                 missionsCount: presence.missionsCount || 0,
                 plannedTotal: activities.total || 0,
-                realizedTotal: activities.breakdown?.find(b => b.key === 'realized')?.count || 0,
-                partiallyTotal: activities.breakdown?.find(b => b.key === 'partiallyRealized')?.count || 0,
-                inProgressTotal: activities.breakdown?.find(b => b.key === 'inProgress')?.count || 0,
-                notRealizedTotal: activities.breakdown?.find(b => b.key === 'notRealized')?.count || 0,
+                realizedTotal: activities.performance?.realized || 0,
+                partiallyTotal: activities.performance?.partiallyRealized || 0,
+                inProgressTotal: activities.performance?.inProgress || 0,
+                notRealizedTotal: activities.performance?.notRealized || 0,
                 tepRate: tepRate,
                 compositeScore: compositeScore,
                 rank: null // Sera rempli si disponible
               });
             }
           } catch (error) {
-            console.warn(`Erreur chargement rapport pour ${agent.name || agent.email}:`, error);
+            console.error(`Erreur lors du chargement du rapport pour ${agent.name || agent.email}:`, error);
             // Ajouter quand même l'agent avec des valeurs vides
             summaryData.push({
               agentId: agent.id || agent.user_id,
@@ -513,7 +534,7 @@
 
         // Trier par score composite décroissant
         summaryData.sort((a, b) => b.compositeScore - a.compositeScore);
-        
+
         // Ajouter les rangs
         summaryData.forEach((data, index) => {
           data.rank = index + 1;
@@ -583,7 +604,7 @@
     // Fonction pour afficher le tableau
     function renderSummaryTable() {
       const wrapper = document.getElementById('summary-table-wrapper');
-      
+
       if (summaryData.length === 0) {
         wrapper.innerHTML = '<div class="text-center py-5 text-muted">Aucune donnée disponible</div>';
         return;
@@ -809,4 +830,3 @@
 </body>
 
 </html>
-

@@ -778,115 +778,6 @@ app.get('/api/planifications', authenticateToken, async (req, res) => {
   }
 });
 
-// Route pour récupérer les checkins (présences)
-// API endpoint pour générer le rapport mensuel d'un agent
-app.get('/api/agents/monthly-report', async (req, res) => {
-  console.log('🔍 /api/agents/monthly-report called with query:', req.query);
-
-  try {
-    // Extraire les paramètres
-    const agentId = req.query.agentId || req.query.agent_id;
-    const monthValue = req.query.month;
-    const includeAI = req.query.ai === '1' || req.query.ai === 'true';
-    const projectName = req.query.project_name || req.query.projectName;
-
-    console.log('📋 Paramètres du rapport:', {
-      agentId,
-      monthValue,
-      includeAI,
-      projectName
-    });
-
-    if (!agentId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Le paramètre agentId est requis'
-      });
-    }
-
-    if (!monthValue) {
-      return res.status(400).json({
-        success: false,
-        error: 'Le paramètre month est requis (format: YYYY-MM)'
-      });
-    }
-
-    // Extraire l'utilisateur depuis le token JWT (si disponible)
-    let requester = null;
-    const authHeader = req.headers['authorization'];
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.slice(7);
-      try {
-        requester = jwt.verify(token, JWT_SECRET);
-        console.log('👤 Requester:', {
-          id: requester.id,
-          email: requester.email,
-          role: requester.role
-        });
-      } catch (error) {
-        console.warn('⚠️ Token JWT invalide:', error.message);
-        // Continuer sans authentification pour compatibilité
-      }
-    }
-
-    // Si pas de requester, utiliser un utilisateur par défaut (pour compatibilité)
-    if (!requester) {
-      requester = {
-        id: Number(agentId),
-        role: 'agent'
-      };
-    }
-
-    // Récupérer la clé API Gemini depuis les variables d'environnement
-    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '';
-    const geminiModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-
-    console.log('🤖 Configuration IA:', {
-      hasApiKey: !!geminiApiKey,
-      model: geminiModel,
-      includeAI
-    });
-
-    // Générer le rapport
-    const report = await buildAgentMonthlyReport({
-      supabaseClient,
-      agentId: Number(agentId),
-      monthValue,
-      projectName,  // Filtre par projet si spécifié
-      includeAiSummary: includeAI,
-      geminiApiKey,
-      geminiModel,
-      requester
-    });
-
-    console.log('✅ Rapport généré avec succès:', {
-      agentId,
-      month: monthValue,
-      checkinsCount: report.dataSources?.checkins || 0,
-      planificationsCount: report.dataSources?.planifications || 0,
-      missionsCount: report.dataSources?.missions || 0
-    });
-
-    // Retourner le rapport
-    res.json(report);
-
-  } catch (error) {
-    console.error('❌ Erreur lors de la génération du rapport mensuel:', {
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-      statusCode: error.statusCode
-    });
-
-    // Retourner une erreur appropriée
-    const statusCode = error.statusCode || 500;
-    res.status(statusCode).json({
-      success: false,
-      error: error.message || 'Erreur lors de la génération du rapport mensuel',
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-  }
-});
-
 // Fonction utilitaire pour récupérer toutes les pages d'une requête Supabase
 // Supabase limite par défaut à 1000 résultats, cette fonction parcourt toutes les pages
 async function fetchAllPages(queryBuilder, pageSize = 1000) {
@@ -6428,7 +6319,14 @@ app.get('/api/users', authenticateToken, async (req, res) => {
     if (search) {
       query = query.ilike('name', `%${search}%`).or(`email.ilike.%${search}%`);
     }
-    if (role) query = query.eq('role', role);
+    if (role) {
+      if (role.includes(',')) {
+        const roles = role.split(',').map(r => r.trim());
+        query = query.in('role', roles);
+      } else {
+        query = query.eq('role', role);
+      }
+    }
     if (status) query = query.eq('status', status);
 
     query = query.order(sortBy, { ascending: sortDir === 'asc' });
@@ -6441,7 +6339,14 @@ app.get('/api/users', authenticateToken, async (req, res) => {
       // Compter le total pour la pagination
       let countQuery = supabaseClient.from('users').select('*', { count: 'exact', head: true });
       if (search) countQuery = countQuery.ilike('name', `%${search}%`).or(`email.ilike.%${search}%`);
-      if (role) countQuery = countQuery.eq('role', role);
+      if (role) {
+        if (role.includes(',')) {
+          const roles = role.split(',').map(r => r.trim());
+          countQuery = countQuery.in('role', roles);
+        } else {
+          countQuery = countQuery.eq('role', role);
+        }
+      }
       if (status) countQuery = countQuery.eq('status', status);
 
       const { count, error: countError } = await countQuery;
@@ -9420,14 +9325,14 @@ app.get('/api/missions', authenticateToken, async (req, res) => {
 app.post('/api/generate-ai-summary', authenticateToken, async (req, res) => {
   try {
     const { type, reportData } = req.body;
-    
+
     if (!reportData) {
       return res.status(400).json({ error: 'Données du rapport requises' });
     }
 
     // Générer un résumé basé sur les données du rapport
     let summary = '';
-    
+
     if (type === 'concise') {
       summary = generateConciseSummary(reportData);
     } else if (type === 'detailed') {
@@ -9436,8 +9341,8 @@ app.post('/api/generate-ai-summary', authenticateToken, async (req, res) => {
       summary = generateStandardSummary(reportData);
     }
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       summary: summary,
       type: type || 'standard'
     });
@@ -9453,7 +9358,7 @@ function generateConciseSummary(data) {
   const agent = data.agent || {};
   const presence = data.presence || {};
   const activities = data.activities?.performance || {};
-  
+
   return `Rapport mensuel pour ${agent.name || 'Agent'} - ${data.period || 'Période'}:
 • Présence: ${presence.presenceRate || 0}% (${presence.workedDays || 0} jours)
 • Taux d'exécution: ${activities.executionRate || 0}%
@@ -9467,7 +9372,7 @@ function generateDetailedSummary(data) {
   const agent = data.agent || {};
   const presence = data.presence || {};
   const activities = data.activities?.performance || {};
-  
+
   return `Rapport mensuel détaillé - ${agent.name || 'Agent'}
 Période: ${data.period || 'Non spécifiée'}
 
@@ -10248,10 +10153,10 @@ app.get('/api/checkins', authenticateToken, async (req, res) => {
           agentQuery.order('date', { ascending: false })
         ]);
 
-        const allData = [ ...(userResult.data || []), ...(agentResult.data || []) ];
+        const allData = [...(userResult.data || []), ...(agentResult.data || [])];
         // Fusion + dédoublonnage
         planifications = Array.from(new Map(allData.map(p => [p.id, p])).values());
-        
+
         // Filtre projet côté JS avec normalisation
         const norm = v => String(v || '').trim().toLowerCase();
         if (effectiveProject) {

@@ -1592,17 +1592,38 @@
           agent_id: agentId,
           month: monthValue
         });
+        
+        console.log('🔍 Récupération des jours de permission pour:', { agentId, monthValue });
+        
         const response = await fetch(`/api/permission-days?${params.toString()}`, {
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
         });
-        if (!response.ok) throw new Error(`Erreur ${response.status}`);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Erreur API permission-days:', response.status, errorText);
+          throw new Error(`Erreur ${response.status}: ${errorText}`);
+        }
+        
         const result = await response.json();
-        const records = Array.isArray(result?.data)
-          ? result.data
-          : Array.isArray(result)
-            ? result
-            : [];
-        return records.length > 0 ? records[0] : null;
+        
+        if (!result.success) {
+          console.error('Erreur dans la réponse API:', result.error);
+          return null;
+        }
+        
+        console.log('✅ Réponse API permission-days:', {
+          totalDays: result.total_days,
+          count: result.count,
+          permissions: result.permission_days?.length || 0
+        });
+        
+        // Retourner un objet avec le nombre total de jours de permission
+        return {
+          days: result.total_days || 0,
+          records: result.permission_days || []
+        };
       } catch (error) {
         console.warn('Erreur récupération jours permissionnaires:', error);
         return null;

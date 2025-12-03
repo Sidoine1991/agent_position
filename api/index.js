@@ -3924,44 +3924,83 @@ if (path.startsWith('/api/agent/achievements') && method === 'GET') {
     if (path === '/api/permission-days' && method === 'GET') {
       return authenticateToken(req, res, async () => {
         try {
+          const { agent_id, month } = req.query;
+          
           if (!supabaseClient) {
             return res.status(500).json({ success: false, error: 'Supabase non configuré' });
           }
 
-          // Vérifier si la table existe, sinon la créer
-          const { data: tableExists } = await supabaseClient
-            .rpc('table_exists', { table_name: 'permission_days' });
+          // Construire la requête de base sur la table permissions
+          let query = supabaseClient
+            .from('permissions')
+            .select('*')
+            .eq('status', 'approved'); // Ne prendre que les permissions approuvées
 
-          if (!tableExists) {
-            // Créer la table si elle n'existe pas
-            const { error: createError } = await supabaseClient.rpc('create_permission_days_table');
-            
-            if (createError) {
-              console.error('Erreur création table permission_days:', createError);
-              throw new Error('Impossible de créer la table permission_days');
-            }
+          // Filtrer par agent_id si fourni
+          if (agent_id) {
+            query = query.eq('agent_id', agent_id);
           }
 
-          // Récupérer les jours de permission
-          const { data: permissionDays, error } = await supabaseClient
-            .from('permission_days')
-            .select('*')
-            .order('start_date', { ascending: false });
+          // Filtrer par mois si fourni
+          if (month) {
+            const startDate = new Date(month);
+            const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+            
+            // Inclure les permissions qui chevauchent le mois
+            query = query
+              .or(`start_date.lte.${endDate.toISOString().split('T')[0]},end_date.gte.${startDate.toISOString().split('T')[0]}`)
+              .order('start_date', { ascending: false });
+          }
+
+          // Exécuter la requête
+          const { data: permissions, error } = await query;
 
           if (error) {
-            console.error('Erreur récupération jours de permission:', error);
+            console.error('Erreur récupération des permissions:', error);
             return res.status(500).json({ success: false, error: 'Erreur serveur' });
+          }
+
+          // Si on a un agent_id et un mois, calculer le nombre total de jours de permission
+          let totalDays = 0;
+          if (agent_id && month) {
+            const startDate = new Date(month);
+            const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+            
+            permissions?.forEach(perm => {
+              const permStart = new Date(perm.start_date);
+              const permEnd = new Date(perm.end_date);
+              
+              // Calculer l'intersection avec le mois demandé
+              const effectiveStart = permStart < startDate ? startDate : permStart;
+              const effectiveEnd = permEnd > endDate ? endDate : permEnd;
+              
+              if (effectiveStart <= effectiveEnd) {
+                // Compter uniquement les jours ouvrés (lundi à vendredi)
+                let days = 0;
+                let current = new Date(effectiveStart);
+                while (current <= effectiveEnd) {
+                  const day = current.getDay();
+                  if (day !== 0 && day !== 6) { // 0 = dimanche, 6 = samedi
+                    days++;
+                  }
+                  current.setDate(current.getDate() + 1);
+                }
+                totalDays += days;
+              }
+            });
           }
 
           return res.json({ 
             success: true, 
-            permission_days: permissionDays || [] 
+            permission_days: permissions || [],
+            total_days: totalDays,
+            count: permissions?.length || 0
           });
         } catch (error) {
-          console.error('Erreur lors de la récupération des jours de permission:', error);
+          console.error('Erreur lors de la récupération des permissions:', error);
           return res.status(500).json({ 
             success: false, 
-            error: 'Erreur lors de la récupération des jours de permission',
+            error: 'Erreur lors de la récupération des permissions',
             details: process.env.NODE_ENV === 'development' ? error.message : undefined
           });
         }

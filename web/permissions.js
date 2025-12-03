@@ -19,19 +19,19 @@ function setupFilterHandlers() {
   const filterStatus = document.getElementById('filter-status');
   const filterStartDate = document.getElementById('filter-start-date');
   const filterEndDate = document.getElementById('filter-end-date');
-  
+
   if (filterProject) filterProject.addEventListener('change', applyFilters);
   if (filterAgent) filterAgent.addEventListener('change', applyFilters);
   if (filterSupervisor) filterSupervisor.addEventListener('change', applyFilters);
   if (filterStatus) filterStatus.addEventListener('change', applyFilters);
   if (filterStartDate) filterStartDate.addEventListener('change', applyFilters);
   if (filterEndDate) filterEndDate.addEventListener('change', applyFilters);
-  
+
   // Filtres pour agents
   const filterMyStatus = document.getElementById('filter-my-status');
   const filterMyStartDate = document.getElementById('filter-my-start-date');
   const filterMyEndDate = document.getElementById('filter-my-end-date');
-  
+
   if (filterMyStatus) filterMyStatus.addEventListener('change', applyMyFilters);
   if (filterMyStartDate) filterMyStartDate.addEventListener('change', applyMyFilters);
   if (filterMyEndDate) filterMyEndDate.addEventListener('change', applyMyFilters);
@@ -158,13 +158,13 @@ function setupFormHandlers() {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       e.stopPropagation();
-      
+
       // Validation Bootstrap
       if (!form.checkValidity()) {
         form.classList.add('was-validated');
         return;
       }
-      
+
       const permissionId = document.getElementById('permission-id').value;
       if (permissionId) {
         await updatePermission(permissionId, 'pending');
@@ -177,7 +177,7 @@ function setupFormHandlers() {
   // Validation et calcul de durée des dates
   const startDateInput = document.getElementById('start-date');
   const endDateInput = document.getElementById('end-date');
-  
+
   if (startDateInput && endDateInput) {
     const updateDuration = () => {
       if (startDateInput.value && endDateInput.value) {
@@ -195,7 +195,7 @@ function setupFormHandlers() {
         }
       }
     };
-    
+
     startDateInput.addEventListener('change', () => {
       if (startDateInput.value) {
         endDateInput.min = startDateInput.value;
@@ -205,7 +205,7 @@ function setupFormHandlers() {
         updateDuration();
       }
     });
-    
+
     endDateInput.addEventListener('change', () => {
       if (endDateInput.value && startDateInput.value && endDateInput.value < startDateInput.value) {
         alert('La date de fin doit être supérieure ou égale à la date de début');
@@ -263,8 +263,8 @@ async function createPermission(status = 'pending') {
     const data = await response.json();
 
     if (response.ok && data.success) {
-      const message = status === 'draft' 
-        ? 'Demande sauvegardée en brouillon' 
+      const message = status === 'draft'
+        ? 'Demande sauvegardée en brouillon'
         : 'Demande de permission soumise avec succès';
       showMessage(message, 'success');
       const form = document.getElementById('permission-form');
@@ -345,7 +345,7 @@ window.editPermission = function editPermission(permissionId) {
   document.getElementById('start-date').value = permission.start_date;
   document.getElementById('end-date').value = permission.end_date;
   document.getElementById('form-title').innerHTML = '<i class="bi bi-pencil me-2"></i>Modifier la demande de permission';
-  
+
   // Calculer et afficher la durée
   const duration = calculateDuration(permission.start_date, permission.end_date);
   const durationInfo = document.getElementById('duration-info');
@@ -354,7 +354,7 @@ window.editPermission = function editPermission(permissionId) {
     durationDays.textContent = duration;
     durationInfo.style.display = 'block';
   }
-  
+
   // Afficher la section et scroller vers elle
   const createSection = document.getElementById('create-permission-section');
   if (createSection) {
@@ -389,7 +389,7 @@ async function updatePermission(permissionId, status = null) {
       start_date: startDate,
       end_date: endDate
     };
-    
+
     if (status) {
       body.status = status;
     }
@@ -406,11 +406,11 @@ async function updatePermission(permissionId, status = null) {
     const data = await response.json();
 
     if (response.ok && data.success) {
-      const message = status === 'draft' 
-        ? 'Demande sauvegardée en brouillon' 
+      const message = status === 'draft'
+        ? 'Demande sauvegardée en brouillon'
         : status === 'pending'
-        ? 'Demande modifiée et soumise avec succès'
-        : 'Demande modifiée avec succès';
+          ? 'Demande modifiée et soumise avec succès'
+          : 'Demande modifiée avec succès';
       showMessage(message, 'success');
       const form = document.getElementById('permission-form');
       form.classList.remove('was-validated');
@@ -475,7 +475,7 @@ async function loadProjects() {
       console.warn('⚠️ Aucun token JWT trouvé');
       return;
     }
-    
+
     const response = await fetch('/api/users?role=agent', {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -501,7 +501,7 @@ async function loadProjects() {
     } else if (data.users && Array.isArray(data.users)) {
       users = data.users;
     }
-    
+
     if (response.ok && users.length > 0) {
       // Extraire les projets uniques depuis les utilisateurs
       const projectsSet = new Set();
@@ -514,7 +514,7 @@ async function loadProjects() {
       // Vider et ajouter l'option "Tous"
       if (projectSelect) {
         projectSelect.innerHTML = '<option value="all">Tous les projets</option>';
-        
+
         // Trier et ajouter les projets
         const sortedProjects = Array.from(projectsSet).sort();
         sortedProjects.forEach(projectName => {
@@ -542,8 +542,8 @@ async function loadAgents() {
       console.warn('⚠️ Aucun token JWT trouvé');
       return;
     }
-    
-    const response = await fetch('/api/users?role=agent', {
+
+    const response = await fetch('/api/users?role=agent,superviseur', {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -569,7 +569,7 @@ async function loadAgents() {
     } else if (data.users && Array.isArray(data.users)) {
       users = data.users;
     }
-    
+
     if (response.ok && users.length > 0) {
       // Trier par nom
       const sortedAgents = users.sort((a, b) => {
@@ -580,14 +580,15 @@ async function loadAgents() {
 
       // Remplir le filtre agent (superviseur)
       if (agentSelect) {
-        agentSelect.innerHTML = '<option value="all">Tous les agents</option>';
+        agentSelect.innerHTML = '<option value="all">Tous les agents et superviseurs</option>';
         sortedAgents.forEach(agent => {
           const option = document.createElement('option');
           option.value = agent.id;
-          const displayName = agent.name || 
-                            `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || 
-                            agent.email || `Agent ${agent.id}`;
-          option.textContent = displayName;
+          const displayName = agent.name ||
+            `${agent.first_name || ''} ${agent.last_name || ''}`.trim() ||
+            agent.email || `Agent ${agent.id}`;
+          const roleLabel = agent.role === 'superviseur' ? ' (Superviseur)' : '';
+          option.textContent = displayName + roleLabel;
           agentSelect.appendChild(option);
         });
       }
@@ -599,9 +600,10 @@ async function loadAgents() {
           const opt = document.createElement('option');
           opt.value = String(agent.id);
           const displayName = agent.name ||
-                            `${agent.first_name || ''} ${agent.last_name || ''}`.trim() ||
-                            agent.email || `Agent ${agent.id}`;
-          opt.textContent = displayName;
+            `${agent.first_name || ''} ${agent.last_name || ''}`.trim() ||
+            agent.email || `Agent ${agent.id}`;
+          const roleLabel = agent.role === 'superviseur' ? ' (Superviseur)' : '';
+          opt.textContent = displayName + roleLabel;
           formAgentSelect.appendChild(opt);
         });
         formAgentSelect.disabled = false;
@@ -644,11 +646,11 @@ async function loadSupervisors() {
     } else if (data.users && Array.isArray(data.users)) {
       users = data.users;
     }
-    
+
     if (response.ok && users.length > 0) {
       if (supervisorSelect) {
         supervisorSelect.innerHTML = '<option value="all">Tous les superviseurs</option>';
-        
+
         // Trier par nom
         const sortedSupervisors = users.sort((a, b) => {
           const nameA = (a.name || a.email || '').toLowerCase();
@@ -659,9 +661,9 @@ async function loadSupervisors() {
         sortedSupervisors.forEach(supervisor => {
           const option = document.createElement('option');
           option.value = supervisor.id;
-          const displayName = supervisor.name || 
-                            `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() || 
-                            supervisor.email || `Superviseur ${supervisor.id}`;
+          const displayName = supervisor.name ||
+            `${supervisor.first_name || ''} ${supervisor.last_name || ''}`.trim() ||
+            supervisor.email || `Superviseur ${supervisor.id}`;
           option.textContent = displayName;
           supervisorSelect.appendChild(option);
         });
@@ -683,7 +685,7 @@ async function loadPendingPermissions() {
   try {
     const token = localStorage.getItem('jwt');
     console.log('🔍 Chargement des permissions en attente...');
-    
+
     // Pour les superviseurs, charger toutes les permissions (pas seulement pending)
     // Le filtre par statut sera appliqué côté client
     const response = await fetch('/api/permissions', {
@@ -707,7 +709,7 @@ async function loadPendingPermissions() {
       allPendingPermissions = data.permissions || [];
       console.log(`✅ ${allPendingPermissions.length} permission(s) chargée(s)`);
       console.log('📋 Exemple de permission:', allPendingPermissions[0]);
-      
+
       if (allPendingPermissions.length === 0) {
         console.warn('⚠️ Aucune permission trouvée. Vérifiez:');
         console.warn('   1. Les permissions existent-elles dans la base de données?');
@@ -715,7 +717,7 @@ async function loadPendingPermissions() {
         console.warn('   3. Êtes-vous connecté en tant que superviseur?');
         console.warn('   4. Le filtre de statut est-il correct?');
       }
-      
+
       // Vérifier que les données ont la bonne structure
       if (allPendingPermissions.length > 0) {
         const firstPerm = allPendingPermissions[0];
@@ -728,7 +730,7 @@ async function loadPendingPermissions() {
           end_date: firstPerm.end_date
         });
       }
-      
+
       updateSupervisorStats();
       applyFilters();
     } else {
@@ -748,14 +750,14 @@ async function loadPendingPermissions() {
   } catch (error) {
     console.error('❌ Erreur lors du chargement des demandes en attente:', error);
     const tbody = document.querySelector('#pending-permissions-list');
-    
+
     // Vérifier si c'est une erreur réseau
     let errorMessage = error.message || 'Erreur inconnue';
     if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('ERR_FAILED'))) {
       errorMessage = 'Le serveur ne semble pas être accessible. Vérifiez que le serveur est en cours d\'exécution sur le port 3010.';
       console.error('❌ Le serveur ne semble pas être accessible. Vérifiez que le serveur est en cours d\'exécution.');
     }
-    
+
     if (tbody) {
       tbody.innerHTML = `
         <tr>
@@ -780,21 +782,21 @@ function updateSupervisorStats() {
     rejected: 0,
     draft: 0
   };
-  
+
   allPendingPermissions.forEach(perm => {
     const status = perm.status || 'pending';
     if (stats.hasOwnProperty(status)) {
       stats[status]++;
     }
   });
-  
+
   // Mettre à jour les éléments
   const statPending = document.getElementById('stat-pending');
   const statApproved = document.getElementById('stat-approved');
   const statRejected = document.getElementById('stat-rejected');
   const statDraft = document.getElementById('stat-draft');
   const pendingCount = document.getElementById('pending-count');
-  
+
   if (statPending) statPending.textContent = stats.pending;
   if (statApproved) statApproved.textContent = stats.approved;
   if (statRejected) statRejected.textContent = stats.rejected;
@@ -810,9 +812,9 @@ window.applyFilters = function applyFilters() {
   const statusFilter = document.getElementById('filter-status')?.value || 'all';
   const startDateFilter = document.getElementById('filter-start-date')?.value || '';
   const endDateFilter = document.getElementById('filter-end-date')?.value || '';
-  
+
   let filtered = [...allPendingPermissions];
-  
+
   // Filtrer par projet
   if (projectFilter !== 'all') {
     filtered = filtered.filter(perm => {
@@ -820,7 +822,7 @@ window.applyFilters = function applyFilters() {
       return agentProject.toLowerCase() === projectFilter.toLowerCase();
     });
   }
-  
+
   // Filtrer par agent
   if (agentFilter !== 'all') {
     const agentId = parseInt(agentFilter, 10);
@@ -829,7 +831,7 @@ window.applyFilters = function applyFilters() {
       return permAgentId === agentId;
     });
   }
-  
+
   // Filtrer par superviseur
   if (supervisorFilter !== 'all') {
     const supervisorId = parseInt(supervisorFilter, 10);
@@ -839,24 +841,24 @@ window.applyFilters = function applyFilters() {
       return agentSupervisorId === supervisorId;
     });
   }
-  
+
   // Filtrer par statut
   if (statusFilter !== 'all') {
     filtered = filtered.filter(perm => perm.status === statusFilter);
   }
-  
+
   // Filtrer par date de début
   if (startDateFilter) {
     filtered = filtered.filter(perm => perm.start_date >= startDateFilter);
   }
-  
+
   // Filtrer par date de fin
   if (endDateFilter) {
     filtered = filtered.filter(perm => perm.end_date <= endDateFilter);
   }
-  
+
   const tbody = document.querySelector('#pending-permissions-list');
-  
+
   if (filtered.length === 0) {
     tbody.innerHTML = `
       <tr>
@@ -885,7 +887,7 @@ window.resetFilters = function resetFilters() {
   const statusFilter = document.getElementById('filter-status');
   const startDateFilter = document.getElementById('filter-start-date');
   const endDateFilter = document.getElementById('filter-end-date');
-  
+
   if (projectFilter) projectFilter.value = 'all';
   if (agentFilter) agentFilter.value = 'all';
   if (supervisorFilter) supervisorFilter.value = 'all';
@@ -936,14 +938,14 @@ async function loadPermissions() {
   } catch (error) {
     console.error('Erreur lors du chargement des demandes:', error);
     const tbody = document.querySelector('#my-permissions-list');
-    
+
     // Vérifier si c'est une erreur réseau
     let errorMessage = error.message || 'Erreur inconnue';
     if (error.message && (error.message.includes('Failed to fetch') || error.message.includes('ERR_FAILED'))) {
       errorMessage = 'Le serveur ne semble pas être accessible. Vérifiez que le serveur est en cours d\'exécution sur le port 3010.';
       console.error('❌ Le serveur ne semble pas être accessible. Vérifiez que le serveur est en cours d\'exécution.');
     }
-    
+
     if (tbody) {
       tbody.innerHTML = `
         <tr>
@@ -965,26 +967,26 @@ window.applyMyFilters = function applyMyFilters() {
   const statusFilter = document.getElementById('filter-my-status')?.value || 'all';
   const startDateFilter = document.getElementById('filter-my-start-date')?.value || '';
   const endDateFilter = document.getElementById('filter-my-end-date')?.value || '';
-  
+
   let filtered = [...allMyPermissions];
-  
+
   // Filtrer par statut
   if (statusFilter !== 'all') {
     filtered = filtered.filter(perm => perm.status === statusFilter);
   }
-  
+
   // Filtrer par date de début
   if (startDateFilter) {
     filtered = filtered.filter(perm => perm.start_date >= startDateFilter);
   }
-  
+
   // Filtrer par date de fin
   if (endDateFilter) {
     filtered = filtered.filter(perm => perm.end_date <= endDateFilter);
   }
-  
+
   const tbody = document.querySelector('#my-permissions-list');
-  
+
   if (filtered.length === 0) {
     tbody.innerHTML = `
       <tr>
@@ -1007,7 +1009,7 @@ function resetMyFilters() {
   const statusFilter = document.getElementById('filter-my-status');
   const startDateFilter = document.getElementById('filter-my-start-date');
   const endDateFilter = document.getElementById('filter-my-end-date');
-  
+
   if (statusFilter) statusFilter.value = 'all';
   if (startDateFilter) startDateFilter.value = '';
   if (endDateFilter) endDateFilter.value = '';
@@ -1040,9 +1042,9 @@ function renderPermissionRow(permission, isSupervisorView = false) {
   let agentCell = '';
   let projectCell = '';
   if (isSupervisorView && permission.agent) {
-    const agentName = permission.agent.name || 
-                     `${permission.agent.first_name || ''} ${permission.agent.last_name || ''}`.trim() || 
-                     permission.agent.email || 'Agent';
+    const agentName = permission.agent.name ||
+      `${permission.agent.first_name || ''} ${permission.agent.last_name || ''}`.trim() ||
+      permission.agent.email || 'Agent';
     agentCell = `
       <td>
         <div class="d-flex align-items-center">
@@ -1056,7 +1058,7 @@ function renderPermissionRow(permission, isSupervisorView = false) {
         </div>
       </td>
     `;
-    
+
     // Récupérer le projet de l'agent depuis les données de l'agent
     const agentProject = permission.agent.project_name || permission.agent.project || '-';
     projectCell = `
@@ -1288,9 +1290,9 @@ function showMessage(message, type = 'info') {
     ${message}
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
   `;
-  
+
   document.body.appendChild(messageDiv);
-  
+
   // Supprimer automatiquement après 5 secondes
   setTimeout(() => {
     if (messageDiv.parentNode) {
@@ -1319,7 +1321,7 @@ async function loadAgentsPermissionsList() {
     const selectedMonth = monthFilter?.value || '';
 
     const token = localStorage.getItem('jwt');
-    
+
     // Utiliser l'API /api/permissions pour récupérer toutes les permissions
     const response = await fetch('/api/permissions', {
       headers: {
@@ -1395,14 +1397,14 @@ async function loadAgentsPermissionsList() {
 
       // Obtenir le mois de début
       const monthKey = getMonthKey(perm.start_date);
-      
+
       // Filtrer par mois si un filtre est sélectionné
       if (selectedMonth && monthKey !== selectedMonth) {
         return;
       }
 
       const key = `${agentId}_${monthKey}`;
-      
+
       if (!grouped.has(key)) {
         grouped.set(key, {
           agentId,
@@ -1411,7 +1413,7 @@ async function loadAgentsPermissionsList() {
           status: 'approved'
         });
       }
-      
+
       const entry = grouped.get(key);
       entry.days += days;
     });
@@ -1427,17 +1429,17 @@ async function loadAgentsPermissionsList() {
       })
       .map(entry => {
         const agent = agentsMap.get(entry.agentId);
-        const agentName = agent 
+        const agentName = agent
           ? (agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email || 'Agent inconnu')
           : 'Agent inconnu';
         const projectName = agent?.project_name || '-';
-        
-        const monthLabel = entry.month 
+
+        const monthLabel = entry.month
           ? new Date(entry.month + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
           : '-';
-        
+
         const statusBadge = getStatusBadgeForPermission(entry.status);
-        
+
         return `
           <tr>
             <td><strong>${escapeHtml(agentName)}</strong></td>
@@ -1485,16 +1487,16 @@ function setupAgentsPermissionsFilters() {
   // Générer les options de mois (12 derniers mois)
   const now = new Date();
   const options = ['<option value="">Tous les mois</option>'];
-  
+
   for (let i = 0; i < 12; i++) {
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const monthValue = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     const monthLabel = date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
     options.push(`<option value="${monthValue}">${monthLabel}</option>`);
   }
-  
+
   monthFilter.innerHTML = options.join('');
-  
+
   monthFilter.addEventListener('change', () => {
     loadAgentsPermissionsList();
   });
