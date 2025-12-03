@@ -304,6 +304,14 @@
       return ct.includes('application/json') ? await res.json() : await res.text();
     }
 
+    // Normaliser un nom de projet (trim + espaces)
+    function normalizeProjectName(name) {
+      if (!name) return '';
+      return String(name)
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
     // Fonction pour charger les projets
     async function loadProjects() {
       try {
@@ -311,22 +319,29 @@
         select.innerHTML = '<option value="">Chargement...</option>';
 
         const agents = await api('/agents');
-        const projects = new Set();
+        const projectMap = new Map(); // key: nom normalisé, value: libellé à afficher
         
         if (agents && Array.isArray(agents)) {
           agents.forEach(agent => {
-            const project = agent.project_name || agent.project || 'Non spécifié';
-            if (project) projects.add(project);
+            const rawProject = agent.project_name || agent.project || 'Non spécifié';
+            const key = normalizeProjectName(rawProject);
+            if (!key) return;
+            // Ne garder qu'une entrée par projet normalisé
+            if (!projectMap.has(key)) {
+              projectMap.set(key, rawProject.trim());
+            }
           });
         }
 
         select.innerHTML = '<option value="">Tous les projets</option>';
-        Array.from(projects).sort().forEach(project => {
-          const option = document.createElement('option');
-          option.value = project;
-          option.textContent = project;
-          select.appendChild(option);
-        });
+        Array.from(projectMap.entries())
+          .sort((a, b) => a[1].localeCompare(b[1]))
+          .forEach(([key, label]) => {
+            const option = document.createElement('option');
+            option.value = key;      // valeur normalisée
+            option.textContent = label; // libellé affiché
+            select.appendChild(option);
+          });
 
         allAgents = agents || [];
       } catch (error) {
@@ -391,9 +406,10 @@
         // Filtrer les agents par projet
         let agentsToProcess = allAgents;
         if (projectFilter) {
-          agentsToProcess = allAgents.filter(agent => 
-            (agent.project_name || agent.project || '') === projectFilter
-          );
+          agentsToProcess = allAgents.filter(agent => {
+            const rawProject = agent.project_name || agent.project || '';
+            return normalizeProjectName(rawProject) === projectFilter;
+          });
         }
 
         if (agentsToProcess.length === 0) {
@@ -414,7 +430,7 @@
             // Extraire l'année et le mois du format YYYY-MM
             const [year, month] = monthValue.split('-');
             
-            const report = await api(`/agent/monthly-report`, {
+            const report = await api(`/agents/monthly-report`, {
               method: 'POST',
               body: {
                 agentId: agent.id || agent.user_id,
