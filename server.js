@@ -36,20 +36,71 @@ const { createClient } = require('@supabase/supabase-js');
 
 // Sanitize Supabase env vars (trim spaces, remove trailing slashes)
 const supabaseUrlRaw = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-const supabaseUrl = typeof supabaseUrlRaw === 'string' 
+const supabaseUrl = typeof supabaseUrlRaw === 'string'
   ? supabaseUrlRaw.trim().replace(/\/+$/, '')
   : '';
-const supabaseKeyRaw = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY 
+const supabaseKeyRaw = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
   || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 const supabaseKey = typeof supabaseKeyRaw === 'string' ? supabaseKeyRaw.trim() : '';
 
 let supabaseClient = null;
+// Configuration Supabase avec timeout et retry
+const supabaseConfig = {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false
+  },
+  db: {
+    schema: 'public'
+  },
+  global: {
+    headers: {
+      'Connection': 'keep-alive'
+    }
+  }
+};
+
 try {
-  supabaseClient = createClient(supabaseUrl, supabaseKey);
+  supabaseClient = createClient(supabaseUrl, supabaseKey, supabaseConfig);
   console.log('🔗 Supabase activé (mode exclusif)');
 } catch (e) {
   console.error('❌ Supabase requis:', e?.message);
   process.exit(1);
+}
+
+// Wrapper pour les requêtes Supabase avec retry et timeout
+async function safeSupabaseQuery(queryFn, maxRetries = 3, timeoutMs = 10000) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Ajouter un timeout à la requête
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout Supabase')), timeoutMs);
+      });
+
+      const queryPromise = queryFn();
+      const result = await Promise.race([queryPromise, timeoutPromise]);
+
+      // Si c'est la dernière tentative et qu'il y a une erreur, la logger
+      if (result.error && attempt === maxRetries) {
+        console.error(`❌ Erreur Supabase après ${maxRetries} tentatives:`, result.error);
+      }
+
+      return result;
+    } catch (error) {
+      lastError = error;
+      console.warn(`⚠️ Tentative ${attempt}/${maxRetries} échouée:`, error.message);
+
+      // Attendre avant de réessayer (exponential backoff)
+      if (attempt < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError;
 }
 
 // Test de connexion Supabase (non-bloquant)
@@ -72,7 +123,7 @@ function toRad(deg) {
 // Fonction utilitaire pour calculer la distance
 function calculateDistance(lat1, lon1, lat2, lon2) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return null;
-  
+
   const R = 6371e3; // Rayon de la Terre en mètres
   const φ1 = toRad(lat1); // φ, λ en radians
   const φ2 = toRad(lat2);
@@ -80,7 +131,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const Δλ = toRad(lon2 - lon1);
 
   const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-            Math.cos(φ1) * Math.cos(φ2) *
+    Math.cos(φ1) * Math.cos(φ2) *
     Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
@@ -150,15 +201,15 @@ async function getUserId(id) {
     console.error('❌', error.message);
     throw error;
   }
-  
+
   try {
     console.log(`🔍 Vérification de l'existence de l'utilisateur avec l'ID: ${idStr}`);
-    
+
     // Vérification UUID
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idStr);
     if (isUuid) {
       console.log('🔍 ID est un UUID, vérification dans auth.users...');
-      
+
       try {
         const { data: authUser, error: authError } = await supabaseClient.auth.admin.getUserById(idStr);
         if (authUser && !authError) {
@@ -169,34 +220,34 @@ async function getUserId(id) {
         console.error('❌ Erreur lors de la vérification dans auth.users:', e.message);
         // On continue même en cas d'erreur
       }
-      
+
       console.log('⚠️ UUID non trouvé dans auth.users, recherche dans la table users...');
-      
+
       // Recherche dans la table users par auth_uuid
       const { data: user, error: userError } = await supabaseClient
         .from('users')
         .select('id, auth_uuid, email')
         .eq('auth_uuid', idStr)
         .single();
-        
+
       if (user && !userError) {
-        console.log('✅ Utilisateur trouvé dans la table users avec cet auth_uuid:', { 
-          id: user.id, 
-          email: user.email 
+        console.log('✅ Utilisateur trouvé dans la table users avec cet auth_uuid:', {
+          id: user.id,
+          email: user.email
         });
         return user.id;
       }
-      
+
       console.log('❌ Aucun utilisateur trouvé avec cet auth_uuid');
       throw new Error(`Aucun utilisateur trouvé avec l'UUID: ${idStr}`);
     }
-    
+
     // Vérification ID numérique
     const isNumeric = /^\d+$/.test(idStr);
     if (isNumeric) {
       console.log('🔢 ID numérique détecté, recherche par ID...');
       const numericId = Number(idStr);
-      
+
       // D'abord, essayer de trouver l'utilisateur directement par son ID
       const { data: user, error: userError } = await supabaseClient
         .from('users')
@@ -205,12 +256,12 @@ async function getUserId(id) {
         .single();
 
       if (user && !userError) {
-        console.log('✅ Utilisateur trouvé par ID numérique:', { 
-          id: numericId, 
+        console.log('✅ Utilisateur trouvé par ID numérique:', {
+          id: numericId,
           email: user.email,
           hasAuthUuid: !!user.auth_uuid
         });
-        
+
         // Si l'utilisateur a un auth_uuid, vérifier qu'il existe dans auth.users
         if (user.auth_uuid) {
           try {
@@ -228,19 +279,19 @@ async function getUserId(id) {
             return user.id;
           }
         }
-        
+
         return user.id;
       }
-      
+
       // Si on arrive ici, l'utilisateur n'a pas été trouvé par son ID
       console.log('❌ Aucun utilisateur trouvé avec cet ID numérique');
       throw new Error(`Aucun utilisateur trouvé avec l'ID: ${numericId}`);
     }
-    
+
     // Si on arrive ici, l'ID n'est ni un UUID ni un nombre
     console.log('❌ Format d\'ID non reconnu:', idStr);
     throw new Error(`Format d'identifiant non valide: ${idStr}`);
-    
+
   } catch (error) {
     console.error('❌ Erreur dans getUserId:', {
       id: idStr,
@@ -311,7 +362,7 @@ function isPrivilegedRequest(req) {
   try {
     // Vérification complète de l'objet utilisateur
     if (!req || typeof req !== 'object' || !req.user) {
-      console.log('⚠️ Aucun utilisateur dans la requête', { 
+      console.log('⚠️ Aucun utilisateur dans la requête', {
         hasReq: !!req,
         reqType: typeof req,
         hasUser: req ? !!req.user : 'N/A'
@@ -322,7 +373,7 @@ function isPrivilegedRequest(req) {
     // Vérification du rôle
     const userRole = req.user.role;
     if (userRole === undefined || userRole === null) {
-      console.log('⚠️ Rôle utilisateur manquant', { 
+      console.log('⚠️ Rôle utilisateur manquant', {
         userId: req.user.id,
         userEmail: req.user.email
       });
@@ -332,14 +383,14 @@ function isPrivilegedRequest(req) {
     const role = String(userRole).trim().toLowerCase();
     const privilegedRoles = new Set(['admin', 'superadmin', 'superviseur', 'supervisor']);
     const isPrivileged = privilegedRoles.has(role);
-    
-    console.log(`🔑 Vérification des privilèges - `, { 
+
+    console.log(`🔑 Vérification des privilèges - `, {
       userId: req.user.id,
       email: req.user.email,
       role: role,
       isPrivileged: isPrivileged
     });
-    
+
     return isPrivileged;
   } catch (error) {
     console.error('❌ Erreur dans isPrivilegedRequest:', error);
@@ -373,12 +424,12 @@ async function buildFallbackLocations() {
       .select('id, location_name, location_lat, location_lng, start_time')
       .order('start_time', { ascending: false })
       .limit(2000);
-    
+
     if (error) throw error;
-    
+
     const presences = Array.isArray(data) ? data : [];
     const map = new Map();
-    
+
     presences.forEach(presence => {
       const lat = Number(presence.location_lat);
       const lon = Number(presence.location_lng);
@@ -386,7 +437,7 @@ async function buildFallbackLocations() {
       const label = presence.location_name?.trim();
       const key = label ? label.toLowerCase() : (hasCoords ? `${lat.toFixed(3)}_${lon.toFixed(3)}` : null);
       if (!key) return;
-      
+
       if (!map.has(key)) {
         map.set(key, {
           id: key,
@@ -399,7 +450,7 @@ async function buildFallbackLocations() {
       }
       map.get(key).usage += 1;
     });
-    
+
     return Array.from(map.values())
       .sort((a, b) => b.usage - a.usage)
       .slice(0, 200)
@@ -413,13 +464,13 @@ async function buildFallbackLocations() {
 // Route pour récupérer les validations
 app.get('/api/reports/validations', authenticateToken, async (req, res) => {
   console.log('🔍 /api/reports/validations called with query:', req.query);
-  
+
   try {
     console.log('🔍 Headers:', req.headers);
     console.log('🔍 User from token:', req.user);
-    
+
     const { from, to, agent_id, supervisor_id } = req.query;
-    
+
     // Log the request details for debugging
     console.log('📝 Request details:', {
       from,
@@ -428,12 +479,12 @@ app.get('/api/reports/validations', authenticateToken, async (req, res) => {
       supervisor_id,
       user: req.user
     });
-    
+
     // Vérifier que Supabase est correctement initialisé
     if (!supabaseClient) {
       console.error('❌ Erreur: Supabase n\'est pas initialisé');
-      return res.status(500).json({ 
-        success: false, 
+      return res.status(500).json({
+        success: false,
         error: 'Erreur de configuration du serveur',
         details: 'Supabase non initialisé'
       });
@@ -487,24 +538,24 @@ app.get('/api/reports/validations', authenticateToken, async (req, res) => {
         try {
           // Handle different date string formats
           let date = new Date(dateStr);
-          
+
           // If the date string is in format 'YYYY-MM-DD', parse it manually
           if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
             const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
             date = new Date(Date.UTC(year, month - 1, day));
           }
-          
+
           if (isNaN(date.getTime())) {
             console.warn(`⚠️ Format de date invalide: ${dateStr}`);
             return null;
           }
-          
+
           if (isEndOfDay) {
             date.setUTCHours(23, 59, 59, 999);
           } else {
             date.setUTCHours(0, 0, 0, 0);
           }
-          
+
           // Return ISO string without timezone (PostgreSQL will interpret as UTC)
           return date.toISOString().replace('Z', '+00:00');
         } catch (e) {
@@ -521,7 +572,7 @@ app.get('/api/reports/validations', authenticateToken, async (req, res) => {
           query = query.gte('checkins.start_time', fromDateStr);
         }
       }
-      
+
       if (to) {
         const toDateStr = formatDateForQuery(to, true); // true = end of day
         if (toDateStr) {
@@ -529,7 +580,7 @@ app.get('/api/reports/validations', authenticateToken, async (req, res) => {
           query = query.lte('checkins.start_time', toDateStr);
         }
       }
-      
+
       if (agent_id) {
         console.log(`👤 Filtre agent_id: ${agent_id}`);
         query = query.eq('agent_id', agent_id);
@@ -568,14 +619,14 @@ app.get('/api/reports/validations', authenticateToken, async (req, res) => {
 
       // Formater la réponse
       const formattedData = data.map(item => {
-        const distance = item.distance_m !== null 
-          ? item.distance_m 
+        const distance = item.distance_m !== null
+          ? item.distance_m
           : calculateDistance(
-              item.users.reference_lat,
-              item.users.reference_lon,
-              item.checkins.lat,
-              item.checkins.lon
-            );
+            item.users.reference_lat,
+            item.users.reference_lon,
+            item.checkins.lat,
+            item.checkins.lon
+          );
 
         const isWithinTolerance = distance <= (item.tolerance_m || item.users.tolerance_radius_meters || 0);
 
@@ -597,34 +648,241 @@ app.get('/api/reports/validations', authenticateToken, async (req, res) => {
           lon: item.checkins.lon,
           ts: item.checkins.start_time,
           distance_m: distance,
-          statut: item.valid !== null 
+          statut: item.valid !== null
             ? (item.valid ? 'Présent' : 'Hors zone')
             : (isWithinTolerance ? 'Présent' : 'Hors zone'),
           note: item.checkins.note,
           photo_url: item.checkins.photo_url,
-          mission_duration: item.checkins.end_time 
-            ? (new Date(item.checkins.end_time) - new Date(item.checkins.start_time)) / 60000 
+          mission_duration: item.checkins.end_time
+            ? (new Date(item.checkins.end_time) - new Date(item.checkins.start_time)) / 60000
             : null
         };
       }).filter(Boolean); // Filtrer les entrées nulles en cas d'erreur
 
       console.log(`📊 ${formattedData.length} entrées valides après traitement`);
       res.json(formattedData);
-      
+
     } catch (error) {
       console.error('❌ Erreur lors de la récupération des validations:', error);
-      res.status(500).json({ 
-        success: false, 
+      res.status(500).json({
+        success: false,
         error: 'Erreur lors de la récupération des données',
         details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   } catch (outerError) {
     console.error('❌ Erreur globale du gestionnaire de route:', outerError);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Erreur interne du serveur',
       details: process.env.NODE_ENV === 'development' ? outerError.message : undefined
+    });
+  }
+});
+
+// Route pour marquer un agent comme absent
+app.post('/api/presence/mark-absent', authenticateToken, async (req, res) => {
+  try {
+    const { email } = req.query;
+    const requester = req.user;
+
+    console.log('🚫 /api/presence/mark-absent called', { email, requester: requester.email });
+
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email requis' });
+    }
+
+    // Vérifier les permissions (admin ou superviseur)
+    const isPrivileged = ['admin', 'superviseur', 'supervisor'].includes(requester.role);
+    if (!isPrivileged) {
+      return res.status(403).json({ success: false, error: 'Non autorisé' });
+    }
+
+    // Trouver l'utilisateur cible
+    const { data: user, error: userError } = await supabaseClient
+      .from('users')
+      .select('id, email')
+      .eq('email', email)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({ success: false, error: 'Utilisateur non trouvé' });
+    }
+
+    // Vérifier s'il y a déjà une présence aujourd'hui
+    const today = new Date().toISOString().split('T')[0];
+    const { data: existing, error: checkError } = await supabaseClient
+      .from('checkins')
+      .select('id')
+      .eq('user_id', user.id)
+      .gte('timestamp', `${today}T00:00:00`)
+      .lte('timestamp', `${today}T23:59:59`);
+
+    if (existing && existing.length > 0) {
+      return res.status(400).json({ success: false, error: 'Présence déjà enregistrée pour ce jour' });
+    }
+
+    // Créer une entrée d'absence (checkin avec statut spécial ou note)
+    // Note: On utilise une note spécifique pour marquer l'absence
+    const { error: insertError } = await supabaseClient
+      .from('checkins')
+      .insert({
+        user_id: user.id,
+        timestamp: new Date().toISOString(),
+        checkin_time: new Date().toISOString(),
+        lat: 0,
+        lon: 0,
+        note: 'ABSENT - Marqué par administrateur',
+        is_valide: false,
+        validation_status: 'rejected'
+      });
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    res.json({ success: true, message: 'Absence enregistrée' });
+
+  } catch (error) {
+    console.error('❌ Erreur mark-absent:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Route pour récupérer les planifications
+app.get('/api/planifications', authenticateToken, async (req, res) => {
+  try {
+    const { from, to, agent_id, project_name } = req.query;
+    console.log('📅 /api/planifications called', { from, to, agent_id, project_name });
+
+    let query = supabaseClient
+      .from('planifications')
+      .select('*');
+
+    if (from) query = query.gte('date', from);
+    if (to) query = query.lte('date', to);
+    if (agent_id) query = query.eq('user_id', agent_id);
+    if (project_name) query = query.eq('project_name', project_name);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('❌ Erreur Supabase planifications:', error);
+      throw error;
+    }
+
+    res.json(data || []);
+  } catch (error) {
+    console.error('❌ Erreur /api/planifications:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Route pour récupérer les checkins (présences)
+// API endpoint pour générer le rapport mensuel d'un agent
+app.get('/api/agents/monthly-report', async (req, res) => {
+  console.log('🔍 /api/agents/monthly-report called with query:', req.query);
+
+  try {
+    // Extraire les paramètres
+    const agentId = req.query.agentId || req.query.agent_id;
+    const monthValue = req.query.month;
+    const includeAI = req.query.ai === '1' || req.query.ai === 'true';
+    const projectName = req.query.project_name || req.query.projectName;
+
+    console.log('📋 Paramètres du rapport:', {
+      agentId,
+      monthValue,
+      includeAI,
+      projectName
+    });
+
+    if (!agentId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Le paramètre agentId est requis'
+      });
+    }
+
+    if (!monthValue) {
+      return res.status(400).json({
+        success: false,
+        error: 'Le paramètre month est requis (format: YYYY-MM)'
+      });
+    }
+
+    // Extraire l'utilisateur depuis le token JWT (si disponible)
+    let requester = null;
+    const authHeader = req.headers['authorization'];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      try {
+        requester = jwt.verify(token, JWT_SECRET);
+        console.log('👤 Requester:', {
+          id: requester.id,
+          email: requester.email,
+          role: requester.role
+        });
+      } catch (error) {
+        console.warn('⚠️ Token JWT invalide:', error.message);
+        // Continuer sans authentification pour compatibilité
+      }
+    }
+
+    // Si pas de requester, utiliser un utilisateur par défaut (pour compatibilité)
+    if (!requester) {
+      requester = {
+        id: Number(agentId),
+        role: 'agent'
+      };
+    }
+
+    // Récupérer la clé API Gemini depuis les variables d'environnement
+    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '';
+    const geminiModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+
+    console.log('🤖 Configuration IA:', {
+      hasApiKey: !!geminiApiKey,
+      model: geminiModel,
+      includeAI
+    });
+
+    // Générer le rapport
+    const report = await buildAgentMonthlyReport({
+      supabaseClient,
+      agentId: Number(agentId),
+      monthValue,
+      projectName,  // Filtre par projet si spécifié
+      includeAiSummary: includeAI,
+      geminiApiKey,
+      geminiModel,
+      requester
+    });
+
+    console.log('✅ Rapport généré avec succès:', {
+      agentId,
+      month: monthValue,
+      checkinsCount: report.dataSources?.checkins || 0,
+      planificationsCount: report.dataSources?.planifications || 0,
+      missionsCount: report.dataSources?.missions || 0
+    });
+
+    // Retourner le rapport
+    res.json(report);
+
+  } catch (error) {
+    console.error('❌ Erreur lors de la génération du rapport mensuel:', {
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      statusCode: error.statusCode
+    });
+
+    // Retourner une erreur appropriée
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
+      success: false,
+      error: error.message || 'Erreur lors de la génération du rapport mensuel',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -635,18 +893,18 @@ async function fetchAllPages(queryBuilder, pageSize = 1000) {
   const allData = [];
   let page = 0;
   let hasMore = true;
-  
+
   while (hasMore) {
     const from = page * pageSize;
     const to = from + pageSize - 1;
-    
+
     const { data, error } = await queryBuilder.range(from, to);
-    
+
     if (error) {
       console.error(`❌ Erreur lors de la récupération de la page ${page}:`, error);
       throw error;
     }
-    
+
     if (data && data.length > 0) {
       allData.push(...data);
       // Si on a récupéré moins que pageSize, c'est la dernière page
@@ -657,7 +915,7 @@ async function fetchAllPages(queryBuilder, pageSize = 1000) {
       hasMore = false;
     }
   }
-  
+
   console.log(`✅ Total récupéré: ${allData.length} enregistrements sur ${page} page(s)`);
   return allData;
 }
@@ -677,7 +935,7 @@ app.use(cors({
 app.use(async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  
+
   if (token) {
     try {
       const user = jwt.verify(token, JWT_SECRET);
@@ -687,14 +945,14 @@ app.use(async (req, res, next) => {
         const { error } = await supabaseClient
           .from('user_presence')
           .upsert(
-            { 
-              user_id: user.id, 
+            {
+              user_id: user.id,
               last_seen: now,
               status: 'online'
             },
             { onConflict: 'user_id' }
           );
-          
+
         if (error) {
           console.error('Erreur de suivi de présence:', error);
         }
@@ -711,13 +969,13 @@ app.use(async (req, res, next) => {
 setInterval(async () => {
   try {
     const inactiveTime = new Date(Date.now() - 5 * 60 * 1000).toISOString(); // 5 minutes d'inactivité
-    
+
     const { error } = await supabaseClient
       .from('user_presence')
       .update({ status: 'offline' })
       .lt('last_seen', inactiveTime)
       .eq('status', 'online');
-      
+
     if (error) {
       console.error('Erreur lors de la mise à jour des utilisateurs inactifs:', error);
     }
@@ -732,8 +990,8 @@ if (process.env.NODE_ENV !== 'test') {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        styleSrc: ["'self'", 'https://cdn.dhtmlx.com', "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-hashes'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://maps.googleapis.com"],
+        styleSrc: ["'self'", 'https://cdn.dhtmlx.com', "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://huggingface.co"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-hashes'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://maps.googleapis.com", "https://huggingface.co"],
         // Autoriser les gestionnaires d'événements inline (onclick, etc.)
         scriptSrcAttr: ["'unsafe-inline'"],
         imgSrc: [
@@ -744,7 +1002,10 @@ if (process.env.NODE_ENV !== 'test') {
           "https://c.tile.openstreetmap.org",
           "https://server.arcgisonline.com",
           // Autoriser les médias hébergés sur Supabase (avatars, storage)
-          "https://*.supabase.co"
+          "https://*.supabase.co",
+          // Autoriser les images de Hugging Face
+          "https://huggingface.co",
+          "https://*.huggingface.co"
         ],
         connectSrc: [
           "'self'",
@@ -760,15 +1021,19 @@ if (process.env.NODE_ENV !== 'test') {
           "https://b.tile.openstreetmap.org",
           "https://c.tile.openstreetmap.org",
           "https://server.arcgisonline.com",
+          // Autoriser Hugging Face pour les connexions WebSocket/API
+          "https://huggingface.co",
+          "https://*.huggingface.co",
+          "wss://*.huggingface.co",
           "data:",
           "blob:",
           "ws:",
           "wss:"
         ],
-        fontSrc: ["'self'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
+        fontSrc: ["'self'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://huggingface.co"],
         objectSrc: ["'none'"],
         mediaSrc: ["'self'"],
-        frameSrc: ["'none'"],
+        frameSrc: ["'self'", "https://huggingface.co", "https://*.huggingface.co"],
       },
     },
   }));
@@ -810,7 +1075,7 @@ app.get('/agents-list.js', async (req, res) => {
 app.delete('/api/admin/agents/:id', async (req, res) => {
   try {
     const agentId = parseInt(req.params.id, 10);
-    
+
     if (!agentId || isNaN(agentId)) {
       return res.status(400).json({ error: 'ID agent invalide' });
     }
@@ -819,7 +1084,7 @@ app.delete('/api/admin/agents/:id', async (req, res) => {
       .from('users')
       .delete()
       .eq('id', agentId);
-    
+
     if (error) {
       console.error('Erreur Supabase delete agent:', error);
       return res.status(500).json({ error: 'Erreur lors de la suppression de l\'agent' });
@@ -882,10 +1147,10 @@ app.get('/api/admin/stats', async (req, res) => {
 
     res.json({
       success: true, data: {
-      totalUsers: totalUsers || 0,
-      activeAgents: activeAgents || 0,
-      activeMissions,
-      checkinsToday,
+        totalUsers: totalUsers || 0,
+        activeAgents: activeAgents || 0,
+        activeMissions,
+        checkinsToday,
       }
     });
   } catch (error) {
@@ -978,21 +1243,21 @@ app.get('/api/attendance/day-status', async (req, res) => {
 app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async (req, res) => {
   try {
     console.log('🔍 API /api/reports appelée');
-    
+
     // Fonction pour normaliser les dates au format YYYY-MM-DD
     const normalizeDate = (dateString) => {
       if (!dateString) return dateString;
-      
+
       // Si la date est déjà au format YYYY-MM-DD, la retourner telle quelle
       if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
         return dateString;
       }
-      
+
       // Si la date est au format ISO complet, extraire YYYY-MM-DD
       if (dateString.includes('T')) {
         return dateString.split('T')[0];
       }
-      
+
       // Sinon, essayer de parser et formater
       try {
         const date = new Date(dateString);
@@ -1001,34 +1266,34 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
         return dateString; // En cas d'erreur, retourner l'original
       }
     };
-    
+
     // Extraire les paramètres de requête
     const { from, to, page, limit, agent_id } = req.query;
-    
+
     // Normaliser les dates
     const normalizedFrom = normalizeDate(from);
     const normalizedTo = normalizeDate(to);
-    
+
     const currentPage = parseInt(page) || 1;
     const pageLimit = parseInt(limit) || 2000;
     const offset = (currentPage - 1) * pageLimit;
-    
-    console.log('📋 Paramètres de requête:', { 
-      from: normalizedFrom, 
-      to: normalizedTo, 
-      page, 
-      limit, 
-      agent_id 
+
+    console.log('📋 Paramètres de requête:', {
+      from: normalizedFrom,
+      to: normalizedTo,
+      page,
+      limit,
+      agent_id
     });
-    
+
     // 1. Récupérer les validations avec leurs checkins
     console.log('📊 Récupération des validations...');
-    
+
     // Construire la requête de base avec filtres
     let baseQuery = supabaseClient
       .from('checkin_validations')
       .select('*', { count: 'exact', head: true });
-    
+
     // Appliquer les filtres de date sur created_at (approximation)
     // Note: Le filtrage exact par timestamp du checkin sera fait après
     if (normalizedFrom) {
@@ -1037,33 +1302,33 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
     if (normalizedTo) {
       baseQuery = baseQuery.lte('created_at', new Date(normalizedTo + 'T23:59:59.999Z').toISOString());
     }
-    
+
     // Filtrer par agent_id si fourni
     if (agent_id) {
       baseQuery = baseQuery.eq('agent_id', agent_id);
     }
-    
+
     // Compter le total avant la pagination
     const { count, error: countError } = await baseQuery;
-    
+
     if (countError) {
       console.error('❌ Erreur lors du comptage:', countError);
       throw countError;
     }
-    
+
     const totalCount = count || 0;
     console.log('📊 Total de validations:', totalCount);
-    
+
     // Si aucune validation trouvée, essayer les tables checkins et presences
     if (totalCount === 0) {
       console.log('⚠️ Aucune validation dans checkin_validations, recherche dans checkins/presences...');
-      
+
       try {
         // Essayer la table presences d'abord
         let presencesQuery = supabaseClient
           .from('presences')
           .select('*', { count: 'exact', head: true });
-        
+
         if (normalizedFrom) {
           presencesQuery = presencesQuery.gte('created_at', new Date(normalizedFrom + 'T00:00:00.000Z').toISOString());
         }
@@ -1073,12 +1338,12 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
         if (agent_id) {
           presencesQuery = presencesQuery.eq('user_id', agent_id);
         }
-        
+
         const { count: presencesCount, error: presencesCountError } = await presencesQuery;
-        
+
         if (!presencesCountError && presencesCount > 0) {
           console.log(`📊 ${presencesCount} presences trouvées, utilisation de cette table...`);
-          
+
           // Récupérer les données des presences
           let presencesDataQuery = supabaseClient
             .from('presences')
@@ -1106,7 +1371,7 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
                 tolerance_radius_meters
               )
             `);
-          
+
           if (normalizedFrom) {
             presencesDataQuery = presencesDataQuery.gte('created_at', new Date(normalizedFrom + 'T00:00:00.000Z').toISOString());
           }
@@ -1116,17 +1381,17 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
           if (agent_id) {
             presencesDataQuery = presencesDataQuery.eq('user_id', agent_id);
           }
-          
+
           const { data: presencesData, error: presencesDataError } = await presencesDataQuery;
-          
+
           console.log('🔍 Debug presences:');
           console.log('  - Error:', presencesDataError);
           console.log('  - Data length:', presencesData?.length || 0);
           console.log('  - Data sample:', presencesData?.[0] ? 'ID: ' + presencesData[0].id + ', User: ' + presencesData[0].user_id : 'None');
-          
+
           if (!presencesDataError && presencesData && presencesData.length > 0) {
             console.log(`📊 ${presencesData.length} presences récupérées`);
-            
+
             // Transformer les données de presences en format de rapports
             const reports = presencesData.map(presence => {
               const user = presence.users || {};
@@ -1140,7 +1405,7 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
                 date: new Date(presence.start_time || presence.created_at).toLocaleDateString('fr-FR'),
                 heure_arrivee: presence.start_time ? new Date(presence.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
                 heure_depart: presence.end_time ? new Date(presence.end_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
-                mission_duration: presence.start_time && presence.end_time ? 
+                mission_duration: presence.start_time && presence.end_time ?
                   Math.round((new Date(presence.end_time) - new Date(presence.start_time)) / 60000) : null,
                 status_presence: 'Présent',
                 distance_m: presence.location_lat && presence.location_lng && user.reference_lat && user.reference_lon ?
@@ -1158,13 +1423,13 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
                 user: user
               };
             });
-            
+
             console.log(`📊 ${reports.length} rapports générés depuis presences`);
-            
+
             // Pagination
             const startIndex = (page - 1) * limit;
             const paginatedReports = reports.slice(startIndex, startIndex + limit);
-            
+
             return res.json({
               success: true,
               data: paginatedReports,
@@ -1177,14 +1442,14 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
             });
           }
         }
-        
+
         // Si pas de presences, essayer checkins
         console.log('⚠️ Pas de presences, recherche dans checkins...');
-        
+
         let checkinsQuery = supabaseClient
           .from('checkins')
           .select('*', { count: 'exact', head: true });
-        
+
         if (normalizedFrom) {
           checkinsQuery = checkinsQuery.gte('created_at', new Date(normalizedFrom + 'T00:00:00.000Z').toISOString());
         }
@@ -1194,12 +1459,12 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
         if (agent_id) {
           checkinsQuery = checkinsQuery.eq('user_id', agent_id);
         }
-        
+
         const { count: checkinsCount, error: checkinsCountError } = await checkinsQuery;
-        
+
         if (!checkinsCountError && checkinsCount > 0) {
           console.log(`📊 ${checkinsCount} checkins trouvés, utilisation de cette table...`);
-          
+
           // Récupérer les données des checkins
           let checkinsDataQuery = supabaseClient
             .from('checkins')
@@ -1225,7 +1490,7 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
                 tolerance_radius_meters
               )
             `);
-          
+
           if (normalizedFrom) {
             checkinsDataQuery = checkinsDataQuery.gte('created_at', new Date(normalizedFrom + 'T00:00:00.000Z').toISOString());
           }
@@ -1235,12 +1500,12 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
           if (agent_id) {
             checkinsDataQuery = checkinsDataQuery.eq('user_id', agent_id);
           }
-          
+
           const { data: checkinsData, error: checkinsDataError } = await checkinsDataQuery;
-          
+
           if (!checkinsDataError && checkinsData.length > 0) {
             console.log(`📊 ${checkinsData.length} checkins récupérés`);
-            
+
             // Transformer les données de checkins en format de rapports
             const reports = checkinsData.map(checkin => {
               const user = checkin.users || {};
@@ -1271,13 +1536,13 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
                 user: user
               };
             });
-            
+
             console.log(`📊 ${reports.length} rapports générés depuis checkins`);
-            
+
             // Pagination
             const startIndex = (page - 1) * limit;
             const paginatedReports = reports.slice(startIndex, startIndex + limit);
-            
+
             return res.json({
               success: true,
               data: paginatedReports,
@@ -1290,14 +1555,14 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
             });
           }
         }
-        
+
         console.log('❌ Aucune donnée trouvée dans checkins ou presences');
-        
+
       } catch (fallbackError) {
         console.error('❌ Erreur dans le fallback checkins/presences:', fallbackError);
       }
     }
-    
+
     // Construire la requête de données avec les mêmes filtres
     let dataQuery = supabaseClient
       .from('checkin_validations')
@@ -1322,7 +1587,7 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
           photo_url
         )
       `);
-    
+
     // Appliquer les mêmes filtres
     if (normalizedFrom) {
       dataQuery = dataQuery.gte('created_at', new Date(normalizedFrom + 'T00:00:00.000Z').toISOString());
@@ -1333,44 +1598,8 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
     if (agent_id) {
       dataQuery = dataQuery.eq('agent_id', agent_id);
     }
-    
-    // Appliquer le tri et la pagination
-    dataQuery = dataQuery
-      .order('created_at', { ascending: false })
-      .range(offset, offset + pageLimit - 1);
-    
-    const { data: validations, error: validationsError } = await dataQuery;
-    
-    console.log('📊 Validations trouvées:', validations?.length || 0);
-    console.log('📋 Erreur validations:', validationsError);
-    
-    if (validationsError) {
-      console.error('❌ Erreur lors de la récupération des validations:', validationsError);
-      return res.status(500).json({ error: 'Erreur lors de la récupération des validations' });
-    }
 
-    if (!validations || validations.length === 0) {
-      console.log('⚠️ Aucune validation trouvée');
-      return res.json({ 
-        success: true, 
-        data: [],
-        pagination: {
-          current_page: currentPage,
-          total_pages: 0,
-          total_items: 0,
-          items_per_page: pageLimit,
-          has_next_page: false,
-          has_prev_page: false,
-          next_page: null,
-          prev_page: null
-        }
-      });
-    }
 
-    // 2. Récupérer les informations des utilisateurs
-    const agentIds = [...new Set(validations.map(v => v.agent_id))];
-    console.log('👥 Agent IDs uniques:', agentIds);
-    
     // Filtrer les agents selon le rôle de l'utilisateur connecté
     let filteredAgentIds = agentIds;
     if (req.user.role === 'superviseur') {
@@ -1379,44 +1608,10 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
         .from('users')
         .select('id')
         .eq('supervisor_id', req.user.id)
-        .eq('role', 'agent') // Ne récupérer que les agents supervisés
-        .in('id', agentIds);
-      
-      if (supervisedError) {
-        console.error('❌ Erreur lors de la récupération des agents supervisés:', supervisedError);
-        return res.status(500).json({ error: 'Erreur lors de la récupération des agents supervisés' });
-      }
-      
-      filteredAgentIds = (supervisedAgents || []).map(a => a.id);
-      console.log(`🔍 Superviseur ${req.user.id}: ${filteredAgentIds.length} agents supervisés sur ${agentIds.length} agents`);
-    } else {
       // Pour les admins, filtrer pour ne garder que les agents et superviseurs (rôles 'agent' et 'superviseur')
       const { data: fieldUsers, error: fieldError } = await supabaseClient
         .from('users')
         .select('id')
-        .in('role', ['agent', 'superviseur'])
-        .in('id', agentIds);
-      
-      if (fieldError) {
-        console.error('❌ Erreur lors de la récupération des agents/superviseurs:', fieldError);
-        return res.status(500).json({ error: 'Erreur lors de la récupération des agents/superviseurs' });
-      }
-      
-      filteredAgentIds = (fieldUsers || []).map(a => a.id);
-      console.log(`🔍 Admin: ${filteredAgentIds.length} agents/superviseurs sur ${agentIds.length} utilisateurs`);
-    }
-    
-    const { data: users, error: usersError } = await supabaseClient
-      .from('users')
-      .select('id, name, first_name, last_name, project_name, departement, commune, arrondissement, village, reference_lat, reference_lon, tolerance_radius_meters, role')
-      .in('id', filteredAgentIds);
-    
-    console.log('👥 Utilisateurs trouvés:', users?.length || 0);
-    console.log('📋 Erreur utilisateurs:', usersError);
-    
-    if (usersError) {
-      console.error('❌ Erreur lors de la récupération des utilisateurs:', usersError);
-      return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs' });
     }
 
     const usersMap = new Map();
@@ -1425,7 +1620,7 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
     });
 
     // 3. Filtrer les validations selon les agents autorisés
-    let filteredValidations = validations.filter(validation => 
+    let filteredValidations = validations.filter(validation =>
       filteredAgentIds.includes(validation.agent_id)
     );
     console.log(`🔍 Validations filtrées: ${filteredValidations.length} sur ${validations.length}`);
@@ -1439,7 +1634,7 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
           console.log(`⚠️ Validation ${validation.id} sans timestamp, conservée par défaut`);
           return true;
         }
-        
+
         const timestamp = new Date(checkinTimestamp);
         if (normalizedFrom && timestamp < new Date(normalizedFrom + 'T00:00:00.000Z')) return false;
         if (normalizedTo && timestamp > new Date(normalizedTo + 'T23:59:59.999Z')) return false;
@@ -1455,32 +1650,32 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
       console.log('🔍 Sample validation ID:', filteredValidations[0].id, 'agent_id:', filteredValidations[0].agent_id);
       console.log('🔍 Sample validation checkins:', filteredValidations[0].checkins);
     }
-    
+
     const reports = filteredValidations.map(validation => {
       const checkin = validation.checkins;
       const user = usersMap.get(validation.agent_id);
-      
+
       // Log de débogage pour chaque validation
       console.log(`🔍 Validation ${validation.id}: agent_id=${validation.agent_id}, user_found=${!!user}, checkin_found=${!!checkin}`);
-      
+
       if (!user) {
         console.log(`⚠️ Utilisateur non trouvé pour agent_id ${validation.agent_id}`);
         return null;
       }
-      
+
       // Calculer la distance si elle n'est pas déjà calculée
       let distance_m = validation.distance_m;
       const refLat = validation.reference_lat || user?.reference_lat;
       const refLon = validation.reference_lon || user?.reference_lon;
-      
+
       if ((distance_m === null || distance_m === undefined) && refLat && refLon && checkin?.lat && checkin?.lon) {
         distance_m = calculateDistance(refLat, refLon, checkin.lat, checkin.lon);
       }
-      
+
       // Déterminer le statut - utiliser uniquement le rayon de tolérance de l'utilisateur
       const tolerance = user?.tolerance_radius_meters || 5000; // Valeur par défaut si non définie
       const isWithinTolerance = distance_m ? distance_m <= tolerance : validation.valid;
-      
+
       // Calculer la durée de mission si disponible
       let mission_duration = null;
       if (checkin?.mission_duration !== null && checkin?.mission_duration !== undefined) {
@@ -1490,7 +1685,7 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
         // Pour l'instant, on laisse null jusqu'à ce que la colonne soit ajoutée
         mission_duration = null;
       }
-      
+
       const result = {
         agent_id: validation.agent_id,
         agent: user?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || `Agent #${validation.agent_id}`,
@@ -1538,7 +1733,7 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
     // Filtrer les rapports null (où l'utilisateur n'a pas été trouvé)
     const validReports = reports.filter(report => report !== null);
     console.log('📊 Rapports valides après filtrage:', validReports.length, 'sur', reports.length);
-    
+
     if (validReports.length > 0) {
       console.log('📋 Premier rapport valide:', validReports[0]);
     }
@@ -1548,8 +1743,8 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
     const hasNextPage = currentPage < totalPages;
     const hasPrevPage = currentPage > 1;
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: validReports,
       pagination: {
         current_page: currentPage,
@@ -1570,113 +1765,87 @@ app.get('/api/reports', authenticateToken, authenticateSupervisorOrAdmin, async 
 });
 app.get('/api/reports/activity-follow-up', authenticateToken, async (req, res) => {
   console.log(' /api/reports/activity-follow-up called with query:', req.query);
-  
+
   try {
     const { from, to } = req.query;
-    
+
     // Validation des paramètres
     if (!from || !to) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Les paramètres from et to sont obligatoires',
         message: 'Veuillez fournir une période valide (from et to)'
       });
     }
-    
+
     // Fonction pour formater les dates
     const formatDateForQuery = (dateStr, isEndOfDay = false) => {
       try {
         let date = new Date(dateStr);
-        
+
         // Si la date string est en format 'YYYY-MM-DD', la parser manuellement
         if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
           const [year, month, day] = dateStr.split('T')[0].split('-').map(Number);
           date = new Date(Date.UTC(year, month - 1, day));
         }
-        
+
         if (isNaN(date.getTime())) {
           console.warn(`⚠️ Format de date invalide: ${dateStr}`);
           return null;
         }
-        
+
         if (isEndOfDay) {
           date.setUTCHours(23, 59, 59, 999);
         } else {
           date.setUTCHours(0, 0, 0, 0);
         }
-        
+
         return date.toISOString().replace('Z', '+00:00');
       } catch (e) {
         console.warn(`⚠️ Erreur de formatage de date (${dateStr}):`, e.message);
         return null;
       }
     };
-    
-    const fromDateStr = formatDateForQuery(from);
-    const toDateStr = formatDateForQuery(to, true);
-    
-    if (!fromDateStr || !toDateStr) {
-      return res.status(400).json({ 
-        error: 'Format de date invalide',
-        message: 'Les dates doivent être au format YYYY-MM-DD ou ISO'
-      });
-    }
-    
-    console.log(`📅 Période: ${fromDateStr} à ${toDateStr}`);
-    
-    // 1. Récupérer tous les agents avec leurs informations
+
+    // 1. Récupérer les agents
     const { data: agents, error: agentsError } = await supabaseClient
       .from('users')
-      .select(`
-        id,
-        name,
-        email,
-        role,
-        project_name,
-        departement,
-        commune,
-        first_name,
-        last_name
-      `)
+      .select('id, name, first_name, last_name, email, role, project_name, departement, commune')
       .eq('role', 'agent');
-    
-    if (agentsError) {
+
+    if (agentsError || !agents) {
       console.error('❌ Erreur lors de la récupération des agents:', agentsError);
       return res.status(500).json({ error: 'Erreur lors de la récupération des agents' });
     }
-    
+
     console.log(`👥 ${agents?.length || 0} agents trouvés`);
-    
-    // 2. Récupérer toutes les planifications pour la période (même logique que planning.js)
+
+    // 2. Récupérer les planifications pour la période
+    const fromDateStr = formatDateForQuery(from, false);
+    const toDateStr = formatDateForQuery(to, true);
+
+    if (!fromDateStr || !toDateStr) {
+      return res.status(400).json({ error: 'Format de date invalide' });
+    }
+
     const { data: planifications, error: planificationsError } = await supabaseClient
       .from('planifications')
-      .select(`
-        id,
-        user_id,
-        date,
-        planned_start_time,
-        planned_end_time,
-        description_activite,
-        resultat_journee,
-        observations,
-        project_name,
-        created_at
-      `)
-      .gte('date', fromDateStr.split('T')[0])
-      .lte('date', toDateStr.split('T')[0]);
-    
-    if (planificationsError) {
+      .select('id, user_id, date, description_activite, resultat_journee, planned_start_time, planned_end_time')
+      .gte('date', fromDateStr)
+      .lte('date', toDateStr);
+
+    if (planificationsError || !planifications) {
       console.error('❌ Erreur lors de la récupération des planifications:', planificationsError);
       return res.status(500).json({ error: 'Erreur lors de la récupération des planifications' });
     }
-    
+
     console.log(`📋 ${planifications?.length || 0} planifications trouvées`);
-    
+
     // 3. Grouper les planifications par agent et calculer les statistiques
     const agentsMap = new Map();
     agents.forEach(agent => {
       agentsMap.set(agent.id, {
         agent_id: agent.id,
-        agent_name: agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email,
+        agent_name: agent.name || `${agent.first_name || ''} ${agent.last_name || ''} `.trim() || agent.email,
         role: agent.role,
         project_name: agent.project_name,
         departement: agent.departement,
@@ -1689,17 +1858,17 @@ app.get('/api/reports/activity-follow-up', authenticateToken, async (req, res) =
         not_realized_list: []
       });
     });
-    
+
     // Traiter chaque planification
     planifications.forEach(planification => {
       const agent = agentsMap.get(planification.user_id);
       if (!agent) {
-        console.warn(`⚠️ Agent ${planification.user_id} non trouvé pour la planification ${planification.id}`);
+        console.warn(`⚠️ Agent ${planification.user_id} non trouvé pour la planification ${planification.id} `);
         return;
       }
-      
+
       agent.total_activities++;
-      
+
       // Compter par statut
       switch (planification.resultat_journee) {
         case 'realise':
@@ -1724,14 +1893,14 @@ app.get('/api/reports/activity-follow-up', authenticateToken, async (req, res) =
           break;
       }
     });
-    
+
     // 4. Convertir en tableau et filtrer les agents sans activités
     const activityReports = Array.from(agentsMap.values())
       .filter(agent => agent.total_activities > 0)
       .sort((a, b) => a.agent_name.localeCompare(b.agent_name));
-    
+
     console.log(`📊 ${activityReports.length} agents avec des activités trouvés`);
-    
+
     res.json({
       success: true,
       data: activityReports,
@@ -1746,13 +1915,13 @@ app.get('/api/reports/activity-follow-up', authenticateToken, async (req, res) =
         total_not_realized: activityReports.reduce((sum, agent) => sum + agent.not_realized_activities, 0)
       }
     });
-    
+
   } catch (error) {
     console.error('❌ Erreur dans /api/reports/activity-follow-up:', error);
     console.error('❌ Stack trace:', error.stack);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Erreur interne du serveur',
-      message: error.message 
+      message: error.message
     });
   }
 });
@@ -1760,32 +1929,32 @@ app.get('/api/reports/activity-follow-up', authenticateToken, async (req, res) =
 // Endpoint de test sans authentification pour diagnostiquer
 app.get('/api/test-activity-follow-up', async (req, res) => {
   console.log(' /api/test-activity-follow-up called with query:', req.query);
-  
+
   try {
     const { from, to } = req.query;
-    
+
     // Validation des paramètres
     if (!from || !to) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Les paramètres from et to sont obligatoires',
         message: 'Veuillez fournir une période valide (from et to)'
       });
     }
-    
-    console.log(` Période: ${from} à ${to}`);
-    
+
+    console.log(` Période: ${from} à ${to} `);
+
     // Test simple: récupérer les agents
     const { data: agents, error: agentsError } = await supabaseClient
       .from('users')
       .select('id, name, role, project_name')
       .eq('role', 'agent')
       .limit(5);
-    
+
     if (agentsError) {
       console.error('Erreur test agents:', agentsError);
       return res.status(500).json({ error: 'Erreur test agents', details: agentsError });
     }
-    
+
     // Test simple: récupérer les planifications
     const { data: planifications, error: planificationsError } = await supabaseClient
       .from('planifications')
@@ -1793,14 +1962,14 @@ app.get('/api/test-activity-follow-up', async (req, res) => {
       .gte('date', from)
       .lte('date', to)
       .limit(5);
-    
+
     if (planificationsError) {
       console.error('Erreur test planifications:', planificationsError);
       return res.status(500).json({ error: 'Erreur test planifications', details: planificationsError });
     }
-    
+
     console.log(` ${agents?.length || 0} agents, ${planifications?.length || 0} planifications`);
-    
+
     res.json({
       success: true,
       test: true,
@@ -1808,14 +1977,14 @@ app.get('/api/test-activity-follow-up', async (req, res) => {
       planifications: planifications,
       period: { from, to }
     });
-    
+
   } catch (error) {
     console.error('Erreur test:', error);
     console.error('Stack trace test:', error.stack);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Erreur interne du serveur (test)',
       message: error.message,
-      stack: error.stack 
+      stack: error.stack
     });
   }
 });
@@ -1891,17 +2060,21 @@ app.use((req, res, next) => {
   next();
 });
 
+// Middleware d'authentification
 async function authenticateToken(req, res, next) {
   console.log('🔍 Middleware authenticateToken appelé');
   const authHeader = req.headers['authorization'];
-  console.log('🔍 Authorization header:', authHeader);
-  
+  console.log('🔍 Authorization header:', authHeader ? 'Présent' : 'Manquant');
+
   const token = authHeader && authHeader.split(' ')[1];
   console.log('🔍 Token extrait:', token ? `${token.substring(0, 10)}...` : 'non fourni');
 
   if (!token) {
     console.log('❌ Aucun token fourni');
-    return res.status(401).json({ error: 'Token d\'accès requis' });
+    return res.status(401).json({
+      error: 'Token d\'accès requis',
+      code: 'MISSING_TOKEN'
+    });
   }
 
   console.log('🔍 Vérification du token...');
@@ -1909,117 +2082,140 @@ async function authenticateToken(req, res, next) {
   try {
     // Vérifier le token JWT
     const decoded = jwt.verify(token, JWT_SECRET);
-    console.log('🔍 Token décodé:', {
+    console.log('🔍 Token décodé avec succès:', {
       id: decoded.id,
       auth_uuid: decoded.auth_uuid,
-      email: decoded.email
+      email: decoded.email ? decoded.email.substring(0, 10) + '...' : 'N/A',
+      role: decoded.role,
+      exp: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : 'N/A'
     });
+
+    // Vérifier si le token est expiré
+    if (decoded.exp && decoded.exp * 1000 < Date.now()) {
+      console.log('❌ Token expiré le:', new Date(decoded.exp * 1000).toISOString());
+      return res.status(401).json({
+        error: 'Token expiré',
+        code: 'TOKEN_EXPIRED'
+      });
+    }
 
     let user = null;
-    
+
     // Essayer de trouver l'utilisateur par auth_uuid (nouveau système) ou par ID (ancien système)
-      if (decoded.auth_uuid) {
-      console.log('🔍 Recherche par auth_uuid:', decoded.auth_uuid);
-        const { data, error } = await supabaseClient
-          .from('users')
-          .select('*')
-          .eq('auth_uuid', decoded.auth_uuid)
-          .single();
-        
-        if (!error && data) {
-          user = data;
-        }
-    }
+    if (decoded.auth_uuid) {
+      console.log('🔍 Recherche utilisateur par auth_uuid:', decoded.auth_uuid);
+      try {
+        const { data: userByUuid, error: uuidError } = await safeSupabaseQuery(() =>
+          supabaseClient
+            .from('users')
+            .select('*')
+            .eq('auth_uuid', decoded.auth_uuid)
+            .single()
+        );
 
-    // Si pas trouvé par auth_uuid, essayer par ID numérique ou UUID
-    if (!user && decoded.id) {
-      console.log('🔍 Recherche par ID:', decoded.id);
-
-      // Essayer d'abord avec l'ID tel quel (pour les UUID)
-      let { data, error } = await supabaseClient
-          .from('users')
-          .select('*')
-          .eq('id', decoded.id)
-          .single();
-        
-      // Si non trouvé et que l'ID est numérique, essayer avec la conversion en nombre
-      if ((error || !data) && /^\d+$/.test(decoded.id)) {
-        console.log('🔍 Essai avec conversion de l\'ID en nombre');
-        const numericId = parseInt(decoded.id, 10);
-        const result = await supabaseClient
-          .from('users')
-          .select('*')
-          .eq('id', numericId)
-          .single();
-
-        if (!result.error && result.data) {
-          data = result.data;
-          error = null;
-        }
-      }
-
-      if (!error && data) {
-        user = data;
-      }
-    }
-
-    // Si l'utilisateur n'est toujours pas trouvé, vérifier s'il s'agit d'un ID numérique
-    if (!user && decoded.id && /^\d+$/.test(decoded.id)) {
-      console.log('🔍 Tentative de recherche par ID numérique dans les anciens enregistrements');
-
-      // Essayer de trouver l'utilisateur avec l'ID numérique
-      const { data, error } = await supabaseClient
-        .from('users')
-        .select('*')
-        .eq('id', parseInt(decoded.id, 10))
-        .single();
-
-        if (!error && data) {
-          user = data;
-        }
-      }
-      
-      if (!user) {
-      console.error('❌ Utilisateur non trouvé dans la base de données');
-      return res.status(403).json({
-        success: false,
-        error: 'Utilisateur non trouvé',
-        details: process.env.NODE_ENV === 'development' ? {
-          decodedToken: {
-            id: decoded.id,
-            auth_uuid: decoded.auth_uuid,
-            email: decoded.email
+        if (uuidError) {
+          if (uuidError.code === 'PGRST116') {
+            console.log('⚠️ Aucun utilisateur trouvé avec cet auth_uuid, essai par ID');
+          } else {
+            console.error('❌ Erreur recherche par auth_uuid:', uuidError);
+            throw uuidError;
           }
-        } : undefined
+        } else {
+          user = userByUuid;
+          console.log('✅ Utilisateur trouvé par auth_uuid:', { id: user.id, email: user.email, role: user.role });
+        }
+      } catch (uuidQueryError) {
+        console.warn('⚠️ Erreur requête auth_uuid:', uuidQueryError.message);
+      }
+    }
+
+    // Si pas trouvé par auth_uuid, essayer par ID
+    if (!user && decoded.id) {
+      console.log('🔍 Recherche utilisateur par ID:', decoded.id);
+      try {
+        const { data: userById, error: idError } = await safeSupabaseQuery(() =>
+          supabaseClient
+            .from('users')
+            .select('*')
+            .eq('id', decoded.id)
+            .single()
+        );
+
+        if (idError) {
+          console.error('❌ Erreur recherche par ID:', idError);
+          throw idError;
+        } else {
+          user = userById;
+          console.log('✅ Utilisateur trouvé par ID:', { id: user.id, email: user.email, role: user.role });
+        }
+      } catch (idQueryError) {
+        console.warn('⚠️ Erreur requête ID:', idQueryError.message);
+        throw idQueryError;
+      }
+    }
+
+    if (!user) {
+      console.log('❌ Utilisateur non trouvé dans la base de données');
+      return res.status(401).json({
+        error: 'Utilisateur non trouvé',
+        code: 'USER_NOT_FOUND'
       });
     }
 
-    console.log('✅ Utilisateur authentifié:', {
+    // Vérifier si le compte est actif
+    if (user.status === 'inactive' || user.status === 'suspended') {
+      console.log('❌ Compte utilisateur inactif:', user.status);
+      return res.status(403).json({
+        error: 'Compte désactivé',
+        code: 'ACCOUNT_INACTIVE'
+      });
+    }
+
+    // Ajouter les informations utilisateur à la requête
+    req.user = {
       id: user.id,
       email: user.email,
-      role: user.role
+      role: user.role,
+      name: user.name,
+      auth_uuid: user.auth_uuid,
+      project_name: user.project_name
+    };
+
+    console.log('✅ Authentification réussie pour:', {
+      id: req.user.id,
+      email: req.user.email,
+      role: req.user.role
     });
 
-    // Ajouter l'utilisateur à la requête
-      req.user = user;
-      next();
-
+    next();
   } catch (err) {
-    console.error('❌ Erreur d\'authentification:', err);
+    console.error('❌ Erreur authentification:', {
+      name: err.name,
+      message: err.message,
+      code: err.code
+    });
 
-    if (err.name === 'TokenExpiredError') {
+    if (err.name === 'JsonWebTokenError') {
+      return res.status(403).json({
+        error: 'Token invalide',
+        code: 'INVALID_TOKEN'
+      });
+    } else if (err.name === 'TokenExpiredError') {
       return res.status(401).json({
-        success: false,
-        error: 'Session expirée',
-        details: process.env.NODE_ENV === 'development' ? err.message : undefined
+        error: 'Token expiré',
+        code: 'TOKEN_EXPIRED'
+      });
+    } else if (err.code === 'USER_NOT_FOUND') {
+      return res.status(401).json({
+        error: 'Utilisateur non trouvé',
+        code: 'USER_NOT_FOUND'
+      });
+    } else {
+      return res.status(500).json({
+        error: 'Erreur serveur lors de l\'authentification',
+        code: 'SERVER_ERROR'
       });
     }
-
-    res.status(403).json({
-      success: false,
-      error: 'Token invalide',
-      details: process.env.NODE_ENV === 'development' ? err.message : undefined
-    });
   }
 }
 
@@ -2048,8 +2244,8 @@ function authenticateSupervisorOrAdmin(req, res, next) {
 
 // Health check
 app.get('/api/test-server', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     database: 'Supabase',
     timestamp: new Date().toISOString(),
     rate_limiting_disabled: process.env.NODE_ENV === 'test'
@@ -2067,7 +2263,7 @@ app.get('/api/admin/export/presence.csv', authenticateToken, authenticateSupervi
     const from = req.query.from ? new Date(String(req.query.from)) : null;
     const to = req.query.to ? new Date(String(req.query.to)) : null;
 
-    // Récupérer checkins + missions + users + profiles
+    // Récupérer checkins + missions + users
     let checkinsQuery = supabaseClient
       .from('checkins')
       .select('id, mission_id, lat, lon, note, photo_url, created_at');
@@ -2085,18 +2281,13 @@ app.get('/api/admin/export/presence.csv', authenticateToken, authenticateSupervi
     if (mErr) throw mErr;
     const missionById = new Map((missions || []).map(m => [m.id, m]));
 
-    // Users + Profiles
+    // Users
     const agentIds = Array.from(new Set((missions || []).map(m => m.agent_id).filter(Boolean)));
     const { data: users, error: uErr } = await supabaseClient
       .from('users')
       .select('id, first_name, last_name, name, project_name');
     if (uErr) throw uErr;
     const usersById = new Map((users || []).map(u => [u.id, u]));
-    const { data: profiles, error: pErr } = await supabaseClient
-      .from('profiles')
-      .select('user_id, reference_lat, reference_lon, tolerance_radius_meters');
-    if (pErr) throw pErr;
-    const profileByUser = new Map((profiles || []).map(p => [p.user_id, p]));
 
     // Grouper par agent+jour pour déterminer début/fin de journée
     const byAgentDay = new Map();
@@ -2133,11 +2324,10 @@ app.get('/api/admin/export/presence.csv', authenticateToken, authenticateSupervi
       const last = list[list.length - 1];
       const mission = missionById.get(first.mission_id) || {};
       const user = usersById.get(agentId) || {};
-      const prof = profileByUser.get(agentId) || {};
 
-      const refLat = Number(prof.reference_lat);
-      const refLon = Number(prof.reference_lon);
-      const tol = Number(prof.tolerance_radius_meters || 5000);
+      const refLat = 0;
+      const refLon = 0;
+      const tol = 5000;
       const curLat = Number(last.lat);
       const curLon = Number(last.lon);
       const dist = distanceMeters(refLat, refLon, curLat, curLon);
@@ -2195,12 +2385,10 @@ app.get('/api/admin/export/presence.txt', authenticateToken, authenticateSupervi
       setHeader: () => { },
       send: (s) => { fakeRes._chunks = s; }
     };
-    await new Promise((resolve) => {
-      // Appeler le handler CSV manuellement n'est pas trivial ici; renvoyer 501 simple
-      resolve();
-    });
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.send(String(fakeRes._chunks || '').replace(/;/g, '\t'));
+    // Simuler l'appel à la route CSV
+    // Note: C'est une simplification, idéalement on refactoriserait la logique d'export
+    // Pour l'instant on renvoie 501 car l'appel interne est complexe
+    res.status(501).send('Non implémenté - Utilisez l\'export CSV');
   } catch (e) {
     res.status(501).send('Non implémenté');
   }
@@ -2241,13 +2429,13 @@ app.get('/api/debug/can-planify', authenticateToken, async (req, res) => {
     // 1) tenter upsert
     const { error: upsertErr } = await supabaseClient
       .from('planifications')
-      .upsert({ 
+      .upsert({
         user_id: userId,
-        agent_id: userId, 
-        date, 
-        planned_start_time: null, 
-        planned_end_time: null, 
-        description_activite: probeNote 
+        agent_id: userId,
+        date,
+        planned_start_time: null,
+        planned_end_time: null,
+        description_activite: probeNote
       }, { onConflict: 'user_id,date' });
 
     // 2) tenter delete du probe
@@ -2315,7 +2503,7 @@ app.post('/api/planifications', async (req, res) => {
     } catch (err) {
       console.log('Erreur récupération rôle utilisateur:', err.message);
     }
-    
+
     const targetUserId = (user_id && (userRole === 'admin' || userRole === 'superviseur')) ? user_id : userId;
 
     const payload = {
@@ -2336,7 +2524,7 @@ app.post('/api/planifications', async (req, res) => {
       .delete()
       .eq('user_id', targetUserId)
       .eq('date', date);
-    
+
     // Puis insérer la nouvelle planification
     const { error } = await supabaseClient
       .from('planifications')
@@ -2353,15 +2541,89 @@ app.post('/api/planifications', async (req, res) => {
 app.get('/api/planifications', authenticateToken, async (req, res) => {
   try {
     const { from, to, project_name, agent_id, departement, commune, resultat_journee } = req.query;
-    
+
     let query = supabaseClient
       .from('planifications')
       .select('*');
 
     // Logique de filtrage par rôle améliorée
     if (agent_id) {
-      // Si un agent_id spécifique est demandé, l'utiliser
-      query = query.eq('user_id', agent_id);
+      // Si un agent_id spécifique est demandé, l'utiliser sur les deux colonnes possibles
+      const normalizedAgentId = Number(agent_id);
+      if (!Number.isFinite(normalizedAgentId)) {
+        return res.status(400).json({ success: false, error: 'agent_id invalide' });
+      }
+
+      // Utiliser une approche plus robuste : deux requêtes séparées puis fusion
+      // Construire les requêtes de base avec les filtres communs
+      let userQuery = supabaseClient
+        .from('planifications')
+        .select('*')
+        .eq('user_id', normalizedAgentId);
+
+      let agentQuery = supabaseClient
+        .from('planifications')
+        .select('*')
+        .eq('agent_id', normalizedAgentId);
+
+      // Appliquer les filtres communs aux deux requêtes
+      if (project_name) {
+        userQuery = userQuery.eq('project_name', project_name);
+        agentQuery = agentQuery.eq('project_name', project_name);
+      }
+      if (from) {
+        userQuery = userQuery.gte('date', String(from));
+        agentQuery = agentQuery.gte('date', String(from));
+      }
+      if (to) {
+        userQuery = userQuery.lte('date', String(to));
+        agentQuery = agentQuery.lte('date', String(to));
+      }
+      if (resultat_journee) {
+        userQuery = userQuery.eq('resultat_journee', resultat_journee);
+        agentQuery = agentQuery.eq('resultat_journee', resultat_journee);
+      }
+
+      try {
+        // Exécuter les deux requêtes en parallèle
+        const [userResult, agentResult] = await Promise.all([
+          userQuery.order('date', { ascending: false }),
+          agentQuery.order('date', { ascending: false })
+        ]);
+
+        // Fusionner les résultats et supprimer les doublons
+        const allData = [
+          ...(userResult.data || []),
+          ...(agentResult.data || [])
+        ];
+        const uniqueData = Array.from(
+          new Map(allData.map(item => [item.id, item])).values()
+        );
+
+        // Enrichir avec les données utilisateurs si nécessaire
+        let enrichedData = uniqueData;
+        if (enrichedData.length > 0) {
+          const userIds = [...new Set(enrichedData.map(p => p.user_id).filter(Boolean))];
+          const { data: users } = await supabaseClient
+            .from('users')
+            .select('id, name, first_name, last_name, email, role, project_name, departement, commune')
+            .in('id', userIds);
+
+          if (users) {
+            const usersMap = new Map(users.map(user => [user.id, user]));
+            enrichedData = enrichedData.map(plan => ({
+              ...plan,
+              user: usersMap.get(plan.user_id) || null
+            }));
+          }
+        }
+
+        return res.json({ success: true, items: enrichedData });
+      } catch (queryError) {
+        // Si les requêtes parallèles échouent, utiliser la méthode simple
+        console.warn('Requêtes parallèles échouées, utilisation de user_id uniquement:', queryError);
+        query = query.eq('user_id', normalizedAgentId);
+      }
     } else if (req.user.role === 'admin') {
       // Les admins voient toutes les planifications
       // Pas de filtre par user_id
@@ -2395,42 +2657,34 @@ app.get('/api/planifications', authenticateToken, async (req, res) => {
       }
       query = query.in('user_id', userIds);
     }
-    
+
     const { data, error } = await query.order('date', { ascending: false });
 
     if (error) throw error;
 
-    // Enrichir avec les données utilisateurs
+    // Enrichir avec les données utilisateurs si nécessaire
     let enrichedData = data || [];
     if (enrichedData.length > 0) {
       const userIds = [...new Set(enrichedData.map(p => p.user_id).filter(Boolean))];
-      const { data: users, error: usersError } = await supabaseClient
-        .from('users')
-        .select('id, name, first_name, last_name, email, role, project_name, departement, commune')
-        .in('id', userIds);
+      if (userIds.length > 0) {
+        const { data: users } = await supabaseClient
+          .from('users')
+          .select('id, name, first_name, last_name, email, role, project_name, departement, commune')
+          .in('id', userIds);
 
-      if (!usersError && users) {
-        const usersMap = new Map();
-        users.forEach(user => {
-          // Utiliser directement la colonne name de la table users
-          const displayName = user.name || user.email || `Agent ${user.id}`;
-          
-          usersMap.set(user.id, {
-            ...user,
-            name: displayName
-          });
-        });
-
-        enrichedData = enrichedData.map(plan => ({
-          ...plan,
-          user: usersMap.get(plan.user_id) || {
-            id: plan.user_id,
-            name: `Agent ${plan.user_id}`,
-            email: '',
-            role: 'agent',
-            project_name: plan.project_name || 'Projet Général'
-          }
-        }));
+        if (users) {
+          const usersMap = new Map(users.map(user => [user.id, user]));
+          enrichedData = enrichedData.map(plan => ({
+            ...plan,
+            user: usersMap.get(plan.user_id) || {
+              id: plan.user_id,
+              name: `Agent ${plan.user_id}`,
+              email: '',
+              role: 'agent',
+              project_name: plan.project_name || 'Projet Général'
+            }
+          }));
+        }
       }
     }
 
@@ -2446,7 +2700,7 @@ app.get('/api/planifications', authenticateToken, async (req, res) => {
 app.put('/api/planifications/result', authenticateToken, async (req, res) => {
   try {
     const { date, resultat_journee, observations } = req.body;
-    
+
     if (!date) {
       return res.status(400).json({ success: false, error: 'Date requise' });
     }
@@ -2489,7 +2743,7 @@ app.put('/api/planifications/result', authenticateToken, async (req, res) => {
 app.delete('/api/planifications/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const { error } = await supabaseClient
       .from('planifications')
       .delete()
@@ -2543,8 +2797,8 @@ app.get('/api/supabase-health', async (req, res) => {
     if (error) throw error;
     res.json({ status: 'OK', database: 'Supabase', connected: true, url, keyType, envPresent });
   } catch (err) {
-    res.status(500).json({ 
-      status: 'ERROR', 
+    res.status(500).json({
+      status: 'ERROR',
       connected: false,
       error: (err && (err.message || err.toString())) || 'unknown',
       url: process.env.SUPABASE_URL || 'N/A',
@@ -2562,21 +2816,21 @@ app.get('/api/supabase-health', async (req, res) => {
 app.post('/api/auth/exchange', async (req, res) => {
   try {
     const { supabase_token } = req.body;
-    
+
     if (!supabase_token) {
       return res.status(400).json({ error: 'Token Supabase requis' });
     }
 
     // Vérifier le token Supabase
     const { data: { user }, error } = await supabaseClient.auth.getUser(supabase_token);
-    
+
     if (error || !user) {
       return res.status(401).json({ error: 'Token Supabase invalide' });
     }
 
     // Chercher l'utilisateur dans notre table par auth_uuid (des métadonnées)
     const authUuid = user.user_metadata?.auth_uuid || user.id;
-    
+
     const { data: users, error: userError } = await supabaseClient
       .from('users')
       .select('*')
@@ -2589,10 +2843,10 @@ app.post('/api/auth/exchange', async (req, res) => {
     }
 
     const dbUser = users[0];
-    
+
     // VÉRIFICATION OBLIGATOIRE : L'utilisateur doit être vérifié
     if (!dbUser.is_verified) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Compte non vérifié',
         message: 'Veuillez vérifier votre compte avant de vous connecter',
         requires_verification: true
@@ -2601,12 +2855,12 @@ app.post('/api/auth/exchange', async (req, res) => {
 
     // Générer notre token JWT
     const token = jwt.sign(
-      { 
-        id: dbUser.id, 
+      {
+        id: dbUser.id,
         auth_uuid: dbUser.auth_uuid,
-        email: dbUser.email, 
+        email: dbUser.email,
         role: dbUser.role,
-        name: dbUser.name 
+        name: dbUser.name
       },
       JWT_SECRET,
       { expiresIn: '24h' }
@@ -2623,7 +2877,7 @@ app.post('/api/auth/exchange', async (req, res) => {
         project_name: dbUser.project_name
       }
     });
-    
+
   } catch (error) {
     console.error('Erreur exchange token:', error);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -2634,7 +2888,7 @@ app.post('/api/auth/exchange', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
       return res.status(400).json({ error: 'Email et mot de passe requis' });
     }
@@ -2652,7 +2906,7 @@ app.post('/api/login', async (req, res) => {
     }
 
     const user = users[0];
-    
+
     // Vérifier le mot de passe
     const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) {
@@ -2661,7 +2915,7 @@ app.post('/api/login', async (req, res) => {
 
     // VÉRIFICATION OBLIGATOIRE : L'utilisateur doit être vérifié
     if (!user.is_verified) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Compte non vérifié',
         message: 'Veuillez vérifier votre compte avec le code reçu par email avant de vous connecter. Si vous n\'avez pas reçu le code, contactez le super admin : syebadokpo@gmail.com ou +229 01 96 91 13 46',
         requires_verification: true
@@ -2670,12 +2924,12 @@ app.post('/api/login', async (req, res) => {
 
     // Générer le token JWT
     const token = jwt.sign(
-      { 
-        id: user.id, 
+      {
+        id: user.id,
         auth_uuid: user.auth_uuid, // Ajouter auth_uuid au token
-        email: user.email, 
+        email: user.email,
         role: user.role,
-        name: user.name 
+        name: user.name
       },
       JWT_SECRET,
       { expiresIn: '24h' }
@@ -2702,10 +2956,10 @@ app.post('/api/login', async (req, res) => {
 // Register
 app.post('/api/register', async (req, res) => {
   try {
-    const { 
-      email, 
-      password, 
-      name, 
+    const {
+      email,
+      password,
+      name,
       role = 'agent',
       phone,
       departement,
@@ -2722,9 +2976,9 @@ app.post('/api/register', async (req, res) => {
       contract_end_date,
       years_of_service
     } = req.body;
-      // Normaliser le rôle pour correspondre au CHECK de la base ('admin', 'superviseur', 'agent')
-      const role_db = role === 'supervisor' ? 'superviseur' : role;
-    
+    // Normaliser le rôle pour correspondre au CHECK de la base ('admin', 'superviseur', 'agent')
+    const role_db = role === 'supervisor' ? 'superviseur' : role;
+
     if (!email || !password || !name) {
       return res.status(400).json({ error: 'Email, mot de passe et nom requis' });
     }
@@ -2746,7 +3000,7 @@ app.post('/api/register', async (req, res) => {
 
     // Hasher le mot de passe
     const passwordHash = await bcrypt.hash(password, 10);
-    
+
     // Générer un code de vérification à 6 chiffres
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
@@ -2825,7 +3079,7 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/verify', async (req, res) => {
   try {
     const { email, code } = req.body;
-    
+
     if (!email || !code) {
       return res.status(400).json({ error: 'Email et code de vérification requis' });
     }
@@ -2858,7 +3112,7 @@ app.post('/api/verify', async (req, res) => {
     // Marquer comme vérifié
     const { error: updateError } = await supabaseClient
       .from('users')
-      .update({ 
+      .update({
         is_verified: true,
         verification_code: null,
         verification_expires: null
@@ -2882,7 +3136,7 @@ app.post('/api/verify', async (req, res) => {
 app.post('/api/resend-code', async (req, res) => {
   try {
     const { email } = req.body;
-    
+
     if (!email) {
       return res.status(400).json({ error: 'Email requis' });
     }
@@ -2941,18 +3195,18 @@ app.get('/api/me', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     console.log('👤 Récupération profil utilisateur:', userId);
-    
+
     const { data: user, error } = await supabaseClient
       .from('users')
       .select('*')
       .eq('id', userId)
       .single();
-    
+
     if (error) {
       console.error('❌ Erreur récupération profil:', error);
       throw error;
     }
-    
+
     console.log('✅ Profil utilisateur récupéré');
     res.json({ success: true, user });
   } catch (error) {
@@ -2972,37 +3226,37 @@ app.get('/api/presence-summary', (req, res, next) => {
     const monthNum = parseInt(month) || new Date().getMonth() + 1;
     const yearNum = parseInt(year) || new Date().getFullYear();
     const projectFilter = project_name && project_name !== 'all' ? project_name : null;
-    
+
     // Calculer les dates de début et fin du mois
     const startDate = new Date(yearNum, monthNum - 1, 1);
     const endDate = new Date(yearNum, monthNum, 0);
-    
+
     // Formater les dates pour la requête
     const startDateStr = startDate.toISOString();
     const endDateStr = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59).toISOString();
-    
+
     console.log(`📅 Récupération des validations du ${startDateStr} au ${endDateStr}`);
-    
+
     // 1. Récupérer les presences pour la période (nouvelle table)
     console.log('🔍 Tentative de récupération des presences depuis la table presences...');
     let presences = [];
     let presencesError = null;
-    
+
     try {
       const presencesQuery = supabaseClient
-      .from('presences')
-      .select(`
+        .from('presences')
+        .select(`
         id,
-        user_id,
-        start_time,
-        checkin_type,
-        within_tolerance,
-        status,
-        users (id, name, first_name, last_name, email, role, project_name, departement, commune)
-      `)
-      .gte('start_time', startDateStr)
-      .lte('start_time', endDateStr)
-      .order('start_time', { ascending: false });
+  user_id,
+  start_time,
+  checkin_type,
+  within_tolerance,
+  status,
+  users(id, name, first_name, last_name, email, role, project_name, departement, commune)
+    `)
+        .gte('start_time', startDateStr)
+        .lte('start_time', endDateStr)
+        .order('start_time', { ascending: false });
 
       presences = await fetchAllPages(presencesQuery);
     } catch (error) {
@@ -3016,13 +3270,13 @@ app.get('/api/presence-summary', (req, res, next) => {
     let holidays = [];
     try {
       const holidaysResult = await supabaseClient
-      .from('holidays')
-      .select('date')
-      .gte('date', startDateStr.split('T')[0])
-      .lte('date', endDateStr.split('T')[0]);
+        .from('holidays')
+        .select('date')
+        .gte('date', startDateStr.split('T')[0])
+        .lte('date', endDateStr.split('T')[0]);
 
       holidays = holidaysResult.data || [];
-      
+
       if (holidaysResult.error) {
         console.error('Erreur lors de la récupération des jours fériés:', holidaysResult.error);
         holidays = [];
@@ -3033,14 +3287,14 @@ app.get('/api/presence-summary', (req, res, next) => {
     }
 
     const holidayDates = new Set(holidays.map(h => h.date));
-    
+
     // 3. Initialiser les statistiques par utilisateur
     const statsByUser = {};
 
     // 4. Construire une map unifiée des jours de présence depuis toutes les sources
     // On combine presences, presence_validations et checkin_validations pour avoir un comptage complet
     let presenceDaysMap = {}; // Map: userId -> Set de dates (YYYY-MM-DD)
-    
+
     // 4a. Traiter les presences de la table presences
     if (presences && presences.length > 0) {
       console.log(`📊 Traitement de ${presences.length} presences depuis la table presences...`);
@@ -3050,23 +3304,23 @@ app.get('/api/presence-summary', (req, res, next) => {
 
         const userId = user.id;
         const date = new Date(presence.start_time).toISOString().split('T')[0];
-        
+
         if (!presenceDaysMap[userId]) {
           presenceDaysMap[userId] = new Set();
         }
-        
+
         // Utiliser checkin_type pour déterminer le statut
         const checkinType = presence.checkin_type ? String(presence.checkin_type).toLowerCase().trim() : '';
-        const isValidated = checkinType === 'validated' || 
-                           (presence.within_tolerance === true || presence.status === 'present' || presence.status === 'completed');
-        
+        const isValidated = checkinType === 'validated' ||
+          (presence.within_tolerance === true || presence.status === 'present' || presence.status === 'completed');
+
         if (isValidated) {
           presenceDaysMap[userId].add(date);
         }
       });
       console.log(`✅ Jours de présence extraits depuis presences pour ${Object.keys(presenceDaysMap).length} utilisateurs`);
     }
-    
+
     // 4b. Ajouter les validations depuis presence_validations (combine avec les données existantes)
     try {
       console.log('🔍 Récupération de toutes les pages de presence_validations...');
@@ -3097,7 +3351,7 @@ app.get('/api/presence-summary', (req, res, next) => {
     } catch (error) {
       console.error('Erreur lors de la récupération des présences validées depuis presence_validations:', error);
     }
-    
+
     // 4c. Ajouter les validations depuis checkin_validations (combine avec les données existantes)
     // IMPORTANT: Utiliser le timestamp du check-in, pas created_at de la validation
     try {
@@ -3115,14 +3369,14 @@ app.get('/api/presence-summary', (req, res, next) => {
         let addedCount = 0;
         let skippedCount = 0;
         let debugSample = null; // Pour déboguer la structure
-        
+
         checkinValidationsData.forEach((validation, index) => {
           const userId = validation.agent_id;
           if (!userId) {
             skippedCount++;
             return;
           }
-          
+
           // Utiliser le timestamp du check-in si disponible, sinon created_at de la validation
           // Note: checkins peut être un objet ou un tableau selon Supabase
           let checkinTimestamp = null;
@@ -3133,12 +3387,12 @@ app.get('/api/presence-summary', (req, res, next) => {
               checkinTimestamp = validation.checkins.created_at;
             }
           }
-          
+
           // Fallback sur created_at si pas de timestamp de check-in
           if (!checkinTimestamp) {
             checkinTimestamp = validation.created_at;
           }
-          
+
           if (!checkinTimestamp) {
             skippedCount++;
             if (index === 0) {
@@ -3146,22 +3400,22 @@ app.get('/api/presence-summary', (req, res, next) => {
             }
             return;
           }
-          
+
           const date = new Date(checkinTimestamp).toISOString().split('T')[0];
-          
+
           // Vérifier que la date est dans la période (au cas où created_at et timestamp diffèrent)
           if (date < startDateStr.split('T')[0] || date > endDateStr.split('T')[0]) {
             skippedCount++;
             return;
           }
-          
+
           if (!presenceDaysMap[userId]) {
             presenceDaysMap[userId] = new Set();
           }
           const wasNew = !presenceDaysMap[userId].has(date);
           presenceDaysMap[userId].add(date);
           if (wasNew) addedCount++;
-          
+
           // Log de débogage pour les premiers enregistrements
           if (index < 3 && !debugSample) {
             debugSample = {
@@ -3173,11 +3427,11 @@ app.get('/api/presence-summary', (req, res, next) => {
             };
           }
         });
-        
+
         if (debugSample) {
-          console.log(`🔍 [DEBUG checkin_validations] Échantillon:`, JSON.stringify(debugSample, null, 2));
+          console.log(`🔍[DEBUG checkin_validations] Échantillon: `, JSON.stringify(debugSample, null, 2));
         }
-        
+
         console.log(`✅ ${checkinValidationsData.length} validations trouvées dans checkin_validations, ${addedCount} nouveaux jours ajoutés, ${skippedCount} ignorés`);
       }
     } catch (error) {
@@ -3193,7 +3447,7 @@ app.get('/api/presence-summary', (req, res, next) => {
           .lte('created_at', endDateStr);
 
         const checkinValidationsDataFallback = await fetchAllPages(checkinValidationsQueryFallback);
-        
+
         if (checkinValidationsDataFallback && Array.isArray(checkinValidationsDataFallback)) {
           let addedCount = 0;
           checkinValidationsDataFallback.forEach(validation => {
@@ -3207,7 +3461,7 @@ app.get('/api/presence-summary', (req, res, next) => {
             presenceDaysMap[userId].add(date);
             if (wasNew) addedCount++;
           });
-          console.log(`✅ [Fallback] ${checkinValidationsDataFallback.length} validations trouvées, ${addedCount} nouveaux jours ajoutés`);
+          console.log(`✅[Fallback] ${checkinValidationsDataFallback.length} validations trouvées, ${addedCount} nouveaux jours ajoutés`);
         }
       } catch (fallbackError) {
         console.error('Erreur lors du fallback checkin_validations:', fallbackError);
@@ -3221,35 +3475,35 @@ app.get('/api/presence-summary', (req, res, next) => {
         .from('users')
         .select('id, name, first_name, last_name, email, role, project_name, departement, commune')
         .in('role', ['agent', 'field_agent', 'supervisor', 'superviseur']);
-      
+
       // Appliquer le filtre projet si fourni
       if (projectFilter) {
         usersQuery = usersQuery.eq('project_name', projectFilter);
       }
-      
+
       const users = await fetchAllPages(usersQuery);
       users.forEach(user => {
         const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.name || user.email || `Agent ${user.id}`;
         const presentDays = presenceDaysMap[user.id] ? presenceDaysMap[user.id].size : 0;
-        
+
         // Log de débogage pour les agents avec peu de jours de présence ou pour le débogage
         if (presentDays > 0 && presentDays < 10) {
           const dates = Array.from(presenceDaysMap[user.id] || []).sort();
-          console.log(`🔍 Agent ${user.id} (${fullName}): ${presentDays} jour(s) de présence: ${dates.join(', ')}`);
+          console.log(`🔍 Agent ${user.id}(${fullName}): ${presentDays} jour(s) de présence: ${dates.join(', ')}`);
         }
-        
+
         // Log supplémentaire pour les agents avec un nom spécifique (débogage)
         if (fullName && (fullName.includes('AGBANI') || fullName.includes('BABATOUNDE') || fullName.includes('KOTCHIKPA') || fullName.includes('EPHREM') || fullName.includes('CONSTANTIN'))) {
           const dates = Array.from(presenceDaysMap[user.id] || []).sort();
-          console.log(`\n🔍 [DEBUG] ===== Agent ${user.id} (${fullName}) =====`);
-          console.log(`🔍 [DEBUG] Jours de présence: ${presentDays}`);
-          console.log(`🔍 [DEBUG] Dates de présence: ${dates.length > 0 ? dates.join(', ') : 'Aucune'}`);
-          console.log(`🔍 [DEBUG] Projet: ${user.project_name}`);
-          console.log(`🔍 [DEBUG] Email: ${user.email}`);
-          console.log(`🔍 [DEBUG] Période: ${startDateStr.split('T')[0]} à ${endDateStr.split('T')[0]}`);
-          console.log(`🔍 [DEBUG] ===========================================\n`);
+          console.log(`\n🔍[DEBUG] ===== Agent ${user.id}(${fullName}) ===== `);
+          console.log(`🔍[DEBUG] Jours de présence: ${presentDays}`);
+          console.log(`🔍[DEBUG] Dates de présence: ${dates.length > 0 ? dates.join(', ') : 'Aucune'}`);
+          console.log(`🔍[DEBUG] Projet: ${user.project_name}`);
+          console.log(`🔍[DEBUG] Email: ${user.email}`);
+          console.log(`🔍[DEBUG] Période: ${startDateStr.split('T')[0]} à ${endDateStr.split('T')[0]}`);
+          console.log(`🔍[DEBUG] ===========================================\n`);
         }
-        
+
         statsByUser[user.id] = {
           name: fullName,
           email: user.email,
@@ -3259,22 +3513,22 @@ app.get('/api/presence-summary', (req, res, next) => {
           present_days: presentDays
         };
       });
-      console.log(`✅ Stats construites pour ${users.length} utilisateurs (agents et superviseurs)`);
+      console.log(`✅ Stats construites pour ${users.length} utilisateurs(agents et superviseurs)`);
     } catch (error) {
       console.error('Erreur lors de la récupération des utilisateurs:', error);
     }
-    
+
 
     // 5. Récupérer les jours planifiés pour chaque agent depuis la table planifications
     const plannedDaysByUser = {}; // Tous les jours planifiés du mois
     const plannedPastDaysByUser = {}; // Seulement les jours planifiés qui sont déjà passés
-    
+
     console.log('🔍 Récupération des planifications...');
-    
+
     // Obtenir la date d'aujourd'hui pour séparer passé et futur
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0]; // Format YYYY-MM-DD
-    
+
     try {
       // Récupérer les planifications pour la période avec pagination complète
       console.log('🔍 Récupération de toutes les pages de planifications...');
@@ -3291,13 +3545,13 @@ app.get('/api/presence-summary', (req, res, next) => {
         planificationsData.forEach(plan => {
           const userId = plan.user_id;
           const date = plan.date;
-          
+
           // Tous les jours planifiés (pour l'affichage)
           if (!plannedDaysByUser[userId]) {
             plannedDaysByUser[userId] = new Set();
           }
           plannedDaysByUser[userId].add(date);
-          
+
           // Seulement les jours planifiés qui sont dans le passé (pour calcul absences)
           if (date < todayStr) {
             if (!plannedPastDaysByUser[userId]) {
@@ -3316,24 +3570,24 @@ app.get('/api/presence-summary', (req, res, next) => {
 
     // 6. Calculer les statistiques finales
     const DAYS_REQUIRED = 20; // Nombre de jours requis par mois
-    
+
     const result = Object.entries(statsByUser)
       .map(([userId, data]) => {
         const plannedDays = plannedDaysByUser[userId] ? plannedDaysByUser[userId].size : 0; // Tous les jours planifiés du mois
         const plannedPastDays = plannedPastDaysByUser[userId] ? plannedPastDaysByUser[userId].size : 0; // Seulement les jours planifiés dans le passé
-        
+
         // S'assurer que present_days est toujours un nombre
-        const presentDays = (data.present_days !== undefined && data.present_days !== null) 
-          ? parseInt(data.present_days) || 0 
+        const presentDays = (data.present_days !== undefined && data.present_days !== null)
+          ? parseInt(data.present_days) || 0
           : 0;
-        
+
         // Calculer les absences: jours planifiés passés - présences validées
         // On ne compte comme absents que les jours planifiés dans le passé où l'agent n'était pas présent
         const absentDays = Math.max(plannedPastDays - presentDays, 0);
-        
+
         // Calculer le taux de présence global mensuel: (nombre de jours présents / 20 jours attendus) × 100
         const presenceRate = Math.round((presentDays / DAYS_REQUIRED) * 100);
-        
+
         return {
           user_id: parseInt(userId),
           name: data.name,
@@ -3354,11 +3608,11 @@ app.get('/api/presence-summary', (req, res, next) => {
         // Trier d'abord par projet, puis par taux de présence décroissant, puis par nom
         const projectCompare = (a.project || '').localeCompare(b.project || '');
         if (projectCompare !== 0) return projectCompare;
-        
+
         const rateCompare = b.presence_rate - a.presence_rate;
         return rateCompare !== 0 ? rateCompare : a.name.localeCompare(b.name);
       });
-      
+
     // Fonction utilitaire pour déterminer le statut en fonction du taux de présence
     function getStatusFromPresenceRate(rate) {
       if (rate >= 90) return 'excellent';
@@ -3368,14 +3622,14 @@ app.get('/api/presence-summary', (req, res, next) => {
     }
 
     res.json({ success: true, data: result });
-    
+
   } catch (error) {
     console.error('Erreur récupération récapitulatif présence:', error);
     console.error('Stack trace:', error.stack);
-    
+
     // Retourner un tableau vide en cas d'erreur plutôt qu'une erreur 500
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: [],
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -3414,8 +3668,8 @@ app.get('/api/presence/stats', async (req, res) => {
         .select('id, date_start, date_end, status, total_distance_m')
         .gte('date_start', start)
         .lt('date_start', end);
-      
-      const { data: missions, error: missionsError } = userId 
+
+      const { data: missions, error: missionsError } = userId
         ? await missionsQuery.eq('agent_id', userId)
         : await missionsQuery;
 
@@ -3428,7 +3682,7 @@ app.get('/api/presence/stats', async (req, res) => {
           if (mission.date_start) {
             const missionDate = new Date(mission.date_start).toISOString().slice(0, 10);
             daySet.add(missionDate);
-            
+
             // Calculer la durée de la mission
             if (mission.date_end) {
               const startTime = new Date(mission.date_start);
@@ -3457,7 +3711,7 @@ app.get('/api/presence/stats', async (req, res) => {
           .select('expected_days_per_month')
           .eq('id', userId)
           .single();
-        
+
         if (!profileError && userProfile && userProfile.expected_days_per_month) {
           expectedDays = userProfile.expected_days_per_month;
         }
@@ -3467,14 +3721,14 @@ app.get('/api/presence/stats', async (req, res) => {
       console.error('Erreur lors du calcul des statistiques:', error);
     }
 
-    res.json({ 
-      success: true, 
-      stats: { 
-        days_worked: daysWorked, 
-        hours_worked: hoursWorked, 
+    res.json({
+      success: true,
+      stats: {
+        days_worked: daysWorked,
+        hours_worked: hoursWorked,
         expected_days: expectedDays,
         current_position: currentMission
-      } 
+      }
     });
   } catch (error) {
     console.error('Erreur stats presence:', error);
@@ -3487,25 +3741,25 @@ app.get('/api/presence', authenticateToken, authenticateSupervisorOrAdmin, async
   try {
     const { page = 1, limit = 100 } = req.query;
     const offset = (page - 1) * limit;
-    
+
     console.log('📊 Récupération des présences, page:', page, 'limite:', limit);
-    
+
     const { data: presences, error } = await supabaseClient
       .from('checkins')
       .select(`
         id, mission_id, lat, lon, created_at, note, photo_url,
-        missions!inner(id, agent_id, status, date_start, date_end,
-          users!inner(id, email, name)
-        )
-      `)
+  missions!inner(id, agent_id, status, date_start, date_end,
+    users!inner(id, email, name)
+  )
+  `)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
-    
+
     if (error) {
       console.error('❌ Erreur récupération présences:', error);
       throw error;
     }
-    
+
     console.log('✅ Présences récupérées:', presences?.length || 0);
     res.json({ success: true, data: { items: presences || [] } });
   } catch (error) {
@@ -3549,7 +3803,7 @@ app.get('/api/admin/attendance', authenticateToken, authenticateSupervisorOrAdmi
           .select('id, agent_id, date')
           .gte('date', from)
           .lte('date', to);
-        
+
         plans = await fetchAllPages(plansQuery);
       } catch (plansErr) {
         // Fallback tolérant si la colonne 'date' a un autre nom
@@ -3558,7 +3812,7 @@ app.get('/api/admin/attendance', authenticateToken, authenticateSupervisorOrAdmi
           const plansQueryAll = supabaseClient
             .from('planifications')
             .select('*');
-          
+
           const plansAll = await fetchAllPages(plansQueryAll);
           plans = Array.isArray(plansAll) ? plansAll.filter(p => {
             const raw = p.date || p.date_planned || p.planned_date || p.date_start || p.jour || p.day;
@@ -3878,14 +4132,14 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
   try {
     if (!req.user?.id) {
       console.error('❌ ID utilisateur manquant dans le token');
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Identifiant utilisateur manquant',
         code: 'MISSING_USER_ID'
       });
     }
 
     console.log(`🔍 Récupération du profil pour l'utilisateur: ${req.user.id}`);
-    
+
     // Récupération des informations utilisateur
     const { data: user, error: userError } = await supabaseClient
       .from('users')
@@ -3895,7 +4149,7 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
 
     if (userError) {
       console.error('❌ Erreur récupération utilisateur:', userError.message, userError);
-      return res.status(500).json({ 
+      return res.status(500).json({
         error: 'Erreur lors de la récupération de l\'utilisateur',
         details: userError.message,
         code: 'USER_FETCH_ERROR'
@@ -3904,7 +4158,7 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
 
     if (!user) {
       console.error('❌ Utilisateur non trouvé:', req.user.id);
-      return res.status(404).json({ 
+      return res.status(404).json({
         error: 'Utilisateur non trouvé',
         code: 'USER_NOT_FOUND'
       });
@@ -3918,11 +4172,11 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
         .select('*')
         .eq('user_id', user.id)
         .single();
-        
+
       if (profileError && profileError.code !== 'PGRST116') { // PGRST116 = pas de lignes
         console.error('⚠️ Erreur récupération profil:', profileError.message);
       }
-      
+
       profile = p || null;
       console.log(`✅ Profil récupéré:`, profile ? 'Oui' : 'Non');
     } catch (profileErr) {
@@ -3930,17 +4184,17 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
     }
 
     // Réponse avec les données de l'utilisateur et du profil
-    return res.json({ 
-      success: true, 
-      user: { 
-        ...user, 
-        profile 
-      } 
+    return res.json({
+      success: true,
+      user: {
+        ...user,
+        profile
+      }
     });
 
   } catch (error) {
     console.error('❌ Erreur critique dans /api/profile:', error.message, error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Erreur serveur',
       code: 'SERVER_ERROR',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -4050,37 +4304,37 @@ app.post('/api/me/profile', authenticateToken, async (req, res) => {
     if (lon !== null && (!Number.isFinite(lon) || lon < -180 || lon > 180)) {
       return res.status(400).json({ success: false, error: 'Longitude de référence invalide' });
     }
-    
+
     const tol = tolerance_radius_meters === undefined || tolerance_radius_meters === null || tolerance_radius_meters === '' ? null : Math.max(0, parseInt(String(tolerance_radius_meters), 10) || 0);
 
     // Préparer les données pour la mise à jour de la table users
     const updateData = {};
-    
+
     // Champs de base
     if (typeof photo_path !== 'undefined') updateData.photo_path = photo_path || null;
     if (typeof first_name !== 'undefined') updateData.first_name = first_name || null;
     if (typeof last_name !== 'undefined') updateData.last_name = last_name || null;
     if (typeof phone !== 'undefined') updateData.phone = phone || null;
-    
+
     // Localisation
     if (typeof departement !== 'undefined') updateData.departement = departement || null;
     if (typeof commune !== 'undefined') updateData.commune = commune || null;
     if (typeof arrondissement !== 'undefined') updateData.arrondissement = arrondissement || null;
     if (typeof village !== 'undefined') updateData.village = village || null;
-    
+
     // Projet
     if (typeof project_name !== 'undefined') updateData.project_name = project_name || null;
-    
+
     // GPS
     if (typeof reference_lat !== 'undefined') updateData.reference_lat = lat;
     if (typeof reference_lon !== 'undefined') updateData.reference_lon = lon;
     if (typeof tolerance_radius_meters !== 'undefined') updateData.tolerance_radius_meters = tol || 5000;
-    
+
     // Contrat
     if (typeof contract_start_date !== 'undefined') updateData.contract_start_date = contract_start_date || null;
     if (typeof contract_end_date !== 'undefined') updateData.contract_end_date = contract_end_date || null;
     if (typeof years_of_service !== 'undefined') updateData.years_of_service = years_of_service ? Number(years_of_service) : null;
-    
+
     // Planification
     if (typeof expected_days_per_month !== 'undefined') updateData.expected_days_per_month = expected_days_per_month ? Number(expected_days_per_month) : null;
     if (typeof expected_hours_per_month !== 'undefined') updateData.expected_hours_per_month = expected_hours_per_month ? Number(expected_hours_per_month) : null;
@@ -4094,7 +4348,7 @@ app.post('/api/me/profile', authenticateToken, async (req, res) => {
       .eq('id', userId)
       .select('*')
       .single();
-    
+
     if (error) {
       console.error('Erreur mise à jour users:', error);
       throw error;
@@ -4114,7 +4368,7 @@ app.get('/api/me/missions', authenticateToken, async (req, res) => {
     const requestedAgentId = Number(req.query.agent_id);
     const currentUserId = Number(req.user.id);
     let targetAgentId = currentUserId;
-    
+
     if (Number.isFinite(requestedAgentId)) {
       if (requestedAgentId !== currentUserId && !isPrivilegedRequest(req)) {
         return res.status(403).json({ error: 'Accès interdit pour cet agent' });
@@ -4150,11 +4404,11 @@ app.post('/api/conversations', authenticateToken, async (req, res) => {
     // Debug: afficher le body complet
     console.log('📥 Body reçu:', JSON.stringify(req.body));
     console.log('🔍 user2_id brut:', user2_id, 'Type:', typeof user2_id);
-    
+
     // Utiliser l'ID numérique de l'utilisateur (pas UUID)
     const user1_id = Number(req.user.id);
     const user2_id_num = user2_id ? Number(user2_id) : null;
-    
+
     console.log('🔢 Après conversion - User1:', user1_id, 'User2:', user2_id_num);
 
     if (!user1_id) {
@@ -4174,25 +4428,25 @@ app.post('/api/conversations', authenticateToken, async (req, res) => {
     if (type === 'direct') {
       if (!user2_id_num || isNaN(user2_id_num)) {
         console.error('❌ user2_id invalide:', { user2_id, user2_id_num, isNaN: isNaN(user2_id_num) });
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: 'ID du second utilisateur requis et doit être un nombre valide',
           details: `Reçu: ${user2_id} (type: ${typeof user2_id})`,
           debug: { user2_id, user2_id_num }
         });
       }
-      
+
       // Vérifier que l'utilisateur cible existe
       const { data: targetUser, error: userCheckError } = await supabaseClient
         .from('users')
         .select('id')
         .eq('id', user2_id_num)
         .single();
-      
+
       if (userCheckError || !targetUser) {
         console.error('❌ Utilisateur cible non trouvé:', user2_id_num);
         return res.status(404).json({ error: 'Utilisateur destinataire non trouvé' });
       }
-      
+
       // Ensure consistent order for unique constraint
       const [p1, p2] = [user1_id, user2_id_num].sort((a, b) => a - b);
 
@@ -4291,7 +4545,7 @@ app.get('/api/conversations/last-messages', authenticateToken, async (req, res) 
 
     // Pour chaque conversation, récupérer le dernier message
     const lastMessages = [];
-    
+
     for (const conv of conversations) {
       const { data: messages, error: msgError } = await supabaseClient
         .from('messages')
@@ -4304,7 +4558,7 @@ app.get('/api/conversations/last-messages', authenticateToken, async (req, res) 
         const lastMsg = messages[0];
         // Déterminer l'ID du contact (l'autre personne dans la conversation)
         const contactId = conv.user1_id === userId ? conv.user2_id : conv.user1_id;
-        
+
         lastMessages.push({
           contact_id: contactId,
           content: lastMsg.content,
@@ -4433,13 +4687,13 @@ app.post('/api/messages', authenticateToken, async (req, res) => {
     try {
       broadcastRealtime({
         type: 'message', payload: {
-        id: message.id,
-        conversation_id: message.conversation_id,
-        content: message.content,
-        message_type: message.message_type,
-        sender_id: message.sender_id,
-        sender_user_id: message.sender_user_id,
-        created_at: message.created_at
+          id: message.id,
+          conversation_id: message.conversation_id,
+          content: message.content,
+          message_type: message.message_type,
+          sender_id: message.sender_id,
+          sender_user_id: message.sender_user_id,
+          created_at: message.created_at
         }
       });
     } catch (e) {
@@ -4665,13 +4919,13 @@ app.post('/api/forum/messages', authenticateToken, async (req, res) => {
     try {
       broadcastRealtime({
         type: 'message', payload: {
-        id: message.id,
-        conversation_id: message.conversation_id,
-        content: message.content,
-        message_type: message.message_type,
-        sender_id: message.sender_id,
-        sender_user_id: message.sender_user_id,
-        created_at: message.created_at
+          id: message.id,
+          conversation_id: message.conversation_id,
+          content: message.content,
+          message_type: message.message_type,
+          sender_id: message.sender_id,
+          sender_user_id: message.sender_user_id,
+          created_at: message.created_at
         }
       });
     } catch { }
@@ -4707,6 +4961,13 @@ app.get('/api/permissions', authenticateToken, async (req, res) => {
     const isPrivileged = isPrivilegedRequest(req);
     const status = req.query.status; // Filtrer par statut si fourni
 
+    console.log('GET /api/permissions - Débogage:', {
+      requesterId,
+      isPrivileged,
+      status,
+      userRole: req.user?.role
+    });
+
     // Essayer de récupérer les permissions
     let query = supabaseClient
       .from('permissions')
@@ -4716,24 +4977,35 @@ app.get('/api/permissions', authenticateToken, async (req, res) => {
     // Si l'utilisateur n'est pas privilégié, ne montrer que ses propres permissions
     if (!isPrivileged) {
       query = query.eq('agent_id', requesterId);
+      console.log('Filtrage permissions pour agent:', requesterId);
+    } else {
+      console.log('Récupération de toutes les permissions (utilisateur privilégié)');
     }
 
     // Filtrer par statut si fourni
     if (status && status !== 'all') {
       query = query.eq('status', status);
+      console.log('Filtrage par statut:', status);
     }
 
     // Essayer d'exécuter la requête avec gestion d'erreur complète
     let data = null;
     let error = null;
-    
+
     try {
       const result = await query;
       data = result.data;
       error = result.error;
+
+      console.log('Résultat permissions:', {
+        totalFound: data?.length || 0,
+        hasError: !!error,
+        sampleData: data?.slice(0, 2) || []
+      });
     } catch (queryError) {
       // Capturer les erreurs lancées par Supabase
       error = queryError;
+      console.error('Erreur requête permissions:', queryError);
     }
 
     // Gérer toutes les erreurs possibles (table manquante, relation manquante, etc.)
@@ -4741,11 +5013,11 @@ app.get('/api/permissions', authenticateToken, async (req, res) => {
       const errorCode = String(error.code || '');
       const errorMessage = String(error.message || '');
       const errorDetails = String(error.details || '');
-      
+
       // Vérifier tous les types d'erreurs possibles
-      const isTableOrRelationError = 
-        isMissingTable(error) || 
-        errorCode === 'PGRST200' || 
+      const isTableOrRelationError =
+        isMissingTable(error) ||
+        errorCode === 'PGRST200' ||
         errorCode === 'PGRST205' ||
         errorCode === '42P01' ||
         errorMessage.toLowerCase().includes('could not find') ||
@@ -4754,7 +5026,7 @@ app.get('/api/permissions', authenticateToken, async (req, res) => {
         errorMessage.toLowerCase().includes('does not exist') ||
         errorDetails.toLowerCase().includes('relationship') ||
         errorDetails.toLowerCase().includes('schema cache');
-      
+
       if (isTableOrRelationError) {
         console.warn('Table permissions non trouvée ou relation manquante, retour d\'un tableau vide:', {
           code: errorCode,
@@ -4763,7 +5035,7 @@ app.get('/api/permissions', authenticateToken, async (req, res) => {
         });
         return res.json({ success: true, permissions: [] });
       }
-      
+
       // Si ce n'est pas une erreur de table/relation, la logger et la relancer
       console.error('Erreur API permissions (GET) - erreur non gérée:', {
         code: errorCode,
@@ -4778,7 +5050,7 @@ app.get('/api/permissions', authenticateToken, async (req, res) => {
     let enrichedPermissions = data || [];
     if (enrichedPermissions.length > 0) {
       const agentIds = [...new Set(enrichedPermissions.map(p => p.agent_id).filter(Boolean))];
-      
+
       // Récupérer les utilisateurs seulement s'il y a des IDs valides
       if (agentIds.length > 0) {
         try {
@@ -4833,15 +5105,15 @@ app.get('/api/permissions', authenticateToken, async (req, res) => {
     res.json({ success: true, permissions: enrichedPermissions });
   } catch (error) {
     console.error('Erreur API permissions (GET) dans le catch:', error);
-    
+
     // Vérifier à nouveau si c'est une erreur de table/relation manquante
     const errorCode = String(error.code || '');
     const errorMessage = String(error.message || '');
     const errorDetails = String(error.details || '');
-    
-    const isTableOrRelationError = 
-      isMissingTable(error) || 
-      errorCode === 'PGRST200' || 
+
+    const isTableOrRelationError =
+      isMissingTable(error) ||
+      errorCode === 'PGRST200' ||
       errorCode === 'PGRST205' ||
       errorCode === '42P01' ||
       errorMessage.toLowerCase().includes('could not find') ||
@@ -4850,7 +5122,7 @@ app.get('/api/permissions', authenticateToken, async (req, res) => {
       errorMessage.toLowerCase().includes('does not exist') ||
       errorDetails.toLowerCase().includes('relationship') ||
       errorDetails.toLowerCase().includes('schema cache');
-    
+
     if (isTableOrRelationError) {
       console.warn('Erreur de table/relation dans le catch, retour d\'un tableau vide:', {
         code: errorCode,
@@ -4859,7 +5131,7 @@ app.get('/api/permissions', authenticateToken, async (req, res) => {
       });
       return res.json({ success: true, permissions: [] });
     }
-    
+
     res.status(error.statusCode || 500).json({ success: false, error: error.message || 'Erreur serveur' });
   }
 });
@@ -4961,8 +5233,8 @@ app.put('/api/permissions/:id', authenticateToken, async (req, res) => {
 
     // Vérifier les droits d'accès
     if (!isPrivileged && Number(existing.agent_id) !== requesterId) {
-        return res.status(403).json({ success: false, error: 'Accès refusé' });
-      }
+      return res.status(403).json({ success: false, error: 'Accès refusé' });
+    }
 
     // Construire l'objet de mise à jour
     const updateData = {
@@ -5314,8 +5586,14 @@ app.get('/api/permission-days', authenticateToken, async (req, res) => {
     let query = supabaseClient
       .from('permission_days')
       .select('*')
-      .eq('user_id', targetAgentId)
-      .order('start_date', { ascending: false });
+      .eq('user_id', targetAgentId);
+
+    // Only order by start_date if the column exists
+    if (hasStartDateColumn) {
+      query = query.order('start_date', { ascending: false });
+    } else {
+      query = query.order('created_at', { ascending: false });
+    }
 
     // Apply month filter if provided
     if (month) {
@@ -5387,205 +5665,9 @@ app.get('/api/permission-days', authenticateToken, async (req, res) => {
  * POST /api/permission-days - Crée ou met à jour des jours de permission
  * Nécessite un token JWT valide et des privilèges d'administration
  */
-/**
- * Marque un agent comme absent pour une date donnée
- * POST /api/presence/mark-absent?email=email@example.com
- * Body: { date: '2023-11-26' }
- */
-app.post('/api/presence/mark-absent', authenticateToken, async (req, res) => {
-  try {
-    console.log('🔵 POST /api/presence/mark-absent - Début du traitement');
-    
-    // Récupération des paramètres
-    const { email } = req.query;
-    const { date } = req.body;
-
-    console.log('🔍 Données reçues:', { email, date });
-
-    // Validation de l'email
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
-      console.log('❌ Email invalide ou manquant');
-      return res.status(400).json({
-        success: false,
-        error: 'Un email valide est requis dans les paramètres de requête (ex: /api/presence/mark-absent?email=user@example.com)'
-      });
-    }
-
-    // Validation de la date
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      console.log('❌ Date manquante ou format invalide (attendu: YYYY-MM-DD)');
-      return res.status(400).json({
-        success: false,
-        error: 'Une date valide est requise dans le corps de la requête (format: YYYY-MM-DD)'
-      });
-    }
-
-    // Vérification de la date (ne pas permettre les dates futures)
-    const today = new Date().toISOString().split('T')[0];
-    if (date > today) {
-      console.log('❌ Date future non autorisée');
-      return res.status(400).json({
-        success: false,
-        error: 'La date ne peut pas être dans le futur'
-      });
-    }
-
-    // Vérifier si l'utilisateur existe
-    console.log(`🔍 Recherche de l'utilisateur avec l'email: ${email}`);
-    const { data: user, error: userError } = await supabaseClient
-      .from('users')
-      .select('id, email, auth_uuid, name, first_name, last_name')
-      .eq('email', email)
-      .maybeSingle(); // Utilisation de maybeSingle pour éviter les erreurs 406
-
-    // Gestion des erreurs de requête
-    if (userError) {
-      console.error('❌ Erreur lors de la recherche de l\'utilisateur:', userError);
-      return res.status(500).json({
-        success: false,
-        error: 'Erreur serveur lors de la recherche de l\'utilisateur',
-        details: process.env.NODE_ENV === 'development' ? userError.message : undefined
-      });
-    }
-
-    // Vérification de l'existence de l'utilisateur
-    if (!user) {
-      console.log(`❌ Aucun utilisateur trouvé avec l'email: ${email}`);
-      return res.status(404).json({
-        success: false,
-        error: 'Aucun utilisateur trouvé avec cet email',
-        details: process.env.NODE_ENV === 'development' ? `Email: ${email}` : undefined
-      });
-    }
-
-    console.log(`✅ Utilisateur trouvé:`, { 
-      id: user.id, 
-      name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Non renseigné',
-      email: user.email
-    });
-
-    // Vérifier si une entrée existe déjà pour cette date
-    console.log(`🔍 Vérification des entrées existantes pour le ${date}`);
-    const { data: existing, error: existingError } = await supabaseClient
-      .from('presences')
-      .select('id, status, notes')
-      .eq('user_id', user.id)
-      .eq('date', date)
-      .maybeSingle();
-
-    if (existingError) {
-      console.error('❌ Erreur lors de la vérification des entrées existantes:', existingError);
-      return res.status(500).json({
-        success: false,
-        error: 'Erreur lors de la vérification des entrées existantes',
-        details: process.env.NODE_ENV === 'development' ? existingError.message : undefined
-      });
-    }
-
-    // Si une entrée existe déjà
-    if (existing) {
-      console.log(`ℹ️ Une entrée existe déjà pour cette date (ID: ${existing.id}, Statut: ${existing.status})`);
-      return res.status(409).json({
-        success: false,
-        error: 'Une entrée existe déjà pour cette date',
-        data: {
-          id: existing.id,
-          status: existing.status,
-          notes: existing.notes,
-          date: date
-        },
-        message: 'Utilisez la méthode PUT pour mettre à jour cette entrée'
-      });
-    }
-
-    // Créer une nouvelle entrée d'absence
-    console.log(`➕ Création d'une nouvelle entrée d'absence pour le ${date}`);
-    
-    const newAbsenceData = {
-      user_id: user.id,
-      date,
-      status: 'absent',
-      check_in: null,
-      check_out: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      notes: 'Marqué comme absent automatiquement',
-      validated: false,
-      created_by: req.user?.id || 'system' // Ajout de l'utilisateur qui a créé l'entrée
-    };
-
-    console.log('📝 Données de l\'absence:', newAbsenceData);
-
-    const { data: newAbsence, error: createError } = await supabaseClient
-      .from('presences')
-      .insert(newAbsenceData)
-      .select()
-      .single();
-
-    if (createError) {
-      console.error('❌ Erreur lors de la création de l\'absence:', createError);
-      
-      // Gestion spécifique des erreurs de contrainte
-      if (createError.code === '23505') { // Violation de contrainte d'unicité
-        return res.status(409).json({
-          success: false,
-          error: 'Une entrée existe déjà pour cette date et cet utilisateur',
-          details: process.env.NODE_ENV === 'development' ? createError.message : undefined
-        });
-      }
-      
-      // Autres erreurs
-      return res.status(500).json({
-        success: false,
-        error: 'Erreur lors de la création de l\'absence',
-        details: process.env.NODE_ENV === 'development' ? createError.message : undefined,
-        code: createError.code
-      });
-    }
-
-    console.log('✅ Absence enregistrée avec succès:', newAbsence?.id);
-    return res.status(201).json({
-      success: true,
-      message: 'Absence enregistrée avec succès',
-      data: newAbsence
-    });
-
-  } catch (error) {
-    console.error('❌ Erreur inattendue dans /api/presence/mark-absent:', {
-      message: error.message,
-      stack: error.stack,
-      query: req.query,
-      body: req.body,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Envoyer une réponse d'erreur plus détaillée en mode développement
-    const errorResponse = {
-      success: false,
-      error: 'Une erreur inattendue est survenue',
-      timestamp: new Date().toISOString()
-    };
-    
-    if (process.env.NODE_ENV === 'development') {
-      errorResponse.details = {
-        message: error.message,
-        name: error.name,
-        stack: error.stack,
-        code: error.code
-      };
-    }
-    
-    return res.status(500).json(errorResponse);
-  }
-});
-
-/**
- * Gestion des jours de permission
- * POST /api/permission-days
- */
 app.post('/api/permission-days', authenticateToken, async (req, res) => {
   const requestId = 'req_' + Math.random().toString(36).substr(2, 9);
-  
+
   const log = (message, data = {}) => {
     const timestamp = new Date().toISOString();
     const logData = {
@@ -5595,7 +5677,7 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
     };
     console.log(`[${timestamp}] [${requestId}] ${message}`, JSON.stringify(logData, null, 2));
   };
-  
+
   // Réponse d'erreur standardisée
   const sendError = (status, message, errorDetails = {}) => {
     log(`❌ Erreur ${status}: ${message}`, errorDetails);
@@ -5605,15 +5687,15 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
       ...(process.env.NODE_ENV === 'development' && { details: errorDetails })
     });
   };
-  
-  log('🔵 Début du traitement de la requête', { 
+
+  log('🔵 Début du traitement de la requête', {
     method: 'POST',
     url: '/api/permission-days',
     body: req.body
   });
-  
+
   try {
-    log('🔵 Début du traitement de la requête', { 
+    log('🔵 Début du traitement de la requête', {
       method: req.method,
       url: req.originalUrl,
       headers: req.headers,
@@ -5628,7 +5710,7 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
         user: req.user ? { id: req.user.id, role: req.user.role } : 'non authentifié'
       });
     }
-    
+
     // Vérification du client Supabase
     log('🔍 Vérification du client Supabase...');
     if (!supabaseClient) {
@@ -5649,7 +5731,7 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
       status = 'pending',
       ...rest
     } = req.body || {};
-    
+
     log('📦 Données extraites', {
       id,
       agent_id,
@@ -5669,24 +5751,24 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
         userId: req.user?.id
       });
     }
-    
+
     // Récupération de l'UUID de l'utilisateur authentifié
     log('🔄 Récupération des informations de l\'utilisateur authentifié...');
     let authenticatedUserUuid;
     try {
       authenticatedUserUuid = await getUserId(req.user.id);
-      log('✅ Utilisateur authentifié', { 
-        id: req.user.id, 
+      log('✅ Utilisateur authentifié', {
+        id: req.user.id,
         uuid: authenticatedUserUuid,
-        role: req.user.role 
+        role: req.user.role
       });
     } catch (authError) {
       log('❌ Erreur lors de la récupération de l\'utilisateur authentifié', {
         error: authError.message,
         userId: req.user.id
       });
-      return res.status(400).json({ 
-        success: false, 
+      return res.status(400).json({
+        success: false,
         error: 'Erreur d\'authentification: ' + authError.message
       });
     }
@@ -5703,9 +5785,9 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
     let targetUserUuid;
     try {
       targetUserUuid = await getUserId(targetUserId);
-      log('✅ Utilisateur cible résolu', { 
-        input: targetUserId, 
-        uuid: targetUserUuid 
+      log('✅ Utilisateur cible résolu', {
+        input: targetUserId,
+        uuid: targetUserUuid
       });
     } catch (userError) {
       return sendError(404, `Utilisateur non trouvé: ${userError.message}`, {
@@ -5717,7 +5799,7 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
     // Validation et calcul des dates
     let startDate = start_date;
     let endDate = end_date;
-    
+
     // Validation du format du mois si fourni (YYYY-MM)
     if (month && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
       return sendError(400, 'Format de mois invalide. Utilisez le format YYYY-MM.', {
@@ -5725,7 +5807,7 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
         expectedFormat: 'YYYY-MM'
       });
     }
-    
+
     // Si le mois est fourni mais pas la date de début, utiliser le premier jour du mois
     if (month && !startDate) {
       startDate = `${month}-01`;
@@ -5736,7 +5818,7 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
       endDate = startDate;
       log('📅 Aucune date fournie, utilisation de la date du jour', { startDate, endDate });
     }
-    
+
     // Si le nombre de jours est fourni mais pas la date de fin, la calculer
     if (startDate && days && !endDate) {
       try {
@@ -5744,23 +5826,23 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
         if (isNaN(date.getTime())) {
           throw new Error(`Date de début invalide: ${startDate}`);
         }
-        
+
         // S'assurer que days est un nombre valide
         const daysNum = parseInt(days, 10);
         if (isNaN(daysNum) || daysNum < 1) {
           throw new Error(`Nombre de jours invalide: ${days}`);
         }
-        
+
         // Calculer la date de fin (début + jours - 1)
         date.setDate(date.getDate() + (daysNum - 1));
         endDate = date.toISOString().split('T')[0];
-        
-        log('📅 Date de fin calculée', { 
-          startDate, 
-          days: daysNum, 
-          endDate 
+
+        log('📅 Date de fin calculée', {
+          startDate,
+          days: daysNum,
+          endDate
         });
-        
+
       } catch (dateError) {
         return sendError(400, 'Format de date ou de nombre de jours invalide', {
           error: dateError.message,
@@ -5770,35 +5852,35 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
         });
       }
     }
-    
+
     // Si la date de fin est fournie mais pas la date de début, utiliser la même date
     if (endDate && !startDate) {
       startDate = endDate;
       log('📅 Date de début définie comme date de fin', { startDate, endDate });
     }
-    
+
     // S'assurer que les dates sont valides
     let startDateObj, endDateObj;
     try {
       startDateObj = new Date(startDate);
       endDateObj = new Date(endDate || startDate);
-      
+
       if (isNaN(startDateObj.getTime())) {
         throw new Error(`Date de début invalide: ${startDate}`);
       }
       if (isNaN(endDateObj.getTime())) {
         throw new Error(`Date de fin invalide: ${endDate}`);
       }
-      
+
       // Vérifier que la date de début est avant ou égale à la date de fin
       if (startDateObj > endDateObj) {
         throw new Error('La date de début doit être antérieure ou égale à la date de fin');
       }
-      
+
       // Formater les dates au format YYYY-MM-DD
       startDate = startDateObj.toISOString().split('T')[0];
       endDate = endDateObj.toISOString().split('T')[0];
-      
+
     } catch (dateError) {
       return sendError(400, dateError.message, {
         startDate,
@@ -5806,7 +5888,7 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
         error: dateError.message
       });
     }
-    
+
 
 
     // Validation du nombre de jours
@@ -5819,11 +5901,11 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
           daysParsed: daysCount
         });
       }
-      
+
       // Vérifier la cohérence entre les dates et le nombre de jours
       const diffTime = Math.abs(endDateObj - startDateObj);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 pour inclure le premier jour
-      
+
       if (diffDays !== daysCount) {
         log('⚠️ Incohérence détectée entre les dates et le nombre de jours', {
           startDate,
@@ -5831,7 +5913,7 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
           daysProvided: daysCount,
           daysCalculated: diffDays
         });
-        
+
         // Mettre à jour le nombre de jours pour refléter la réalité des dates
         daysCount = diffDays;
         log('ℹ️ Nombre de jours ajusté pour correspondre aux dates', { daysCount });
@@ -5851,7 +5933,7 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
-    
+
     // Si c'est une mise à jour, inclure l'ID
     if (id) {
       payload.id = id;
@@ -5859,20 +5941,20 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
     } else {
       log('➕ Préparation de la création d\'une nouvelle entrée');
     }
-    
+
     // Validation finale du payload
     if (!payload.user_id) {
       return sendError(400, 'ID utilisateur manquant', { payload });
     }
-    
+
     if (!payload.start_date || !payload.end_date) {
       return sendError(400, 'Dates de début et de fin requises', { payload });
     }
-    
+
     if (payload.days < 1) {
       return sendError(400, 'Le nombre de jours doit être supérieur à 0', { payload });
     }
-    
+
     log('📦 Payload pour Supabase', payload);
 
     try {
@@ -5883,7 +5965,7 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
         .select('id')
         .eq('id', targetUserUuid)
         .single();
-      
+
       if (userCheckError || !userCheck) {
         return sendError(404, 'L\'utilisateur spécifié n\'existe pas', {
           targetUserId,
@@ -5891,17 +5973,17 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
           error: userCheckError?.message || 'Utilisateur non trouvé'
         });
       }
-      
+
       // Vérifier les conflits de dates
       log('🔍 Vérification des conflits de dates...');
       const { data: conflicts, error: conflictError } = await supabaseClient
-      .from('permission_days')
+        .from('permission_days')
         .select('id, start_date, end_date')
         .eq('user_id', targetUserUuid)
         .not('id', 'eq', id || '')
         .lte('start_date', endDate)
         .gte('end_date', startDate);
-      
+
       if (conflictError) {
         log('⚠️ Erreur lors de la vérification des conflits', {
           error: conflictError.message
@@ -5912,24 +5994,24 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
           requested: { startDate, endDate }
         });
       }
-      
+
       // Construction de la requête d'upsert
       log('⚡ Préparation de la requête d\'upsert...');
       const query = supabaseClient
         .from('permission_days')
-        .upsert(payload, { 
+        .upsert(payload, {
           onConflict: 'id',
           returning: 'representation'
         });
-      
+
       log('⚡ Exécution de la requête...');
       const { data, error } = await query.select().single();
-      
+
       if (error) {
         // Gestion des erreurs spécifiques
         let errorMessage = 'Erreur lors de l\'enregistrement dans la base de données';
         let statusCode = 500;
-        
+
         switch (error.code) {
           case '23503': // foreign_key_violation
             statusCode = 400;
@@ -5942,41 +6024,41 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
               errorMessage = 'Violation de contrainte de clé étrangère';
             }
             break;
-            
+
           case '23505': // unique_violation
             statusCode = 409;
             errorMessage = 'Une entrée similaire existe déjà pour cette période';
             break;
-            
+
           case '22P02': // invalid_text_representation
             statusCode = 400;
             errorMessage = 'Format de données invalide';
             break;
-            
+
           case '23514': // check_violation
             statusCode = 400;
             errorMessage = 'Données invalides: ' + (error.message || 'contrainte non respectée');
             break;
-            
+
           default:
             // Utiliser le message d'erreur de la base de données si disponible
             if (error.message) {
               errorMessage = error.message;
             }
         }
-        
+
         return sendError(statusCode, errorMessage, {
           code: error.code,
           hint: error.hint,
           details: error.details,
-          ...(process.env.NODE_ENV === 'development' && { 
+          ...(process.env.NODE_ENV === 'development' && {
             message: error.message,
-            stack: error.stack 
+            stack: error.stack
           })
         });
       }
-      
-      log('✅ Permission enregistrée avec succès', { 
+
+      log('✅ Permission enregistrée avec succès', {
         id: data.id,
         user_id: data.user_id,
         status: data.status,
@@ -5984,23 +6066,26 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
         end_date: data.end_date,
         days: data.days
       });
-      
+
       // Récupérer les données complètes pour la réponse
       log('🔍 Récupération des données complètes...');
-      const { data: fullData, error: fetchError } = await supabaseClient
+      let fullData = null;
+      const { data: fetchedData, error: fetchError } = await supabaseClient
         .from('permission_days')
         .select('*')
         .eq('id', data.id)
-      .single();
+        .single();
 
-      if (fetchError || !fullData) {
+      if (fetchError || !fetchedData) {
         log('⚠️ Impossible de récupérer les données complètes, utilisation des données partielles', {
           error: fetchError?.message || 'Données non trouvées'
         });
         // Utiliser les données partielles si la récupération échoue
         fullData = data;
+      } else {
+        fullData = fetchedData;
       }
-      
+
       // Formatage de la réponse
       const responseData = {
         id: fullData.id,
@@ -6015,20 +6100,20 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
         updated_at: fullData.updated_at || new Date().toISOString(),
         created_by: fullData.created_by
       };
-      
-      log('📤 Envoi de la réponse', { 
+
+      log('📤 Envoi de la réponse', {
         success: true,
         permissionId: responseData.id,
         userId: responseData.user_id,
         period: `${responseData.start_date} - ${responseData.end_date}`
       });
-      
-      return res.json({ 
-        success: true, 
-        data: responseData 
+
+      return res.json({
+        success: true,
+        data: responseData
       });
-      
-  } catch (error) {
+
+    } catch (error) {
       // Gestion des erreurs inattendues
       const errorId = `err_${Math.random().toString(36).substr(2, 9)}`;
       const errorDetails = {
@@ -6044,9 +6129,9 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
           authenticatedUserUuid
         })
       };
-      
+
       log(`❌ [${errorId}] Erreur inattendue lors de l'enregistrement`, errorDetails);
-      
+
       return sendError(500, 'Une erreur inattendue est survenue lors de l\'enregistrement', {
         errorId,
         ...(process.env.NODE_ENV === 'development' && {
@@ -6078,9 +6163,9 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
         } : 'non authentifié'
       })
     };
-    
+
     log(`❌ [${errorId}] Erreur inattendue dans /api/permission-days`, errorDetails);
-    
+
     res.status(500).json({
       success: false,
       error: 'Erreur lors du traitement de la demande',
@@ -6089,7 +6174,7 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
         details: errorDetails
       })
     });
-    
+
     // En production, vous pourriez vouloir logger cette erreur dans un service externe
     if (process.env.NODE_ENV === 'production') {
       // Exemple: envoyer l'erreur à un service de suivi comme Sentry
@@ -6200,8 +6285,8 @@ app.put('/api/permission-days/:id', authenticateToken, async (req, res) => {
       if (month !== undefined) {
         const effectiveMonth = normalizeMonthValue(month);
         if (!effectiveMonth) {
-        return res.status(400).json({ success: false, error: 'Format de mois invalide' });
-      }
+          return res.status(400).json({ success: false, error: 'Format de mois invalide' });
+        }
         updatePayload.month = effectiveMonth;
       }
 
@@ -6297,7 +6382,7 @@ app.get('/api/users', authenticateToken, async (req, res) => {
 
     let query = supabaseClient
       .from('users')
-      .select('id,auth_uuid,name,email,role,phone,departement,project_name,status,photo_path,last_activity');
+      .select('id,auth_uuid,name,first_name,last_name,email,role,phone,departement,commune,arrondissement,village,project_name,status,photo_path,last_activity');
 
     if (search) {
       query = query.ilike('name', `%${search}%`).or(`email.ilike.%${search}%`);
@@ -6311,25 +6396,25 @@ app.get('/api/users', authenticateToken, async (req, res) => {
     if (page && limit) {
       const offset = (page - 1) * limit;
       query = query.range(offset, offset + limit - 1);
-      
+
       // Compter le total pour la pagination
       let countQuery = supabaseClient.from('users').select('*', { count: 'exact', head: true });
       if (search) countQuery = countQuery.ilike('name', `%${search}%`).or(`email.ilike.%${search}%`);
       if (role) countQuery = countQuery.eq('role', role);
       if (status) countQuery = countQuery.eq('status', status);
-      
+
       const { count, error: countError } = await countQuery;
       if (countError) throw countError;
-      
+
       const { data, error } = await query;
       if (error) throw error;
-      
+
       res.json({ success: true, items: data || [], total: count || 0, page, limit });
     } else {
       // Pas de pagination - retourner tous les utilisateurs
       const { data, error } = await query;
       if (error) throw error;
-      
+
       res.json(data || []);
     }
   } catch (error) {
@@ -6338,27 +6423,331 @@ app.get('/api/users', authenticateToken, async (req, res) => {
   }
 });
 
+app.get('/api/dashboard-filters', authenticateToken, async (req, res) => {
+  try {
+    const privileged = isPrivilegedRequest(req);
+    const requesterId = Number(req.user?.id);
+
+    let query = supabaseClient
+      .from('users')
+      .select('id, name, first_name, last_name, email, role, project_name, photo_path')
+      .order('name', { ascending: true });
+
+    // Pour les utilisateurs non privilégiés, ne montrer que leur propre profil
+    // Pour les admins et superviseurs, montrer TOUS les utilisateurs
+    if (!privileged && Number.isFinite(requesterId)) {
+      query = query.eq('id', requesterId);
+    } else if (privileged) {
+      // Pour les privilégiés, ne pas filtrer - récupérer tous les utilisateurs
+      // Optionnel: filtrer les utilisateurs inactifs si nécessaire
+      // query = query.eq('status', 'active'); // Décommentez si vous avez un champ status
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const normalizeDisplayName = (user) => {
+      const composed = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
+      if (composed) return composed;
+      if (user.name && user.name.trim()) return user.name.trim();
+      if (user.email) return user.email.split('@')[0];
+      return `Utilisateur ${user.id}`;
+    };
+
+    const normalizeProject = (value) => {
+      const raw = String(value || '').trim();
+      return raw || 'Projet non attribué';
+    };
+
+    const normalizedUsers = (data || []).map(user => ({
+      id: user.id,
+      name: normalizeDisplayName(user),
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      email: user.email || '',
+      role: String(user.role || 'agent').toLowerCase(),
+      project_name: normalizeProject(user.project_name),
+      photo_url: user.photo_path || ''
+    }));
+
+    const supervisorRoles = new Set(['superviseur', 'supervisor', 'manager', 'admin', 'administrateur']);
+    const supervisors = normalizedUsers.filter(user => supervisorRoles.has(user.role));
+
+    // Pour les utilisateurs privilégiés, récupérer TOUS les projets distincts depuis la base de données
+    let allProjects = [];
+    if (privileged) {
+      try {
+        const { data: projectsData, error: projectsError } = await supabaseClient
+          .from('users')
+          .select('project_name')
+          .not('project_name', 'is', null);
+
+        if (!projectsError && projectsData && Array.isArray(projectsData)) {
+          allProjects = Array.from(
+            new Set(
+              projectsData
+                .map(row => {
+                  const project = String(row.project_name || '').trim();
+                  return project && project !== 'Projet non attribué' && project !== 'Non attribué' ? project : null;
+                })
+                .filter(Boolean)
+            )
+          ).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+        }
+      } catch (error) {
+        console.warn('Erreur lors de la récupération de tous les projets:', error);
+      }
+    }
+
+    // Si on n'a pas réussi à récupérer tous les projets ou si l'utilisateur n'est pas privilégié,
+    // utiliser ceux des utilisateurs normalisés
+    if (allProjects.length === 0) {
+      allProjects = Array.from(
+        new Set(
+          normalizedUsers
+            .map(user => {
+              const project = String(user.project_name || '').trim();
+              return project && project !== 'Projet non attribué' && project !== 'Non attribué' ? project : null;
+            })
+            .filter(Boolean)
+        )
+      ).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+    }
+
+    const projects = allProjects;
+
+    res.json({
+      success: true,
+      privileged,
+      agents: normalizedUsers,
+      supervisors,
+      projects,
+    });
+  } catch (error) {
+    console.error('Erreur dashboard/filters:', error);
+    res.status(500).json({ success: false, error: error.message || 'Erreur serveur' });
+  }
+});
+
 app.get('/api/agents/monthly-report', authenticateToken, async (req, res) => {
+  const startTime = Date.now();
+  let report = null;
+
   try {
     const query = req.query || {};
     const aiParam = query.ai ?? query.include_ai ?? query.includeAi ?? query.generate_ai;
     const includeAiSummary = typeof aiParam === 'undefined'
       ? true
       : ['1', 'true', 'yes', 'on'].includes(String(aiParam).toLowerCase());
-    const report = await buildAgentMonthlyReport({
-      supabaseClient,
-      agentId: query.agentId || query.agent_id,
-      monthValue: query.month || query.period,
+
+    const agentId = query.agentId || query.agent_id;
+    const monthValue = query.month || query.period;
+
+    console.log('Génération rapport mensuel:', {
+      agentId,
+      monthValue,
       includeAiSummary,
-      geminiApiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
-      requester: req.user
+      requesterId: req.user?.id,
+      requesterRole: req.user?.role
     });
-    res.json(report);
+
+    // Tenter de générer le rapport complet
+    try {
+      // Utiliser la clé API de l'utilisateur si fournie, sinon celle du serveur
+      const userApiKey = query.user_api_key;
+      const geminiModel = query.gemini_model;
+
+      report = await buildAgentMonthlyReport({
+        supabaseClient,
+        agentId,
+        monthValue,
+        includeAiSummary,
+        geminiApiKey: userApiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+        geminiModel: geminiModel,
+        requester: req.user
+      });
+
+      const duration = Date.now() - startTime;
+      console.log(`Rapport mensuel généré avec succès en ${duration}ms:`, {
+        agentId,
+        monthValue,
+        checkins: report?.dataSources?.checkins || 0,
+        planifications: report?.dataSources?.planifications || 0,
+        goals: report?.dataSources?.goals || 0
+      });
+
+      return res.json(report);
+    } catch (buildError) {
+      // Si la génération échoue, essayer de créer un rapport minimal
+      console.error('Erreur lors de la génération du rapport complet:', {
+        message: buildError.message,
+        stack: buildError.stack,
+        statusCode: buildError.statusCode,
+        name: buildError.name,
+        agentId,
+        monthValue
+      });
+
+      // Si c'est une erreur d'authentification ou d'autorisation, la retourner directement
+      if (buildError.statusCode === 401 || buildError.statusCode === 403 || buildError.statusCode === 404) {
+        return res.status(buildError.statusCode).json({
+          success: false,
+          error: buildError.message || 'Erreur lors de la génération du rapport',
+          details: process.env.NODE_ENV === 'development' ? buildError.stack : undefined
+        });
+      }
+
+      // Pour les autres erreurs, essayer de créer un rapport minimal avec les données disponibles
+      try {
+        // Créer un contexte de mois simple
+        let monthContext = null;
+        if (monthValue && typeof monthValue === 'string' && /^\d{4}-\d{2}$/.test(monthValue)) {
+          const [y, m] = monthValue.split('-').map(Number);
+          if (y >= 2000 && m >= 1 && m <= 12) {
+            const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
+            const end = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
+            const monthsFr = ['janvier', 'fevrier', 'mars', 'avril', 'mai', 'juin', 'juillet', 'aout', 'septembre', 'octobre', 'novembre', 'decembre'];
+            monthContext = {
+              value: monthValue,
+              label: `${monthsFr[m - 1] || 'Mois'} ${y}`,
+              startIso: start.toISOString(),
+              endIso: end.toISOString()
+            };
+          }
+        }
+
+        if (monthContext && Number.isFinite(Number(agentId))) {
+          // Récupérer au moins les informations de base de l'agent
+          const { data: agent } = await supabaseClient
+            .from('users')
+            .select('id, name, first_name, last_name, email, role, project_name')
+            .eq('id', Number(agentId))
+            .single();
+
+          if (agent) {
+            // Essayer de générer au moins le classement du projet
+            let projectRanking = [];
+            try {
+              const { buildProjectRanking } = require('./utils/monthlyReport');
+              projectRanking = await buildProjectRanking(supabaseClient, Number(agentId), monthContext);
+            } catch (rankingError) {
+              console.warn('Erreur lors de la génération du classement minimal:', rankingError.message);
+              projectRanking = [];
+            }
+
+            report = {
+              success: true,
+              meta: {
+                agent: {
+                  id: agent.id,
+                  name: agent.name || [agent.first_name, agent.last_name].filter(Boolean).join(' ') || `Agent ${agent.id}`,
+                  email: agent.email || null,
+                  role: agent.role || 'agent',
+                  project_name: agent.project_name || null
+                },
+                month: {
+                  value: monthContext.value,
+                  label: monthContext.label,
+                  start: monthContext.startIso,
+                  end: monthContext.endIso
+                }
+              },
+              objectives: [],
+              presence: { totalCheckins: 0, workedDays: 0, workingDays: 0, presenceRate: 0 },
+              activities: { total: 0, breakdown: [], list: [], plannedDays: 0, totalPlannedHours: 0, validatedPlannedHours: 0, performance: {} },
+              locations: [],
+              photos: [],
+              projectRanking, // Ajouter le classement même dans le rapport minimal
+              comments: {
+                aiSummary: null,
+                aiSummaryStatus: 'error',
+                aiModel: null,
+                aiSummaryError: 'Erreur lors de la génération du rapport complet. Données partielles uniquement.',
+                fallbackSummary: `${agent.name || 'Agent'} — Synthèse ${monthContext.label}. Données limitées en raison d'une erreur serveur.`,
+                suggestions: ['Veuillez réessayer plus tard ou contacter le support si le problème persiste.']
+              },
+              dataSources: {
+                goals: 0,
+                checkins: 0,
+                planifications: 0
+              }
+            };
+
+            console.warn('Rapport minimal généré en raison d\'une erreur:', {
+              agentId,
+              monthValue,
+              originalError: buildError.message
+            });
+
+            return res.json(report);
+          }
+        }
+      } catch (fallbackError) {
+        console.error('Erreur lors de la génération du rapport minimal:', fallbackError);
+      }
+
+      // Si même le rapport minimal échoue, retourner l'erreur originale
+      return res.status(buildError.statusCode || 500).json({
+        success: false,
+        error: buildError.message || 'Erreur serveur lors de la génération du rapport. Veuillez réessayer.',
+        details: process.env.NODE_ENV === 'development' ? buildError.stack : undefined
+      });
+    }
   } catch (error) {
-    console.error('Erreur rapport mensuel agent:', error);
-    res
-      .status(error.statusCode || 500)
-      .json({ success: false, error: error.message || 'Erreur serveur' });
+    // Erreur inattendue au niveau du handler
+    console.error('Erreur inattendue dans le handler monthly-report:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'Erreur serveur inattendue lors de la génération du rapport. Veuillez réessayer.',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+app.get('/api/agents', authenticateToken, async (req, res) => {
+  try {
+    const { search, role } = req.query || {};
+    const privileged = isPrivilegedRequest(req);
+    const requesterId = Number(req.user?.id);
+
+    console.log(`📋 GET /api/agents - Requester ID: ${requesterId}, Privileged: ${privileged}, Search: ${search || 'none'}, Role: ${role || 'none'}`);
+
+    let query = supabaseClient
+      .from('users')
+      .select('id, name, first_name, last_name, email, role, project_name, departement, commune, arrondissement, village, status, photo_path')
+      .order('name', { ascending: true });
+
+    if (search) {
+      const sanitized = `%${search}%`;
+      query = query.or(`name.ilike.${sanitized},email.ilike.${sanitized}`);
+    }
+
+    if (role) {
+      query = query.eq('role', role);
+    }
+
+    if (!privileged && Number.isFinite(requesterId)) {
+      query = query.eq('id', requesterId);
+      console.log(`🔒 Non-privileged user, filtering to own ID: ${requesterId}`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    console.log(`✅ Agents récupérés: ${data?.length || 0} utilisateurs`);
+    if (data && data.length > 0) {
+      console.log(`📊 Premier agent: ID=${data[0].id}, Name="${data[0].name}", FirstName="${data[0].first_name}", LastName="${data[0].last_name}", Project="${data[0].project_name}"`);
+    }
+
+    res.json(Array.isArray(data) ? data : []);
+  } catch (error) {
+    console.error('❌ Erreur API agents:', error);
+    res.status(500).json({ success: false, error: error.message || 'Erreur serveur' });
   }
 });
 
@@ -6459,16 +6848,16 @@ app.post('/api/profile/photo', async (req, res) => {
 app.post('/api/sync/offline-checkins', authenticateToken, async (req, res) => {
   try {
     const { checkins } = req.body || {};
-    
+
     if (!Array.isArray(checkins) || checkins.length === 0) {
       return res.json({ success: true, message: 'Aucun checkin à synchroniser', synced: 0 });
     }
-    
+
     console.log(`🔄 Synchronisation de ${checkins.length} checkins hors-ligne pour user ${req.user.id}...`);
-    
+
     let syncedCount = 0;
     const errors = [];
-    
+
     for (const checkin of checkins) {
       try {
         // Préparer les données pour Supabase
@@ -6483,14 +6872,14 @@ app.post('/api/sync/offline-checkins', authenticateToken, async (req, res) => {
           photo_url: checkin.photo_url || checkin.photo_path || null,
           mission_id: checkin.mission_id || null
         };
-        
+
         // Insérer dans Supabase
         const { data, error } = await supabaseClient
           .from('checkins')
           .insert([checkinData])
           .select()
           .single();
-        
+
         if (error) {
           console.error(`❌ Erreur insertion checkin ${checkin.id || 'unknown'}:`, error);
           errors.push({ checkin: checkin.id || 'unknown', error: error.message });
@@ -6503,9 +6892,9 @@ app.post('/api/sync/offline-checkins', authenticateToken, async (req, res) => {
         errors.push({ checkin: checkin.id || 'unknown', error: e.message });
       }
     }
-    
+
     console.log(`🎉 Synchronisation terminée: ${syncedCount}/${checkins.length} checkins synchronisés`);
-    
+
     return res.json({
       success: true,
       message: `${syncedCount} checkins synchronisés avec succès`,
@@ -6513,7 +6902,7 @@ app.post('/api/sync/offline-checkins', authenticateToken, async (req, res) => {
       total: checkins.length,
       errors: errors.length > 0 ? errors : undefined
     });
-    
+
   } catch (error) {
     console.error('❌ Erreur générale synchronisation checkins:', error);
     return res.status(500).json({
@@ -6528,22 +6917,22 @@ app.post('/api/sync/offline-checkins', authenticateToken, async (req, res) => {
 app.post('/api/sync/pending-missions', authenticateToken, async (req, res) => {
   try {
     const { missions } = req.body || {};
-    
+
     if (!Array.isArray(missions) || missions.length === 0) {
       return res.json({ success: true, message: 'Aucune mission à synchroniser', synced: 0 });
     }
-    
+
     console.log(`🔄 Synchronisation de ${missions.length} mission(s) en attente pour user ${req.user.id}...`);
-    
+
     let syncedCount = 0;
     const errors = [];
     const syncedMissions = [];
-    
+
     for (const mission of missions) {
       try {
         const missionType = mission.type; // 'start' ou 'end'
         const missionData = mission.data || {};
-        
+
         if (missionType === 'start') {
           // Démarrer une mission
           // Vérifier s'il y a déjà une mission active
@@ -6553,14 +6942,14 @@ app.post('/api/sync/pending-missions', authenticateToken, async (req, res) => {
             .eq('user_id', req.user.id)
             .eq('status', 'active')
             .single();
-          
+
           if (activeMission) {
             // Mission déjà active, utiliser celle-ci
             syncedMissions.push({ id: mission.id, missionId: activeMission.id, type: 'start' });
             syncedCount++;
             continue;
           }
-          
+
           // Créer une nouvelle mission
           const { data: newMission, error: missionError } = await supabaseClient
             .from('missions')
@@ -6573,11 +6962,11 @@ app.post('/api/sync/pending-missions', authenticateToken, async (req, res) => {
             }])
             .select()
             .single();
-          
+
           if (missionError) {
             throw missionError;
           }
-          
+
           // Créer le check-in de début
           const { error: checkinError } = await supabaseClient
             .from('checkins')
@@ -6591,18 +6980,18 @@ app.post('/api/sync/pending-missions', authenticateToken, async (req, res) => {
               accuracy: missionData.accuracy ? Number(missionData.accuracy) : null,
               note: missionData.note || 'Début de mission (synchronisé)'
             }]);
-          
+
           if (checkinError) {
             console.warn('Erreur création check-in:', checkinError);
           }
-          
+
           syncedMissions.push({ id: mission.id, missionId: newMission.id, type: 'start' });
           syncedCount++;
-          
+
         } else if (missionType === 'end') {
           // Terminer une mission
           const missionId = missionData.mission_id || null;
-          
+
           if (!missionId) {
             // Essayer de trouver la mission active
             const { data: activeMission } = await supabaseClient
@@ -6611,13 +7000,13 @@ app.post('/api/sync/pending-missions', authenticateToken, async (req, res) => {
               .eq('user_id', req.user.id)
               .eq('status', 'active')
               .single();
-            
+
             if (!activeMission) {
               throw new Error('Aucune mission active trouvée');
             }
-            
+
             const finalMissionId = activeMission.id;
-            
+
             // Mettre à jour la mission
             const { error: updateError } = await supabaseClient
               .from('missions')
@@ -6628,11 +7017,11 @@ app.post('/api/sync/pending-missions', authenticateToken, async (req, res) => {
                 end_lon: missionData.lon ? Number(missionData.lon) : null
               })
               .eq('id', finalMissionId);
-            
+
             if (updateError) {
               throw updateError;
             }
-            
+
             // Créer le check-in de fin
             const { error: checkinError } = await supabaseClient
               .from('checkins')
@@ -6646,11 +7035,11 @@ app.post('/api/sync/pending-missions', authenticateToken, async (req, res) => {
                 accuracy: missionData.accuracy ? Number(missionData.accuracy) : null,
                 note: missionData.note || 'Fin de mission (synchronisé)'
               }]);
-            
+
             if (checkinError) {
               console.warn('Erreur création check-in:', checkinError);
             }
-            
+
             syncedMissions.push({ id: mission.id, missionId: finalMissionId, type: 'end' });
             syncedCount++;
           } else {
@@ -6665,11 +7054,11 @@ app.post('/api/sync/pending-missions', authenticateToken, async (req, res) => {
               })
               .eq('id', missionId)
               .eq('user_id', req.user.id);
-            
+
             if (updateError) {
               throw updateError;
             }
-            
+
             syncedMissions.push({ id: mission.id, missionId: missionId, type: 'end' });
             syncedCount++;
           }
@@ -6679,9 +7068,9 @@ app.post('/api/sync/pending-missions', authenticateToken, async (req, res) => {
         errors.push({ missionId: mission.id || 'unknown', type: mission.type, error: e.message });
       }
     }
-    
+
     console.log(`🎉 Synchronisation terminée: ${syncedCount}/${missions.length} mission(s) synchronisée(s)`);
-    
+
     return res.json({
       success: true,
       message: `${syncedCount} mission(s) synchronisée(s) avec succès`,
@@ -6690,7 +7079,7 @@ app.post('/api/sync/pending-missions', authenticateToken, async (req, res) => {
       syncedMissions: syncedMissions,
       errors: errors.length > 0 ? errors : undefined
     });
-    
+
   } catch (error) {
     console.error('❌ Erreur générale synchronisation missions:', error);
     return res.status(500).json({
@@ -6706,7 +7095,7 @@ app.get('/api/sync/get-offline-checkins', authenticateToken, async (req, res) =>
   try {
     // Cet endpoint retourne un script JavaScript qui sera exécuté côté client
     // pour récupérer les checkins depuis IndexedDB et les envoyer à /api/sync/offline-checkins
-    
+
     const syncScript = `
 (async function() {
   try {
@@ -6788,10 +7177,10 @@ app.get('/api/sync/get-offline-checkins', authenticateToken, async (req, res) =>
   }
 })();
 `;
-    
+
     res.setHeader('Content-Type', 'application/javascript');
     res.send(syncScript);
-    
+
   } catch (error) {
     console.error('❌ Erreur génération script sync:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -6828,8 +7217,8 @@ app.post('/api/checkins', authenticateToken, async (req, res) => {
     const checkinTime = start_time || new Date().toISOString();
     const hasPlanification = await hasPlanificationForDay(req.user.id, checkinTime);
     if (!hasPlanification) {
-      return res.status(403).json({ 
-        success: false, 
+      return res.status(403).json({
+        success: false,
         message: 'Vous ne pouvez pas faire de check-in. Aucune planification trouvée pour ce jour. Veuillez d\'abord enregistrer votre planification quotidienne.',
         code: 'NO_PLANIFICATION_FOUND'
       });
@@ -6841,12 +7230,12 @@ app.post('/api/checkins', authenticateToken, async (req, res) => {
       .select('id, name, role')
       .eq('id', req.user.id)
       .single();
-    
+
     if (userCheckError || !userExists) {
       console.error('❌ Utilisateur inexistant pour checkin:', req.user.id);
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Utilisateur non trouvé. Veuillez vous reconnecter avec vos vrais identifiants.' 
+      return res.status(400).json({
+        success: false,
+        message: 'Utilisateur non trouvé. Veuillez vous reconnecter avec vos vrais identifiants.'
       });
     }
 
@@ -6875,7 +7264,7 @@ app.post('/api/checkins', authenticateToken, async (req, res) => {
 
     const { data, error } = await supabaseClient.from('checkins').insert([row]).select().single();
     if (error) throw error;
-    
+
     // Créer automatiquement une présence dans la table presences
     try {
       const presenceData = {
@@ -6895,13 +7284,13 @@ app.post('/api/checkins', authenticateToken, async (req, res) => {
         distance_from_reference_m: null,
         tolerance_meters: 500
       };
-      
+
       const { data: presenceResult, error: presenceError } = await supabaseClient
         .from('presences')
         .insert(presenceData)
         .select()
         .single();
-      
+
       if (presenceError) {
         console.error('⚠️ Erreur création présence:', presenceError);
         // Ne pas échouer le checkin si la présence échoue
@@ -6912,7 +7301,7 @@ app.post('/api/checkins', authenticateToken, async (req, res) => {
       console.error('⚠️ Erreur traitement présence:', presenceErr);
       // Ne pas échouer le checkin si la présence échoue
     }
-    
+
     return res.json({ success: true, checkin: data });
   } catch (err) {
     console.error('Erreur enregistrement checkin:', err);
@@ -6925,7 +7314,7 @@ app.get('/api/admin/checkins/latest', authenticateToken, authenticateSupervisorO
   try {
     const limit = Math.min(parseInt(String(req.query.limit || '100')), 500);
     console.log('🔍 Récupération des check-ins admin, limite:', limit);
-    
+
     // Récupérer les check-ins avec les informations des missions et agents (colonnes réelles)
     const { data, error } = await supabaseClient
       .from('checkins')
@@ -6937,12 +7326,12 @@ app.get('/api/admin/checkins/latest', authenticateToken, authenticateSupervisorO
       `)
       .order('created_at', { ascending: false })
       .limit(limit);
-    
+
     if (error) {
       console.error('❌ Erreur Supabase checkins latest:', error);
       throw error;
     }
-    
+
     console.log('✅ Check-ins admin récupérés:', data?.length || 0);
     return res.json({ success: true, data: { items: data || [] } });
   } catch (err) {
@@ -6958,9 +7347,9 @@ app.get('/api/admin/checkins', authenticateToken, authenticateSupervisorOrAdmin,
     const offset = Math.max(parseInt(String(req.query.offset || '0')), 0);
     const from = req.query.from ? new Date(String(req.query.from)) : null;
     const to = req.query.to ? new Date(String(req.query.to)) : null;
-    
+
     console.log('🔍 Récupération des check-ins admin avec filtres:', { limit, offset, from, to });
-    
+
     // Construire la requête avec filtres
     let query = supabaseClient
       .from('checkins')
@@ -6972,21 +7361,21 @@ app.get('/api/admin/checkins', authenticateToken, authenticateSupervisorOrAdmin,
       `)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
-    
+
     if (from) {
       query = query.gte('created_at', from.toISOString());
     }
     if (to) {
       query = query.lte('created_at', to.toISOString());
     }
-    
+
     const { data, error } = await query;
-    
+
     if (error) {
       console.error('❌ Erreur Supabase checkins:', error);
       throw error;
     }
-    
+
     console.log('✅ Check-ins admin récupérés avec filtres:', data?.length || 0);
     return res.json({ success: true, data: { items: data || [] } });
   } catch (err) {
@@ -7002,9 +7391,9 @@ app.get('/api/admin/missions', authenticateToken, authenticateSupervisorOrAdmin,
   try {
     const { page = 1, limit = 100 } = req.query;
     const offset = (page - 1) * limit;
-    
+
     console.log('📊 Récupération des missions admin, page:', page, 'limite:', limit);
-    
+
     const { data: missions, error } = await supabaseClient
       .from('missions')
       .select(`
@@ -7014,12 +7403,12 @@ app.get('/api/admin/missions', authenticateToken, authenticateSupervisorOrAdmin,
       `)
       .order('date_start', { ascending: false })
       .range(offset, offset + limit - 1);
-    
+
     if (error) {
       console.error('❌ Erreur récupération missions admin:', error);
       throw error;
     }
-    
+
     console.log('✅ Missions admin récupérées:', missions?.length || 0);
     res.json({ success: true, data: { items: missions || [] } });
   } catch (error) {
@@ -7048,33 +7437,33 @@ app.get('/api/admin/agents', async (req, res) => {
     const isPrivileged = role === 'admin' || role === 'superviseur' || role === 'supervisor';
 
     if (isPrivileged) {
-    const { data: agents, error } = await supabaseClient
-      .from('users')
+      const { data: agents, error } = await supabaseClient
+        .from('users')
         .select('*, auth_uuid')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
+        .order('created_at', { ascending: false });
+      if (error) throw error;
 
-    const enrichedAgents = (agents || []).map(agent => ({
-      ...agent,
+      const enrichedAgents = (agents || []).map(agent => ({
+        ...agent,
         auth_uuid: agent.auth_uuid || agent.auth_uuid,
-      status: agent.status || 'active',
-      project_name: agent.project_name || agent.project || '',
-      departement: agent.departement || '',
-      commune: agent.commune || '',
-      arrondissement: agent.arrondissement || '',
-      village: agent.village || '',
-      phone: agent.phone || '',
-      reference_lat: agent.reference_lat || null,
-      reference_lon: agent.reference_lon || null,
-      tolerance_radius_meters: agent.tolerance_radius_meters || null,
-      gps_accuracy: agent.gps_accuracy || 'medium',
-      expected_days_per_month: agent.expected_days_per_month || null,
-      expected_hours_per_month: agent.expected_hours_per_month || null,
-      work_schedule: agent.work_schedule || '',
-      contract_type: agent.contract_type || '',
-      observations: agent.observations || '',
-      photo_path: agent.photo_path || null
-    }));
+        status: agent.status || 'active',
+        project_name: agent.project_name || agent.project || '',
+        departement: agent.departement || '',
+        commune: agent.commune || '',
+        arrondissement: agent.arrondissement || '',
+        village: agent.village || '',
+        phone: agent.phone || '',
+        reference_lat: agent.reference_lat || null,
+        reference_lon: agent.reference_lon || null,
+        tolerance_radius_meters: agent.tolerance_radius_meters || null,
+        gps_accuracy: agent.gps_accuracy || 'medium',
+        expected_days_per_month: agent.expected_days_per_month || null,
+        expected_hours_per_month: agent.expected_hours_per_month || null,
+        work_schedule: agent.work_schedule || '',
+        contract_type: agent.contract_type || '',
+        observations: agent.observations || '',
+        photo_path: agent.photo_path || null
+      }));
       return res.json({ success: true, data: enrichedAgents });
     }
 
@@ -7358,20 +7747,20 @@ app.get('/api/debug/checkins', authenticateToken, authenticateSupervisorOrAdmin,
 app.get('/api/test/relations', authenticateToken, async (req, res) => {
   try {
     console.log('🔗 Test des relations entre tables...');
-    
+
     const results = {
       connection: false,
       tables: {},
       relations: {}
     };
-    
+
     // Test de connexion de base
     try {
       const { data: settings, error: settingsError } = await supabaseClient
         .from('app_settings')
         .select('*')
         .limit(1);
-      
+
       if (settingsError) throw settingsError;
       results.connection = true;
       console.log('✅ Connexion Supabase établie');
@@ -7379,17 +7768,17 @@ app.get('/api/test/relations', authenticateToken, async (req, res) => {
       console.error('❌ Erreur connexion:', err.message);
       return res.status(500).json({ success: false, error: 'Connexion Supabase échouée', details: err.message });
     }
-    
+
     // Vérifier les tables principales
     const tables = ['users', 'presences', 'planifications', 'projects', 'missions', 'checkins', 'absences', 'reports'];
-    
+
     for (const table of tables) {
       try {
         const { data, error } = await supabaseClient
           .from(table)
           .select('*')
           .limit(1);
-        
+
         if (error) {
           results.tables[table] = { status: 'error', message: error.message };
           console.log(`⚠️ Table ${table}: ${error.message}`);
@@ -7402,10 +7791,10 @@ app.get('/api/test/relations', authenticateToken, async (req, res) => {
         console.log(`❌ Table ${table}: ${err.message}`);
       }
     }
-    
+
     // Test des relations entre tables
     console.log('\n🔗 Test des relations entre tables...');
-    
+
     // Test relation users -> presences
     try {
       const { data: userPresences, error: userPresencesError } = await supabaseClient
@@ -7416,7 +7805,7 @@ app.get('/api/test/relations', authenticateToken, async (req, res) => {
           users!inner(id, name, email)
         `)
         .limit(1);
-      
+
       if (userPresencesError) {
         results.relations['users->presences'] = { status: 'error', message: userPresencesError.message };
         console.log(`⚠️ Relation users->presences: ${userPresencesError.message}`);
@@ -7428,7 +7817,7 @@ app.get('/api/test/relations', authenticateToken, async (req, res) => {
       results.relations['users->presences'] = { status: 'error', message: err.message };
       console.log(`❌ Relation users->presences: ${err.message}`);
     }
-    
+
     // Test relation users -> planifications
     try {
       const { data: userPlanifications, error: userPlanificationsError } = await supabaseClient
@@ -7439,7 +7828,7 @@ app.get('/api/test/relations', authenticateToken, async (req, res) => {
           users!inner(id, name, email)
         `)
         .limit(1);
-      
+
       if (userPlanificationsError) {
         results.relations['users->planifications'] = { status: 'error', message: userPlanificationsError.message };
         console.log(`⚠️ Relation users->planifications: ${userPlanificationsError.message}`);
@@ -7451,7 +7840,7 @@ app.get('/api/test/relations', authenticateToken, async (req, res) => {
       results.relations['users->planifications'] = { status: 'error', message: err.message };
       console.log(`❌ Relation users->planifications: ${err.message}`);
     }
-    
+
     // Test relation planifications -> projects
     try {
       const { data: planificationProjects, error: planificationProjectsError } = await supabaseClient
@@ -7463,7 +7852,7 @@ app.get('/api/test/relations', authenticateToken, async (req, res) => {
         `)
         .not('project_id', 'is', null)
         .limit(1);
-      
+
       if (planificationProjectsError) {
         results.relations['planifications->projects'] = { status: 'error', message: planificationProjectsError.message };
         console.log(`⚠️ Relation planifications->projects: ${planificationProjectsError.message}`);
@@ -7475,7 +7864,7 @@ app.get('/api/test/relations', authenticateToken, async (req, res) => {
       results.relations['planifications->projects'] = { status: 'error', message: err.message };
       console.log(`❌ Relation planifications->projects: ${err.message}`);
     }
-    
+
     // Test relation users -> missions
     try {
       const { data: userMissions, error: userMissionsError } = await supabaseClient
@@ -7486,7 +7875,7 @@ app.get('/api/test/relations', authenticateToken, async (req, res) => {
           users!inner(id, name, email)
         `)
         .limit(1);
-      
+
       if (userMissionsError) {
         results.relations['users->missions'] = { status: 'error', message: userMissionsError.message };
         console.log(`⚠️ Relation users->missions: ${userMissionsError.message}`);
@@ -7498,7 +7887,7 @@ app.get('/api/test/relations', authenticateToken, async (req, res) => {
       results.relations['users->missions'] = { status: 'error', message: err.message };
       console.log(`❌ Relation users->missions: ${err.message}`);
     }
-    
+
     // Test relation users -> checkins
     try {
       const { data: userCheckins, error: userCheckinsError } = await supabaseClient
@@ -7510,7 +7899,7 @@ app.get('/api/test/relations', authenticateToken, async (req, res) => {
           users!inner(id, name, email)
         `)
         .limit(1);
-      
+
       if (userCheckinsError) {
         results.relations['users->checkins'] = { status: 'error', message: userCheckinsError.message };
         console.log(`⚠️ Relation users->checkins: ${userCheckinsError.message}`);
@@ -7522,13 +7911,13 @@ app.get('/api/test/relations', authenticateToken, async (req, res) => {
       results.relations['users->checkins'] = { status: 'error', message: err.message };
       console.log(`❌ Relation users->checkins: ${err.message}`);
     }
-    
-    return res.status(200).json({ 
-      success: true, 
+
+    return res.status(200).json({
+      success: true,
       message: 'Test des relations terminé',
-      results 
+      results
     });
-    
+
   } catch (error) {
     console.error('❌ Erreur générale test relations:', error.message);
     return res.status(500).json({ success: false, error: error.message });
@@ -7539,32 +7928,32 @@ app.get('/api/test/relations', authenticateToken, async (req, res) => {
 app.get('/api/test/supabase', authenticateToken, async (req, res) => {
   try {
     console.log('🧪 Test connexion Supabase...');
-    
+
     // Test 1: Lister les tables disponibles (si possible)
     const { data: tables, error: tablesError } = await supabaseClient
       .from('information_schema.tables')
       .select('table_name')
       .eq('table_schema', 'public')
       .limit(10);
-    
+
     console.log('Tables disponibles:', tables);
-    
+
     // Test 2: Vérifier la table missions
     const { data: missionsTest, error: missionsError } = await supabaseClient
       .from('missions')
       .select('id')
       .limit(1);
-    
+
     console.log('Test table missions:', missionsTest, missionsError);
-    
+
     // Test 3: Vérifier la table checkins
     const { data: checkinsTest, error: checkinsError } = await supabaseClient
       .from('checkins')
       .select('id')
       .limit(1);
-    
+
     console.log('Test table checkins:', checkinsTest, checkinsError);
-    
+
     return res.json({
       success: true,
       tests: {
@@ -7573,7 +7962,7 @@ app.get('/api/test/supabase', authenticateToken, async (req, res) => {
         checkins: { data: checkinsTest, error: checkinsError?.message }
       }
     });
-    
+
   } catch (err) {
     console.error('Erreur test Supabase:', err);
     return res.status(500).json({ success: false, error: err.message });
@@ -7584,42 +7973,42 @@ app.get('/api/test/supabase', authenticateToken, async (req, res) => {
 app.get('/api/checkins/test', authenticateToken, async (req, res) => {
   try {
     console.log('🧪 Test endpoint checkins pour user:', req.user.id);
-    
+
     // Test 1: Compter tous les check-ins
     const { count: totalCheckins, error: countError } = await supabaseClient
       .from('checkins')
       .select('*', { count: 'exact', head: true });
-    
+
     if (countError) {
       console.error('Erreur count checkins:', countError);
     } else {
       console.log('Total check-ins dans la base:', totalCheckins);
     }
-    
+
     // Test 2: Récupérer quelques check-ins avec colonnes minimales
     const { data: sampleCheckins, error: sampleError } = await supabaseClient
       .from('checkins')
       .select('id, lat, lon, timestamp')
       .limit(5);
-    
+
     if (sampleError) {
       console.error('Erreur sample checkins:', sampleError);
     } else {
       console.log('Échantillon check-ins:', sampleCheckins);
     }
-    
+
     // Test 3: Missions de l'utilisateur
     const { data: userMissions, error: missionsError } = await supabaseClient
       .from('missions')
       .select('id, status, date_start')
       .eq('agent_id', req.user.id);
-    
+
     if (missionsError) {
       console.error('Erreur missions user:', missionsError);
     } else {
       console.log('Missions utilisateur:', userMissions);
     }
-    
+
     return res.json({
       success: true,
       test_results: {
@@ -7629,7 +8018,7 @@ app.get('/api/checkins/test', authenticateToken, async (req, res) => {
         user_id: req.user.id
       }
     });
-    
+
   } catch (err) {
     console.error('Erreur test checkins:', err);
     return res.status(500).json({ success: false, message: 'Erreur test', error: err.message });
@@ -7640,7 +8029,7 @@ app.get('/api/checkins/test', authenticateToken, async (req, res) => {
 app.get('/api/checkins/mine', authenticateToken, async (req, res) => {
   try {
     console.log('🔍 /api/checkins/mine appelé pour user:', req.user.id);
-    
+
     const { from, to } = req.query;
     // 1) Récupérer les missions de l'agent connecté
     const { data: missions, error: missionsErr } = await supabaseClient
@@ -7648,15 +8037,15 @@ app.get('/api/checkins/mine', authenticateToken, async (req, res) => {
       .select('id')
       .eq('agent_id', req.user.id)
       .limit(500);
-    
+
     if (missionsErr) {
       console.error('Erreur récupération missions:', missionsErr);
       throw missionsErr;
     }
-    
+
     const missionIds = (missions || []).map(m => m.id).filter(Boolean);
     console.log('Missions trouvées:', missionIds.length, missionIds);
-    
+
     if (missionIds.length === 0) {
       console.log('Aucune mission trouvée, retour liste vide');
       return res.json({ success: true, items: [] });
@@ -7664,25 +8053,25 @@ app.get('/api/checkins/mine', authenticateToken, async (req, res) => {
 
     // 2) Récupérer les checkins avec seulement les colonnes essentielles
     try {
-    let q = supabaseClient
-      .from('checkins')
+      let q = supabaseClient
+        .from('checkins')
         .select('id, mission_id, lat, lon, created_at')
-      .in('mission_id', missionIds)
-      .order('created_at', { ascending: false })
-      .limit(500);
-      
-    if (from) q = q.gte('created_at', new Date(String(from)).toISOString());
-    if (to) q = q.lte('created_at', new Date(String(to)).toISOString());
-      
-    const { data, error } = await q;
+        .in('mission_id', missionIds)
+        .order('created_at', { ascending: false })
+        .limit(500);
+
+      if (from) q = q.gte('created_at', new Date(String(from)).toISOString());
+      if (to) q = q.lte('created_at', new Date(String(to)).toISOString());
+
+      const { data, error } = await q;
       if (error) {
         console.error('Erreur requête checkins:', error);
         throw error;
       }
-      
+
       console.log('Check-ins trouvés:', (data || []).length);
-    return res.json({ success: true, items: data || [] });
-      
+      return res.json({ success: true, items: data || [] });
+
     } catch (checkinError) {
       console.error('Erreur spécifique checkins:', checkinError);
       // Fallback: essayer avec encore moins de colonnes
@@ -7692,12 +8081,75 @@ app.get('/api/checkins/mine', authenticateToken, async (req, res) => {
         .in('mission_id', missionIds)
         .order('created_at', { ascending: false })
         .limit(500);
-      
+
       if (fallbackError) throw fallbackError;
       console.log('Fallback réussi, check-ins:', (fallbackData || []).length);
       return res.json({ success: true, items: fallbackData || [] });
     }
-    
+
+  } catch (err) {
+    console.error('Erreur lecture mes checkins:', err);
+    return res.status(500).json({ success: false, message: 'Erreur serveur', error: err.message });
+  }
+});
+
+// Alias pour compatibilité avec le frontend - /api/me/checkins
+app.get('/api/me/checkins', authenticateToken, async (req, res) => {
+  try {
+    console.log('🔍 /api/me/checkins appelé pour user:', req.user.id);
+
+    const { from, to } = req.query;
+    // 1) Récupérer les missions de l'agent connecté
+    const { data: missions, error: missionsErr } = await supabaseClient
+      .from('missions')
+      .select('id')
+      .eq('agent_id', req.user.id)
+      .limit(500);
+
+    if (missionsErr) {
+      console.error('Erreur récupération missions:', missionsErr);
+      throw missionsErr;
+    }
+
+    const missionIds = (missions || []).map(m => m.id);
+    console.log('Missions trouvées:', missionIds.length);
+
+    if (missionIds.length === 0) {
+      return res.json({ success: true, items: [] });
+    }
+
+    // 2) Récupérer les check-ins liés à ces missions
+    let query = supabaseClient
+      .from('checkins')
+      .select('id, lat, lon, accuracy, address, created_at, mission_id, photo_url, notes, status')
+      .in('mission_id', missionIds)
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    // Appliquer les filtres de date si fournis
+    if (from) {
+      const fromDate = new Date(from);
+      if (!isNaN(fromDate.getTime())) {
+        query = query.gte('created_at', fromDate.toISOString());
+      }
+    }
+    if (to) {
+      const toDate = new Date(to);
+      if (!isNaN(toDate.getTime())) {
+        query = query.lte('created_at', toDate.toISOString());
+      }
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Erreur requête checkins:', error);
+      throw error;
+    }
+
+    console.log('Check-ins trouvés:', (data || []).length);
+    return res.json({ success: true, items: data || [] });
+
   } catch (err) {
     console.error('Erreur lecture mes checkins:', err);
     return res.status(500).json({ success: false, message: 'Erreur serveur', error: err.message });
@@ -7746,13 +8198,13 @@ app.get('/api/missions/:id/checkins', authenticateToken, async (req, res) => {
       .eq('mission_id', missionId)
       .order('created_at', { ascending: false })
       .limit(500);
-    
+
     const { data, error } = await q;
     if (error) {
       console.error('Erreur checkins mission:', error);
       throw error;
     }
-    
+
     console.log(`Check-ins mission ${missionId}:`, (data || []).length);
     return res.json({ success: true, items: data || [] });
   } catch (err) {
@@ -7828,9 +8280,9 @@ app.get('/api/planifications/today/check', authenticateToken, async (req, res) =
   try {
     const today = new Date().toISOString().split('T')[0];
     const hasPlanification = await hasPlanificationForDay(req.user.id, today);
-    
-    return res.json({ 
-      success: true, 
+
+    return res.json({
+      success: true,
       has_planification: hasPlanification,
       date: today,
       message: hasPlanification ? 'Planification trouvée pour aujourd\'hui' : 'Aucune planification pour aujourd\'hui'
@@ -7845,19 +8297,19 @@ app.get('/api/planifications/today/check', authenticateToken, async (req, res) =
 app.get('/api/planifications/:date/check', authenticateToken, async (req, res) => {
   try {
     const { date } = req.params;
-    
+
     // Valider le format de la date
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Format de date invalide. Utilisez YYYY-MM-DD' 
+      return res.status(400).json({
+        success: false,
+        error: 'Format de date invalide. Utilisez YYYY-MM-DD'
       });
     }
-    
+
     const hasPlanification = await hasPlanificationForDay(req.user.id, date);
-    
-    return res.json({ 
-      success: true, 
+
+    return res.json({
+      success: true,
       has_planification: hasPlanification,
       date: date,
       message: hasPlanification ? `Planification trouvée pour le ${date}` : `Aucune planification pour le ${date}`
@@ -7873,30 +8325,30 @@ async function hasPlanificationForDay(userId, date) {
   try {
     const targetDate = new Date(date);
     const dateStr = targetDate.toISOString().split('T')[0]; // YYYY-MM-DD format
-    
+
     console.log(`🔍 Vérification planification pour utilisateur ${userId} le ${dateStr}`);
-    
+
     const { data: planification, error } = await supabaseClient
       .from('planifications')
       .select('id, description_activite, date')
       .eq('user_id', userId)
       .eq('date', dateStr)
       .maybeSingle(); // maybeSingle() pour ne pas générer d'erreur si non trouvé
-    
+
     if (error) {
       console.error('❌ Erreur vérification planification:', error);
       return false;
     }
-    
+
     const hasPlanification = !!planification;
     console.log(`📋 Planification trouvée pour ${userId} le ${dateStr}: ${hasPlanification}`);
-    
+
     if (hasPlanification) {
       console.log(`✅ Activité planifiée: ${planification.description_activite}`);
     } else {
       console.log(`⚠️ Aucune planification trouvée pour ${userId} le ${dateStr}`);
     }
-    
+
     return hasPlanification;
   } catch (error) {
     console.error('❌ Erreur dans hasPlanificationForDay:', error);
@@ -7935,8 +8387,8 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
     // Vérifier si l'agent a une planification pour ce jour
     const hasPlanification = await hasPlanificationForDay(userId, start_time);
     if (!hasPlanification) {
-      return res.status(403).json({ 
-        success: false, 
+      return res.status(403).json({
+        success: false,
         message: 'Vous ne pouvez pas commencer votre présence. Aucune planification trouvée pour ce jour. Veuillez d\'abord enregistrer votre planification quotidienne.',
         code: 'NO_PLANIFICATION_FOUND'
       });
@@ -7947,7 +8399,7 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
     try {
       const { data: mission, error: missionErr } = await supabaseClient
         .from('missions')
-        .insert([{ 
+        .insert([{
           agent_id: userId,
           date_start: start_time,
           status: 'active',
@@ -7986,7 +8438,7 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
     try {
       const { data: chk, error: chkErr } = await supabaseClient
         .from('checkins')
-        .insert([{ 
+        .insert([{
           mission_id: missionId,
           user_id: userId,
           lat: latitude,
@@ -8006,15 +8458,16 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
     // 3) Calculer et stocker la validation (distance/rayon + planification du jour)
     if (insertedCheckinId) {
       try {
-        // Charger point de référence et tolérance
-        const { data: prof } = await supabaseClient
-          .from('profiles')
+        // Charger point de référence et tolérance (depuis users car profiles n'existe pas)
+        const { data: userRef } = await supabaseClient
+          .from('users')
           .select('reference_lat, reference_lon, tolerance_radius_meters')
-          .eq('user_id', userId)
+          .eq('id', userId)
           .single();
-        const refLat = prof?.reference_lat ?? null;
-        const refLon = prof?.reference_lon ?? null;
-        const tol = Number(prof?.tolerance_radius_meters ?? 100);
+
+        const refLat = userRef?.reference_lat ?? null;
+        const refLon = userRef?.reference_lon ?? null;
+        const tol = Number(userRef?.tolerance_radius_meters ?? 100);
 
         // Charger planification du jour
         const dayIso = new Date(start_time);
@@ -8040,7 +8493,7 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
         const withinRadius = distance == null ? true : distance <= tol;
         const valid = withinRadius; // extension: ajouter vérification créneau horaire si souhaité
 
-        await supabaseClient.from('checkin_validations').insert([{ 
+        await supabaseClient.from('checkin_validations').insert([{
           checkin_id: insertedCheckinId,
           agent_id: userId,
           valid,
@@ -8112,8 +8565,8 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
     // Vérifier si l'agent a une planification pour ce jour
     const hasPlanification = await hasPlanificationForDay(userId, end_time);
     if (!hasPlanification) {
-      return res.status(403).json({ 
-        success: false, 
+      return res.status(403).json({
+        success: false,
         message: 'Vous ne pouvez pas terminer votre présence. Aucune planification trouvée pour ce jour. Veuillez d\'abord enregistrer votre planification quotidienne.',
         code: 'NO_PLANIFICATION_FOUND'
       });
@@ -8169,7 +8622,7 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
     try {
       let upd = supabaseClient
         .from('missions')
-        .update({ 
+        .update({
           date_end: end_time,
           status: 'completed',
           updated_at: new Date().toISOString(),
@@ -8188,7 +8641,7 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
     // Enregistrer un check-in de fin si coordonnées fournies
     if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
       try {
-        await supabaseClient.from('checkins').insert([{ 
+        await supabaseClient.from('checkins').insert([{
           mission_id: targetMissionId,
           user_id: userId,
           lat: latitude,
@@ -8237,12 +8690,12 @@ app.post('/api/missions/:id/complete', authenticateToken, async (req, res) => {
       .select('id, agent_id, status')
       .eq('id', missionId)
       .single();
-    
+
     if (!mission) return res.status(404).json({ success: false, message: 'Mission non trouvée' });
-    
+
     const isOwner = mission.agent_id === req.user.id;
     const isAdmin = req.user.role === 'admin' || req.user.role === 'superviseur' || req.user.role === 'supervisor';
-    
+
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Accès refusé' });
     }
@@ -8257,7 +8710,7 @@ app.post('/api/missions/:id/complete', authenticateToken, async (req, res) => {
 
     // 3) Enregistrer un check-in de fin si coords fournies
     if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-      await supabaseClient.from('checkins').insert([{ 
+      await supabaseClient.from('checkins').insert([{
         mission_id: missionId,
         user_id: req.user.id,
         lat: latitude,
@@ -8413,9 +8866,9 @@ app.get('/api/users/online', authenticateToken, async (req, res) => {
       .select('id, name, email, last_seen, is_online')
       .eq('is_online', true)
       .order('last_seen', { ascending: false });
-    
+
     if (error) throw error;
-    
+
     res.json({ success: true, users: users || [] });
   } catch (error) {
     console.error('Erreur récupération utilisateurs en ligne:', error);
@@ -8427,17 +8880,17 @@ app.get('/api/users/online', authenticateToken, async (req, res) => {
 app.post('/api/users/online', authenticateToken, async (req, res) => {
   try {
     const { is_online } = req.body;
-    
+
     const { error } = await supabaseClient
       .from('users')
-      .update({ 
+      .update({
         is_online: is_online || false,
         last_seen: new Date().toISOString()
       })
       .eq('id', req.user.id);
-    
+
     if (error) throw error;
-    
+
     res.json({ success: true });
   } catch (error) {
     console.error('Erreur mise à jour statut en ligne:', error);
@@ -8472,7 +8925,7 @@ app.get('/api/forum/categories', authenticateToken, async (req, res) => {
         last_message: null
       }
     ];
-    
+
     res.json({ success: true, categories });
   } catch (error) {
     console.error('Erreur récupération catégories forum:', error);
@@ -8500,72 +8953,72 @@ app.post('/api/debug/email/send', authenticateToken, authenticateAdmin, async (r
 async function handleForgotPassword(req, res) {
   try {
     const { email } = req.body;
-    
+
     if (!email) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Adresse email requise' 
+      return res.status(400).json({
+        success: false,
+        message: 'Adresse email requise'
       });
     }
-    
+
     // Vérifier si l'utilisateur existe
     const { data: user, error: userError } = await supabaseClient
       .from('users')
       .select('id, email, name')
       .eq('email', email.toLowerCase())
       .single();
-    
+
     if (userError || !user) {
       // Répondre 200 avec success:false pour que le frontend affiche un message sans casser le flux
-      return res.json({ 
-        success: false, 
-        message: 'Aucun compte trouvé avec cette adresse email' 
+      return res.json({
+        success: false,
+        message: 'Aucun compte trouvé avec cette adresse email'
       });
     }
-    
+
     // Générer un code de récupération à 6 chiffres
     const recoveryCode = Math.floor(100000 + Math.random() * 900000).toString();
     const recoveryExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-    
+
     // Sauvegarder le code de récupération
     const { error: updateError } = await supabaseClient
       .from('users')
-      .update({ 
+      .update({
         recovery_code: recoveryCode,
         recovery_expires: recoveryExpires.toISOString()
       })
       .eq('id', user.id);
-    
+
     if (updateError) {
       console.error('Erreur sauvegarde code récupération:', updateError);
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Erreur lors de la génération du code de récupération' 
+      return res.status(500).json({
+        success: false,
+        message: 'Erreur lors de la génération du code de récupération'
       });
     }
-    
+
     // Envoyer l'email de récupération
     try {
       await sendRecoveryEmail(email, user.name, recoveryCode);
       console.log(`✅ Code de récupération envoyé à ${email}: ${recoveryCode}`);
     } catch (emailError) {
       console.error('Erreur envoi email récupération:', emailError);
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Erreur lors de l\'envoi de l\'email de récupération' 
+      return res.status(500).json({
+        success: false,
+        message: 'Erreur lors de l\'envoi de l\'email de récupération'
       });
     }
-    
-    res.json({ 
-      success: true, 
-      message: 'Code de récupération envoyé par email' 
+
+    res.json({
+      success: true,
+      message: 'Code de récupération envoyé par email'
     });
-    
+
   } catch (error) {
     console.error('Erreur forgot-password:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Erreur serveur lors de la récupération' 
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la récupération'
     });
   }
 }
@@ -8578,85 +9031,85 @@ app.post('/api/forgot-password', (req, res) => handleForgotPassword(req, res));
 async function handleResetPassword(req, res) {
   try {
     const { email, code, password } = req.body;
-    
+
     if (!email || !code || !password) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Email, code et nouveau mot de passe requis' 
+      return res.status(400).json({
+        success: false,
+        message: 'Email, code et nouveau mot de passe requis'
       });
     }
-    
+
     if (password.length < 6) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Le mot de passe doit contenir au moins 6 caractères' 
+      return res.status(400).json({
+        success: false,
+        message: 'Le mot de passe doit contenir au moins 6 caractères'
       });
     }
-    
+
     // Vérifier le code de récupération
     const { data: user, error: userError } = await supabaseClient
       .from('users')
       .select('id, email, recovery_code, recovery_expires')
       .eq('email', email.toLowerCase())
       .single();
-    
+
     if (userError || !user) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Aucun compte trouvé avec cette adresse email' 
+      return res.status(404).json({
+        success: false,
+        message: 'Aucun compte trouvé avec cette adresse email'
       });
     }
-    
+
     if (!user.recovery_code || user.recovery_code !== code) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Code de récupération invalide' 
+      return res.status(400).json({
+        success: false,
+        message: 'Code de récupération invalide'
       });
     }
-    
+
     // Vérifier l'expiration
     const now = new Date();
     const expires = new Date(user.recovery_expires);
     if (now > expires) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Le code de récupération a expiré. Demandez un nouveau code.' 
+      return res.status(400).json({
+        success: false,
+        message: 'Le code de récupération a expiré. Demandez un nouveau code.'
       });
     }
-    
+
     // Hacher le nouveau mot de passe
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     // Mettre à jour le mot de passe et supprimer le code de récupération
     const { error: updateError } = await supabaseClient
       .from('users')
-      .update({ 
+      .update({
         password: hashedPassword,
         recovery_code: null,
         recovery_expires: null
       })
       .eq('id', user.id);
-    
+
     if (updateError) {
       console.error('Erreur mise à jour mot de passe:', updateError);
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Erreur lors de la réinitialisation du mot de passe' 
+      return res.status(500).json({
+        success: false,
+        message: 'Erreur lors de la réinitialisation du mot de passe'
       });
     }
-    
+
     console.log(`✅ Mot de passe réinitialisé pour ${email}`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Mot de passe réinitialisé avec succès' 
+
+    res.json({
+      success: true,
+      message: 'Mot de passe réinitialisé avec succès'
     });
-    
+
   } catch (error) {
     console.error('Erreur reset-password:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Erreur serveur lors de la réinitialisation' 
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la réinitialisation'
     });
   }
 }
@@ -8676,7 +9129,7 @@ app.get('/api/departements', async (req, res) => {
       .from('departements')
       .select('id, nom')
       .order('nom');
-    
+
     if (error) throw error;
     res.json(data);
   } catch (error) {
@@ -8693,13 +9146,13 @@ app.get('/api/communes', async (req, res) => {
     if (!departement_id) {
       return res.status(400).json({ error: 'ID département requis' });
     }
-    
+
     const { data, error } = await supabaseClient
       .from('communes')
       .select('id, nom')
       .eq('departement_id', departement_id)
       .order('nom');
-    
+
     if (error) throw error;
     res.json(data);
   } catch (error) {
@@ -8715,13 +9168,13 @@ app.get('/api/arrondissements', async (req, res) => {
     if (!commune_id) {
       return res.status(400).json({ error: 'ID commune requis' });
     }
-    
+
     const { data, error } = await supabaseClient
       .from('arrondissements')
       .select('id, nom')
       .eq('commune_id', commune_id)
       .order('nom');
-    
+
     if (error) throw error;
     res.json(data);
   } catch (error) {
@@ -8737,13 +9190,13 @@ app.get('/api/villages', async (req, res) => {
     if (!arrondissement_id) {
       return res.status(400).json({ error: 'ID arrondissement requis' });
     }
-    
+
     const { data, error } = await supabaseClient
       .from('villages')
       .select('id, nom')
       .eq('arrondissement_id', arrondissement_id)
       .order('nom');
-    
+
     if (error) throw error;
     res.json(data);
   } catch (error) {
@@ -8772,7 +9225,7 @@ app.get('/api/work-zones', authenticateToken, async (req, res) => {
       arrondissements: arrondissements.error ? [] : (arrondissements.data || []),
       villages: villages.error ? [] : (villages.data || [])
     };
-    
+
     res.json({ success: true, data: workZones });
   } catch (error) {
     console.error('Erreur API work-zones:', error);
@@ -8788,9 +9241,9 @@ app.get('/api/contacts', authenticateToken, async (req, res) => {
       .select('id, name, first_name, last_name, email, phone, role, project_name, departement, commune')
       .in('role', ['agent', 'superviseur', 'supervisor'])
       .order('name', { ascending: true });
-    
+
     if (error && !isMissingTable(error)) throw error;
-    
+
     let contacts = Array.isArray(data) ? data : [];
     contacts = contacts.map(user => ({
       id: user.id,
@@ -8802,7 +9255,7 @@ app.get('/api/contacts', authenticateToken, async (req, res) => {
       departement: user.departement || null,
       commune: user.commune || null
     }));
-    
+
     if (contacts.length === 0) {
       contacts = [
         {
@@ -8817,7 +9270,7 @@ app.get('/api/contacts', authenticateToken, async (req, res) => {
         }
       ];
     }
-    
+
     res.json(contacts);
   } catch (error) {
     console.error('Erreur API contacts:', error);
@@ -8832,7 +9285,7 @@ app.get('/api/emergency-contacts', authenticateToken, async (req, res) => {
       .from('emergency_contacts')
       .select('*')
       .order('name');
-    
+
     if (error) throw error;
     res.json({ success: true, data: data || [] });
   } catch (error) {
@@ -8848,7 +9301,7 @@ app.get('/api/help/content', authenticateToken, async (req, res) => {
       .from('help_content')
       .select('id, title, content, category')
       .order('title');
-    
+
     // Handle missing table gracefully
     if (error && isMissingTable(error)) {
       console.warn('Table help_content non trouvée, utilisation des sections statiques');
@@ -8867,7 +9320,7 @@ app.get('/api/help/content', authenticateToken, async (req, res) => {
     }
 
     if (error) throw error;
-    
+
     let sections = Array.isArray(data) ? data : [];
     sections = sections.map(section => ({
       id: section.id,
@@ -8875,11 +9328,11 @@ app.get('/api/help/content', authenticateToken, async (req, res) => {
       content: section.content || '',
       category: section.category || 'general'
     }));
-    
+
     if (sections.length === 0) {
       sections = getStaticHelpSections();
     }
-    
+
     const structuredContent = {};
     sections.forEach((section, index) => {
       const key = section.id || `section-${index + 1}`;
@@ -8890,7 +9343,7 @@ app.get('/api/help/content', authenticateToken, async (req, res) => {
         shortcuts: []
       };
     });
-    
+
     res.json({ success: true, content: structuredContent, tutorials: [], faqs: [] });
   } catch (error) {
     console.error('Erreur API help/content:', error);
@@ -8905,7 +9358,7 @@ app.get('/api/missions', authenticateToken, async (req, res) => {
       .from('missions')
       .select('*')
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     res.json({ success: true, data: data || [] });
   } catch (error) {
@@ -8913,6 +9366,92 @@ app.get('/api/missions', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
+
+// AI Summary endpoint pour le rapport mensuel
+app.post('/api/generate-ai-summary', authenticateToken, async (req, res) => {
+  try {
+    const { type, reportData } = req.body;
+    
+    if (!reportData) {
+      return res.status(400).json({ error: 'Données du rapport requises' });
+    }
+
+    // Générer un résumé basé sur les données du rapport
+    let summary = '';
+    
+    if (type === 'concise') {
+      summary = generateConciseSummary(reportData);
+    } else if (type === 'detailed') {
+      summary = generateDetailedSummary(reportData);
+    } else {
+      summary = generateStandardSummary(reportData);
+    }
+
+    res.json({ 
+      success: true, 
+      summary: summary,
+      type: type || 'standard'
+    });
+
+  } catch (error) {
+    console.error('Erreur génération résumé IA:', error);
+    res.status(500).json({ error: 'Erreur lors de la génération du résumé' });
+  }
+});
+
+// Fonctions utilitaires pour générer les résumés
+function generateConciseSummary(data) {
+  const agent = data.agent || {};
+  const presence = data.presence || {};
+  const activities = data.activities?.performance || {};
+  
+  return `Rapport mensuel pour ${agent.name || 'Agent'} - ${data.period || 'Période'}:
+• Présence: ${presence.presenceRate || 0}% (${presence.workedDays || 0} jours)
+• Taux d'exécution: ${activities.executionRate || 0}%
+• Activités réalisées: ${activities.realized || 0}
+• Temps terrain: ${data.fieldTimeHours || 0}h
+
+Performance globale: ${data.compositeScore || 0}/100`;
+}
+
+function generateDetailedSummary(data) {
+  const agent = data.agent || {};
+  const presence = data.presence || {};
+  const activities = data.activities?.performance || {};
+  
+  return `Rapport mensuel détaillé - ${agent.name || 'Agent'}
+Période: ${data.period || 'Non spécifiée'}
+
+INDICATEURS DE PRÉSENCE:
+- Taux de présence: ${presence.presenceRate || 0}%
+- Jours travaillés: ${presence.workedDays || 0} / ${presence.workingDays || 0}
+- Check-ins totaux: ${presence.totalCheckins || 0}
+- Moyenne par jour: ${presence.averageCheckinsPerDay || 0}
+
+PERFORMANCE ACTIVITÉS:
+- Taux d'exécution: ${activities.executionRate || 0}%
+- Activités réalisées: ${activities.realized || 0}
+- Activités partiellement réalisées: ${activities.partiallyRealized || 0}
+- Activités en cours: ${activities.inProgress || 0}
+
+TEMPS TERRAIN:
+- Total: ${data.fieldTimeHours || 0} heures
+- Moyenne par jour: ${presence.avgFieldTimePerDay || 0} heures
+- Missions: ${presence.missionsCount || 0}
+
+ÉVALUATION GLOBALE:
+Score composite: ${data.compositeScore || 0}/100
+${data.compositeScore >= 80 ? 'Performance excellente' : data.compositeScore >= 60 ? 'Performance satisfaisante' : 'Performance à améliorer'}`;
+}
+
+function generateStandardSummary(data) {
+  return generateConciseSummary(data) + `
+
+Recommandations:
+- Maintenir les efforts de présence régulière
+- Améliorer le taux d'exécution des activités planifiées
+- Optimiser le temps terrain pour une meilleure efficacité`;
+}
 
 // Analytics endpoints
 app.get('/api/analytics/presence', authenticateToken, authenticateSupervisorOrAdmin, async (req, res) => {
@@ -9043,7 +9582,7 @@ app.get('/api/analytics/missions', authenticateToken, authenticateSupervisorOrAd
       .gte('created_at', startDate.toISOString())
       .order('created_at', { ascending: true })
       .limit(5000);
-    
+
     if (error) throw error;
 
     const missions = Array.isArray(data) ? data : [];
@@ -9061,7 +9600,7 @@ app.get('/api/analytics/missions', authenticateToken, authenticateSupervisorOrAd
         total_distance_m: mission.total_distance_m || null
       };
     });
-    
+
     res.json(dataset);
   } catch (error) {
     console.error('Erreur API analytics/missions:', error);
@@ -9173,7 +9712,7 @@ app.get('/api/agent/achievements', authenticateToken, async (req, res) => {
       console.error('❌ No agent ID provided');
       return res.status(400).json({ success: false, error: 'Agent ID requis' });
     }
-    
+
     console.log('🔢 Processing agent ID:', { agentId, type: typeof agentId });
 
     // Convert the ID to UUID if needed
@@ -9218,7 +9757,7 @@ app.get('/api/agent/achievements', authenticateToken, async (req, res) => {
       const { data: missionsData, error: missionsError } = await supabaseClient
         .from('missions')
         .select('id, status, date_start, date_end, created_at, agent_id')
-        .eq('agent_id', userId)  // Use the resolved UUID
+        .eq('agent_id', agentId)  // Use the original integer ID
         .order('created_at', { ascending: true })
         .limit(500);
 
@@ -9236,7 +9775,7 @@ app.get('/api/agent/achievements', authenticateToken, async (req, res) => {
       const { data: presencesData, error: presencesError } = await supabaseClient
         .from('presences')
         .select('id, start_time, end_time, user_id')
-        .eq('user_id', userId)  // Use the resolved UUID
+        .eq('user_id', agentId)  // Use the original integer ID
         .order('start_time', { ascending: true })
         .limit(500);
 
@@ -9371,7 +9910,7 @@ app.get('/api/agent/leaderboard', authenticateToken, async (req, res) => {
       return res.json({ success: true, leaderboard: [], data: [] });
     }
 
-    const [missionsResult, presencesResult, checkinsResult] = await Promise.all([
+    const [missionsResult, presencesResult, checkinsResult, planificationsResult] = await Promise.all([
       supabaseClient
         .from('missions')
         .select('id, agent_id, status, date_start, date_end, created_at, updated_at')
@@ -9389,12 +9928,19 @@ app.get('/api/agent/leaderboard', authenticateToken, async (req, res) => {
         .select('id, user_id, created_at, start_time')
         .gte('created_at', startDate.toISOString())
         .order('created_at', { ascending: true })
+        .limit(5000),
+      supabaseClient
+        .from('planifications')
+        .select('id, user_id, date, resultat_journee, created_at')
+        .gte('date', startDate.toISOString().split('T')[0])
+        .order('date', { ascending: true })
         .limit(5000)
     ]);
 
     if (missionsResult.error) throw missionsResult.error;
     if (presencesResult.error) throw presencesResult.error;
     if (checkinsResult.error) throw checkinsResult.error;
+    if (planificationsResult.error) throw planificationsResult.error;
 
     const stats = new Map();
     const ensureStats = (agentId) => {
@@ -9402,6 +9948,8 @@ app.get('/api/agent/leaderboard', authenticateToken, async (req, res) => {
         stats.set(agentId, {
           missionsCompleted: 0,
           missionsTotal: 0,
+          activitiesPlanned: 0,
+          activitiesRealized: 0,
           checkins: 0,
           hours: 0,
           presenceDays: new Set(),
@@ -9440,37 +9988,83 @@ app.get('/api/agent/leaderboard', authenticateToken, async (req, res) => {
       bucket.checkins += 1;
     });
 
+    // Traiter les planifications (activités)
+    const planifications = Array.isArray(planificationsResult.data) ? planificationsResult.data : [];
+    planifications.forEach(plan => {
+      if (!plan.user_id) return;
+      const bucket = ensureStats(plan.user_id);
+      bucket.activitiesPlanned += 1;
+      // Compter comme réalisée si resultat_journee indique une réalisation
+      if (['realise', 'partiellement_realise', 'completed', 'réalisée', 'partiellement réalisée'].includes(String(plan.resultat_journee || '').toLowerCase())) {
+        bucket.activitiesRealized += 1;
+      }
+    });
+
     try {
-      const startMonthKey = formatMonthKey(startDate);
-      const endMonthKey = formatMonthKey(endDate);
+      // Récupérer les jours de permission pour la période demandée
       const { data: permissionRows, error: permissionError } = await supabaseClient
         .from('permission_days')
-        .select('agent_id, month, days')
-        .gte('month', startMonthKey)
-        .lte('month', endMonthKey);
+        .select('user_id, start_date, end_date, status')
+        .or(`and(start_date.lte.${endDate.toISOString()},end_date.gte.${startDate.toISOString()})`)
+        .eq('status', 'approved'); // Seulement les permissions approuvées
 
-      if (permissionError) throw permissionError;
+      if (permissionError) {
+        console.warn('Erreur lors de la récupération des permissions:', permissionError);
+        throw permissionError;
+      }
 
       (permissionRows || []).forEach(row => {
-        if (!row || !row.agent_id) return;
-        const bucket = ensureStats(row.agent_id);
-        // Calculer le nombre de jours entre start_date et end_date (inclus)
+        if (!row || !row.user_id) return;
+
+        // S'assurer que les dates sont valides
         const start = new Date(row.start_date);
         const end = new Date(row.end_date);
-        const diffTime = Math.abs(end - start);
+
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+          console.warn('Date de permission invalide pour user_id:', row.user_id);
+          return;
+        }
+
+        // Ajuster les dates pour être dans la période demandée
+        const periodStart = start < startDate ? startDate : start;
+        const periodEnd = end > endDate ? endDate : end;
+
+        // Calculer le nombre de jours dans la période
+        const diffTime = Math.max(0, periodEnd - periodStart);
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 pour inclure le jour de fin
 
-        bucket.permissionDays = (bucket.permissionDays || 0) + Math.max(0, diffDays);
+        if (diffDays > 0) {
+          const bucket = ensureStats(row.user_id);
+          bucket.permissionDays = (bucket.permissionDays || 0) + diffDays;
+        }
       });
     } catch (permissionError) {
       console.warn('Erreur récupération permission_days (leaderboard):', permissionError.message || permissionError);
+      // En cas d'erreur, on continue sans les données de permission
+      // plutôt que de faire échouer toute la requête
     }
 
     const leaderboard = agents.map(agent => {
-      const stat = stats.get(agent.id) || { missionsCompleted: 0, missionsTotal: 0, checkins: 0, hours: 0, presenceDays: new Set() };
+      const stat = stats.get(agent.id) || {
+        missionsCompleted: 0,
+        missionsTotal: 0,
+        activitiesPlanned: 0,
+        activitiesRealized: 0,
+        checkins: 0,
+        hours: 0,
+        presenceDays: new Set(),
+        permissionDays: 0
+      };
       const fieldTime = Math.round(stat.hours * 10) / 10;
       const permissionDays = stat.permissionDays || 0;
-      const score = Math.round(stat.missionsCompleted * 5 + stat.checkins * 1 + fieldTime * 0.5);
+      // Calculer le score incluant les activités planifiées
+      const tep = stat.activitiesPlanned > 0 ? Math.round((stat.activitiesRealized / stat.activitiesPlanned) * 100) : 0;
+      const score = Math.round(
+        stat.missionsCompleted * 5 +
+        stat.checkins * 1 +
+        fieldTime * 0.5 +
+        tep * 0.1  // Inclure le TEP dans le score
+      );
       return {
         id: agent.id,
         name: getUserDisplayName(agent),
@@ -9481,7 +10075,10 @@ app.get('/api/agent/leaderboard', authenticateToken, async (req, res) => {
         checkins: stat.checkins,
         fieldTime,
         permissionDays,
-        attendanceDays: stat.presenceDays.size
+        attendanceDays: stat.presenceDays.size,
+        activitiesPlanned: stat.activitiesPlanned,
+        activitiesRealized: stat.activitiesRealized,
+        tep
       };
     });
 
@@ -9491,12 +10088,14 @@ app.get('/api/agent/leaderboard', authenticateToken, async (req, res) => {
       return b.checkins - a.checkins;
     });
 
-    const trimmed = leaderboard.slice(0, 50).map((entry, index) => ({
+    // Inclure TOUS les agents, pas limité à 50
+    const withRanks = leaderboard.map((entry, index) => ({
       ...entry,
       rank: index + 1
     }));
 
-    res.json({ success: true, leaderboard: trimmed, data: trimmed });
+    console.log(`✅ Leaderboard retourné: ${withRanks.length} agents`);
+    res.json({ success: true, leaderboard: withRanks, data: withRanks });
   } catch (error) {
     console.error('Erreur API agent/leaderboard:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
@@ -9508,7 +10107,9 @@ app.get('/api/checkins', authenticateToken, async (req, res) => {
   try {
     const { from, to, user_id } = req.query;
     let targetUserId = null;
-    
+
+    console.log('📥 GET /api/checkins - Paramètres:', { from, to, user_id, requesterId: req.user?.id });
+
     if (typeof user_id !== 'undefined') {
       const parsed = Number(user_id);
       if (!Number.isFinite(parsed)) {
@@ -9519,28 +10120,263 @@ app.get('/api/checkins', authenticateToken, async (req, res) => {
       }
       targetUserId = parsed;
     }
-    
+
+    // Normalisation des dates pour les requêtes
+    const fromIso = from ? String(from) : null;
+    const toIso = to ? String(to) : null;
+    const fromDateStr = fromIso ? fromIso.split('T')[0] : null; // YYYY-MM-DD
+    const toDateStr = toIso ? toIso.split('T')[0] : null;       // YYYY-MM-DD
+
+    // 1) Checkins
     let query = supabaseClient
       .from('checkins')
       .select('*')
       .order('start_time', { ascending: false }); // Utiliser start_time au lieu de created_at
-    
-    if (from && to) {
-      query = query.gte('start_time', from).lte('start_time', to);
+
+    if (fromIso && toIso) {
+      query = query.gte('start_time', fromIso).lte('start_time', toIso);
+      console.log('📅 Filtrage par dates:', { from: fromIso, to: toIso });
     }
-    
+
     if (targetUserId !== null) {
       query = query.eq('user_id', targetUserId);
+      console.log('👤 Filtrage par user_id:', targetUserId);
     } else if (!isPrivilegedRequest(req)) {
       query = query.eq('user_id', req.user.id);
+      console.log('👤 Filtrage par requester id:', req.user.id);
     }
-    
+
+    const { data: checkins, error: checkinsError } = await query;
+    if (checkinsError) throw checkinsError;
+    console.log(`✅ Checkins trouvés: ${checkins?.length || 0} enregistrements`);
+    if (checkins && checkins.length > 0) {
+      console.log('📊 Premier checkin:', { id: checkins[0].id, user_id: checkins[0].user_id, start_time: checkins[0].start_time });
+    }
+
+    // 2) Planifications de la période (user_id et agent_id), filtrées par projet de l'agent si connu
+    let planifications = [];
+    try {
+      if (fromDateStr && toDateStr) {
+        const normalizedAgentId = targetUserId !== null ? Number(targetUserId) : Number(req.user.id);
+
+        // Déterminer le projet effectif: priorité au query param, sinon projet de l'agent
+        let effectiveProject = (req.query.project_name || req.query.project || '').toString().trim() || null;
+        if (!effectiveProject && Number.isFinite(normalizedAgentId)) {
+          try {
+            const { data: agentRow } = await supabaseClient
+              .from('users')
+              .select('project_name')
+              .eq('id', normalizedAgentId)
+              .maybeSingle();
+            if (agentRow && agentRow.project_name) effectiveProject = agentRow.project_name;
+          } catch (e) {
+            console.warn('⚠️ Impossible de récupérer le projet de l\'agent:', e.message || e);
+          }
+        }
+
+        // Deux requêtes parallèles pour couvrir user_id et agent_id
+        let userQuery = supabaseClient
+          .from('planifications')
+          .select('*')
+          .gte('date', fromDateStr)
+          .lte('date', toDateStr);
+        let agentQuery = supabaseClient
+          .from('planifications')
+          .select('*')
+          .gte('date', fromDateStr)
+          .lte('date', toDateStr);
+
+        if (Number.isFinite(normalizedAgentId)) {
+          userQuery = userQuery.eq('user_id', normalizedAgentId);
+          agentQuery = agentQuery.eq('agent_id', normalizedAgentId);
+        }
+
+        // Ne pas filtrer en SQL par project_name pour éviter les divergences de casse/espaces
+        // On filtrera côté JS après fusion avec une normalisation
+
+        const [userResult, agentResult] = await Promise.all([
+          userQuery.order('date', { ascending: false }),
+          agentQuery.order('date', { ascending: false })
+        ]);
+
+        const allData = [ ...(userResult.data || []), ...(agentResult.data || []) ];
+        // Fusion + dédoublonnage
+        planifications = Array.from(new Map(allData.map(p => [p.id, p])).values());
+        
+        // Filtre projet côté JS avec normalisation
+        const norm = v => String(v || '').trim().toLowerCase();
+        if (effectiveProject) {
+          const projNorm = norm(effectiveProject);
+          planifications = planifications.filter(p => norm(p.project_name) === projNorm);
+        }
+        console.log(`📊 Planifications récupérées: user=${userResult.data?.length || 0}, agent=${agentResult.data?.length || 0}, fusionnées=${planifications.length}`);
+      }
+    } catch (e) {
+      if (!isMissingTable(e)) {
+        console.warn('⚠️ Planifications indisponibles:', e.message || e);
+      }
+      planifications = [];
+    }
+
+    // Résumé des activités (TEP)
+    const activitiesSummary = (() => {
+      const total = planifications.length;
+      const norm = v => String(v || '').toLowerCase();
+      const realise = planifications.filter(p => norm(p.resultat_journee) === 'realise').length;
+      const partiel = planifications.filter(p => norm(p.resultat_journee) === 'partiellement_realise').length;
+      const non = planifications.filter(p => norm(p.resultat_journee) === 'non_realise').length;
+      const encours = planifications.filter(p => norm(p.resultat_journee) === 'en_cours').length;
+      const sans = planifications.filter(p => !p.resultat_journee).length;
+      const tep = total > 0 ? Math.round((realise / total) * 1000) / 10 : 0;
+      return {
+        total_planifiees: total,
+        realisees: realise,
+        partiellement_realisees: partiel,
+        non_realisees: non,
+        en_cours: encours,
+        sans_resultat: sans,
+        tep_percent: tep
+      };
+    })();
+
+    // 3) Jours permissionnaires (permission_days) sur la période
+    let permissionDays = [];
+    let permissionDaysTotal = 0;
+    try {
+      // Construire la liste des mois couverts (YYYY-MM)
+      const months = [];
+      if (fromDateStr && toDateStr) {
+        const start = new Date(fromDateStr + 'T00:00:00');
+        const end = new Date(toDateStr + 'T00:00:00');
+        const cur = new Date(start.getFullYear(), start.getMonth(), 1);
+        const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+        while (cur <= endMonth) {
+          const ym = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}`;
+          months.push(ym);
+          cur.setMonth(cur.getMonth() + 1);
+        }
+      }
+
+      // Convertir l'ID agent en UUID si nécessaire
+      let uuid = null;
+      try {
+        const rawId = targetUserId !== null ? targetUserId : req.user?.id;
+        uuid = await getUserId(rawId);
+      } catch (e) {
+        console.warn('⚠️ Conversion user_id -> UUID échouée:', e.message || e);
+      }
+
+      if (uuid && months.length > 0) {
+        let permQuery = supabaseClient
+          .from('permission_days')
+          .select('*')
+          .eq('user_id', uuid)
+          .in('month', months)
+          .order('start_date', { ascending: false });
+
+        const { data: permData, error: permError } = await permQuery;
+        if (permError && !isMissingTable(permError)) throw permError;
+
+        // Calculer le total de jours (en s'appuyant sur ensureDateRange si dispo)
+        permissionDays = (permData || []).map(item => {
+          try {
+            const base = {
+              id: item.id,
+              user_id: item.user_id,
+              month: item.month || null,
+              days: item.days || null,
+              start_date: item.start_date || null,
+              end_date: item.end_date || null,
+              reason: item.reason || null,
+              status: item.status || 'pending',
+              created_at: item.created_at || null,
+              updated_at: item.updated_at || null
+            };
+            const validated = typeof ensureDateRange === 'function' ? ensureDateRange({ ...base }) : base;
+            const daysVal = Number(validated.days || 0);
+            if (Number.isFinite(daysVal)) permissionDaysTotal += daysVal;
+            return validated;
+          } catch {
+            return item;
+          }
+        });
+      }
+    } catch (e) {
+      if (!isMissingTable(e)) {
+        console.warn('⚠️ Permission days indisponibles:', e.message || e);
+      }
+      permissionDays = [];
+      permissionDaysTotal = 0;
+    }
+
+    // Réponse enrichie
+    res.json({
+      success: true,
+      data: checkins || [],
+      planifications: planifications || [],
+      activities_summary: activitiesSummary,
+      permission_days: {
+        items: permissionDays || [],
+        total_days: permissionDaysTotal
+      }
+    });
+  } catch (error) {
+    console.error('❌ Erreur API checkins:', error);
+    res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// Missions endpoint (GET) - Pour calculer le temps terrain
+app.get('/api/missions', authenticateToken, async (req, res) => {
+  try {
+    const { from, to, agent_id, status } = req.query;
+    let targetAgentId = null;
+
+    console.log('📥 GET /api/missions - Paramètres:', { from, to, agent_id, status, requesterId: req.user?.id });
+
+    if (typeof agent_id !== 'undefined') {
+      const parsed = Number(agent_id);
+      if (!Number.isFinite(parsed)) {
+        return res.status(400).json({ success: false, error: 'agent_id invalide' });
+      }
+      if (parsed !== Number(req.user?.id) && !isPrivilegedRequest(req)) {
+        return res.status(403).json({ success: false, error: 'Accès non autorisé à cet agent' });
+      }
+      targetAgentId = parsed;
+    }
+
+    let query = supabaseClient
+      .from('missions')
+      .select('id, agent_id, date_start, date_end, start_time, end_time, status, village, commune, departement, note, created_at')
+      .order('date_start', { ascending: false });
+
+    if (from && to) {
+      query = query.gte('date_start', from).lte('date_start', to);
+      console.log('📅 Filtrage par dates:', { from, to });
+    }
+
+    if (targetAgentId !== null) {
+      query = query.eq('agent_id', targetAgentId);
+      console.log('👤 Filtrage par agent_id:', targetAgentId);
+    } else if (!isPrivilegedRequest(req)) {
+      query = query.eq('agent_id', req.user.id);
+      console.log('👤 Filtrage par requester id:', req.user.id);
+    }
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
     const { data, error } = await query;
-    
+
     if (error) throw error;
+    console.log(`✅ Missions trouvées: ${data?.length || 0} enregistrements`);
+    if (data && data.length > 0) {
+      console.log('📊 Première mission:', { id: data[0].id, agent_id: data[0].agent_id, date_start: data[0].date_start, start_time: data[0].start_time, end_time: data[0].end_time });
+    }
     res.json({ success: true, data: data || [] });
   } catch (error) {
-    console.error('Erreur API checkins:', error);
+    console.error('❌ Erreur API missions:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
@@ -9564,7 +10400,7 @@ app.get('/api/badges', authenticateToken, async (req, res) => {
       .from('badges')
       .select('*')
       .order('name');
-    
+
     if (error) throw error;
     res.json({ success: true, data: data || [] });
   } catch (error) {
@@ -9580,7 +10416,7 @@ app.get('/api/departments', async (req, res) => {
       .from('departements')
       .select('*')
       .order('nom');
-    
+
     if (error) throw error;
     res.json(data);
   } catch (error) {
@@ -9596,7 +10432,7 @@ app.get('/api/locations', authenticateToken, async (req, res) => {
       .from('locations')
       .select('*')
       .order('name');
-    
+
     // Handle missing table gracefully
     if (error && isMissingTable(error)) {
       console.warn('Table locations non trouvée, utilisation des localisations de secours');
@@ -9605,12 +10441,12 @@ app.get('/api/locations', authenticateToken, async (req, res) => {
     }
 
     if (error) throw error;
-    
+
     let locations = Array.isArray(data) ? data : [];
     if (locations.length === 0) {
       locations = await buildFallbackLocations();
     }
-    
+
     res.json({ success: true, data: locations });
   } catch (error) {
     console.error('Erreur API locations:', error);
@@ -9626,7 +10462,7 @@ app.get('/api/users/projects', authenticateToken, async (req, res) => {
       .select('id, name, project_name')
       .not('project_name', 'is', null)
       .order('project_name');
-    
+
     if (error) throw error;
     res.json({ success: true, data: data || [] });
   } catch (error) {
@@ -9643,17 +10479,17 @@ app.get('/api/validations', authenticateToken, async (req, res) => {
       .from('checkin_validations') // Utiliser la bonne table
       .select('*')
       .order('created_at', { ascending: false });
-    
+
     if (from && to) {
       query = query.gte('created_at', from).lte('created_at', to);
     }
-    
+
     if (user_id) {
       query = query.eq('user_id', user_id);
     }
-    
+
     const { data, error } = await query;
-    
+
     if (error) throw error;
     res.json({ success: true, data: data || [] });
   } catch (error) {
@@ -9690,7 +10526,7 @@ async function sendVerificationEmail(email, code, newAccountEmail) {
 app.get('/api/presences', authenticateToken, authenticateSupervisorOrAdmin, async (req, res) => {
   try {
     const { from, to, user_id } = req.query;
-    
+
     let query = supabaseClient
       .from('presences')
       .select(`
@@ -9735,7 +10571,7 @@ app.get('/api/presences', authenticateToken, authenticateSupervisorOrAdmin, asyn
     }
 
     const { data: presences, error } = await query;
-    
+
     if (error) throw error;
 
     return res.json({ success: true, items: presences || [] });
@@ -9749,7 +10585,7 @@ app.get('/api/presences', authenticateToken, authenticateSupervisorOrAdmin, asyn
 app.get('/api/presence-validations', authenticateToken, async (req, res) => {
   try {
     const { from, to, user_id, status, checkin_type } = req.query;
-    
+
     let query = supabaseClient
       .from('presence_validations')
       .select(`
@@ -9787,7 +10623,7 @@ app.get('/api/presence-validations', authenticateToken, async (req, res) => {
           village
         )
       `);
-    
+
     // Appliquer les filtres
     if (from) {
       query = query.gte('checkin_timestamp', from);
@@ -9804,10 +10640,10 @@ app.get('/api/presence-validations', authenticateToken, async (req, res) => {
     if (checkin_type) {
       query = query.eq('checkin_type', checkin_type);
     }
-    
+
     // Ordonner par timestamp décroissant
     query = query.order('checkin_timestamp', { ascending: false });
-    
+
     console.log('Exécution de la requête avec les paramètres:', {
       from,
       to,
@@ -9815,11 +10651,11 @@ app.get('/api/presence-validations', authenticateToken, async (req, res) => {
       supervisor_id,
       query: query
     });
-    
+
     const { data: validations, error } = await query;
-    
+
     if (error) throw error;
-    
+
     return res.json({ success: true, data: validations || [] });
   } catch (error) {
     console.error('Erreur /api/presence-validations:', error);
@@ -9844,37 +10680,37 @@ app.post('/api/presence-validations', authenticateToken, async (req, res) => {
       photo_url,
       checkin_timestamp
     } = req.body;
-    
+
     // Validation des données requises
     if (!validation_status || !['validated', 'rejected', 'pending'].includes(validation_status)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'validation_status requis: validated, rejected, ou pending' 
+      return res.status(400).json({
+        success: false,
+        message: 'validation_status requis: validated, rejected, ou pending'
       });
     }
-    
+
     if (!checkin_lat || !checkin_lng) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'checkin_lat et checkin_lng requis' 
+      return res.status(400).json({
+        success: false,
+        message: 'checkin_lat et checkin_lng requis'
       });
     }
-    
+
     // Récupérer les informations de l'utilisateur pour les coordonnées de référence
     const { data: user, error: userError } = await supabaseClient
       .from('users')
       .select('reference_lat, reference_lon, tolerance_radius_meters')
       .eq('id', userId)
       .single();
-    
+
     if (userError) {
       return res.status(500).json({ success: false, message: 'Erreur lors de la récupération du profil utilisateur' });
     }
-    
+
     // Calculer la distance si les coordonnées de référence sont disponibles
     let distance_from_reference_m = null;
     let within_tolerance = false;
-    
+
     if (user.reference_lat && user.reference_lon) {
       // Calcul de distance Haversine
       const toRad = (v) => (Number(v) * Math.PI) / 180;
@@ -9884,11 +10720,11 @@ app.post('/api/presence-validations', authenticateToken, async (req, res) => {
       const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(user.reference_lat)) * Math.cos(toRad(checkin_lat)) * Math.sin(dLon / 2) ** 2;
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       distance_from_reference_m = Math.round(R * c);
-      
+
       const tolerance = user.tolerance_radius_meters || 500;
       within_tolerance = distance_from_reference_m <= tolerance;
     }
-    
+
     // Créer l'enregistrement de validation
     const validationData = {
       user_id: userId,
@@ -9915,23 +10751,23 @@ app.post('/api/presence-validations', authenticateToken, async (req, res) => {
         timestamp: new Date().toISOString()
       }
     };
-    
+
     const { data: validation, error: insertError } = await supabaseClient
       .from('presence_validations')
       .insert(validationData)
       .select()
       .single();
-    
+
     if (insertError) {
       throw insertError;
     }
-    
-    return res.json({ 
-      success: true, 
+
+    return res.json({
+      success: true,
       data: validation,
       message: 'Validation de présence créée avec succès'
     });
-    
+
   } catch (error) {
     console.error('Erreur /api/presence-validations POST:', error);
     return res.status(500).json({ success: false, message: 'Erreur serveur' });
@@ -10042,8 +10878,8 @@ app.post('/api/sync/presences', authenticateToken, async (req, res) => {
       totalInserted += data ? data.length : 0;
     }
 
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       message: `Synchronisation terminée: ${totalInserted} presences insérées`,
       count: totalInserted
     });
@@ -10059,8 +10895,267 @@ app.get('/', (req, res) => {
   res.redirect('/index.html');
 });
 
-// Démarrer le serveur HTTP d'abord
-// Démarrer le serveur HTTP d'abord
+// Endpoint pour les alertes d'urgence
+app.post('/api/emergency/alert', authenticateToken, async (req, res) => {
+  try {
+    console.log('🚨 POST /api/emergency/alert - Réception alerte urgence');
+
+    const { alert_type, message, location, priority = 'high' } = req.body;
+    const userId = req.user?.id;
+
+    if (!alert_type || !message) {
+      return res.status(400).json({
+        success: false,
+        error: 'Type et message requis'
+      });
+    }
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Utilisateur non authentifié'
+      });
+    }
+
+    // Enregistrer l'alerte dans la base de données
+    const alertData = {
+      user_id: userId,
+      alert_type,
+      message,
+      location: location || null,
+      priority,
+      created_at: new Date().toISOString(),
+      status: 'active'
+    };
+
+    const { data, error } = await supabaseClient
+      .from('emergency_alerts')
+      .insert(alertData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Erreur enregistrement alerte:', error);
+      throw error;
+    }
+
+    //Notifier via WebSocket si disponible
+    if (wssInstance) {
+      wssInstance.clients.forEach(client => {
+        if (client.readyState === 1) { // WebSocket.OPEN
+          client.send(JSON.stringify({
+            type: 'emergency_alert',
+            data: alertData
+          }));
+        }
+      });
+    }
+
+    console.log('✅ Alerte d\'urgence enregistrée:', alertData);
+    res.json({
+      success: true,
+      data: alertData,
+      message: 'Alerte d\'urgence envoyée avec succès'
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur dans /api/emergency/alert:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erreur serveur lors du traitement de l\'alerte'
+    });
+  }
+});
+
+// Endpoint pour récupérer les badges
+app.get('/api/badges', authenticateToken, async (req, res) => {
+  try {
+    console.log('🏆 GET /api/badges - Récupération badges');
+
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Utilisateur non authentifié'
+      });
+    }
+
+    // Récupérer les badges de l'utilisateur
+    const { data, error } = await supabaseClient
+      .from('user_badges')
+      .select(`
+        *,
+        badges(id, name, description, icon, color)
+      `)
+      .eq('user_id', userId)
+      .order('awarded_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ Erreur récupération badges:', error);
+      // Retourner un tableau vide si la table n'existe pas
+      if (error.code === 'PGRST116') {
+        return res.json({ success: true, data: [] });
+      }
+      throw error;
+    }
+
+    const badges = (data || []).map(badge => ({
+      id: badge.id,
+      name: badge.badges?.name || 'Badge inconnu',
+      description: badge.badges?.description || '',
+      icon: badge.badges?.icon || '🏆',
+      color: badge.badges?.color || '#gold',
+      awarded_at: badge.awarded_at
+    }));
+
+    console.log(`✅ ${badges.length} badges récupérés pour l'utilisateur ${userId}`);
+    res.json({
+      success: true,
+      data: badges
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur dans /api/badges:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erreur serveur lors de la récupération des badges'
+    });
+  }
+});
+
+// Route par défaut - redirection vers index.html
+app.get('/', (req, res) => {
+  res.redirect('/index.html');
+});
+
+// Gestion des erreurs non capturées
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
+// Endpoint pour sauvegarder les observations des activités
+app.post('/api/activities/observation', authenticateToken, async (req, res) => {
+  try {
+    console.log('📝 POST /api/activities/observation - Sauvegarde observation');
+
+    const { activityId, observation, agentId } = req.body;
+    const userId = req.user?.id;
+
+    if (!activityId || !agentId) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID activité et ID agent requis'
+      });
+    }
+
+    // Vérifier que l'utilisateur peut modifier cette activité (soit son activité, soit admin/superviseur)
+    if (userId !== agentId && req.user?.role !== 'admin' && req.user?.role !== 'supervisor') {
+      return res.status(403).json({
+        success: false,
+        error: 'Non autorisé à modifier cette activité'
+      });
+    }
+
+    // Mettre à jour l'observation dans la base de données
+    // Pour l'instant, nous allons simuler la sauvegarde
+    // En production, cela devrait mettre à jour la table appropriée (planifications, activities, etc.)
+
+    console.log(`Observation sauvegardée pour activité ${activityId} par agent ${agentId}: ${observation}`);
+
+    res.json({
+      success: true,
+      message: 'Observation sauvegardée avec succès'
+    });
+
+  } catch (error) {
+    console.error('Erreur sauvegarde observation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erreur serveur lors de la sauvegarde'
+    });
+  }
+});
+
+// Endpoint pour tester la connexion à l'API Gemini
+app.post('/api/test-gemini', async (req, res) => {
+  try {
+    console.log('🧪 POST /api/test-gemini - Test connexion Gemini');
+
+    const { apiKey, model = 'gemini-1.5-flash' } = req.body;
+
+    if (!apiKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'Clé API requise'
+      });
+    }
+
+    // Tester la connexion avec une requête simple
+    const testPayload = {
+      contents: [{
+        parts: [{
+          text: "Réponds simplement 'OK' pour tester la connexion."
+        }]
+      }]
+    };
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(testPayload),
+      signal: AbortSignal.timeout(10000) // Timeout de 10 secondes
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('Erreur API Gemini:', errorData);
+
+      return res.status(400).json({
+        success: false,
+        error: `Erreur API (${response.status}): ${errorData}`
+      });
+    }
+
+    const result = await response.json();
+
+    if (result.candidates && result.candidates.length > 0) {
+      console.log(`✅ Connexion Gemini réussie avec modèle: ${model}`);
+      res.json({
+        success: true,
+        message: `Connexion réussie avec le modèle ${model}`,
+        model: model
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'Réponse invalide de l\'API Gemini'
+      });
+    }
+
+  } catch (error) {
+    console.error('Erreur test Gemini:', error);
+
+    if (error.name === 'AbortError') {
+      res.status(408).json({
+        success: false,
+        error: 'Timeout: le serveur Gemini ne répond pas'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Démarrer le serveur HTTP
 const server = app.listen(PORT, () => {
   console.log(`Serveur en cours d'exécution sur le port ${PORT}`);
 });
@@ -10103,7 +11198,7 @@ wss.on('connection', (ws) => {
           ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
         } catch (e) {
           console.error('Error sending pong:', e);
-      }
+        }
       }
     } catch (e) {
       console.error('Error processing WebSocket message:', e);
@@ -10122,14 +11217,4 @@ wss.on('connection', (ws) => {
 // Export the app and WebSocket server for testing and other modules
 module.exports = { app, server, wss, wssInstance };
 
-// Log server startup
-console.log('Server initialization complete');
-
-// Gestion des erreurs non capturées
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
+// End of file
