@@ -55,6 +55,12 @@ class CircularNav extends HTMLElement {
         label: 'Tableau de Bord',
         roles: ['SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
       },
+      { 
+        href: '/synthese-globale.html', 
+        icon: '🌍', 
+        label: 'Synthèse Globale',
+        roles: ['SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
+      },
       
       // Planification et suivi
       { 

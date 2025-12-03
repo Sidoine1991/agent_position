@@ -426,6 +426,20 @@
             <form id="permission-form" class="needs-validation" novalidate>
               <input type="hidden" id="permission-id" value="">
               
+              <div class="row mb-3">
+                <div class="col-md-6 mb-3">
+                  <label for="agent-select" class="form-label fw-bold">
+                    <i class="bi bi-person me-2 text-primary"></i>Agent demandeur
+                  </label>
+                  <select id="agent-select" class="form-select form-select-lg" disabled>
+                    <option>Chargement de votre profil...</option>
+                  </select>
+                  <small class="form-text text-muted">
+                    Votre nom est rempli automatiquement à partir de votre compte connecté.
+                  </small>
+                </div>
+              </div>
+
               <div class="row mb-4">
                 <div class="col-md-6 mb-3">
                   <label for="start-date" class="form-label fw-bold">

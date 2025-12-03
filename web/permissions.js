@@ -80,6 +80,44 @@ async function loadUserInfo() {
       agentFiltersSection.style.display = userRole === 'AGENT' ? 'block' : 'none';
     }
 
+    // Remplir le sélecteur d'agent :
+    // - pour un AGENT: son propre profil (/api/me)
+    // - pour un SUPERVISEUR/ADMIN: la liste de tous les agents sera chargée via loadAgents()
+    const agentSelect = document.getElementById('agent-select');
+    if (!isSupervisor) {
+      try {
+        const token = localStorage.getItem('jwt');
+        if (agentSelect && token) {
+          const meRes = await fetch('/api/me', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          if (meRes.ok) {
+            const meData = await meRes.json();
+            const u = meData.user || {};
+            const displayName =
+              u.name ||
+              `${u.first_name || ''} ${u.last_name || ''}`.trim() ||
+              u.email ||
+              `Agent ${u.id || ''}`;
+
+            agentSelect.innerHTML = '';
+            const opt = document.createElement('option');
+            opt.value = String(u.id || '');
+            opt.textContent = displayName;
+            agentSelect.appendChild(opt);
+            agentSelect.value = String(u.id || '');
+            agentSelect.disabled = false;
+          } else if (agentSelect) {
+            agentSelect.innerHTML = '<option>Profil non disponible</option>';
+          }
+        }
+      } catch (e) {
+        console.error('Erreur lors du chargement du profil pour le sélecteur agent:', e);
+      }
+    }
+
     // Section de traitement / liste des agents permissionnaires réservée aux superviseurs & admins
     if (isSupervisor) {
       if (supervisorSection) supervisorSection.style.display = 'block';
@@ -184,6 +222,8 @@ async function createPermission(status = 'pending') {
     const startDate = document.getElementById('start-date').value;
     const endDate = document.getElementById('end-date').value;
     const reason = document.getElementById('reason')?.value?.trim() || '';
+    const agentSelect = document.getElementById('agent-select');
+    const selectedAgentId = agentSelect ? agentSelect.value : null;
     const fileInput = document.getElementById('justification-file');
     const file = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
 
@@ -204,6 +244,10 @@ async function createPermission(status = 'pending') {
     formData.append('end_date', endDate);
     formData.append('status', status);
     formData.append('reason', reason);
+    // Pour les superviseurs/admins, permettre de créer une demande pour un agent sélectionné
+    if (selectedAgentId && (userRole === 'SUPERVISEUR' || userRole === 'ADMIN' || userRole === 'SUPERADMIN')) {
+      formData.append('agent_id', selectedAgentId);
+    }
     if (file) {
       formData.append('justification', file);
     }
@@ -514,6 +558,7 @@ async function loadAgents() {
 
     const data = await response.json();
     const agentSelect = document.getElementById('filter-agent');
+    const formAgentSelect = document.getElementById('agent-select');
 
     // L'API peut retourner un tableau directement ou un objet avec items/users
     let users = [];
@@ -526,16 +571,16 @@ async function loadAgents() {
     }
     
     if (response.ok && users.length > 0) {
+      // Trier par nom
+      const sortedAgents = users.sort((a, b) => {
+        const nameA = (a.name || a.email || '').toLowerCase();
+        const nameB = (b.name || b.email || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+
+      // Remplir le filtre agent (superviseur)
       if (agentSelect) {
         agentSelect.innerHTML = '<option value="all">Tous les agents</option>';
-        
-        // Trier par nom
-        const sortedAgents = users.sort((a, b) => {
-          const nameA = (a.name || a.email || '').toLowerCase();
-          const nameB = (b.name || b.email || '').toLowerCase();
-          return nameA.localeCompare(nameB);
-        });
-
         sortedAgents.forEach(agent => {
           const option = document.createElement('option');
           option.value = agent.id;
@@ -545,6 +590,21 @@ async function loadAgents() {
           option.textContent = displayName;
           agentSelect.appendChild(option);
         });
+      }
+
+      // Remplir le sélecteur du formulaire pour les rôles superviseur/admin
+      if (formAgentSelect && (userRole === 'SUPERVISEUR' || userRole === 'ADMIN' || userRole === 'SUPERADMIN')) {
+        formAgentSelect.innerHTML = '';
+        sortedAgents.forEach(agent => {
+          const opt = document.createElement('option');
+          opt.value = String(agent.id);
+          const displayName = agent.name ||
+                            `${agent.first_name || ''} ${agent.last_name || ''}`.trim() ||
+                            agent.email || `Agent ${agent.id}`;
+          opt.textContent = displayName;
+          formAgentSelect.appendChild(opt);
+        });
+        formAgentSelect.disabled = false;
       }
     }
   } catch (error) {

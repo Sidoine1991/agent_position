@@ -5144,7 +5144,7 @@ app.post('/api/permissions', authenticateToken, upload.single('justification'), 
     }
 
     const requesterId = Number(req.user?.id);
-    const { start_date, end_date, status = 'pending', reason } = req.body || {};
+    const { start_date, end_date, status = 'pending', reason, agent_id } = req.body || {};
 
     if (!start_date || !end_date) {
       return res.status(400).json({ success: false, error: 'start_date et end_date sont requis' });
@@ -5154,12 +5154,22 @@ app.post('/api/permissions', authenticateToken, upload.single('justification'), 
       return res.status(400).json({ success: false, error: 'La date de fin doit être supérieure ou égale à la date de début' });
     }
 
+    // Déterminer pour quel agent la demande est créée
+    const isPrivileged = isPrivilegedRequest(req);
+    let targetAgentId = requesterId;
+    if (isPrivileged && agent_id !== undefined && agent_id !== null && agent_id !== '') {
+      const parsedAgentId = Number(agent_id);
+      if (Number.isFinite(parsedAgentId) && parsedAgentId > 0) {
+        targetAgentId = parsedAgentId;
+      }
+    }
+
     // Gérer l'upload de la pièce justificative (stockée éventuellement dans Supabase Storage)
     let proofUrl = null;
     if (req.file && supabaseClient) {
       try {
         const fileExt = (req.file.originalname || '').split('.').pop() || 'bin';
-        const fileName = `proofs/permission_${requesterId}_${Date.now()}.${fileExt}`;
+        const fileName = `proofs/permission_${targetAgentId}_${Date.now()}.${fileExt}`;
 
         const { data: storageResult, error: storageError } = await supabaseClient.storage
           .from('presence-files')
@@ -5185,7 +5195,7 @@ app.post('/api/permissions', authenticateToken, upload.single('justification'), 
     }
 
     const permissionData = {
-      agent_id: requesterId,
+      agent_id: targetAgentId,
       start_date,
       end_date,
       status,
