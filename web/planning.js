@@ -256,6 +256,43 @@
   };
 
   /**
+   * Normalise les réponses API pouvant renvoyer un tableau à différents niveaux.
+   * @param {*} payload - Réponse brute de l'API.
+   * @param {string[]} preferredKeys - Clés à vérifier en priorité.
+   * @returns {Array}
+   */
+  const extractArrayFromResponse = (payload, preferredKeys = []) => {
+    if (!payload) return [];
+    if (Array.isArray(payload)) return payload;
+
+    const candidateKeys = [
+      ...preferredKeys,
+      'items',
+      'data',
+      'results',
+      'records',
+      'rows',
+      'planifications',
+      'checkins',
+      'validations'
+    ];
+
+    for (const key of candidateKeys) {
+      if (Array.isArray(payload?.[key])) {
+        return payload[key];
+      }
+    }
+
+    // Rechercher le premier tableau présent dans l'objet
+    if (typeof payload === 'object') {
+      const firstArray = Object.values(payload).find(Array.isArray);
+      if (firstArray) return firstArray;
+    }
+
+    return [];
+  };
+
+  /**
    * Trouve un token JWT dans le stockage local ou global.
    * @returns {string}
    */
@@ -718,62 +755,104 @@
    * Charge la liste des projets uniques depuis la colonne project_name de la table users
    */
   const loadProjects = async () => {
+    console.log('Début du chargement des projets...');
     try {
       const headers = await authHeaders();
+      if (!headers) {
+        console.error('Impossible de récupérer les en-têtes d\'authentification');
+        throw new Error('Erreur d\'authentification');
+      }
 
       // Essayer d'abord l'endpoint dédié aux projets
-      let response = await fetch(`${API_BASE}/users/projects`, {
-        headers,
-        credentials: 'include',
-        method: 'GET'
-      });
+      console.log('Tentative de chargement depuis /api/users/projects...');
+      let response;
+      
+      try {
+        response = await fetch(`${API_BASE}/users/projects`, {
+          headers,
+          credentials: 'include',
+          method: 'GET'
+        });
+      } catch (networkError) {
+        console.warn('Erreur réseau lors de l\'accès à /api/users/projects:', networkError);
+        response = { ok: false, status: 0 };
+      }
 
       if (response.ok) {
-        const projects = await response.json();
-        if (Array.isArray(projects)) {
-          state.projectList = projects.filter(project => project && project.trim() !== '').sort();
-          state.projects = state.projectList;
-          console.log(`${state.projectList.length} projets chargés depuis l'endpoint dédié:`, state.projectList);
-        } else {
-          throw new Error('Format de réponse inattendu pour les projets');
+        try {
+          const data = await response.json();
+          console.log('Réponse brute de /api/users/projects:', data);
+          
+          // Gérer différents formats de réponse
+          const projects = Array.isArray(data) ? data : 
+                          (data && Array.isArray(data.projects) ? data.projects : []);
+          
+          if (projects.length > 0) {
+            state.projectList = projects
+              .filter(project => project && String(project).trim() !== '')
+              .map(p => String(p).trim())
+              .sort();
+            state.projects = [...state.projectList];
+            console.log(`${state.projectList.length} projets chargés depuis l'endpoint dédié`);
+          } else {
+            console.warn('Aucun projet trouvé dans la réponse, tentative de fallback...');
+            throw new Error('Aucun projet dans la réponse');
+          }
+        } catch (parseError) {
+          console.warn('Erreur lors du traitement de la réponse des projets:', parseError);
+          throw parseError;
         }
       } else {
-        // Fallback: récupérer tous les utilisateurs pour extraire les projets uniques
-        console.warn('Endpoint projets non disponible, fallback vers les utilisateurs');
-        response = await fetch(`${API_BASE}/users`, {
+        console.warn(`Erreur ${response.status} sur /api/users/projects, fallback vers /api/users`);
+        throw new Error(`Erreur HTTP ${response.status}`);
+      }
+    } catch (primaryError) {
+      console.warn('Fallback: tentative de chargement via la liste des utilisateurs...', primaryError);
+      
+      try {
+        const headers = await authHeaders();
+        const usersResponse = await fetch(`${API_BASE}/users`, {
           headers,
           credentials: 'include',
           method: 'GET'
         });
 
-        if (response.ok) {
-          const users = await response.json();
-
-          // Extraire les projets uniques depuis la colonne project_name
-          const projects = users
-            .map(user => user.project_name)
-            .filter(project => project && project.trim() !== '')
-            .map(project => project.trim());
-
+        if (usersResponse.ok) {
+          const users = await usersResponse.json();
+          console.log(`${users.length} utilisateurs chargés pour extraction des projets`);
+          
+          // Extraire les projets uniques
+          const projects = [];
+          users.forEach(user => {
+            if (user && user.project_name && String(user.project_name).trim() !== '') {
+              projects.push(String(user.project_name).trim());
+            }
+          });
+          
           // Supprimer les doublons et trier
           state.projectList = [...new Set(projects)].sort();
-          state.projects = state.projectList;
-
-          console.log(`${state.projectList.length} projets chargés depuis les utilisateurs:`, state.projectList);
+          state.projects = [...state.projectList];
+          
+          console.log(`${state.projectList.length} projets extraits des utilisateurs`);
         } else {
-          throw new Error(`Erreur HTTP ${response.status} lors du chargement des projets`);
+          console.error(`Erreur HTTP ${usersResponse.status} lors du chargement des utilisateurs`);
+          state.projectList = ['PARSAD', 'Autre Projet'];
+          state.projects = [...state.projectList];
+          console.warn('Utilisation des projets par défaut:', state.projectList);
         }
+      } catch (fallbackError) {
+        console.error('Erreur lors du chargement des utilisateurs (fallback):', fallbackError);
+        // Valeurs par défaut en cas d'échec
+        state.projectList = ['PARSAD', 'Autre Projet'];
+        state.projects = [...state.projectList];
+        console.warn('Utilisation des projets par défaut après erreur:', state.projectList);
       }
-
-      // Mettre à jour les sélecteurs de projet
-      updateProjectSelect();
-      updateProjectFilterSelect();
-
-    } catch (error) {
-      console.error('Erreur lors du chargement des projets:', error);
-      state.projectList = [];
-      state.projects = [];
     }
+
+    // Mettre à jour les sélecteurs de projet
+    console.log('Mise à jour des sélecteurs avec les projets:', state.projectList);
+    updateProjectSelect();
+    updateProjectFilterSelect();
   };
 
   // ----------------------------
@@ -1746,7 +1825,7 @@
 
         if (response.ok) {
           const data = await response.json();
-          state.departments = data.items || data || [];
+          state.departments = extractArrayFromResponse(data);
 
           // Si aucun département n'est retourné, utiliser les données intégrées
           if (state.departments.length === 0) {
@@ -1797,7 +1876,7 @@
 
       if (response.ok) {
         const data = await response.json();
-        state.communes = data.items || data || [];
+        state.communes = extractArrayFromResponse(data);
         console.log(`${state.communes.length} communes chargées depuis Supabase pour le département ${departmentId}`);
       } else {
         console.warn('Erreur lors du chargement des communes depuis Supabase, utilisation des données intégrées');
@@ -2300,9 +2379,29 @@
         return;
       }
 
-      const start = startOfWeek(dateStr ? new Date(dateStr) : new Date());
+      // S'assurer que la date est valide
+      const now = new Date();
+      const inputDate = dateStr ? new Date(dateStr) : now;
+      
+      // Vérifier que la date est valide
+      if (isNaN(inputDate.getTime())) {
+        console.error('❌ Date invalide fournie à loadWeek:', dateStr);
+        throw new Error('Date invalide fournie');
+      }
+
+      // Limiter la date à 3 mois dans le futur maximum
+      const maxFutureDate = new Date(now);
+      maxFutureDate.setMonth(maxFutureDate.getMonth() + 3);
+      
+      if (inputDate > maxFutureDate) {
+        console.warn(`⚠️ Date trop éloignée dans le futur (${inputDate.toISOString()}), utilisation de la date maximale autorisée (${maxFutureDate.toISOString()})`);
+        inputDate = new Date(maxFutureDate);
+      }
+
+      // Utiliser startOfWeek avec la date validée
+      const start = startOfWeek(inputDate);
       if (isNaN(start.getTime())) {
-        throw new Error('Date de début invalide');
+        throw new Error('Date de début invalide après calcul');
       }
 
       if ($('week-start')) {
@@ -2322,10 +2421,29 @@
         throw new Error('Impossible de récupérer les en-têtes d\'authentification');
       }
 
-      // Construire l'URL complète pour les planifications
-      const planificationsUrl = new URL(`${API_BASE}/planifications`, window.location.origin);
-      planificationsUrl.searchParams.append('from', from);
-      planificationsUrl.searchParams.append('to', to);
+      // Construire l'URL complète pour les planifications avec gestion des erreurs
+      let planificationsUrl;
+      try {
+        planificationsUrl = new URL(`${API_BASE}/planifications`, window.location.origin);
+        // S'assurer que les dates sont au format YYYY-MM-DD
+        const fromDate = new Date(from);
+        const toDate = new Date(to);
+        
+        if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+          throw new Error(`Format de date invalide: from=${from}, to=${to}`);
+        }
+        
+        const fromFormatted = fromDate.toISOString().split('T')[0];
+        const toFormatted = toDate.toISOString().split('T')[0];
+        
+        planificationsUrl.searchParams.append('from', fromFormatted);
+        planificationsUrl.searchParams.append('to', toFormatted);
+        
+        console.log(`🔍 Requête planifications du ${fromFormatted} au ${toFormatted}`);
+      } catch (urlError) {
+        console.error('❌ Erreur de construction de l\'URL des planifications:', urlError);
+        throw new Error('Erreur de configuration de la requête');
+      }
 
       // Appliquer les filtres
       if (state.selectedProjectFilter) {
@@ -2366,10 +2484,38 @@
       validationsUrl.searchParams.append('to', to);
       if (state.selectedAgentId) validationsUrl.searchParams.append('agent_id', state.selectedAgentId);
 
+      // Configuration des requêtes avec gestion d'erreur améliorée
+      const fetchWithRetry = async (url, options, retries = 2, backoff = 300) => {
+        try {
+          const response = await fetch(url, options);
+          if (response.status === 400) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('❌ Erreur 400 - Détails:', errorData);
+            throw new Error(`Requête invalide: ${errorData.message || 'Détails non disponibles'}`);
+          }
+          return response;
+        } catch (error) {
+          if (retries > 0) {
+            console.warn(`⚠️ Tentative échouée, nouvelle tentative dans ${backoff}ms... (${retries} restantes)`);
+            await new Promise(resolve => setTimeout(resolve, backoff));
+            return fetchWithRetry(url, options, retries - 1, backoff * 2);
+          }
+          console.error(`❌ Échec après plusieurs tentatives pour ${url}`, error);
+          return { 
+            ok: false, 
+            status: 500, 
+            json: async () => ({ 
+              items: [],
+              error: error.message || 'Erreur inconnue lors de la récupération des données'
+            }) 
+          };
+        }
+      };
+
       const requests = [
-        fetch(planificationsUrl.toString(), { headers, credentials: 'include' }).catch(err => ({ ok: false, status: 500, json: async () => ({ items: [] }) })),
-        fetch(checkinsUrl.toString(), { headers, credentials: 'include' }).catch(err => ({ ok: false, status: 500, json: async () => ({ items: [] }) })),
-        fetch(validationsUrl.toString(), { headers, credentials: 'include' }).catch(err => ({ ok: false, status: 500, json: async () => ({ items: [] }) }))
+        fetchWithRetry(planificationsUrl.toString(), { headers, credentials: 'include' }),
+        fetchWithRetry(checkinsUrl.toString(), { headers, credentials: 'include' }),
+        fetchWithRetry(validationsUrl.toString(), { headers, credentials: 'include' })
       ];
 
       const [plansRes, checkinsRes, validationsRes] = await Promise.all(requests);
@@ -2389,7 +2535,7 @@
 
       if (plansRes.ok) {
         const plansData = await plansRes.json();
-        plans = plansData.items || [];
+        plans = extractArrayFromResponse(plansData, ['planifications']);
         console.log(`🔍 DEBUG: ${plans.length} planifications reçues de l'API avant filtrage:`, plans.map(p => ({
           id: p.id,
           user_id: p.user_id,
@@ -2409,8 +2555,8 @@
           console.log(`⚠️ ${originalCount - plans.length} planifications filtrées par les filtres côté client`);
         }
       }
-      if (checkinsRes.ok) checkins = (await checkinsRes.json()).items || [];
-      if (validationsRes.ok) validations = (await validationsRes.json()).items || [];
+      if (checkinsRes.ok) checkins = extractArrayFromResponse(await checkinsRes.json(), ['checkins']);
+      if (validationsRes.ok) validations = extractArrayFromResponse(await validationsRes.json(), ['validations']);
 
       hideAuthBanner();
 
@@ -2594,7 +2740,7 @@
       if (!plansRes.ok) throw new Error('Erreur API lors du chargement du mois');
 
       const plansData = await plansRes.json();
-      let plans = plansData.items || [];
+      let plans = extractArrayFromResponse(plansData, ['planifications']);
       // Appliquer les filtres côté client
       plans = applyClientSideFilters(plans);
       console.log(`${plans.length} planifications après filtrage côté client (vue mois)`);
@@ -2769,8 +2915,8 @@
 
       // 4. Traiter les données des planifications
       const plansData = await plansRes.json();
-      let plans = Array.isArray(plansData.items) ? plansData.items : [];
-      console.log(`${plans.length} planifications chargées avant filtrage côté client`);
+      let plans = extractArrayFromResponse(plansData, ['planifications']);
+      console.log(`${plans.length} planifications chargées avant filtrage côté client`, plans);
 
       // Debug: afficher les premières planifications pour voir la structure
       if (plans.length > 0) {

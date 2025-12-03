@@ -49,11 +49,12 @@ Thumbs.db
 *.swp
 *.swo
 
-# Fichiers de débogage et de test
+# Fichiers de débogage (anciens fichiers de test à la racine)
 debug_*.js
 check_*.js
-*.test.js
-*.spec.js
+test_*.js
+test-*.js
+test-*.html
 *.backup.*
 *-backup.*
 *backup.*
@@ -82,15 +83,16 @@ out/
 android/build/
 android/app/build/
 
-# Fichiers de test
+# Fichiers de test - Coverage et résultats
 coverage/
 .nyc_output/
 test-results/
-tests/
-test-*.js
-test-*.html
-*test*.js
-*test*.html
+
+# IMPORTANT: Permettre les vrais tests unitaires dans tests/
+!tests/
+!tests/**/*.js
+!tests/**/*.test.js
+!tests/**/*.spec.js
 
 # Fichiers de déploiement
 .vercel/
@@ -162,6 +164,8 @@ capacitor.config.json
 # Fichiers de configuration de test
 playwright.config.js
 tailwind.config.js
+# Mais permettre vitest.config.js
+!vitest.config.js
 
 # Fichiers de données Excel
 *.xlsx
@@ -174,4 +178,3 @@ apk-download-guide.md
 
 # Sauvegardes de base de données
 backups/
-*.backup

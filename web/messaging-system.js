@@ -44,35 +44,99 @@ class MessagingSystem {
     }
   }
 
+  /**
+   * Établit une connexion WebSocket sécurisée avec authentification JWT
+   * Gère les reconnexions automatiques avec délai exponentiel
+   */
   connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const token = this.getJwtToken(); // Récupérer le token JWT
     
-    this.socket = new WebSocket(wsUrl);
+    if (!token) {
+      console.error('❌ Aucun token JWT trouvé pour la connexion WebSocket');
+      this.scheduleReconnection();
+      return;
+    }
     
-    this.socket.onopen = () => {
-      this.isConnected = true;
-      console.log('🔗 Connexion WebSocket établie');
-      this.notifyConnectionChange(true);
-    };
+    const wsUrl = `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
     
-    this.socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      this.handleIncomingMessage(data);
-    };
-    
-    this.socket.onclose = () => {
-      this.isConnected = false;
-      console.log('🔌 Connexion WebSocket fermée');
-      this.notifyConnectionChange(false);
+    try {
+      this.socket = new WebSocket(wsUrl);
+      this.reconnectAttempts = this.reconnectAttempts || 0;
+      this.maxReconnectAttempts = 10;
+      this.reconnectDelay = 1000; // 1 seconde de délai initial
       
-      // Reconnexion automatique après 5 secondes
-      setTimeout(() => this.connectWebSocket(), 5000);
-    };
-    
-    this.socket.onerror = (error) => {
-      console.error('Erreur WebSocket:', error);
-    };
+      this.socket.onopen = () => {
+        this.isConnected = true;
+        this.reconnectAttempts = 0; // Réinitialiser le compteur de reconnexions
+        console.log('🔗 Connexion WebSocket établie');
+        this.notifyConnectionChange(true);
+      };
+      
+      this.socket.onclose = (event) => {
+        this.isConnected = false;
+        console.log(`🔌 Connexion WebSocket fermée (code: ${event.code}, raison: ${event.reason || 'inconnue'})`);
+        this.notifyConnectionChange(false);
+        
+        // Ne pas essayer de se reconnecter en cas d'erreur d'authentification
+        if (event.code === 4001 || event.code === 4002 || event.code === 4003) {
+          console.error('Erreur d\'authentification WebSocket, reconnexion désactivée');
+          this.notifyConnectionChange('auth_error');
+          return;
+        }
+        
+        this.scheduleReconnection();
+      };
+      
+      this.socket.onerror = (error) => {
+        console.error('Erreur WebSocket:', error);
+        this.notifyConnectionChange('error');
+      };
+      
+      this.socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          this.handleIncomingMessage(data);
+        } catch (error) {
+          console.error('Erreur de traitement du message WebSocket:', error);
+        }
+      };
+      
+    } catch (error) {
+      console.error('Erreur lors de la création de la connexion WebSocket:', error);
+      this.notifyConnectionChange('error');
+      this.scheduleReconnection();
+    }
+  }
+  
+  /**
+   * Planifie une tentative de reconnexion avec délai exponentiel
+   */
+  scheduleReconnection() {
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts), 30000); // Max 30 secondes
+      console.log(`⏳ Tentative de reconnexion dans ${delay/1000} secondes...`);
+      
+      setTimeout(() => {
+        this.reconnectAttempts++;
+        this.connectWebSocket();
+      }, delay);
+    } else {
+      console.error('❌ Nombre maximum de tentatives de reconnexion atteint');
+      this.notifyConnectionChange('failed');
+    }
+  }
+  
+  /**
+   * Récupère le token JWT depuis le stockage local
+   * @returns {string|null} Le token JWT ou null si non trouvé
+   */
+  getJwtToken() {
+    // Essayer de récupérer le token depuis localStorage
+    return localStorage.getItem('jwt_token') || 
+           localStorage.getItem('token') || 
+           (window.userSession && window.userSession.token) ||
+           null;
   }
 
   handleIncomingMessage(data) {
@@ -300,13 +364,6 @@ class MessagingSystem {
     document.dispatchEvent(event);
   }
 
-  notifyConnectionChange(isConnected) {
-    const event = new CustomEvent('messagingConnectionChange', {
-      detail: { isConnected }
-    });
-    document.dispatchEvent(event);
-  }
-
   // Méthodes utilitaires
   async saveMessageLocally(message) {
     try {
@@ -353,9 +410,11 @@ class MessagingSystem {
 }
 
 // Initialiser le système de messagerie
-window.messagingSystem = new MessagingSystem();
+const messagingSystem = new MessagingSystem();
 
 // Exporter pour utilisation dans d'autres modules
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = MessagingSystem;
+} else {
+  window.messagingSystem = messagingSystem;
 }

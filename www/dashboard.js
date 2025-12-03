@@ -3,13 +3,13 @@ const onVercel = /\.vercel\.app$/.test(window.location.hostname) || window.locat
 const apiBase = '/api';
 // Harmoniser la déconnexion
 if (typeof window !== 'undefined' && typeof window.logout !== 'function') {
-  window.logout = function() {
+  window.logout = function () {
     try {
       localStorage.removeItem('jwt');
       localStorage.removeItem('loginData');
       localStorage.removeItem('userProfile');
       localStorage.setItem('presence_update', JSON.stringify({ type: 'logout', ts: Date.now() }));
-    } catch {}
+    } catch { }
     // Rediriger vers l'accueil uniquement
     window.location.href = '/';
   };
@@ -39,13 +39,13 @@ function ensureAgentLegend(agentName, color) {
          <span>${name}</span>
        </span>`
     )).join('');
-  } catch {}
+  } catch { }
 }
 const agentColorMap = new Map();
 function colorForAgent(agentId) {
   if (!agentColorMap.has(agentId)) {
     // Palette distincte
-    const palette = ['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#e11d48','#9333ea','#84cc16','#06b6d4'];
+    const palette = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6', '#e11d48', '#9333ea', '#84cc16', '#06b6d4'];
     const next = palette[agentColorMap.size % palette.length];
     agentColorMap.set(agentId, next);
   }
@@ -65,14 +65,14 @@ function colorForAgentName(agentName) {
 // Fonction pour obtenir une couleur basée sur le nom de l'agent (version simplifiée)
 function colorForAgentName(agentName) {
   if (!agentName) return '#666666';
-  
+
   // Générer une couleur basée sur le hash du nom
   let hash = 0;
   for (let i = 0; i < agentName.length; i++) {
     hash = agentName.charCodeAt(i) + ((hash << 5) - hash);
   }
-  
-  const palette = ['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#e11d48','#9333ea','#84cc16','#06b6d4'];
+
+  const palette = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6', '#e11d48', '#9333ea', '#84cc16', '#06b6d4'];
   return palette[Math.abs(hash) % palette.length];
 }
 let agentMarkers = [];
@@ -85,7 +85,7 @@ try {
     jwt = urlToken;
     console.log('🔐 Token (dashboard) restauré depuis URL');
   }
-} catch {}
+} catch { }
 
 function $(id) { return document.getElementById(id); }
 
@@ -94,27 +94,27 @@ let generateMonthlyReport, exportMonthlyReport, createTestAgent, setupReferenceP
 
 // Exposer immédiatement les fonctions sur window pour les onclick handlers
 if (typeof window !== 'undefined') {
-  window.generateMonthlyReport = function() { console.log('generateMonthlyReport called'); };
-  window.exportMonthlyReport = function() { console.log('exportMonthlyReport called'); };
-  window.createTestAgent = function() { console.log('createTestAgent called'); };
-  window.setupReferencePoints = function() { console.log('setupReferencePoints called'); };
+  window.generateMonthlyReport = function () { console.log('generateMonthlyReport called'); };
+  window.exportMonthlyReport = function () { console.log('exportMonthlyReport called'); };
+  window.createTestAgent = function () { console.log('createTestAgent called'); };
+  window.setupReferencePoints = function () { console.log('setupReferencePoints called'); };
 }
 
-async function api(path, opts={}) {
+async function api(path, opts = {}) {
   const headers = opts.headers || {};
   if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
   if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
-  
+
   console.log('API call:', apiBase + path, { method: opts.method || 'GET', headers, body: opts.body });
-  
+
   const res = await fetch(apiBase + path, {
     method: opts.method || 'GET',
     headers,
     body: opts.body instanceof FormData ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined),
   });
-  
+
   console.log('API response:', res.status, res.statusText);
-  
+
   if (!res.ok) {
     const errorText = await res.text();
     console.error('API error:', res.status, errorText);
@@ -122,7 +122,7 @@ async function api(path, opts={}) {
     err.status = res.status;
     throw err;
   }
-  
+
   const ct = res.headers.get('content-type') || '';
   const result = ct.includes('application/json') ? await res.json() : await res.text();
   console.log('API result:', result);
@@ -161,7 +161,7 @@ async function ensureAuth() {
   jwt = localStorage.getItem('jwt') || jwt;
   console.log('ensureAuth: jwt présent =', !!jwt);
   // Optionnel: tenter d'obtenir le profil, sans bloquer
-  try { await getProfile(); } catch {}
+  try { await getProfile(); } catch { }
 }
 
 let map, markersLayer;
@@ -174,7 +174,7 @@ async function loadSettings() {
   try {
     const res = await api('/settings');
     if (res && res.success) appSettings = res.settings || null;
-  } catch {}
+  } catch { }
 }
 
 // === Calendrier: colorer les jours selon statut de présence ===
@@ -186,9 +186,9 @@ async function colorCalendarForAgent(agentId) {
     // Déterminer la période (mois courant)
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth()+1, 0, 23,59,59,999);
-    const fromISO = new Date(Date.UTC(start.getFullYear(), start.getMonth(), start.getDate(), 0,0,0)).toISOString();
-    const toISO = new Date(Date.UTC(end.getFullYear(), end.getMonth(), end.getDate(), 23,59,59)).toISOString();
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const fromISO = new Date(Date.UTC(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0)).toISOString();
+    const toISO = new Date(Date.UTC(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59)).toISOString();
 
     const p = new URLSearchParams();
     p.set('agent_id', String(agentId));
@@ -202,7 +202,7 @@ async function colorCalendarForAgent(agentId) {
     cells.forEach(cell => {
       const d = cell.getAttribute('data-date'); // YYYY-MM-DD
       const info = days[d];
-      cell.classList.remove('day--green','day--orange','day--yellow','day--red');
+      cell.classList.remove('day--green', 'day--orange', 'day--yellow', 'day--red');
       if (info && info.color) {
         const cls = info.color === 'green' ? 'day--green' : info.color === 'orange' ? 'day--orange' : info.color === 'yellow' ? 'day--yellow' : info.color === 'red' ? 'day--red' : '';
         if (cls) cell.classList.add(cls);
@@ -221,10 +221,10 @@ function getSupabaseConfig() {
     const metaKey = document.querySelector('meta[name="supabase-anon-key"]')?.content || '';
     const lsUrl = localStorage.getItem('SUPABASE_URL') || '';
     const lsKey = localStorage.getItem('SUPABASE_ANON_KEY') || '';
-    const url = (window.SUPABASE_URL || metaUrl || lsUrl || '').trim().replace(/\/+$/,'');
+    const url = (window.SUPABASE_URL || metaUrl || lsUrl || '').trim().replace(/\/+$/, '');
     const key = (window.SUPABASE_ANON_KEY || metaKey || lsKey || '').trim();
     if (url && key) return { url, key };
-  } catch {}
+  } catch { }
   return null;
 }
 
@@ -234,9 +234,9 @@ function computeDistanceMeters(lat1, lon1, lat2, lon2) {
     const R = 6371000; // meters
     const dLat = toRad(Number(lat2) - Number(lat1));
     const dLon = toRad(Number(lon2) - Number(lon1));
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(toRad(Number(lat1))) * Math.cos(toRad(Number(lat2))) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(Number(lat1))) * Math.cos(toRad(Number(lat2))) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return Math.round(R * c);
   } catch { return null; }
@@ -263,14 +263,14 @@ async function fetchCheckinsFromSupabase(params) {
         const t = new Date(params.to + 'T23:59:59');
         search.append('timestamp', `lte.${t.toISOString()}`);
       }
-    } catch {}
+    } catch { }
   } else if (params?.date) {
     try {
       const from = new Date(params.date + 'T00:00:00');
       const to = new Date(from); to.setDate(to.getDate() + 1);
       search.set('timestamp', `gte.${from.toISOString()}`);
       search.append('timestamp', `lt.${to.toISOString()}`);
-    } catch {}
+    } catch { }
   }
   if (params?.villageId) search.set('village_id', 'eq.' + Number(params.villageId));
 
@@ -351,7 +351,7 @@ async function fetchPlanificationsFromSupabase(from, to) {
   const { url, key } = cfg;
   try {
     const p = new URLSearchParams();
-    p.set('select', 'agent_id,date,planned_start_time,planned_end_time');
+    p.set('select', '*');
     if (from) p.set('date', 'gte.' + from);
     if (to) p.append('date', 'lte.' + to);
     const res = await fetch(`${url}/rest/v1/planifications?${p.toString()}`, {
@@ -505,8 +505,8 @@ async function updateMonthlySummary() {
                 const R = 6371000;
                 const dLat = toRad(Number(c.lat) - Number(meta.refLat));
                 const dLon = toRad(Number(c.lon) - Number(meta.refLon));
-                const a = Math.sin(dLat/2)**2 + Math.cos(toRad(meta.refLat)) * Math.cos(toRad(Number(c.lat))) * Math.sin(dLon/2)**2;
-                const calc = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(meta.refLat)) * Math.cos(toRad(Number(c.lat))) * Math.sin(dLon / 2) ** 2;
+                const calc = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
                 dist = Math.round(R * calc);
               }
             }
@@ -529,7 +529,7 @@ async function updateMonthlySummary() {
             const distMax = distVals.length ? Math.round(Math.max(...distVals)) : null;
             // Ne plus générer de justification textuelle dans le tableau
           });
-        } catch(e) { console.warn('Justification enrichie (distance) indisponible:', e?.message || e); }
+        } catch (e) { console.warn('Justification enrichie (distance) indisponible:', e?.message || e); }
 
         rowsOut.sort((a, b) => a.agent.localeCompare(b.agent));
         tbody.innerHTML = rowsOut.map(r => `
@@ -615,20 +615,20 @@ async function updateMonthlySummary() {
     // Filtrer les missions et check-ins par période
     const fromDate = new Date(from + 'T00:00:00');
     const toDate = new Date(to + 'T23:59:59');
-    
+
     const filteredMissions = allMissions.filter(m => {
       if (!m.date_start) return false;
       const missionDate = new Date(m.date_start);
       return missionDate >= fromDate && missionDate <= toDate;
     });
-    
+
     const filteredCheckins = allCheckins.filter(c => {
       const t = c.timestamp || c.created_at;
       if (!t) return false;
       const checkinDate = new Date(t);
       return checkinDate >= fromDate && checkinDate <= toDate;
     });
-    
+
     console.log('📅 Données filtrées pour la période:', {
       missions: filteredMissions.length,
       checkins: filteredCheckins.length
@@ -636,7 +636,7 @@ async function updateMonthlySummary() {
 
     // Grouper les données par agent
     const agentStats = new Map();
-    
+
     // Initialiser les statistiques pour chaque agent (priorité données Supabase)
     allAgents.forEach(agent => {
       const meta = usersMeta?.get(Number(agent.id));
@@ -678,27 +678,27 @@ async function updateMonthlySummary() {
       c.missions?.users?.name,
       c.missions?.users?.project || c.missions?.users?.project_name || c.missions?.profiles?.project || c.missions?.profiles?.project_name
     ));
-    
+
     // Ajouter les jours planifiés (Supabase planifications si dispo, sinon missions)
     try {
       const sbPlans = await fetchPlanificationsFromSupabase(from, to);
       if (Array.isArray(sbPlans) && sbPlans.length) {
         for (const p of sbPlans) {
-          const agentId = Number(p.agent_id);
-          const day = (p.date || '').toString().slice(0,10);
+          const agentId = Number(p.agent_id || p.user_id);
+          const day = (p.date || '').toString().slice(0, 10);
           if (!agentId || !day) continue;
           if (agentStats.has(agentId)) agentStats.get(agentId).plannedDays.add(day);
         }
       } else {
-    filteredMissions.forEach(mission => {
-      const agentId = mission.agent_id || mission.user_id;
-      if (agentId && mission.date_start) {
-        const day = new Date(mission.date_start).toISOString().slice(0, 10);
-        if (agentStats.has(agentId)) {
-          agentStats.get(agentId).plannedDays.add(day);
-        }
-      }
-    });
+        filteredMissions.forEach(mission => {
+          const agentId = mission.agent_id || mission.user_id;
+          if (agentId && mission.date_start) {
+            const day = new Date(mission.date_start).toISOString().slice(0, 10);
+            if (agentStats.has(agentId)) {
+              agentStats.get(agentId).plannedDays.add(day);
+            }
+          }
+        });
       }
     } catch {
       filteredMissions.forEach(mission => {
@@ -711,7 +711,7 @@ async function updateMonthlySummary() {
         }
       });
     }
-    
+
     // Charger les validations (distances calculées par l'algorithme serveur) et indexer par agent|jour
     const validationsByAgentDay = new Map();
     try {
@@ -721,7 +721,7 @@ async function updateMonthlySummary() {
       const toDay = new Date(from.getFullYear(), from.getMonth() + 1, 0);
       items.forEach(v => {
         const aid = Number(v.agent_id);
-        const dayKey = (v.date || '').toString().slice(0,10);
+        const dayKey = (v.date || '').toString().slice(0, 10);
         if (!aid || !dayKey) return;
         const dObj = new Date(dayKey + 'T00:00:00');
         if (isNaN(dObj)) return;
@@ -732,8 +732,8 @@ async function updateMonthlySummary() {
         const tol = (typeof v.tolerance_radius_meters === 'number') ? Number(v.tolerance_radius_meters) : current.tol;
         validationsByAgentDay.set(k, { distance_m: dist, tol });
       });
-    } catch {}
-    
+    } catch { }
+
     // Ajouter les jours de présence (check-ins) en jugeant par la distance/rayon
     // On agrège par agent+jour le statut, la distance minimale et la distance du premier point de la journée
     // (distance calculée via référence Supabase si pas fournie)
@@ -743,7 +743,7 @@ async function updateMonthlySummary() {
       const agentId = checkin.missions?.agent_id || checkin.agent_id || checkin.user_id;
       const t = checkin.timestamp || checkin.created_at;
       if (!agentId || !t) return;
-        const day = new Date(t).toISOString().slice(0, 10);
+      const day = new Date(t).toISOString().slice(0, 10);
       const k = keyAD(agentId, day);
       // Préférer les distances/tolérances validées côté serveur si disponibles
       const val = validationsByAgentDay.get(k);
@@ -780,7 +780,7 @@ async function updateMonthlySummary() {
       }
       const resp = await api('/attendance/day-status?' + q.toString());
       if (resp && resp.success && resp.days) dayStatus = resp.days;
-    } catch {}
+    } catch { }
 
     if (dayStatus && typeof selectedAgentId === 'number' && isFinite(selectedAgentId)) {
       // Si on a un agent ciblé, on remplace presenceDays par la décision serveur
@@ -794,11 +794,11 @@ async function updateMonthlySummary() {
       }
     } else {
       // Fallback: juger via distance/rayon localement
-    for (const [k, agg] of perAgentDay.entries()) {
-      const [aidStr, day] = k.split('|');
-      const aid = Number(aidStr);
-      if (!agentStats.has(aid)) continue;
-      if (agg.within) agentStats.get(aid).presenceDays.add(day);
+      for (const [k, agg] of perAgentDay.entries()) {
+        const [aidStr, day] = k.split('|');
+        const aid = Number(aidStr);
+        if (!agentStats.has(aid)) continue;
+        if (agg.within) agentStats.get(aid).presenceDays.add(day);
       }
     }
 
@@ -831,7 +831,7 @@ async function updateMonthlySummary() {
         const agg = perAgentDay.get(agentId + '|' + d);
         if (agg?.firstDist != null) { firstDistAny = Math.round(Number(agg.firstDist)); break; }
       }
-      
+
       console.log(`📊 Statistiques agent ${stats.name}:`, {
         planned,
         present,
@@ -839,7 +839,7 @@ async function updateMonthlySummary() {
         plannedDays: Array.from(stats.plannedDays),
         presenceDays: Array.from(stats.presenceDays)
       });
-      
+
       if (present > 0 || planned > 0) {
         rowsOut.push({
           agent: stats.name,
@@ -874,7 +874,7 @@ async function updateMonthlySummary() {
         <td>${(r.dist_first != null) ? r.dist_first : (r.dist_min != null ? r.dist_min : '—')}</td>
       </tr>
     `).join('');
-    
+
     console.log('✅ MonthlySummary rows pour tous les agents:', rowsOut.length, rowsOut);
   } catch (e) {
     console.warn('updateMonthlySummary error:', e);
@@ -883,7 +883,7 @@ async function updateMonthlySummary() {
 }
 
 function clearGoogleMarkers() {
-  try { gmarkers.forEach(m => m.setMap(null)); } catch {}
+  try { gmarkers.forEach(m => m.setMap(null)); } catch { }
   gmarkers = [];
 }
 
@@ -893,15 +893,15 @@ function initMap() {
   try {
     if (typeof window !== 'undefined' && window.__lmap) {
       map = window.__lmap;
-      try { if (markersLayer && markersLayer.clearLayers) markersLayer.clearLayers(); } catch {}
-      try { markersLayer = L.layerGroup().addTo(map); } catch {}
+      try { if (markersLayer && markersLayer.clearLayers) markersLayer.clearLayers(); } catch { }
+      try { markersLayer = L.layerGroup().addTo(map); } catch { }
     } else {
-  // Cleanup previous maps
-  try { if (map && map.remove) map.remove(); } catch {}
-  map = null;
+      // Cleanup previous maps
+      try { if (map && map.remove) map.remove(); } catch { }
+      map = null;
     }
-  } catch {}
-  try { clearGoogleMarkers(); } catch {}
+  } catch { }
+  try { clearGoogleMarkers(); } catch { }
   gmap = null;
 
   if (basemapType === 'google' && window.google && window.google.maps) {
@@ -914,8 +914,8 @@ function initMap() {
 
   // Default to Leaflet
   if (!map) {
-  map = L.map('map').setView([9.3077, 2.3158], 7);
-    try { window.__lmap = map; } catch {}
+    map = L.map('map').setView([9.3077, 2.3158], 7);
+    try { window.__lmap = map; } catch { }
   }
   let osmLayer = null;
   let fallbackLayer = null;
@@ -932,7 +932,7 @@ function initMap() {
     const anyTile = document.querySelector('#map .leaflet-tile');
     if (!anyTile && !fallbackLayer) {
       console.warn('⚠️ Aucune tuile OSM chargée, bascule vers ArcGIS World_Imagery');
-      if (osmLayer) { try { map.removeLayer(osmLayer); } catch {} }
+      if (osmLayer) { try { map.removeLayer(osmLayer); } catch { } }
       fallbackLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Tiles &copy; Esri'
       }).addTo(map);
@@ -944,27 +944,27 @@ function initMap() {
 async function init() {
   await ensureAuth();
   await loadSettings();
-  
+
   // Vérifier l'accès au dashboard
   const hasAccess = await checkDashboardAccess();
   if (!hasAccess) return;
-  
+
   // Mettre à jour les informations utilisateur
   await updateUserInfo();
-  
+
   // Conserver le comportement d'origine (pas de forçage du basemap)
 
   // Map
   initMap();
-  
+
   // Créer le bouton d'ajout de point de début après l'initialisation de la carte
   setTimeout(() => {
     createAddStartPointButton();
-    try { createDashboardPresenceButtons(); } catch {}
+    try { createDashboardPresenceButtons(); } catch { }
   }, 1500);
 
   await loadAgents();
-  
+
   // Initialiser les sélecteurs géographiques avec les bonnes fonctions
   setTimeout(() => {
     console.log('🌍 Initialisation des sélecteurs géographiques dans dashboard...');
@@ -991,42 +991,42 @@ async function init() {
   }
 
   $('refresh').onclick = refresh;
-  
+
   // Bouton de test pour diagnostiquer les check-ins
   const testBtn = $('test-checkins');
   if (testBtn) {
     testBtn.onclick = async () => {
       console.log('🧪 TEST DIAGNOSTIC DES CHECK-INS');
       console.log('================================');
-      
+
       try {
         // Test 0: Vérifier le JWT
         console.log('0️⃣ Vérification du JWT...');
         console.log('JWT présent:', !!jwt);
         console.log('JWT longueur:', jwt?.length || 0);
         console.log('JWT localStorage:', !!localStorage.getItem('jwt'));
-        
+
         // Test 1: Vérifier l'authentification
         console.log('1️⃣ Test authentification...');
         const profile = await api('/profile');
         console.log('✅ Profil utilisateur:', profile);
-        
+
         // Test 2: Tester l'endpoint check-ins
         console.log('2️⃣ Test endpoint /api/checkins/mine...');
         const checkins = await api('/checkins/mine');
         console.log('✅ Réponse check-ins:', checkins);
-        
+
         // Test 3: Vérifier les missions
         console.log('3️⃣ Test endpoint /api/me/missions...');
         const missions = await api('/me/missions');
         console.log('✅ Réponse missions:', missions);
-        
+
         // Test 4: Forcer le rechargement de la carte
         console.log('4️⃣ Test rechargement carte...');
         await loadCheckinsOnMap();
-        
+
         alert(`Test terminé ! Check-ins trouvés: ${checkins?.items?.length || 0}`);
-        
+
       } catch (error) {
         console.error('❌ Erreur pendant le test:', error);
         alert('Erreur: ' + error.message);
@@ -1035,7 +1035,7 @@ async function init() {
   }
   try {
     await refresh();
-    
+
     // S'assurer que les check-ins sont chargés après l'initialisation
     setTimeout(async () => {
       try {
@@ -1048,26 +1048,26 @@ async function init() {
   } catch (e) {
     handleDashboardError(e);
   }
-  
+
   // Configurer la navigation circulaire selon le rôle
   await setupCircularNavigation();
 
   // Mettre à jour le récap quand la date change (mois sélectionné)
   const dateEl = $('date');
-  if (dateEl) dateEl.addEventListener('change', () => updateMonthlySummary().catch(()=>{}));
+  if (dateEl) dateEl.addEventListener('change', () => updateMonthlySummary().catch(() => { }));
 
   // Modal agent
   window.openAgentModal = openAgentModal;
   window.closeAgentModal = closeAgentModal;
   const form = document.getElementById('agent-form');
-  
+
   // Close modal when clicking outside
   $('agent-modal').addEventListener('click', (e) => {
     if (e.target === $('agent-modal')) {
       closeAgentModal();
     }
   });
-  
+
   // Close modal with Escape key
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !$('agent-modal').classList.contains('hidden')) {
@@ -1083,45 +1083,45 @@ async function init() {
     if (nav) nav.classList.add('navbar', 'navbar-expand-lg', 'bg-light', 'border-bottom');
     document.querySelectorAll('table').forEach(t => t.classList.add('table', 'table-striped', 'table-hover'));
     document.querySelectorAll('input, select, textarea').forEach(i => {
-      if (!['checkbox','radio','file'].includes(i.type)) i.classList.add('form-control');
+      if (!['checkbox', 'radio', 'file'].includes(i.type)) i.classList.add('form-control');
     });
     document.querySelectorAll('label').forEach(l => l.classList.add('form-label'));
     document.querySelectorAll('button').forEach(b => b.classList.add('btn', 'btn-primary'));
-  } catch {}
+  } catch { }
 }
 
 // Fonction pour charger et afficher les check-ins sur la carte
 async function loadCheckinsOnMap() {
   try {
     console.log('🗺️ Chargement des check-ins existants pour la carte...');
-    
+
     let rows = [];
-    
+
     // Essayer d'abord l'endpoint admin pour tous les agents
     try {
       console.log('📍 Récupération des check-ins de tous les agents...');
       const response = await api('/admin/checkins/latest');
       console.log('📦 Réponse admin checkins:', response);
-      
+
       const checkins = response?.data?.items || response?.checkins || [];
       console.log('📋 Check-ins extraits:', checkins.length);
-      
+
       if (Array.isArray(checkins) && checkins.length > 0) {
         // Traiter les check-ins de l'endpoint admin
         const filteredCheckins = checkins.filter(checkin => {
           const hasCoords = Number.isFinite(Number(checkin.lat)) && Number.isFinite(Number(checkin.lon));
           return hasCoords;
         });
-        
+
         console.log('📋 Check-ins avec coordonnées valides:', filteredCheckins.length);
-        
+
         // Grouper par agent et par mission pour avoir un point par agent par mission
         const agentMissionMap = {};
         filteredCheckins.forEach(checkin => {
           const agentId = checkin.missions?.agent_id || checkin.mission_id;
           const missionId = checkin.mission_id || checkin.missions?.id;
           const agentName = checkin.missions?.users?.name || 'Agent';
-          
+
           const key = `${agentId}_${missionId}`;
           if (!agentMissionMap[key]) {
             agentMissionMap[key] = {
@@ -1133,15 +1133,15 @@ async function loadCheckinsOnMap() {
           }
           agentMissionMap[key].checkins.push(checkin);
         });
-        
+
         console.log('📊 Groupes agent-mission:', Object.keys(agentMissionMap).length);
-        
+
         // Pour chaque groupe agent-mission, créer un point représentatif
         const presencePoints = [];
         Object.keys(agentMissionMap).forEach(key => {
           const group = agentMissionMap[key];
           const checkins = group.checkins;
-          
+
           // Sélectionner le point de début si présent, sinon le premier check-in chronologique
           const startCheckin = checkins.find(c => {
             const t = (c.type || '').toLowerCase();
@@ -1158,21 +1158,21 @@ async function loadCheckinsOnMap() {
 
           const representativeCheckin = startCheckin || sortedByTime[0];
           const latestCheckin = checkins[checkins.length - 1];
-          
+
           console.log(`🎯 Point de présence pour ${group.agent_name} mission ${group.mission_id}:`, representativeCheckin);
-          
+
           // Déterminer le type de point basé sur l'activité
           let pointType = startCheckin ? 'mission_start' : 'mission_start';
           let note = `Mission ${group.mission_id} - ${group.agent_name}`;
-          
+
           if (checkins.length > 1) {
-            const duration = new Date(latestCheckin.timestamp || latestCheckin.token) - 
-                           new Date(representativeCheckin.timestamp || representativeCheckin.created_at);
+            const duration = new Date(latestCheckin.timestamp || latestCheckin.token) -
+              new Date(representativeCheckin.timestamp || representativeCheckin.created_at);
             const hours = Math.round(duration / (1000 * 60 * 60));
             note = `${note} (${checkins.length} check-ins, ${hours}h)`;
             pointType = 'mission_active';
           }
-          
+
           presencePoints.push({
             lat: Number(representativeCheckin.lat),
             lon: Number(representativeCheckin.lon),
@@ -1187,7 +1187,7 @@ async function loadCheckinsOnMap() {
             last_checkin_time: latestCheckin.timestamp || latestCheckin.created_at
           });
         });
-        
+
         rows = presencePoints;
         console.log('✅ Points de présence créés:', rows.length, 'répartis sur:', Object.keys(agentMissionMap).length, 'groupes agent-mission');
 
@@ -1234,21 +1234,21 @@ async function loadCheckinsOnMap() {
       }
     } catch (adminError) {
       console.log('⚠️ Endpoint admin non disponible, fallback vers check-ins utilisateur');
-      
+
       // Fallback: récupérer les check-ins de l'utilisateur connecté
       try {
         const userCheckinsResp = await api('/checkins/mine');
         const userCheckins = userCheckinsResp?.items || [];
         console.log('📋 Check-ins utilisateur récupérés:', userCheckins.length);
-        
+
         rows = userCheckins
           .filter(checkin => {
             const hasCoords = Number.isFinite(Number(checkin.lat)) && Number.isFinite(Number(checkin.lon));
             // Filtrer pour n'afficher que les points de début de mission
-            const isStartPoint = checkin.type === 'start_mission' || checkin.type === 'mission_start' || 
-                                checkin.note?.toLowerCase().includes('début') || 
-                                checkin.note?.toLowerCase().includes('start') ||
-                                checkin.note?.toLowerCase().includes('départ');
+            const isStartPoint = checkin.type === 'start_mission' || checkin.type === 'mission_start' ||
+              checkin.note?.toLowerCase().includes('début') ||
+              checkin.note?.toLowerCase().includes('start') ||
+              checkin.note?.toLowerCase().includes('départ');
             return hasCoords && isStartPoint;
           })
           .map(checkin => ({
@@ -1271,13 +1271,13 @@ async function loadCheckinsOnMap() {
       console.log('Type de carte:', basemapType);
       console.log('Objet map disponible:', !!map);
       console.log('Objet gmap disponible:', !!gmap);
-      
+
       // Clear existing markers
       if (basemapType === 'google') {
         clearGoogleMarkers();
         console.log('🧹 Marqueurs Google Maps nettoyés');
       } else {
-        checkinMarkers.forEach(marker => { try { map.removeLayer(marker); } catch {} });
+        checkinMarkers.forEach(marker => { try { map.removeLayer(marker); } catch { } });
         checkinMarkers = [];
         console.log('🧹 Marqueurs Leaflet nettoyés');
       }
@@ -1289,7 +1289,7 @@ async function loadCheckinsOnMap() {
           console.log(`✅ Coordonnées valides pour check-in ${index + 1}: ${checkin.lat}, ${checkin.lon}`);
           const color = colorForAgentName(checkin.agent_name || 'Agent');
           ensureAgentLegend(checkin.agent_name || 'Agent', color);
-          
+
           // Déterminer le type et l'apparence du marqueur
           let pointType = checkin.type || 'mission_active';
           let typeLabel = 'Mission en cours';
@@ -1301,7 +1301,7 @@ async function loadCheckinsOnMap() {
             opacity: 0.8,
             fillOpacity: 0.6
           };
-          
+
           // Personnaliser l'apparence selon le type
           if (pointType === 'mission_start') {
             typeLabel = 'Début de mission';
@@ -1314,10 +1314,10 @@ async function loadCheckinsOnMap() {
             markerStyle.fillOpacity = 0.7;
             markerStyle.weight = 4;
           }
-          
+
           const title = `${checkin.agent_name || 'Agent'} • ${typeLabel}`;
           const note = checkin.note || `Mission ${checkin.mission_id || 'N/A'}`;
-          
+
           const popupHtml = `
             <div style="min-width: 220px;">
               <h6 style="color: ${color};"><strong>${checkin.agent_name || 'Agent'}</strong></h6>
@@ -1386,7 +1386,7 @@ async function loadAgents() {
 
 function openAgentModal(agent = null) {
   $('agent-modal-title').textContent = agent ? 'Modifier un Agent' : 'Créer un Agent';
-  
+
   // Remplir les champs du formulaire
   $('af_id').value = agent?.id || '';
   $('af_name').value = agent?.name || '';
@@ -1412,16 +1412,16 @@ function openAgentModal(agent = null) {
   $('af_ref_lon').value = agent?.reference_lon || '';
   $('af_gps_accuracy').value = agent?.gps_accuracy || 'medium';
   $('af_observations').value = agent?.observations || '';
-  
+
   // Gérer la photo de profil
   updatePhotoPreview(agent?.photo_path);
-  
+
   const modal = $('agent-modal');
   modal.classList.remove('hidden');
-  
+
   // Charger cascades geo pour le modal immédiatement
   loadAfDepartements(agent?.village_path);
-  
+
   // Ajouter un gestionnaire pour fermer le modal en cliquant à l'extérieur
   modal.onclick = (e) => {
     if (e.target === modal) {
@@ -1430,7 +1430,7 @@ function openAgentModal(agent = null) {
   };
 }
 
-function closeAgentModal(){ 
+function closeAgentModal() {
   const modal = $('agent-modal');
   modal.classList.add('hidden');
   // Reset form
@@ -1440,31 +1440,31 @@ function closeAgentModal(){
   updatePhotoPreview(null);
 }
 
-async function loadAfDepartements(villagePath){
+async function loadAfDepartements(villagePath) {
   console.log('🌍 Chargement des départements...');
   console.log('🔍 Recherche de l\'élément af_departement...');
-  
-  const depSel = $('af_departement'); 
+
+  const depSel = $('af_departement');
   if (!depSel) {
     console.error('❌ Élément af_departement non trouvé');
     console.log('🔍 Éléments disponibles avec "af_":', document.querySelectorAll('[id^="af_"]'));
     return;
   }
-  
+
   console.log('✅ Élément af_departement trouvé:', depSel);
-  depSel.innerHTML='';
-  
+  depSel.innerHTML = '';
+
   try {
     console.log('🌐 Chargement des départements depuis geo-data.js...');
-    
+
     if (typeof geoData !== 'undefined' && geoData.departements) {
       depSel.append(new Option('Sélectionner un département...', ''));
-      for(const d of geoData.departements) {
+      for (const d of geoData.departements) {
         const option = new Option(d.name, d.id);
         depSel.append(option);
         console.log('➕ Option ajoutée:', d.name, d.id);
       }
-      
+
       console.log('✅ Total options dans le select:', depSel.options.length);
     } else {
       console.error('❌ geoData non disponible');
@@ -1474,51 +1474,51 @@ async function loadAfDepartements(villagePath){
     console.error('❌ Erreur lors du chargement des départements:', error);
     alert('Erreur lors du chargement des départements: ' + error.message);
   }
-  
+
   // Reset other selects
   $('af_commune').innerHTML = '<option value="">Sélectionner une commune...</option>';
   $('af_arrondissement').innerHTML = '<option value="">Sélectionner un arrondissement...</option>';
   $('af_village').innerHTML = '<option value="">Sélectionner un village...</option>';
-  $('af_commune').disabled = true; 
-  $('af_arrondissement').disabled = true; 
+  $('af_commune').disabled = true;
+  $('af_arrondissement').disabled = true;
   $('af_village').disabled = true;
-  
+
   // Département change handler
-  depSel.onchange = async ()=>{
-    const id = Number(depSel.value); 
-    const comSel = $('af_commune'); 
-    comSel.innerHTML='<option value="">Sélectionner une commune...</option>';
-    if(!id){ 
-      comSel.disabled=true; 
-      $('af_arrondissement').disabled=true; 
-      $('af_village').disabled=true;
-      return; 
+  depSel.onchange = async () => {
+    const id = Number(depSel.value);
+    const comSel = $('af_commune');
+    comSel.innerHTML = '<option value="">Sélectionner une commune...</option>';
+    if (!id) {
+      comSel.disabled = true;
+      $('af_arrondissement').disabled = true;
+      $('af_village').disabled = true;
+      return;
     }
     try {
       // Utiliser les données statiques
       const departement = geoData.departements.find(d => d.id == id);
       if (departement && geoData.communes[departement.name]) {
         const communes = geoData.communes[departement.name];
-        for(const c of communes) comSel.append(new Option(c.name, c.id));
-        comSel.disabled=false; 
-        $('af_arrondissement').disabled=true; 
-        $('af_village').disabled=true;
+        for (const c of communes) comSel.append(new Option(c.name, c.id));
+        comSel.disabled = false;
+        $('af_arrondissement').disabled = true;
+        $('af_village').disabled = true;
       }
-    } catch(e) {
+    } catch (e) {
       console.error('Error loading communes:', e);
       alert('Erreur lors du chargement des communes');
     }
   };
-  
+
   // Commune change handler
-  $('af_commune').onchange = async ()=>{
-    const id = Number($('af_commune').value); 
-    const arrSel = $('af_arrondissement'); 
-    arrSel.innerHTML='<option value="">Sélectionner un arrondissement...</option>';
-    if(!id){ 
-      arrSel.disabled=true; 
-      $('af_village').disabled=true;
-      return; 
+  $('af_commune').onchange = async () => {
+    const id = Number($('af_commune').value);
+    const arrSel = $('af_arrondissement');
+    arrSel.innerHTML = '<option value="">Sélectionner un arrondissement...</option>';
+    if (!id) {
+      arrSel.disabled = true;
+      $('af_village').disabled = true;
+      return;
     }
     try {
       // Utiliser les données statiques
@@ -1527,27 +1527,27 @@ async function loadAfDepartements(villagePath){
         commune = communes.find(c => c.id == id);
         if (commune) break;
       }
-      
+
       if (commune && geoData.arrondissements[commune.name]) {
         const arrondissements = geoData.arrondissements[commune.name];
-        for(const a of arrondissements) arrSel.append(new Option(a.name, a.id));
-        arrSel.disabled=false; 
-        $('af_village').disabled=true;
+        for (const a of arrondissements) arrSel.append(new Option(a.name, a.id));
+        arrSel.disabled = false;
+        $('af_village').disabled = true;
       }
-    } catch(e) {
+    } catch (e) {
       console.error('Error loading arrondissements:', e);
       alert('Erreur lors du chargement des arrondissements');
     }
   };
-  
+
   // Arrondissement change handler
-  $('af_arrondissement').onchange = async ()=>{
-    const id = Number($('af_arrondissement').value); 
-    const vilSel = $('af_village'); 
-    vilSel.innerHTML='<option value="">Sélectionner un village...</option>';
-    if(!id){ 
-      vilSel.disabled=true;
-      return; 
+  $('af_arrondissement').onchange = async () => {
+    const id = Number($('af_arrondissement').value);
+    const vilSel = $('af_village');
+    vilSel.innerHTML = '<option value="">Sélectionner un village...</option>';
+    if (!id) {
+      vilSel.disabled = true;
+      return;
     }
     try {
       // Utiliser les données statiques
@@ -1556,38 +1556,38 @@ async function loadAfDepartements(villagePath){
         arrondissement = arrondissements.find(a => a.id == id);
         if (arrondissement) break;
       }
-      
+
       if (arrondissement && geoData.villages[arrondissement.name]) {
         const villages = geoData.villages[arrondissement.name];
-        for(const v of villages) vilSel.append(new Option(v.name, v.id));
-        vilSel.disabled=false;
+        for (const v of villages) vilSel.append(new Option(v.name, v.id));
+        vilSel.disabled = false;
       }
-    } catch(e) {
+    } catch (e) {
       console.error('Error loading villages:', e);
       alert('Erreur lors du chargement des villages');
     }
   };
 }
 
-async function onAgentSubmit(ev){
+async function onAgentSubmit(ev) {
   ev.preventDefault();
-  
+
   // Valider les champs géographiques requis
   if (!validateGeoFieldsDashboard()) {
     return;
   }
-  
+
   // Validation des mots de passe
   const password = $('af_password').value.trim();
   const passwordConfirm = $('af_password_confirm').value.trim();
-  
+
   if (password && password !== passwordConfirm) {
     alert('Les mots de passe ne correspondent pas');
     return;
   }
-  
+
   const id = $('af_id').value.trim();
-  
+
   // Préparer les données JSON
   const payload = {
     name: $('af_name').value.trim(),
@@ -1616,24 +1616,24 @@ async function onAgentSubmit(ev){
     gps_accuracy: $('af_gps_accuracy').value || undefined,
     observations: $('af_observations').value.trim() || undefined
   };
-  
+
   // Gestion du mot de passe
   if (password) {
     payload.password = password;
   } else if (!id) {
     payload.password = 'Agent@123';
   }
-  
+
   console.log('📤 Envoi des données agent:', payload);
   console.log('🔑 JWT token:', jwt ? 'présent' : 'absent');
-  
+
   try {
     const url = `/api/admin/agents${id ? '/' + id : ''}`;
     const body = JSON.stringify(payload);
-    
+
     console.log('🌐 URL:', url);
     console.log('📦 Body JSON:', body);
-    
+
     const response = await fetch(url, {
       method: id ? 'PUT' : 'POST',
       headers: {
@@ -1642,51 +1642,51 @@ async function onAgentSubmit(ev){
       },
       body: body
     });
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(errorText);
     }
-    
+
     closeAgentModal();
     await loadAgents();
     alert('Agent enregistré avec succès !');
-  } catch(e){ 
+  } catch (e) {
     console.error('Error saving agent:', e);
-    alert('Erreur enregistrement agent: ' + (e.message||'Erreur')); 
+    alert('Erreur enregistrement agent: ' + (e.message || 'Erreur'));
   }
 }
 
 // Fonction d'initialisation locale des sélecteurs géographiques
 function initGeoSelectorsLocal() {
   console.log('🌍 Initialisation locale des sélecteurs géographiques dans dashboard...');
-  
+
   // Charger les départements
   loadDepartements();
-  
+
   // Ajouter les événements
   const departementSelect = $('departement');
   const communeSelect = $('commune');
   const arrondissementSelect = $('arrondissement');
-  
+
   if (departementSelect) {
-    departementSelect.addEventListener('change', function() {
+    departementSelect.addEventListener('change', function () {
       loadCommunes(this.value);
     });
   }
-  
+
   if (communeSelect) {
-    communeSelect.addEventListener('change', function() {
+    communeSelect.addEventListener('change', function () {
       loadArrondissements(this.value);
     });
   }
-  
+
   if (arrondissementSelect) {
-    arrondissementSelect.addEventListener('change', function() {
+    arrondissementSelect.addEventListener('change', function () {
       loadVillages(this.value);
     });
   }
-  
+
   console.log('✅ Sélecteurs géographiques initialisés localement dans dashboard');
 }
 
@@ -1695,9 +1695,9 @@ async function loadDepartements() {
   try {
     const deptSelect = $('departement');
     if (!deptSelect) return;
-    
+
     deptSelect.innerHTML = '<option value="">Sélectionner un département</option>';
-    
+
     // Attendre que geo-data.js soit prêt (mobile/PWA peut retarder le chargement)
     for (let i = 0; i < 10 && !(window.geoData && window.geoData.departements && window.geoData.departements.length); i++) {
       await new Promise(r => setTimeout(r, 300));
@@ -1738,9 +1738,9 @@ async function loadCommunes(departementId) {
   try {
     const communeSelect = $('commune');
     if (!communeSelect) return;
-    
+
     communeSelect.innerHTML = '<option value="">Sélectionner une commune</option>';
-    
+
     // Utiliser les données de geo-data.js qui utilisent des IDs numériques
     if (window.geoData && window.geoData.communes && window.geoData.communes[departementId]) {
       const communes = window.geoData.communes[departementId];
@@ -1754,7 +1754,7 @@ async function loadCommunes(departementId) {
     } else {
       console.error('❌ Communes non disponibles pour le département ID:', departementId);
     }
-    
+
     // Réinitialiser les niveaux suivants
     $('arrondissement').innerHTML = '<option value=``>Sélectionner un arrondissement</option>';
     $('village').innerHTML = '<option value=``>Sélectionner un village</option>';
@@ -1767,9 +1767,9 @@ async function loadArrondissements(communeId) {
   try {
     const arrSelect = $('arrondissement');
     if (!arrSelect) return;
-    
+
     arrSelect.innerHTML = '<option value="">Sélectionner un arrondissement</option>';
-    
+
     // Utiliser les données de geo-data.js qui utilisent des IDs numériques
     if (window.geoData && window.geoData.arrondissements && window.geoData.arrondissements[communeId]) {
       const arrondissements = window.geoData.arrondissements[communeId];
@@ -1783,7 +1783,7 @@ async function loadArrondissements(communeId) {
     } else {
       console.error('❌ Arrondissements non disponibles pour la commune ID:', communeId);
     }
-    
+
     // Réinitialiser le niveau suivant
     $('village').innerHTML = '<option value="">Sélectionner un village</option>';
   } catch (error) {
@@ -1795,9 +1795,9 @@ async function loadVillages(arrondissementId) {
   try {
     const villageSelect = $('village');
     if (!villageSelect) return;
-    
+
     villageSelect.innerHTML = '<option value="">Sélectionner un village</option>';
-    
+
     // Utiliser les données de geo-data.js qui utilisent des IDs numériques
     if (window.geoData && window.geoData.villages && window.geoData.villages[arrondissementId]) {
       const villages = window.geoData.villages[arrondissementId];
@@ -1820,157 +1820,157 @@ async function refresh() {
   const overlay = document.getElementById('map-loading');
   if (overlay) overlay.classList.add('active');
   try {
-  try { if (markersLayer && markersLayer.clearLayers) markersLayer.clearLayers(); } catch {}
-  const tlContainer = $('timeline');
-  if (tlContainer) tlContainer.innerHTML = '';
-  const date = $('date').value || undefined;
-  const agentId = $('agent').value ? Number($('agent').value) : undefined;
-  const villageId = $('village').value ? Number($('village').value) : undefined;
-  const params = new URLSearchParams();
-  if (date) params.set('date', date);
-  if (agentId) params.set('agent_id', String(agentId));
-  if (villageId) params.set('village_id', String(villageId));
-  const useLatest = !date && !agentId && !villageId;
-  let rows;
-  try {
-    // Utiliser l'endpoint admin pour récupérer les vrais check-ins de la table checkins
-    console.log('📋 Récupération des check-ins depuis la table checkins...');
-    const resp = await api('/admin/checkins/latest');
-    console.log('📦 Réponse check-ins:', resp);
-    
-    const checkins = resp?.data?.items || resp?.checkins || [];
-    console.log('📋 Check-ins extraits:', checkins.length);
-    
-    rows = checkins
-      .filter(checkin => {
-        const hasCoords = Number.isFinite(Number(checkin.lat)) && Number.isFinite(Number(checkin.lon));
-        console.log(`🔍 Check-in ${checkin.id}: coordonnées valides =`, hasCoords, `(${checkin.lat}, ${checkin.lon})`);
-        return hasCoords;
-      })
-      .map(checkin => {
-        const agentName = checkin.missions?.users?.name || 'Agent';
-        const checkinType = checkin.type || 'checkin';
-        const typeLabel = checkinType === 'start_mission' ? 'Début mission' : 
-                         checkinType === 'mission_start' ? 'Départ' : 
-                         checkinType === 'mission_end' ? 'Fin mission' : 'Check-in';
-        return {
-          lat: Number(checkin.lat),
-          lon: Number(checkin.lon),
-          timestamp: checkin.timestamp || checkin.created_at,
-          agent_name: agentName,
-          user_id: checkin.missions?.agent_id || checkin.mission_id,
-          type: checkinType,
-          note: `${typeLabel} - ${agentName}${checkin.note ? `: ${checkin.note}` : ''}`
-        };
-      });
-    
-    console.log('✅ Check-ins traités pour timeline:', rows.length);
-  } catch (e) {
-    console.warn('API /presence indisponible, tentative /admin/checkins puis Supabase:', e.message || e);
+    try { if (markersLayer && markersLayer.clearLayers) markersLayer.clearLayers(); } catch { }
+    const tlContainer = $('timeline');
+    if (tlContainer) tlContainer.innerHTML = '';
+    const date = $('date').value || undefined;
+    const agentId = $('agent').value ? Number($('agent').value) : undefined;
+    const villageId = $('village').value ? Number($('village').value) : undefined;
+    const params = new URLSearchParams();
+    if (date) params.set('date', date);
+    if (agentId) params.set('agent_id', String(agentId));
+    if (villageId) params.set('village_id', String(villageId));
+    const useLatest = !date && !agentId && !villageId;
+    let rows;
     try {
-      if (useLatest) {
-        const resp = await api('/admin/checkins/latest');
-        const arr = resp?.data?.items || resp?.checkins || [];
-        rows = Array.isArray(arr) ? arr : [];
-      } else {
-        const resp = await api('/admin/checkins?' + params.toString());
-        rows = resp?.data?.items || [];
-      }
-    } catch {}
-    // Fallback authentifié: checkins de l'agent courant si l'endpoint admin est refusé
-    try {
-      if (!rows || rows.length === 0) {
-        const q2 = new URLSearchParams();
-        if (date) {
-          const d = new Date(date + 'T00:00:00');
-          const start = new Date(d);
-          const end = new Date(d); end.setDate(end.getDate() + 1);
-          q2.set('from', start.toISOString());
-          q2.set('to', end.toISOString());
-        }
-        const mine = await api('/checkins/mine' + (q2.toString() ? ('?' + q2.toString()) : ''));
-        const items = mine?.items || mine?.data?.items || [];
-        if (Array.isArray(items)) {
-          rows = items.map(r => ({
-            lat: typeof r.lat === 'number' ? r.lat : Number(r.lat),
-            lon: typeof r.lon === 'number' ? r.lon : Number(r.lon),
-            timestamp: r.timestamp,
-            agent_name: r.agent_name || (currentProfile?.name || 'Moi'),
-          })).filter(x => isFinite(x.lat) && isFinite(x.lon));
-        }
-      }
-    } catch {}
-    // Fallback Supabase direct si configuré
-    try {
-      if (!rows || rows.length === 0) {
-        const sbRows = await fetchCheckinsFromSupabase({
-          date: $('date').value || undefined,
-          agentId: $('agent').value ? Number($('agent').value) : undefined,
-          villageId: $('village').value ? Number($('village').value) : undefined,
+      // Utiliser l'endpoint admin pour récupérer les vrais check-ins de la table checkins
+      console.log('📋 Récupération des check-ins depuis la table checkins...');
+      const resp = await api('/admin/checkins/latest');
+      console.log('📦 Réponse check-ins:', resp);
+
+      const checkins = resp?.data?.items || resp?.checkins || [];
+      console.log('📋 Check-ins extraits:', checkins.length);
+
+      rows = checkins
+        .filter(checkin => {
+          const hasCoords = Number.isFinite(Number(checkin.lat)) && Number.isFinite(Number(checkin.lon));
+          console.log(`🔍 Check-in ${checkin.id}: coordonnées valides =`, hasCoords, `(${checkin.lat}, ${checkin.lon})`);
+          return hasCoords;
+        })
+        .map(checkin => {
+          const agentName = checkin.missions?.users?.name || 'Agent';
+          const checkinType = checkin.type || 'checkin';
+          const typeLabel = checkinType === 'start_mission' ? 'Début mission' :
+            checkinType === 'mission_start' ? 'Départ' :
+              checkinType === 'mission_end' ? 'Fin mission' : 'Check-in';
+          return {
+            lat: Number(checkin.lat),
+            lon: Number(checkin.lon),
+            timestamp: checkin.timestamp || checkin.created_at,
+            agent_name: agentName,
+            user_id: checkin.missions?.agent_id || checkin.mission_id,
+            type: checkinType,
+            note: `${typeLabel} - ${agentName}${checkin.note ? `: ${checkin.note}` : ''}`
+          };
         });
-        if (Array.isArray(sbRows)) {
-          rows = sbRows.map(r => ({
-            lat: r.lat,
-            lon: r.lon,
-            timestamp: r.timestamp,
-            agent_name: r.agent_name || r.user_id,
-          }));
-        }
-      }
-    } catch {}
-  }
 
-  // Vider la timeline avant d'ajouter de nouveaux éléments
-  const timelineContainer = $('timeline');
-  if (timelineContainer) {
-    console.log('🧹 Vidage de la timeline avant ajout');
-    timelineContainer.innerHTML = '';
-  }
-  
-  console.log('📋 Génération timeline avec', rows?.length || 0, 'éléments');
-  console.log('📋 Données pour timeline:', rows);
-
-  const latlngs = [];
-  for (const r of rows) {
-    if (typeof r.lat !== 'number' || typeof r.lon !== 'number') continue;
-    if (basemapType !== 'google' && markersLayer) {
-      const m = L.marker([r.lat, r.lon]).bindPopup(`<b>${r.agent_name}</b><br>${r.timestamp}`);
-      markersLayer.addLayer(m);
-    }
-    latlngs.push([r.lat, r.lon]);
-
-    const li = document.createElement('li');
-    li.textContent = `${r.timestamp} - ${r.agent_name} - (${r.lat.toFixed(5)}, ${r.lon.toFixed(5)})`;
-    console.log('📋 Ajout à timeline:', li.textContent);
-    $('timeline').appendChild(li);
-  }
-  if (latlngs.length) {
-    if (basemapType === 'google' && gmap) {
-      const bounds = new google.maps.LatLngBounds();
-      latlngs.forEach(([lat, lon]) => bounds.extend({ lat, lng: lon }));
-      gmap.fitBounds(bounds, 50);
-    } else if (map) {
-      map.fitBounds(latlngs, { padding: [20, 20] });
-    }
-  }
-
-  // Mettre à jour le récapitulatif mensuel
-  try { await updateMonthlySummary(); } catch(e){ console.warn('monthly summary:', e); }
-  
-  // Rafraîchir les check-ins sur la carte (avec délai pour s'assurer que la carte est prête)
-  try { 
-    console.log('🔄 Appel de loadCheckinsOnMap depuis refresh()...');
-    // Attendre un peu pour que la carte soit prête
-    setTimeout(async () => {
+      console.log('✅ Check-ins traités pour timeline:', rows.length);
+    } catch (e) {
+      console.warn('API /presence indisponible, tentative /admin/checkins puis Supabase:', e.message || e);
       try {
-        await loadCheckinsOnMap();
-      } catch(e) {
-        console.error('❌ Erreur loadCheckinsOnMap (délai):', e);
+        if (useLatest) {
+          const resp = await api('/admin/checkins/latest');
+          const arr = resp?.data?.items || resp?.checkins || [];
+          rows = Array.isArray(arr) ? arr : [];
+        } else {
+          const resp = await api('/admin/checkins?' + params.toString());
+          rows = resp?.data?.items || [];
+        }
+      } catch { }
+      // Fallback authentifié: checkins de l'agent courant si l'endpoint admin est refusé
+      try {
+        if (!rows || rows.length === 0) {
+          const q2 = new URLSearchParams();
+          if (date) {
+            const d = new Date(date + 'T00:00:00');
+            const start = new Date(d);
+            const end = new Date(d); end.setDate(end.getDate() + 1);
+            q2.set('from', start.toISOString());
+            q2.set('to', end.toISOString());
+          }
+          const mine = await api('/checkins/mine' + (q2.toString() ? ('?' + q2.toString()) : ''));
+          const items = mine?.items || mine?.data?.items || [];
+          if (Array.isArray(items)) {
+            rows = items.map(r => ({
+              lat: typeof r.lat === 'number' ? r.lat : Number(r.lat),
+              lon: typeof r.lon === 'number' ? r.lon : Number(r.lon),
+              timestamp: r.timestamp,
+              agent_name: r.agent_name || (currentProfile?.name || 'Moi'),
+            })).filter(x => isFinite(x.lat) && isFinite(x.lon));
+          }
+        }
+      } catch { }
+      // Fallback Supabase direct si configuré
+      try {
+        if (!rows || rows.length === 0) {
+          const sbRows = await fetchCheckinsFromSupabase({
+            date: $('date').value || undefined,
+            agentId: $('agent').value ? Number($('agent').value) : undefined,
+            villageId: $('village').value ? Number($('village').value) : undefined,
+          });
+          if (Array.isArray(sbRows)) {
+            rows = sbRows.map(r => ({
+              lat: r.lat,
+              lon: r.lon,
+              timestamp: r.timestamp,
+              agent_name: r.agent_name || r.user_id,
+            }));
+          }
+        }
+      } catch { }
+    }
+
+    // Vider la timeline avant d'ajouter de nouveaux éléments
+    const timelineContainer = $('timeline');
+    if (timelineContainer) {
+      console.log('🧹 Vidage de la timeline avant ajout');
+      timelineContainer.innerHTML = '';
+    }
+
+    console.log('📋 Génération timeline avec', rows?.length || 0, 'éléments');
+    console.log('📋 Données pour timeline:', rows);
+
+    const latlngs = [];
+    for (const r of rows) {
+      if (typeof r.lat !== 'number' || typeof r.lon !== 'number') continue;
+      if (basemapType !== 'google' && markersLayer) {
+        const m = L.marker([r.lat, r.lon]).bindPopup(`<b>${r.agent_name}</b><br>${r.timestamp}`);
+        markersLayer.addLayer(m);
       }
-    }, 1000);
-  } catch(e){ 
-    console.error('❌ Erreur loadCheckinsOnMap depuis refresh():', e); 
-  }
+      latlngs.push([r.lat, r.lon]);
+
+      const li = document.createElement('li');
+      li.textContent = `${r.timestamp} - ${r.agent_name} - (${r.lat.toFixed(5)}, ${r.lon.toFixed(5)})`;
+      console.log('📋 Ajout à timeline:', li.textContent);
+      $('timeline').appendChild(li);
+    }
+    if (latlngs.length) {
+      if (basemapType === 'google' && gmap) {
+        const bounds = new google.maps.LatLngBounds();
+        latlngs.forEach(([lat, lon]) => bounds.extend({ lat, lng: lon }));
+        gmap.fitBounds(bounds, 50);
+      } else if (map) {
+        map.fitBounds(latlngs, { padding: [20, 20] });
+      }
+    }
+
+    // Mettre à jour le récapitulatif mensuel
+    try { await updateMonthlySummary(); } catch (e) { console.warn('monthly summary:', e); }
+
+    // Rafraîchir les check-ins sur la carte (avec délai pour s'assurer que la carte est prête)
+    try {
+      console.log('🔄 Appel de loadCheckinsOnMap depuis refresh()...');
+      // Attendre un peu pour que la carte soit prête
+      setTimeout(async () => {
+        try {
+          await loadCheckinsOnMap();
+        } catch (e) {
+          console.error('❌ Erreur loadCheckinsOnMap (délai):', e);
+        }
+      }, 1000);
+    } catch (e) {
+      console.error('❌ Erreur loadCheckinsOnMap depuis refresh():', e);
+    }
   } finally {
     if (overlay) overlay.classList.remove('active');
   }
@@ -1985,23 +1985,23 @@ try {
         await refresh();
         await loadCheckinsOnMap();
       }
-    } catch {}
+    } catch { }
   });
 } catch (e) {
   console.warn('Erreur lors de l\'ajout du listener storage:', e);
 }
 
 // Générer le rapport mensuel
-generateMonthlyReport = async function() {
+generateMonthlyReport = async function () {
   const month = document.getElementById('report-month').value;
   if (!month) {
     alert('Veuillez sélectionner un mois');
     return;
   }
-  
+
   try {
     await api('/admin/generate-monthly-report', { method: 'POST', body: { month_year: month } });
-      alert('Rapport mensuel généré avec succès !');
+    alert('Rapport mensuel généré avec succès !');
   } catch (e) {
     console.error('Error generating report:', e);
     alert('Erreur lors de la génération du rapport');
@@ -2014,13 +2014,13 @@ if (typeof window !== 'undefined') {
 }
 
 // Exporter le rapport mensuel
-exportMonthlyReport = async function() {
+exportMonthlyReport = async function () {
   const month = document.getElementById('report-month').value;
   if (!month) {
     alert('Veuillez sélectionner un mois');
     return;
   }
-  
+
   try {
     const response = await fetch(`${apiBase}/admin/export/monthly-report.csv?month=${month}`, { headers: { 'Authorization': 'Bearer ' + jwt } });
     if (response.ok) {
@@ -2048,11 +2048,11 @@ if (typeof window !== 'undefined') {
 }
 
 // Créer un agent de test
-createTestAgent = async function() {
+createTestAgent = async function () {
   if (!confirm('Créer un agent de test avec des données complètes ?\nEmail: agent@test.com\nMot de passe: Test@123')) {
     return;
   }
-  
+
   try {
     const result = await api('/admin/create-test-agent', { method: 'POST' });
     alert(`Agent de test créé avec succès !\nID: ${result.agent_id}\nVous pouvez maintenant vous connecter avec:\nEmail: agent@test.com\nMot de passe: Test@123`);
@@ -2069,24 +2069,24 @@ if (typeof window !== 'undefined') {
 }
 
 // Configurer les points de référence pour tous les agents
-setupReferencePoints = async function() {
+setupReferencePoints = async function () {
   const toleranceRadius = prompt('Rayon de tolérance en mètres (défaut: 50000 = 50km):', '50000');
   if (!toleranceRadius) return;
-  
+
   const radius = parseInt(toleranceRadius);
   if (isNaN(radius) || radius <= 0) {
     alert('Veuillez entrer un nombre valide pour le rayon de tolérance');
     return;
   }
-  
-  if (!confirm(`Configurer les points de référence pour tous les agents avec un rayon de ${radius}m (${radius/1000}km) ?`)) {
+
+  if (!confirm(`Configurer les points de référence pour tous les agents avec un rayon de ${radius}m (${radius / 1000}km) ?`)) {
     return;
   }
-  
+
   try {
-    const result = await api('/admin/setup-reference-points', { 
-      method: 'POST', 
-      body: { toleranceRadius: radius } 
+    const result = await api('/admin/setup-reference-points', {
+      method: 'POST',
+      body: { toleranceRadius: radius }
     });
     alert(`Configuration réussie !\n${result.message}\n\nAgents mis à jour: ${result.updated_count}/${result.total_agents}`);
   } catch (e) {
@@ -2118,12 +2118,12 @@ function updatePhotoPreview(photoPath) {
   const previewImg = $('photo-preview-img');
   const placeholder = $('photo-placeholder');
   const removeBtn = $('btn-photo-remove');
-  
+
   if (!previewImg || !placeholder || !removeBtn) {
     console.warn('Éléments photo non trouvés, ignoré');
     return;
   }
-  
+
   if (photoPath) {
     previewImg.src = photoPath;
     previewImg.style.display = 'block';
@@ -2143,14 +2143,14 @@ function removePhoto() {
 }
 
 // Gestion de l'upload de photo
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
   const photoInput = $('af_photo');
   if (photoInput) {
-    photoInput.addEventListener('change', function(e) {
+    photoInput.addEventListener('change', function (e) {
       const file = e.target.files[0];
       if (file) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
           updatePhotoPreview(e.target.result);
         };
         reader.readAsDataURL(file);
@@ -2163,28 +2163,28 @@ document.addEventListener('DOMContentLoaded', function() {
 async function setupCircularNavigation() {
   try {
     console.log('🎯 Configuration de la navigation circulaire...');
-    
+
     // Récupérer le profil utilisateur
     const profile = await getProfile();
     const userRole = profile?.role || 'agent';
-    
+
     console.log('👤 Rôle utilisateur:', userRole);
-    
+
     // Définir les accès par rôle
     const roleAccess = {
       agent: ['presence-link', 'planning-link', 'dashboard-link', 'profile-link'],
       supervisor: ['presence-link', 'planning-link', 'dashboard-link', 'profile-link', 'agents-link', 'reports-link'],
       admin: ['presence-link', 'planning-link', 'dashboard-link', 'profile-link', 'agents-link', 'reports-link', 'admin-link', 'help-link']
     };
-    
+
     const allowedActions = roleAccess[userRole] || roleAccess.agent;
     console.log('✅ Actions autorisées:', allowedActions);
-    
+
     // Afficher/masquer les boutons selon le rôle
     const circleActions = document.getElementById('circle-actions');
     if (circleActions) {
       const allActions = circleActions.querySelectorAll('.circle-action');
-      
+
       allActions.forEach(action => {
         const actionId = action.id;
         if (allowedActions.includes(actionId)) {
@@ -2193,12 +2193,12 @@ async function setupCircularNavigation() {
           action.style.display = 'none';
         }
       });
-      
+
       // Afficher la navigation
       circleActions.style.display = 'flex';
       console.log('🎯 Navigation circulaire configurée pour le rôle:', userRole);
     }
-    
+
   } catch (error) {
     console.error('❌ Erreur configuration navigation:', error);
     // En cas d'erreur, afficher seulement les actions de base
@@ -2206,12 +2206,12 @@ async function setupCircularNavigation() {
     if (circleActions) {
       const basicActions = ['presence-link', 'dashboard-link', 'profile-link'];
       const allActions = circleActions.querySelectorAll('.circle-action');
-      
+
       allActions.forEach(action => {
         const actionId = action.id;
         action.style.display = basicActions.includes(actionId) ? 'flex' : 'none';
       });
-      
+
       circleActions.style.display = 'flex';
     }
   }
@@ -2256,7 +2256,7 @@ function handleDashboardError(error) {
     } else {
       banner.textContent = '⚠️ Impossible de charger les check-ins pour le moment. Réessayez après connexion ou plus tard.';
     }
-  } catch {}
+  } catch { }
 }
 
 // Gérer l'accès au dashboard selon le rôle
@@ -2268,20 +2268,20 @@ async function checkDashboardAccess() {
 // Fonctions pour la saisie manuelle des unités géographiques (Dashboard)
 function setupManualGeoInputsDashboard() {
   console.log('🔧 Configuration de la saisie manuelle des unités géographiques (Dashboard)...');
-  
+
   // Configuration des boutons de basculement pour les champs agent
   const geoFields = ['af_departement', 'af_commune', 'af_arrondissement', 'af_village'];
-  
+
   geoFields.forEach(field => {
     const select = $(field);
     const manualInput = $(`${field}-manual`);
     const toggleBtn = $(`toggle-${field}`);
-    
+
     if (select && manualInput && toggleBtn) {
       // Gestionnaire pour le bouton de basculement
       toggleBtn.addEventListener('click', () => {
         const isManual = manualInput.style.display !== 'none';
-        
+
         if (isManual) {
           // Passer en mode sélection
           select.style.display = 'block';
@@ -2299,22 +2299,22 @@ function setupManualGeoInputsDashboard() {
           manualInput.focus();
         }
       });
-      
+
       // Synchroniser les valeurs entre select et input manuel
       select.addEventListener('change', () => {
         if (manualInput.style.display === 'none') {
           manualInput.value = select.options[select.selectedIndex]?.text || '';
         }
       });
-      
+
       manualInput.addEventListener('input', () => {
         if (select.style.display === 'none') {
           // Trouver l'option correspondante dans le select
           const options = Array.from(select.options);
-          const matchingOption = options.find(option => 
+          const matchingOption = options.find(option =>
             option.text.toLowerCase().includes(manualInput.value.toLowerCase())
           );
-          
+
           if (matchingOption) {
             select.value = matchingOption.value;
           }
@@ -2328,25 +2328,25 @@ function setupManualGeoInputsDashboard() {
 function getGeoValueDashboard(field) {
   const select = $(field);
   const manualInput = $(`${field}-manual`);
-  
+
   if (manualInput && manualInput.style.display !== 'none' && manualInput.value.trim()) {
     return manualInput.value.trim();
   } else if (select && select.value) {
     return select.options[select.selectedIndex]?.text || select.value;
   }
-  
+
   return '';
 }
 
 // Fonction pour valider les champs géographiques requis - Dashboard
 function validateGeoFieldsDashboard() {
   const departement = getGeoValueDashboard('af_departement');
-  
+
   if (!departement.trim()) {
     alert('❌ Veuillez sélectionner ou saisir un département');
     return false;
   }
-  
+
   return true;
 }
 
@@ -2369,7 +2369,7 @@ function addStartMissionPoint() {
       const latitude = coords?.latitude;
       const longitude = coords?.longitude;
       const accuracy = Math.round(coords?.accuracy || 0);
-      
+
       // Créer un marqueur temporaire pour confirmer l'emplacement
       if (map) {
         const tempMarker = L.circleMarker([latitude, longitude], {
@@ -2380,7 +2380,7 @@ function addStartMissionPoint() {
           opacity: 0.8,
           fillOpacity: 0.6
         }).addTo(map);
-        
+
         tempMarker.bindPopup(`
           <div style="min-width: 200px;">
             <h6><strong>Nouveau point de début</strong></h6>
@@ -2396,7 +2396,7 @@ function addStartMissionPoint() {
             </button>
           </div>
         `).openPopup();
-        
+
         // Centrer la carte sur le point
         map.setView([latitude, longitude], 15);
       }
@@ -2463,7 +2463,7 @@ async function startMissionFromDashboard() {
     fd.append('note', 'Début mission (dashboard)');
 
     await api('/presence/start', { method: 'POST', body: fd });
-    try { notifyPresenceUpdate('start'); } catch {}
+    try { notifyPresenceUpdate('start'); } catch { }
     await refresh();
     await loadCheckinsOnMap();
     alert('Début de mission enregistré');
@@ -2486,7 +2486,7 @@ async function endMissionFromDashboard() {
     fd.append('note', 'Fin mission (dashboard)');
 
     await api('/presence/end', { method: 'POST', body: fd });
-    try { notifyPresenceUpdate('end'); } catch {}
+    try { notifyPresenceUpdate('end'); } catch { }
     await refresh();
     await loadCheckinsOnMap();
     alert('Fin de mission enregistrée');
@@ -2518,12 +2518,12 @@ async function getBestLocationDashboard() {
               accuracy: Number(p.coords.accuracy || 0),
               timestamp: Date.now()
             }));
-          } catch {}
-        }, () => {}, { enableHighAccuracy: true, timeout: 8000 });
-      } catch {}
+          } catch { }
+        }, () => { }, { enableHighAccuracy: true, timeout: 8000 });
+      } catch { }
       return { latitude: Number(last.lat), longitude: Number(last.lon), accuracy: Number(last.accuracy) };
     }
-  } catch {}
+  } catch { }
 
   // Sinon, demander une position haute précision
   const coords = await new Promise(resolve => {
@@ -2542,7 +2542,7 @@ async function getBestLocationDashboard() {
         accuracy: Number(coords.accuracy || 0),
         timestamp: Date.now()
       }));
-    } catch {}
+    } catch { }
     return coords;
   }
 

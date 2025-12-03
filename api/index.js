@@ -901,7 +901,7 @@ module.exports = async (req, res) => {
             const userIds = [...new Set(planifications.map(p => p.user_id).filter(Boolean))];
             const { data: users, error: usersError } = await supabaseClient
               .from('users')
-              .select('id, name, first_name, last_name, email, role, project_name, departement, commune')
+              .select('id, name, email, role')
               .in('id', userIds);
 
             if (usersError) {
@@ -1025,10 +1025,14 @@ module.exports = async (req, res) => {
           console.log('Récupération des données du rapport...');
           
           try {
+            const projectName = (req.query.project_name || req.query.project || '')
+              .toString()
+              .trim() || null;
             const report = await buildAgentMonthlyReport({
               supabaseClient,
               agentId,
               monthValue,
+              projectName,
               includeAiSummary: true,
               geminiApiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
               requester: req.user
@@ -1619,12 +1623,7 @@ module.exports = async (req, res) => {
           const { data: agents, error } = await supabaseClient
             .from('users')
             .select(`
-              id, name, first_name, last_name, email, role, phone, status, photo_path,
-              departement, commune, arrondissement, village, project_name,
-              expected_days_per_month, expected_hours_per_month, planning_start_date, planning_end_date,
-              reference_lat, reference_lon, tolerance_radius_meters,
-              created_at, contract_start_date, contract_end_date, years_of_service, last_activity,
-              is_verified, verification_code, verification_expires
+              id, name, email, role, phone, status, created_at, is_verified
             `)
             .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1);
@@ -2084,7 +2083,7 @@ module.exports = async (req, res) => {
           .select('*')
           .or('role.eq.agent,role.eq.superviseur,role.eq.supervisor,role.is.null')
           .order('role', { ascending: true })
-          .order('first_name', { ascending: true });
+          .order('name', { ascending: true });
 
         if (error) {
           console.error('❌ Erreur lors de la récupération des utilisateurs:', error);
@@ -2110,38 +2109,25 @@ module.exports = async (req, res) => {
             try {
               // Normaliser le rôle
               const role = (user.role || 'agent').toLowerCase().trim();
-              const normalizedRole = role === 'supervisor' ? 'superviseur' : 
+              const normalizedRole = role === 'supervisor' ? 'superviseur' :
                                   role === 'admin' ? 'admin' : 'agent';
-              
-              // Créer le nom complet
-              const firstName = user.first_name || '';
-              const lastName = user.last_name || '';
+
               const email = user.email || '';
-              
-              const fullName = [firstName, lastName]
-                .filter(Boolean)
-                .join(' ')
-                .trim() || email.split('@')[0] || `Utilisateur ${user.id}`;
+              const name = user.name || email.split('@')[0] || `Utilisateur ${user.id}`;
 
               // S'assurer que les champs requis existent
               const formattedUser = {
                 id: Number(user.id) || 0,
-                first_name: firstName,
-                last_name: lastName,
-                name: user.name || fullName,
+                name: name,
                 email: email,
                 role: normalizedRole,
                 status: user.status || 'active',
                 is_verified: Boolean(user.is_verified),
-                project: user.project || '',
-                project_name: user.project_name || user.project || 'Non attribué',
                 created_at: user.created_at || new Date().toISOString()
               };
 
               // Ajouter des champs supplémentaires si disponibles
               if (user.phone) formattedUser.phone = user.phone;
-              if (user.photo_url) formattedUser.photo_url = user.photo_url;
-              if (user.last_login) formattedUser.last_login = user.last_login;
 
               return formattedUser;
               
@@ -2164,6 +2150,8 @@ module.exports = async (req, res) => {
           details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
       }
+    });
+    return;
     }
     
     // Objectifs personnels - Créer un objectif
@@ -2245,7 +2233,7 @@ module.exports = async (req, res) => {
           // Vérifier d'abord si l'utilisateur existe
           const { data: user, error: userError } = await supabaseClient
             .from('users')
-            .select('id, email, first_name, last_name')
+            .select('id, email, name')
             .eq('email', email)
             .single();
             
@@ -2258,8 +2246,8 @@ module.exports = async (req, res) => {
               user: { email }
             });
           }
-          
-          console.log(`👤 Utilisateur trouvé: ${user.first_name} ${user.last_name} (${user.email})`);
+
+          console.log(`👤 Utilisateur trouvé: ${user.name} (${user.email})`);
           
           // Définir la plage de temps pour aujourd'hui (00:00:00 à 23:59:59.999)
           const now = new Date();
@@ -2291,7 +2279,7 @@ module.exports = async (req, res) => {
                 _debug: 'Erreur lors de la vérification de la présence',
                 user: {
                   id: user.id,
-                  name: `${user.first_name} ${user.last_name}`.trim(),
+                  name: user.name,
                   email: user.email
                 }
               });
@@ -2300,13 +2288,13 @@ module.exports = async (req, res) => {
             // Vérifier si une présence a été trouvée
             const hasPresence = !!presence && !!presence.id;
             
-            return res.status(200).json({ 
-              success: true, 
+            return res.status(200).json({
+              success: true,
               has_presence: hasPresence,
               checkin_data: hasPresence ? presence : null,
               user: {
                 id: user.id,
-                name: `${user.first_name} ${user.last_name}`.trim(),
+                name: user.name,
                 email: user.email
               },
               _debug: hasPresence ? 'Présence trouvée' : 'Aucune présence trouvée pour aujourd\'hui'
@@ -2340,7 +2328,207 @@ module.exports = async (req, res) => {
           error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
       }
-      }
+    }
+
+    // Marquer un agent comme absent pour une date donnée
+    // POST /api/presence/mark-absent?email=email@example.com
+    // Body: { date: '2023-11-26' }
+    if (path === '/api/presence/mark-absent' && method === 'POST') {
+      return authenticateToken(req, res, async () => {
+        try {
+          console.log('🔵 POST /api/presence/mark-absent - Début du traitement');
+
+          // Récupération des paramètres
+          const { email } = req.query;
+          let bodyData = {};
+          try {
+            if (req.body && typeof req.body === 'string') {
+              bodyData = JSON.parse(req.body);
+            } else if (req.body) {
+              bodyData = req.body;
+            }
+          } catch (e) {
+            console.warn('Erreur parsing body:', e);
+          }
+          const { date } = bodyData;
+
+          console.log('🔍 Données reçues:', { email, date });
+
+          // Validation de l'email
+          if (!email || typeof email !== 'string' || !email.includes('@')) {
+            console.log('❌ Email invalide ou manquant');
+            return res.status(400).json({
+              success: false,
+              error: 'Un email valide est requis dans les paramètres de requête (ex: /api/presence/mark-absent?email=user@example.com)'
+            });
+          }
+
+          // Validation de la date
+          if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            console.log('❌ Date manquante ou format invalide (attendu: YYYY-MM-DD)');
+            return res.status(400).json({
+              success: false,
+              error: 'Une date valide est requise dans le corps de la requête (format: YYYY-MM-DD)'
+            });
+          }
+
+          // Vérification de la date (ne pas permettre les dates futures)
+          const today = new Date().toISOString().split('T')[0];
+          if (date > today) {
+            console.log('❌ Date future non autorisée');
+            return res.status(400).json({
+              success: false,
+              error: 'La date ne peut pas être dans le futur'
+            });
+          }
+
+          // Vérifier si l'utilisateur existe
+          console.log(`🔍 Recherche de l'utilisateur avec l'email: ${email}`);
+          const { data: user, error: userError } = await supabaseClient
+            .from('users')
+            .select('id, email, name')
+            .eq('email', email)
+            .maybeSingle();
+
+          // Gestion des erreurs de requête
+          if (userError) {
+            console.error('❌ Erreur lors de la recherche de l\'utilisateur:', userError);
+            return res.status(500).json({
+              success: false,
+              error: 'Erreur serveur lors de la recherche de l\'utilisateur',
+              details: process.env.NODE_ENV === 'development' ? userError.message : undefined
+            });
+          }
+
+          // Vérification de l'existence de l'utilisateur
+          if (!user) {
+            console.log(`❌ Aucun utilisateur trouvé avec l'email: ${email}`);
+            return res.status(404).json({
+              success: false,
+              error: 'Aucun utilisateur trouvé avec cet email',
+              details: process.env.NODE_ENV === 'development' ? `Email: ${email}` : undefined
+            });
+          }
+
+          console.log(`✅ Utilisateur trouvé:`, {
+            id: user.id,
+            name: user.name || 'Non renseigné',
+            email: user.email
+          });
+
+          // Vérifier si une entrée existe déjà pour cette date
+          console.log(`🔍 Vérification des entrées existantes pour le ${date}`);
+          const { data: existing, error: existingError } = await supabaseClient
+            .from('presences')
+            .select('id, status, notes')
+            .eq('user_id', user.id)
+            .eq('date', date)
+            .maybeSingle();
+
+          if (existingError) {
+            console.error('❌ Erreur lors de la vérification des entrées existantes:', existingError);
+            return res.status(500).json({
+              success: false,
+              error: 'Erreur lors de la vérification des entrées existantes',
+              details: process.env.NODE_ENV === 'development' ? existingError.message : undefined
+            });
+          }
+
+          // Si une entrée existe déjà
+          if (existing) {
+            console.log(`ℹ️ Une entrée existe déjà pour cette date (ID: ${existing.id}, Statut: ${existing.status})`);
+            return res.status(409).json({
+              success: false,
+              error: 'Une entrée existe déjà pour cette date',
+              data: {
+                id: existing.id,
+                status: existing.status,
+                notes: existing.notes,
+                date: date
+              },
+              message: 'Utilisez la méthode PUT pour mettre à jour cette entrée'
+            });
+          }
+
+          // Créer une nouvelle entrée d'absence
+          console.log(`➕ Création d'une nouvelle entrée d'absence pour le ${date}`);
+
+          const newAbsenceData = {
+            user_id: user.id,
+            date,
+            status: 'absent',
+            check_in: null,
+            check_out: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            notes: 'Marqué comme absent automatiquement',
+            validated: false,
+            created_by: req.user?.id || 'system'
+          };
+
+          console.log('📝 Données de l\'absence:', newAbsenceData);
+
+          const { data: newAbsence, error: createError } = await supabaseClient
+            .from('presences')
+            .insert(newAbsenceData)
+            .select()
+            .single();
+
+          if (createError) {
+            console.error('❌ Erreur lors de la création de l\'absence:', createError);
+
+            // Gestion spécifique des erreurs de contrainte
+            if (createError.code === '23505') {
+              return res.status(409).json({
+                success: false,
+                error: 'Une entrée existe déjà pour cette date et cet utilisateur',
+                details: process.env.NODE_ENV === 'development' ? createError.message : undefined
+              });
+            }
+
+            // Autres erreurs
+            return res.status(500).json({
+              success: false,
+              error: 'Erreur lors de la création de l\'absence',
+              details: process.env.NODE_ENV === 'development' ? createError.message : undefined,
+              code: createError.code
+            });
+          }
+
+          console.log('✅ Absence enregistrée avec succès:', newAbsence?.id);
+          return res.status(201).json({
+            success: true,
+            message: 'Absence enregistrée avec succès',
+            data: newAbsence
+          });
+
+        } catch (error) {
+          console.error('❌ Erreur inattendue dans /api/presence/mark-absent:', {
+            message: error.message,
+            stack: error.stack,
+            query: req.query,
+            body: req.body,
+            timestamp: new Date().toISOString()
+          });
+
+          const errorResponse = {
+            success: false,
+            error: 'Une erreur inattendue est survenue',
+            timestamp: new Date().toISOString()
+          };
+
+          if (process.env.NODE_ENV === 'development') {
+            errorResponse.details = {
+              message: error.message,
+              name: error.name,
+              stack: error.stack,
+              code: error.code
+            };
+          }
+
+          return res.status(500).json(errorResponse);
+        }
+      });
     }
 
     // Rapports enrichis - Récupérer les rapports
@@ -2846,9 +3034,9 @@ if (path.startsWith('/api/messages/forum/') && method === 'GET') {
 
           const { data: contacts, error } = await supabaseClient
             .from('users')
-            .select('id, first_name, last_name, email, phone')
+            .select('id, name, email, phone')
             .eq('role', 'agent')
-            .order('first_name');
+            .order('name');
 
           if (error) throw error;
 
@@ -3329,15 +3517,164 @@ if (path.startsWith('/api/agent/achievements') && method === 'GET') {
       });
     }
 
-    // Classement - Récupérer le classement des agents
+    // Classement - Récupérer le classement des agents du projet
     if (path.startsWith('/api/agent/leaderboard') && method === 'GET') {
       return authenticateToken(req, res, async () => {
         try {
-          const leaderboard = [];
-          return res.json({ success: true, leaderboard });
+          const { email, project } = req.query;
+
+          if (!email) {
+            return res.status(400).json({ success: false, error: 'Email requis' });
+          }
+
+          if (!supabaseClient) {
+            return res.status(500).json({ success: false, error: 'Supabase non configuré' });
+          }
+
+          // Récupérer l'utilisateur actuel
+          const { data: userData, error: userError } = await supabaseClient
+            .from('users')
+            .select('id, project_name')
+            .eq('email', email)
+            .single();
+
+          if (userError || !userData) {
+            console.warn('Utilisateur non trouvé:', email);
+            return res.status(404).json({ success: false, error: 'Utilisateur non trouvé' });
+          }
+
+          const projectName = project || userData.project_name || 'PARSAD';
+          console.log(`📊 Chargement du classement pour le projet: ${projectName}`);
+
+          // Récupérer le mois actuel
+          const now = new Date();
+          const dateFrom = new Date(now.getFullYear(), now.getMonth(), 1);
+          const dateTo = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+          // Récupérer tous les agents du même projet
+          const { data: projectAgents, error: agentsError } = await supabaseClient
+            .from('users')
+            .select('id, name, email')
+            .eq('role', 'agent')
+            .order('name', { ascending: true });
+
+          if (agentsError) throw agentsError;
+
+          if (!projectAgents || projectAgents.length === 0) {
+            return res.json({
+              success: true,
+              leaderboard: [],
+              month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+              project: projectName
+            });
+          }
+
+          // Calculer les statistiques pour chaque agent
+          const leaderboardData = [];
+
+          for (const agent of projectAgents) {
+            try {
+              // Récupérer les présences
+              const { data: presences, error: presError } = await supabaseClient
+                .from('presences')
+                .select('checkin_time, checkout_time')
+                .eq('user_id', agent.id)
+                .gte('checkin_time', dateFrom.toISOString())
+                .lte('checkin_time', dateTo.toISOString());
+
+              // Récupérer les planifications
+              const { data: planifications, error: planError } = await supabaseClient
+                .from('planifications')
+                .select('status, resultat_journee')
+                .eq('user_id', agent.id)
+                .gte('date', dateFrom.toISOString().split('T')[0])
+                .lte('date', dateTo.toISOString().split('T')[0]);
+
+              // Calculer les statistiques
+              const presentDays = new Set(
+                (presences || []).map(p => new Date(p.checkin_time).toISOString().split('T')[0])
+              ).size;
+
+              // Compter les jours ouvrables (lundi-vendredi)
+              let workingDays = 0;
+              for (let d = new Date(dateFrom); d <= dateTo; d.setDate(d.getDate() + 1)) {
+                if (d.getDay() !== 0 && d.getDay() !== 6) {
+                  workingDays++;
+                }
+              }
+
+              const presenceRate = workingDays > 0 ? (presentDays / workingDays) * 100 : 0;
+
+              // Calculer le temps terrain (en heures)
+              let fieldTimeHours = 0;
+              (presences || []).forEach(p => {
+                if (p.checkin_time && p.checkout_time) {
+                  const checkin = new Date(p.checkin_time);
+                  const checkout = new Date(p.checkout_time);
+                  fieldTimeHours += (checkout - checkin) / (1000 * 60 * 60);
+                }
+              });
+
+              // Calculer les statistiques d'activités
+              const totalActivities = planifications?.length || 0;
+              const realizedActivities = (planifications || []).filter(
+                p => p.resultat_journee === 'realise' || p.resultat_journee === 'REALISE'
+              ).length;
+              const partialActivities = (planifications || []).filter(
+                p => p.resultat_journee === 'partiellement_realise' || p.resultat_journee === 'PARTIELLEMENT_REALISE'
+              ).length;
+              const notRealizedActivities = (planifications || []).filter(
+                p => p.resultat_journee === 'non_realise' || p.resultat_journee === 'PLANIFIE'
+              ).length;
+
+              const executionRate = totalActivities > 0 ? (realizedActivities / totalActivities) * 100 : 0;
+
+              // Score composite
+              const compositeScore = (presenceRate * 0.7) + (executionRate * 0.15) +
+                                    (Math.min(fieldTimeHours / 20, 100) * 0.15);
+
+              leaderboardData.push({
+                agentId: agent.id,
+                name: agent.name,
+                firstName: agent.first_name,
+                lastName: agent.last_name,
+                projectName: agent.project_name,
+                presenceRate: Math.round(presenceRate * 10) / 10,
+                tep: Math.round(executionRate * 10) / 10,
+                executionRate: Math.round(executionRate * 10) / 10,
+                fieldTimeHours: Math.round(fieldTimeHours * 10) / 10,
+                compositeScore: Math.round(compositeScore * 10) / 10,
+                workedDays: presentDays,
+                workingDays: workingDays,
+                totalActivities,
+                realizedActivities,
+                partiallyRealized: partialActivities,
+                notRealized: notRealizedActivities
+              });
+            } catch (error) {
+              console.error(`Erreur calcul stats pour agent ${agent.id}:`, error);
+            }
+          }
+
+          // Trier par score composite (décroissant)
+          leaderboardData.sort((a, b) => b.compositeScore - a.compositeScore);
+
+          // Ajouter les rangs
+          const leaderboard = leaderboardData.map((agent, index) => ({
+            ...agent,
+            rank: index + 1
+          }));
+
+          console.log(`✅ Classement retourné: ${leaderboard.length} agents du projet "${projectName}"`);
+          return res.json({
+            success: true,
+            leaderboard,
+            month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+            project: projectName
+          });
         } catch (error) {
           console.error('Erreur récupération leaderboard:', error);
-          return res.status(500).json({ success: false, error: 'Erreur serveur' });
+          return res.status(500).json({ success: false, error: 'Erreur serveur', details: error.message });
         }
       });
     }
@@ -3364,6 +3701,182 @@ if (path.startsWith('/api/agent/achievements') && method === 'GET') {
         } catch (error) {
           console.error('Erreur récupération badges:', error);
           return res.status(500).json({ success: false, error: 'Erreur serveur' });
+        }
+      });
+    }
+
+    // Endpoint pour récupérer les données de présence par agent et période
+    if (path === '/api/presences' && method === 'GET') {
+      return authenticateToken(req, res, async () => {
+        try {
+          const { agent_id, date_from, date_to } = req.query;
+
+          if (!agent_id || !date_from || !date_to) {
+            return res.status(400).json({
+              success: false,
+              error: 'Paramètres requis: agent_id, date_from, date_to'
+            });
+          }
+
+          if (!supabaseClient) {
+            return res.status(500).json({ success: false, error: 'Supabase non configuré' });
+          }
+
+          // Vérifier les droits d'accès
+          const isAdmin = req.user?.role === 'admin' || req.user?.role === 'superviseur';
+          const isOwnData = String(req.user?.id) === String(agent_id);
+
+          if (!isAdmin && !isOwnData) {
+            return res.status(403).json({
+              success: false,
+              error: 'Accès non autorisé à ces données'
+            });
+          }
+
+          // Récupérer les présences
+          const { data: presences, error } = await supabaseClient
+            .from('presences')
+            .select('*')
+            .eq('user_id', agent_id)
+            .gte('checkin_time', date_from)
+            .lte('checkin_time', date_to)
+            .order('checkin_time', { ascending: false });
+
+          if (error) throw error;
+
+          return res.json({
+            success: true,
+            data: presences || []
+          });
+        } catch (error) {
+          console.error('Erreur récupération presences:', error);
+          return res.status(500).json({
+            success: false,
+            error: 'Erreur serveur',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
+        }
+      });
+    }
+
+    // Endpoint pour récupérer les données de planification par agent et période
+    if (path === '/api/planifications' && method === 'GET' && req.query.agent_id && req.query.date_from) {
+      return authenticateToken(req, res, async () => {
+        try {
+          const { agent_id, date_from, date_to } = req.query;
+
+          if (!agent_id || !date_from || !date_to) {
+            return res.status(400).json({
+              success: false,
+              error: 'Paramètres requis: agent_id, date_from, date_to'
+            });
+          }
+
+          if (!supabaseClient) {
+            return res.status(500).json({ success: false, error: 'Supabase non configuré' });
+          }
+
+          // Vérifier les droits d'accès
+          const isAdmin = req.user?.role === 'admin' || req.user?.role === 'superviseur';
+          const isOwnData = String(req.user?.id) === String(agent_id);
+
+          if (!isAdmin && !isOwnData) {
+            return res.status(403).json({
+              success: false,
+              error: 'Accès non autorisé à ces données'
+            });
+          }
+
+          // Récupérer les planifications
+          const { data: planifications, error } = await supabaseClient
+            .from('planifications')
+            .select('*')
+            .eq('user_id', agent_id)
+            .gte('date', date_from)
+            .lte('date', date_to)
+            .order('date', { ascending: false });
+
+          if (error) throw error;
+
+          return res.json({
+            success: true,
+            data: planifications || []
+          });
+        } catch (error) {
+          console.error('Erreur récupération planifications:', error);
+          return res.status(500).json({
+            success: false,
+            error: 'Erreur serveur',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
+        }
+      });
+    }
+
+    // Endpoint pour générer le rapport mensuel (POST)
+    if (path === '/api/agent/monthly-report' && method === 'POST') {
+      return authenticateToken(req, res, async () => {
+        try {
+          const { agentId, month, year } = req.body;
+
+          if (!agentId || !month || !year) {
+            return res.status(400).json({
+              success: false,
+              error: 'Paramètres requis: agentId, month, year'
+            });
+          }
+
+          if (!supabaseClient) {
+            return res.status(500).json({ success: false, error: 'Supabase non configuré' });
+          }
+
+          // Vérifier les droits d'accès
+          const isAdmin = req.user?.role === 'admin' || req.user?.role === 'superviseur';
+          const isOwnReport = String(req.user?.id) === String(agentId);
+
+          if (!isAdmin && !isOwnReport) {
+            return res.status(403).json({
+              success: false,
+              error: 'Accès non autorisé à ce rapport'
+            });
+          }
+
+          // Construire les dates
+          const startDate = new Date(year, month - 1, 1);
+          const endDate = new Date(year, month, 0);
+
+          const dateFrom = startDate.toISOString().split('T')[0];
+          const dateTo = endDate.toISOString().split('T')[0];
+
+          console.log(`📊 Génération du rapport pour l'agent ${agentId}, ${month}/${year}`);
+
+          // Utiliser buildAgentMonthlyReport si disponible
+          try {
+            const report = await buildAgentMonthlyReport({
+              supabaseClient,
+              agentId,
+              monthValue: `${year}-${String(month).padStart(2, '0')}`,
+              includeAiSummary: true,
+              geminiApiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+              requester: req.user
+            });
+
+            return res.json({ success: true, report });
+          } catch (reportError) {
+            console.error('Erreur génération rapport:', reportError);
+            return res.status(500).json({
+              success: false,
+              error: 'Erreur lors de la génération du rapport',
+              details: process.env.NODE_ENV === 'development' ? reportError.message : undefined
+            });
+          }
+        } catch (error) {
+          console.error('Erreur endpoint rapport mensuel:', error);
+          return res.status(500).json({
+            success: false,
+            error: 'Erreur serveur',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
         }
       });
     }

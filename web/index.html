@@ -617,6 +617,20 @@
         transform: none;
       }
       
+      /* Style spécifique pour le bouton de vidage de cache */
+      #clear-cache-btn {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+      }
+      
+      #clear-cache-btn:hover {
+        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%) !important;
+        transform: scale(1.05);
+      }
+      
+      #clear-cache-btn:active {
+        transform: scale(0.95);
+      }
+      
       /* Styles pour la barre de navigation */
       .navbar {
         display: flex;
@@ -906,17 +920,6 @@
         color: white;
       }
       
-      .emergency-indicator.active {
-        background: linear-gradient(135deg, #ff4757, #ff3838);
-        animation: emergencyPulse 1s infinite;
-      }
-      
-      @keyframes emergencyPulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.05); }
-        100% { transform: scale(1); }
-      }
-      
       .navbar-menu {
         display: flex;
         align-items: center;
@@ -940,6 +943,8 @@
         position: relative;
         overflow: hidden;
         margin: 0 8px;
+        border: none;
+        cursor: pointer;
       }
       
       .navbar-link i {
@@ -1148,10 +1153,15 @@
           <span style="font-size: 24px;">👤</span>
           <span>Profil</span>
         </a>
-        <button id="sync-offline-checkins-btn" class="navbar-link" title="Synchroniser les check-ins en attente" style="background: transparent; border: none; cursor: pointer; position: relative;">
+        <button id="sync-offline-checkins-btn" class="navbar-link" title="Synchroniser les check-ins en attente">
           <span style="font-size: 24px;">🔄</span>
           <span>Sync</span>
           <span id="sync-checkins-badge" class="badge bg-danger" style="position: absolute; top: -5px; right: -5px; font-size: 10px; padding: 2px 5px; display: none;">0</span>
+        </button>
+        <!-- Bouton de vidage de cache -->
+        <button id="clear-cache-btn" class="navbar-link" title="Vider le cache du navigateur">
+          <span style="font-size: 24px;">🧹</span>
+          <span>Cache</span>
         </button>
       </div>
       
@@ -1209,8 +1219,9 @@
             <span class="status-icon">📍</span>
             <span class="status-text">GPS...</span>
           </div>
-          <div id="emergency-indicator" class="status-indicator emergency-indicator">
-            <!-- Sera rempli par le système d'urgence -->
+          <div id="sync-status-indicator" class="status-indicator">
+            <span class="status-icon">🔄</span>
+            <span class="status-text">Sync offline</span>
           </div>
         </div>
 
@@ -1247,10 +1258,16 @@
               <div class="info-icon text-4xl mb-4">📑</div>
               <h3 class="text-xl font-bold text-gray-800 mb-3">Rapports</h3>
               <p class="text-gray-600 mb-4">Consultez et générez des rapports détaillés</p>
-              <a href="/reports.html" class="btn-primary w-full" style="display: inline-block; text-decoration: none; text-align: center;">
-                <span class="btn-icon">📑</span>
-                Voir les rapports
-              </a>
+              <div class="d-flex gap-2 flex-wrap">
+                <a href="/reports.html" class="btn-primary" style="display: inline-block; text-decoration: none; text-align: center; flex: 1; min-width: 120px;">
+                  <span class="btn-icon">📑</span>
+                  Rapports
+                </a>
+                <a href="/synthese-globale.html" class="btn-primary" style="display: inline-block; text-decoration: none; text-align: center; flex: 1; min-width: 120px;">
+                  <span class="btn-icon">📊</span>
+                  Synthèse Globale
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -26748,7 +26765,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     <!-- Scripts non critiques chargés en différé pour optimiser le chargement -->
     <script>
-      // Charger les scripts non critiques après le chargement de la page
+        // Charger les scripts non critiques après le chargement de la page
       // Utiliser requestIdleCallback si disponible, sinon setTimeout
       const loadNonCriticalScripts = () => {
         const scripts = [
@@ -26837,29 +26854,49 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // Gestionnaire pour le bouton de synchronisation des check-ins dans la navbar
       (function() {
+        const initializedButtons = new WeakSet();
+        let syncIntervalId = null;
+        let initialUpdateTimeout = null;
+
         async function setupCheckinsSyncButton() {
           const syncBtn = document.getElementById('sync-offline-checkins-btn');
-          if (!syncBtn) return;
+          const badge = document.getElementById('sync-checkins-badge');
+          if (!syncBtn || initializedButtons.has(syncBtn)) return;
+          initializedButtons.add(syncBtn);
+          syncBtn.style.display = 'flex';
+
+          if (syncIntervalId) {
+            clearInterval(syncIntervalId);
+            syncIntervalId = null;
+          }
+          if (initialUpdateTimeout) {
+            clearTimeout(initialUpdateTimeout);
+            initialUpdateTimeout = null;
+          }
           
           // Vérifier périodiquement s'il y a des check-ins en attente
           async function updateSyncButton() {
-            if (!window.offlineManager) return;
+            if (!window.offlineManager) {
+              syncBtn.style.display = 'flex';
+              if (badge) badge.style.display = 'none';
+              return;
+            }
             
             try {
-              const unsyncedCheckins = await window.offlineManager.getOfflineData('checkins', { synced: false });
-              const unsyncedPresence = await window.offlineManager.getOfflineData('presence', { synced: false });
-              const totalUnsynced = unsyncedCheckins.length + unsyncedPresence.length;
+              const [unsyncedCheckins, unsyncedPresence] = await Promise.all([
+                window.offlineManager.getOfflineData('checkins', { synced: false }),
+                window.offlineManager.getOfflineData('presence', { synced: false })
+              ]).catch(() => [[], []]);
+              const totalUnsynced = (unsyncedCheckins?.length || 0) + (unsyncedPresence?.length || 0);
               
               if (totalUnsynced > 0) {
                 syncBtn.style.display = 'flex';
-                const badge = document.getElementById('sync-checkins-badge');
                 if (badge) {
                   badge.textContent = totalUnsynced;
                   badge.style.display = 'inline-block';
                 }
               } else {
                 syncBtn.style.display = 'flex';
-                const badge = document.getElementById('sync-checkins-badge');
                 if (badge) badge.style.display = 'none';
               }
             } catch (error) {
@@ -26909,16 +26946,22 @@ document.addEventListener('DOMContentLoaded', function() {
           });
           
           // Vérifier toutes les 10 secondes
-          setInterval(updateSyncButton, 10000);
+          syncIntervalId = setInterval(updateSyncButton, 10000);
           // Vérifier immédiatement après le chargement
-          setTimeout(updateSyncButton, 2000);
+          initialUpdateTimeout = setTimeout(updateSyncButton, 2000);
         }
+
+        const scheduleSetup = () => setTimeout(setupCheckinsSyncButton, 2000);
         
         if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', setupCheckinsSyncButton);
+          document.addEventListener('DOMContentLoaded', scheduleSetup);
         } else {
-          setTimeout(setupCheckinsSyncButton, 2000);
+          scheduleSetup();
         }
+
+        document.addEventListener('syncButtonAdded', () => {
+          setTimeout(setupCheckinsSyncButton, 100);
+        });
       })();
     </script>
     <script>
@@ -26983,6 +27026,127 @@ document.addEventListener('DOMContentLoaded', function() {
       if (typeof exports === 'undefined') {
         window.exports = {};
       }
+    </script>
+    
+    <!-- Script de vidage de cache -->
+    <script>
+      (function() {
+        'use strict';
+        
+        /**
+         * Vide le cache du navigateur et recharge la page
+         */
+        function clearCacheAndReload() {
+          console.log('🧹 Début du vidage du cache...');
+          
+          // Afficher une notification
+          const btn = document.getElementById('clear-cache-btn');
+          if (btn) {
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳';
+            btn.disabled = true;
+            
+            setTimeout(() => {
+              if (btn) {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+              }
+            }, 2000);
+          }
+          
+          // 1. Vider le cache de l'API Cache
+          if ('caches' in window) {
+            caches.keys().then(function(names) {
+              console.log('📦 Caches trouvés:', names);
+              return Promise.all(
+                names.map(function(name) {
+                  console.log('🗑️ Suppression du cache:', name);
+                  return caches.delete(name);
+                })
+              );
+            }).then(function() {
+              console.log('✅ Tous les caches ont été supprimés');
+            }).catch(function(error) {
+              console.error('❌ Erreur lors de la suppression des caches:', error);
+            });
+          }
+          
+          // 2. Désenregistrer les Service Workers
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+              console.log('👷 Service Workers trouvés:', registrations.length);
+              return Promise.all(
+                registrations.map(function(registration) {
+                  console.log('🗑️ Désenregistrement du Service Worker:', registration.scope);
+                  return registration.unregister();
+                })
+              );
+            }).then(function() {
+              console.log('✅ Tous les Service Workers ont été désenregistrés');
+            }).catch(function(error) {
+              console.error('❌ Erreur lors du désenregistrement des Service Workers:', error);
+            });
+          }
+          
+          // 3. Vider le localStorage pour déconnecter l'utilisateur
+          console.log('🔐 Déconnexion de l\'utilisateur...');
+          const TOKEN_KEYS = ['jwt', 'access_token', 'token', 'sb-access-token', 'sb:token', 'user', 'userData'];
+          TOKEN_KEYS.forEach(key => {
+            localStorage.removeItem(key);
+            sessionStorage.removeItem(key);
+          });
+          
+          // 4. Rediriger vers la page de login (index.html) après un court délai
+          setTimeout(function() {
+            console.log('🔄 Redirection vers la page de login...');
+            // Déterminer le chemin vers index.html de manière robuste
+            const currentPath = window.location.pathname;
+            let loginUrl;
+            
+            // Si on est déjà sur index.html, rester sur la même page
+            if (currentPath.endsWith('index.html') || currentPath.endsWith('/')) {
+              loginUrl = currentPath.split('?')[0]; // Enlever les paramètres existants
+            } else {
+              // Sinon, construire le chemin vers index.html dans le même répertoire
+              const basePath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+              loginUrl = basePath + 'index.html';
+            }
+            
+            // Rediriger vers index.html avec un paramètre pour éviter le cache
+            window.location.href = loginUrl + (loginUrl.includes('?') ? '&' : '?') + 'nocache=' + Date.now() + '&cleared=true';
+          }, 1000);
+        }
+        
+        // Attacher l'événement au bouton quand le DOM est prêt
+        function initClearCacheButton() {
+          const clearCacheBtn = document.getElementById('clear-cache-btn');
+          if (clearCacheBtn) {
+            clearCacheBtn.addEventListener('click', function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              
+              // Demander confirmation
+              if (confirm('Voulez-vous vider le cache du navigateur et recharger la page ?\n\nCela peut améliorer les performances si vous rencontrez des problèmes d\'affichage.')) {
+                clearCacheAndReload();
+              }
+            });
+            console.log('✅ Bouton de vidage de cache initialisé');
+          } else {
+            // Réessayer après un court délai si le bouton n'est pas encore disponible
+            setTimeout(initClearCacheButton, 500);
+          }
+        }
+        
+        // Initialiser quand le DOM est prêt
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', initClearCacheButton);
+        } else {
+          initClearCacheButton();
+        }
+        
+        // Exposer la fonction globalement pour utilisation dans la console
+        window.clearCache = clearCacheAndReload;
+      })();
     </script>
   </body>
 </html>

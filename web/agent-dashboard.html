@@ -3915,8 +3915,12 @@ Commence ton analyse maintenant.`;
               console.warn('⚠️ Aucune statistique de présence calculée');
             }
             console.groupEnd();
+            
+            // Stocker les check-ins pour l'extraction des lieux parcourus
+            report.monthlyCheckins = monthlyCheckins;
           } else {
             console.warn('⚠️ Aucun checkin trouvé pour cet agent ce mois-ci');
+            report.monthlyCheckins = [];
           }
 
           if (monthlyPlanifications.length) {
@@ -4040,6 +4044,169 @@ Commence ton analyse maintenant.`;
             </div>
           `;
       }
+    }
+
+    // Fonction pour extraire les lieux parcourus depuis les check-ins
+    function extractVisitedLocations(checkins = []) {
+      const locationsMap = new Map();
+      
+      checkins.forEach(checkin => {
+        // Extraire les données géographiques depuis device_info ou directement
+        // device_info peut être un objet ou une chaîne JSON
+        let deviceInfo = {};
+        if (checkin.device_info) {
+          if (typeof checkin.device_info === 'string') {
+            try {
+              deviceInfo = JSON.parse(checkin.device_info);
+            } catch (e) {
+              deviceInfo = {};
+            }
+          } else if (typeof checkin.device_info === 'object') {
+            deviceInfo = checkin.device_info;
+          }
+        }
+        
+        const departement = checkin.departement || deviceInfo.departement || null;
+        const commune = checkin.commune || deviceInfo.commune || null;
+        const arrondissement = checkin.arrondissement || deviceInfo.arrondissement || null;
+        const village = checkin.village || deviceInfo.village || null;
+        
+        // Ignorer si aucune information géographique n'est disponible
+        if (!commune && !village && !arrondissement) {
+          return;
+        }
+        
+        // Créer une clé unique pour chaque lieu
+        const locationKey = [
+          departement || '',
+          commune || '',
+          arrondissement || '',
+          village || ''
+        ].filter(Boolean).join('|');
+        
+        if (locationKey) {
+          if (!locationsMap.has(locationKey)) {
+            locationsMap.set(locationKey, {
+              departement: departement || 'Non spécifié',
+              commune: commune || 'Non spécifié',
+              arrondissement: arrondissement || 'Non spécifié',
+              village: village || 'Non spécifié',
+              visits: 0,
+              dates: []
+            });
+          }
+          
+          const location = locationsMap.get(locationKey);
+          location.visits += 1;
+          
+          // Ajouter la date de visite
+          const checkinDate = checkin.created_at || checkin.timestamp || checkin.checkin_time || checkin.start_time;
+          if (checkinDate) {
+            const date = new Date(checkinDate);
+            if (!isNaN(date.getTime())) {
+              const dateStr = date.toISOString().split('T')[0];
+              if (!location.dates.includes(dateStr)) {
+                location.dates.push(dateStr);
+              }
+            }
+          }
+        }
+      });
+      
+      // Convertir en tableau et trier par nombre de visites
+      return Array.from(locationsMap.values())
+        .sort((a, b) => {
+          // Trier d'abord par nombre de visites, puis par nombre de jours
+          if (b.visits !== a.visits) {
+            return b.visits - a.visits;
+          }
+          return b.dates.length - a.dates.length;
+        })
+        .map(loc => ({
+          ...loc,
+          dates: loc.dates.sort()
+        }));
+    }
+
+    // Fonction pour rendre la section des lieux parcourus
+    function renderVisitedLocationsSection(checkins = []) {
+      if (!checkins || checkins.length === 0) {
+        return '';
+      }
+      
+      const visitedLocations = extractVisitedLocations(checkins);
+      
+      if (visitedLocations.length === 0) {
+        return '';
+      }
+      
+      // Formater les dates
+      const formatDate = (dateStr) => {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+      };
+      
+      const locationsRows = visitedLocations.map((loc, index) => {
+        const datesDisplay = loc.dates.length > 0 
+          ? loc.dates.slice(0, 5).map(formatDate).join(', ') + (loc.dates.length > 5 ? ` (+${loc.dates.length - 5})` : '')
+          : 'N/A';
+        
+        return `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${escapeHtml(loc.departement)}</td>
+            <td>${escapeHtml(loc.commune)}</td>
+            <td>${escapeHtml(loc.arrondissement)}</td>
+            <td>${escapeHtml(loc.village)}</td>
+            <td class="text-center"><span class="badge bg-primary">${loc.visits}</span></td>
+            <td class="text-center"><span class="badge bg-info text-dark">${loc.dates.length}</span></td>
+            <td class="small text-muted">${datesDisplay}</td>
+          </tr>
+        `;
+      }).join('');
+      
+      return `
+        <section class="report-section page-break-inside-avoid">
+          <div class="report-section-header">
+            <div>
+              <h5><i class="bi bi-geo-alt-fill me-2 text-primary"></i>Lieux Parcourus</h5>
+              <small>Détail de tous les lieux visités durant le mois</small>
+            </div>
+            <div class="report-chip-group">
+              <span class="report-chip">${visitedLocations.length} lieu${visitedLocations.length > 1 ? 'x' : ''} unique${visitedLocations.length > 1 ? 's' : ''}</span>
+              <span class="report-chip">${checkins.length} check-in${checkins.length > 1 ? 's' : ''}</span>
+            </div>
+          </div>
+          
+          <div class="table-responsive">
+            <table class="table table-hover table-sm">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 50px;">#</th>
+                  <th>Département</th>
+                  <th>Commune</th>
+                  <th>Arrondissement</th>
+                  <th>Village</th>
+                  <th class="text-center" style="width: 100px;">Visites</th>
+                  <th class="text-center" style="width: 100px;">Jours</th>
+                  <th>Dates</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${locationsRows}
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="mt-3">
+            <small class="text-muted">
+              <i class="bi bi-info-circle me-1"></i>
+              Les lieux sont triés par nombre de visites (du plus visité au moins visité). 
+              Les dates affichent les jours où l'agent a effectué au moins un check-in dans ce lieu.
+            </small>
+          </div>
+        </section>
+      `;
     }
 
     function renderZonesSection(zones) {
@@ -6111,23 +6278,23 @@ Commence ton analyse maintenant.`;
                 <div class="d-flex gap-2 justify-content-center flex-wrap mb-3">
                   <button type="button" class="btn btn-success btn-lg" onclick="openChatGPTWhatsApp()">
                     <i class="bi bi-whatsapp me-2"></i>ChatGPT WhatsApp
-                  </button>
+                        </button>
                   <button type="button" class="btn btn-primary btn-lg" onclick="openGeminiChat()">
                     <i class="bi bi-google me-2"></i>Gemini Chat
-                  </button>
+                        </button>
                 </div>
                 <div class="text-center">
                   <small class="text-muted">
                     Le rapport sera copié automatiquement. Collez-le (Ctrl+V) dans le chat.
                   </small>
                 </div>
-              </div>
-              ${commentsData.fallbackSummary ? `
-                <div class="mt-4 p-3 bg-light rounded">
-                  <p class="small mb-0 fw-medium">Résumé automatique :</p>
-                  <p class="small text-muted mb-0">${escapeHtml(commentsData.fallbackSummary)}</p>
-                </div>
-              ` : ''}
+                      </div>
+                      ${commentsData.fallbackSummary ? `
+                        <div class="mt-4 p-3 bg-light rounded">
+                          <p class="small mb-0 fw-medium">Résumé automatique :</p>
+                          <p class="small text-muted mb-0">${escapeHtml(commentsData.fallbackSummary)}</p>
+                        </div>
+                      ` : ''}
               `}
             </div>
           </section>
@@ -6339,6 +6506,9 @@ Commence ton analyse maintenant.`;
       const missionsStatsSection = renderMissionsStatsSection(presenceData);
       const zonesSection = renderZonesSection(presenceData.zones);
       const dailyMissionsSection = renderDailyMissionsSection(report.dailyMissions || [], referenceMonthLabel);
+      
+      // Section des lieux parcourus (depuis les check-ins)
+      const visitedLocationsSection = renderVisitedLocationsSection(report.monthlyCheckins || []);
 
       // Construire le HTML complet du rapport
       const sections = [
@@ -6346,6 +6516,7 @@ Commence ton analyse maintenant.`;
         presenceSection,
         missionsStatsSection,
         dailyMissionsSection,  // Nouvelle section détaillée des missions quotidiennes
+        visitedLocationsSection,  // Section détaillée des lieux parcourus
         zonesSection,
         visualizationSection,
         activitySection,
@@ -7014,9 +7185,9 @@ Commence ton analyse maintenant.`;
         htmlWithImages = htmlWithImages + indicatorsDoc;
 
         const reportData = window.currentReportData || {};
-        const agentName = (reportData.agentName || 'Agent').replace(/[^a-zA-Z0-9À-ÿ\s]/g, '').replace(/\s+/g, '_');
-        const period = (reportData.period || 'rapport').replace(/[^a-zA-Z0-9À-ÿ\s]/g, '').replace(/\s+/g, '_');
-        const filename = `Rapport_${agentName}_${period}.html`;
+      const agentName = (reportData.agentName || 'Agent').replace(/[^a-zA-Z0-9À-ÿ\s]/g, '').replace(/\s+/g, '_');
+      const period = (reportData.period || 'rapport').replace(/[^a-zA-Z0-9À-ÿ\s]/g, '').replace(/\s+/g, '_');
+      const filename = `Rapport_${agentName}_${period}.html`;
 
         // Récupérer tous les styles CSS de la page
         const allStyles = Array.from(document.styleSheets)
@@ -7128,15 +7299,15 @@ Commence ton analyse maintenant.`;
 </body>
 </html>`;
 
-        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
         
         alert('✅ Rapport HTML téléchargé avec succès !\n\nLe fichier inclut :\n- Tous les graphiques convertis en images\n- La documentation complète des indicateurs\n- Tous les styles et couleurs');
       } catch (error) {

@@ -80,17 +80,44 @@ class MissionSync {
     await this.init();
     
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction(['pendingMissions'], 'readonly');
-      const store = transaction.objectStore('pendingMissions');
-      const index = store.index('synced');
-      
-      const request = index.getAll(false); // false = non synchronisées
+      try {
+        const transaction = this.db.transaction(['pendingMissions'], 'readonly');
+        const store = transaction.objectStore('pendingMissions');
+        
+        // Toujours utiliser la méthode de récupération complète et filtrage côté client
+        // pour éviter les problèmes avec les index
+        this.getAllMissionsAndFilter(store)
+          .then(resolve)
+          .catch(error => {
+            console.error("Erreur lors de la récupération des missions:", error);
+            reject(error);
+          });
+      } catch (error) {
+        console.error("Erreur lors de la récupération des missions:", error);
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * Récupère toutes les missions et filtre côté client
+   * @param {IDBObjectStore} store - Le store IndexedDB
+   * @returns {Promise<Array>} - Les missions non synchronisées
+   */
+  getAllMissionsAndFilter(store) {
+    return new Promise((resolve, reject) => {
+      const request = store.getAll();
       
       request.onsuccess = () => {
-        resolve(request.result || []);
+        // Filtrer les missions non synchronisées
+        const pendingMissions = (request.result || []).filter(mission => 
+          mission.synced === false || mission.synced === undefined
+        );
+        resolve(pendingMissions);
       };
       
       request.onerror = () => {
+        console.error("Erreur lors de la récupération complète des missions:", request.error);
         reject(request.error);
       };
     });

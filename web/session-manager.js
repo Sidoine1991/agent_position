@@ -2,12 +2,14 @@
  * Gestionnaire de session optimisé
  * Gère la persistance de session et optimise le chargement
  */
-
 class SessionManager {
   constructor() {
     this.SESSION_KEY = 'ccrb_session';
     this.SESSION_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 jours
+    this.REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
     this.isInitialized = false;
+    this.refreshTimer = null;
+    console.log('🔧 Session Manager initialisé');
   }
 
   /**
@@ -16,10 +18,12 @@ class SessionManager {
   async init() {
     if (this.isInitialized) return;
     this.isInitialized = true;
+    console.log('🔍 Initialisation de la session...');
 
     // Vérifier si une session existe
     const session = this.getSession();
     if (session && session.token) {
+      console.log('🔍 Session trouvée, vérification de la validité...');
       // Vérifier si la session est toujours valide
       if (this.isSessionValid(session)) {
         // Restaurer la session
@@ -31,11 +35,15 @@ class SessionManager {
           localStorage.setItem('userProfile', JSON.stringify(session.userProfile));
         }
         console.log('✅ Session restaurée automatiquement');
+        this.startAutoRefresh();
         return true;
       } else {
+        console.log('⚠️ Session expirée, nettoyage...');
         // Session expirée, la supprimer
         this.clearSession();
       }
+    } else {
+      console.log('ℹ️ Aucune session trouvée');
     }
     return false;
   }
@@ -125,6 +133,10 @@ class SessionManager {
   clearSession() {
     try {
       localStorage.removeItem(this.SESSION_KEY);
+      if (this.refreshTimer) {
+        clearInterval(this.refreshTimer);
+        this.refreshTimer = null;
+      }
       console.log('✅ Session effacée');
     } catch (e) {
       console.warn('⚠️ Erreur effacement session:', e);
@@ -132,28 +144,37 @@ class SessionManager {
   }
 
   /**
-   * Vérifier périodiquement la validité de la session
+   * Démarrer le rafraîchissement automatique du token
    */
-  startSessionWatcher() {
-    // Vérifier toutes les 5 minutes
-    setInterval(() => {
+  startAutoRefresh() {
+    // Arrêter le timer existant s'il y en a un
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+
+    console.log('🔄 Démarrage du rafraîchissement automatique du token...');
+    
+    // Démarrer un nouveau timer
+    this.refreshTimer = setInterval(async () => {
+      console.log('🔄 Vérification du rafraîchissement du token...');
       const session = this.getSession();
-      if (session) {
-        if (!this.isSessionValid(session)) {
-          // Session expirée, déconnecter
-          this.clearSession();
-          localStorage.removeItem('jwt');
-          // Rediriger vers la page de connexion seulement si nécessaire
-          const currentPage = window.location.pathname;
-          if (currentPage !== '/index.html' && currentPage !== '/') {
-            window.location.href = '/index.html';
+      if (session && session.token) {
+        try {
+          // Rafraîchir le token
+          const newToken = await window.refreshTokenIfNeeded(session.token);
+          if (newToken && newToken !== session.token) {
+            console.log('🔄 Token rafraîchi avec succès');
+            // Mettre à jour la session avec le nouveau token
+            this.saveSession(newToken, session.userEmail, session.userProfile);
+          } else {
+            console.log('ℹ️ Aucun rafraîchissement nécessaire');
           }
-        } else {
-          // Mettre à jour le timestamp pour prolonger la session
-          this.updateSession();
+        } catch (error) {
+          console.error('❌ Erreur lors du rafraîchissement automatique:', error);
         }
       }
-    }, 5 * 60 * 1000); // 5 minutes
+    }, this.REFRESH_INTERVAL);
   }
 }
 
@@ -170,9 +191,12 @@ if (typeof window !== 'undefined') {
     }
   });
   
-  // Démarrer le watcher après le chargement complet
+  // Démarrer le rafraîchissement automatique après le chargement complet
   window.addEventListener('DOMContentLoaded', () => {
-    sessionManager.startSessionWatcher();
+    const session = sessionManager.getSession();
+    if (session && session.token) {
+      sessionManager.startAutoRefresh();
+    }
   });
 }
 

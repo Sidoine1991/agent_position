@@ -5137,14 +5137,14 @@ app.get('/api/permissions', authenticateToken, async (req, res) => {
 });
 
 // POST /api/permissions - Créer une nouvelle demande de permission
-app.post('/api/permissions', authenticateToken, async (req, res) => {
+app.post('/api/permissions', authenticateToken, upload.single('justification'), async (req, res) => {
   try {
     if (!supabaseClient) {
       return res.status(500).json({ success: false, error: 'Supabase non configuré' });
     }
 
     const requesterId = Number(req.user?.id);
-    const { start_date, end_date, status = 'pending', reason } = req.body;
+    const { start_date, end_date, status = 'pending', reason } = req.body || {};
 
     if (!start_date || !end_date) {
       return res.status(400).json({ success: false, error: 'start_date et end_date sont requis' });
@@ -5154,12 +5154,43 @@ app.post('/api/permissions', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'La date de fin doit être supérieure ou égale à la date de début' });
     }
 
+    // Gérer l'upload de la pièce justificative (stockée éventuellement dans Supabase Storage)
+    let proofUrl = null;
+    if (req.file && supabaseClient) {
+      try {
+        const fileExt = (req.file.originalname || '').split('.').pop() || 'bin';
+        const fileName = `proofs/permission_${requesterId}_${Date.now()}.${fileExt}`;
+
+        const { data: storageResult, error: storageError } = await supabaseClient.storage
+          .from('presence-files')
+          .upload(fileName, req.file.buffer, {
+            contentType: req.file.mimetype || 'application/octet-stream',
+            upsert: false
+          });
+
+        if (storageError) {
+          console.error('Erreur lors de l’upload de la pièce justificative:', storageError);
+        } else if (storageResult && storageResult.path) {
+          // Construire l'URL publique (en supposant le bucket public ou via getPublicUrl)
+          const { data: publicUrlData } = supabaseClient
+            .storage
+            .from('presence-files')
+            .getPublicUrl(storageResult.path);
+
+          proofUrl = publicUrlData?.publicUrl || null;
+        }
+      } catch (uploadErr) {
+        console.error('Exception lors de l’upload de la pièce justificative:', uploadErr);
+      }
+    }
+
     const permissionData = {
       agent_id: requesterId,
       start_date,
       end_date,
       status,
       rejection_reason: reason || null,
+      proof_url: proofUrl,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
@@ -8435,6 +8466,12 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
 
     // 3) Insérer le premier check-in lié à la mission (si mission créée) et enregistrer la validation
     let insertedCheckinId = null;
+    const locationInfo = {
+      departement: departement || null,
+      commune: commune || null,
+      arrondissement: arrondissement || null,
+      village: village || null
+    };
     try {
       const { data: chk, error: chkErr } = await supabaseClient
         .from('checkins')
@@ -8445,7 +8482,9 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
           lon: longitude,
           note: note || 'Début de mission',
           photo_url: startPhotoUrl || null,
-          start_time: start_time
+          start_time: start_time,
+          ...locationInfo,
+          device_info: locationInfo
         }])
         .select('id')
         .single();
@@ -8514,7 +8553,7 @@ app.post('/api/presence/start', upload.single('photo'), async (req, res) => {
             end_time: plan?.planned_end_time || null,
             location_lat: latitude,
             location_lng: longitude,
-            location_name: null,
+            location_name: commune || village || departement || null,
             notes: note || 'Début de mission',
             photo_url: startPhotoUrl || null,
             status: 'completed',

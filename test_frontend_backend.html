@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Frontend-Backend - Agent Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .status {
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin: 5px 0;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .loading { background-color: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #28a745;
+            transition: width 0.3s ease;
+        }
+        .test-result {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        #final-report {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Complet Frontend-Backend - Agent Dashboard</h1>
+        <p>Cette page teste toutes les fonctionnalités du tableau de bord agent pour s'assurer que tout fonctionne correctement.</p>
+
+        <div class="test-section">
+            <h3>🔐 Authentification</h3>
+            <button onclick="testAuth()">Tester l'authentification</button>
+            <div id="auth-status"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Chargement des Données</h3>
+            <button onclick="testDataLoading()">Tester le chargement des données</button>
+            <div id="data-status"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📋 Rapport Mensuel</h3>
+            <button onclick="testMonthlyReport()">Tester le rapport mensuel</button>
+            <div id="report-status"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>💬 Module Motivation</h3>
+            <button onclick="testMotivationModule()">Tester le module motivation</button>
+            <div id="motivation-status"></div>
+            <div id="motivation-quote"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 Test Complet Automatique</h3>
+            <button onclick="runFullTest()">Lancer tous les tests</button>
+            <div class="progress-bar">
+                <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+            </div>
+            <div id="progress-text">0% complété</div>
+            <div id="full-test-log" class="log"></div>
+        </div>
+
+        <div id="final-report"></div>
+    </div>
+
+    <script type="module">
+        // Import du module motivation
+        import { getRandomQuote, motivationQuotes } from '/js/motivation.js';
+
+        // Variables globales
+        let authToken = null;
+        let currentUser = null;
+        let testResults = {
+            auth: false,
+            data: false,
+            report: false,
+            motivation: false
+        };
+
+        // Fonctions utilitaires
+        function log(message, type = 'info') {
+            const logElement = document.getElementById('full-test-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            logEntry.className = `test-result ${type}`;
+            logElement.appendChild(logEntry);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function updateStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function updateProgress(current, total) {
+            const percentage = Math.round((current / total) * 100);
+            document.getElementById('progress-fill').style.width = percentage + '%';
+            document.getElementById('progress-text').textContent = `${percentage}% complété`;
+        }
+
+        // Test d'authentification
+        async function testAuth() {
+            log('🔐 Début du test d\'authentification...', 'info');
+            updateStatus('auth-status', 'Test en cours...', 'loading');
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'kolasidoine@gmail.com',
+                        password: '123456'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.token) {
+                    authToken = data.token;
+                    currentUser = data.user || data;
+                    localStorage.setItem('jwt', authToken);
+                    updateStatus('auth-status', `✅ Authentification réussie - Utilisateur: ${currentUser.name || currentUser.email}`, 'success');
+                    testResults.auth = true;
+                    log('✅ Authentification réussie', 'success');
+                    return true;
+                } else {
+                    updateStatus('auth-status', `❌ Échec: ${data.error || 'Erreur inconnue'}`, 'error');
+                    log(`❌ Échec authentification: ${data.error || 'Erreur inconnue'}`, 'error');
+                    return false;
+                }
+            } catch (error) {
+                updateStatus('auth-status', `❌ Erreur: ${error.message}`, 'error');
+                log(`❌ Erreur authentification: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Test de chargement des données
+        async function testDataLoading() {
+            log('📊 Début du test de chargement des données...', 'info');
+            updateStatus('data-status', 'Test en cours...', 'loading');
+
+            if (!authToken) {
+                const authSuccess = await testAuth();
+                if (!authSuccess) {
+                    updateStatus('data-status', '❌ Authentification requise', 'error');
+                    return false;
+                }
+            }
+
+            const tests = [
+                { name: 'Profil utilisateur', url: '/api/profile' },
+                { name: 'Liste des agents', url: '/api/agents' },
+                { name: 'Missions', url: '/api/missions' },
+                { name: 'Checkins', url: '/api/checkins' },
+                { name: 'Planifications', url: '/api/planifications' },
+                { name: 'Permissions', url: '/api/permission-days' },
+                { name: 'Badges', url: '/api/badges' },
+                { name: 'Leaderboard', url: '/api/agent/leaderboard' }
+            ];
+
+            let successCount = 0;
+            const results = [];
+
+            for (const test of tests) {
+                try {
+                    const response = await fetch(test.url, {
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        successCount++;
+                        results.push(`✅ ${test.name}: OK (${Array.isArray(data) ? data.length : data.success ? 'Success' : 'Data'} items)`);
+                        log(`✅ ${test.name}: Chargement réussi`, 'success');
+                    } else {
+                        results.push(`❌ ${test.name}: ${response.status} ${response.statusText}`);
+                        log(`❌ ${test.name}: ${response.status} ${response.statusText}`, 'error');
+                    }
+                } catch (error) {
+                    results.push(`❌ ${test.name}: ${error.message}`);
+                    log(`❌ ${test.name}: ${error.message}`, 'error');
+                }
+            }
+
+            const successRate = Math.round((successCount / tests.length) * 100);
+            const statusType = successRate >= 80 ? 'success' : successRate >= 60 ? 'warning' : 'error';
+            
+            updateStatus('data-status', 
+                `${successRate >= 80 ? '✅' : successRate >= 60 ? '⚠️' : '❌'} ${successCount}/${tests.length} tests réussis (${successRate}%)`,
+                statusType
+            );
+
+            testResults.data = successRate >= 80;
+            log(`📊 Chargement des données terminé: ${successCount}/${tests.length} réussis`, successRate >= 80 ? 'success' : 'error');
+
+            return successRate >= 80;
+        }
+
+        // Test du rapport mensuel
+        async function testMonthlyReport() {
+            log('📋 Début du test du rapport mensuel...', 'info');
+            updateStatus('report-status', 'Test en cours...', 'loading');
+
+            if (!authToken) {
+                const authSuccess = await testAuth();
+                if (!authSuccess) {
+                    updateStatus('report-status', '❌ Authentification requise', 'error');
+                    return false;
+                }
+            }
+
+            try {
+                // Récupérer d'abord la liste des agents
+                const agentsResponse = await fetch('/api/agents', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!agentsResponse.ok) {
+                    throw new Error('Impossible de récupérer les agents');
+                }
+
+                const agentsData = await agentsResponse.json();
+                const agents = Array.isArray(agentsData) ? agentsData : agentsData.data || [];
+                
+                if (agents.length === 0) {
+                    updateStatus('report-status', '❌ Aucun agent trouvé', 'error');
+                    return false;
+                }
+
+                // Utiliser le premier agent pour le test
+                const testAgent = agents[0];
+                const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+
+                // Tester le rapport mensuel
+                const reportResponse = await fetch(`/api/agents/monthly-report?agent_id=${testAgent.id}&month=${currentMonth}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (reportResponse.ok) {
+                    const reportData = await reportResponse.json();
+                    
+                    // Vérifier la structure du rapport
+                    const requiredFields = ['meta', 'presence', 'activities', 'projectRanking'];
+                    const hasAllFields = requiredFields.every(field => reportData[field]);
+                    
+                    if (hasAllFields) {
+                        updateStatus('report-status', 
+                            `✅ Rapport généré avec succès pour ${testAgent.name || 'Agent ' + testAgent.id}`,
+                            'success'
+                        );
+                        testResults.report = true;
+                        log(`✅ Rapport mensuel généré: Agent ${testAgent.name || testAgent.id}`, 'success');
+
+                        // Tester le résumé IA
+                        const summaryResponse = await fetch('/api/generate-ai-summary', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${authToken}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                type: 'concise',
+                                reportData: reportData
+                            })
+                        });
+
+                        if (summaryResponse.ok) {
+                            const summaryData = await summaryResponse.json();
+                            log('✅ Résumé IA généré avec succès', 'success');
+                        } else {
+                            log('⚠️ Résumé IA non disponible', 'warning');
+                        }
+
+                        return true;
+                    } else {
+                        updateStatus('report-status', '⚠️ Rapport incomplet - champs manquants', 'warning');
+                        log('⚠️ Rapport mensuel: Structure incomplète', 'warning');
+                        return false;
+                    }
+                } else {
+                    updateStatus('report-status', `❌ Erreur: ${reportResponse.status} ${reportResponse.statusText}`, 'error');
+                    log(`❌ Rapport mensuel: ${reportResponse.status} ${reportResponse.statusText}`, 'error');
+                    return false;
+                }
+            } catch (error) {
+                updateStatus('report-status', `❌ Erreur: ${error.message}`, 'error');
+                log(`❌ Rapport mensuel: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Test du module motivation
+        async function testMotivationModule() {
+            log('💬 Début du test du module motivation...', 'info');
+            updateStatus('motivation-status', 'Test en cours...', 'loading');
+
+            try {
+                // Tester la fonction getRandomQuote
+                if (typeof getRandomQuote === 'function') {
+                    const quote = getRandomQuote();
+                    
+                    if (quote && quote.text && quote.author) {
+                        updateStatus('motivation-status', '✅ Module motivation fonctionnel', 'success');
+                        testResults.motivation = true;
+                        
+                        // Afficher la citation
+                        document.getElementById('motivation-quote').innerHTML = `
+                            <div class="status info">
+                                <strong>Citation test:</strong><br>
+                                "${quote.text}" - ${quote.author}
+                            </div>
+                        `;
+                        
+                        log(`✅ Module motivation: "${quote.text}" - ${quote.author}`, 'success');
+                        return true;
+                    } else {
+                        updateStatus('motivation-status', '❌ Format de citation invalide', 'error');
+                        log('❌ Module motivation: Format de citation invalide', 'error');
+                        return false;
+                    }
+                } else {
+                    updateStatus('motivation-status', '❌ Fonction getRandomQuote non disponible', 'error');
+                    log('❌ Module motivation: Fonction getRandomQuote non disponible', 'error');
+                    return false;
+                }
+            } catch (error) {
+                updateStatus('motivation-status', `❌ Erreur: ${error.message}`, 'error');
+                log(`❌ Module motivation: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Test complet automatique
+        async function runFullTest() {
+            log('🚀 Lancement du test complet automatique...', 'info');
+            
+            const tests = [
+                { name: 'Authentification', func: testAuth },
+                { name: 'Chargement des données', func: testDataLoading },
+                { name: 'Rapport mensuel', func: testMonthlyReport },
+                { name: 'Module motivation', func: testMotivationModule }
+            ];
+
+            let passedTests = 0;
+
+            for (let i = 0; i < tests.length; i++) {
+                const test = tests[i];
+                log(`📋 Exécution: ${test.name}...`, 'info');
+                
+                const result = await test.func();
+                if (result) {
+                    passedTests++;
+                }
+                
+                updateProgress(i + 1, tests.length);
+                
+                // Petite pause entre les tests
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            // Rapport final
+            const successRate = Math.round((passedTests / tests.length) * 100);
+            const finalReport = document.getElementById('final-report');
+            
+            finalReport.innerHTML = `
+                <h3>📊 Rapport Final des Tests</h3>
+                <div class="status ${successRate >= 75 ? 'success' : successRate >= 50 ? 'warning' : 'error'}">
+                    <strong>Résultat: ${passedTests}/${tests.length} tests réussis (${successRate}%)</strong>
+                </div>
+                <ul>
+                    <li>🔐 Authentification: ${testResults.auth ? '✅' : '❌'}</li>
+                    <li>📊 Chargement des données: ${testResults.data ? '✅' : '❌'}</li>
+                    <li>📋 Rapport mensuel: ${testResults.report ? '✅' : '❌'}</li>
+                    <li>💬 Module motivation: ${testResults.motivation ? '✅' : '❌'}</li>
+                </ul>
+                <div class="status ${successRate >= 75 ? 'success' : 'warning'}">
+                    <strong>Statut: ${successRate >= 75 ? '✅ Frontend-Backend fonctionnel' : successRate >= 50 ? '⚠️ Problèmes mineurs détectés' : '❌ Problèmes critiques détectés'}</strong>
+                </div>
+            `;
+
+            log(`🏁 Test complet terminé: ${passedTests}/${tests.length} réussis (${successRate}%)`, 
+                successRate >= 75 ? 'success' : successRate >= 50 ? 'warning' : 'error');
+        }
+
+        // Exposer les fonctions globalement
+        window.testAuth = testAuth;
+        window.testDataLoading = testDataLoading;
+        window.testMonthlyReport = testMonthlyReport;
+        window.testMotivationModule = testMotivationModule;
+        window.runFullTest = runFullTest;
+
+        // Message de bienvenue
+        log('🧪 Page de test Frontend-Backend prête', 'info');
+    </script>
+</body>
+</html>

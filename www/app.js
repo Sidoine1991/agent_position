@@ -29,8 +29,8 @@ function clearCachedUserData() {
     localStorage.removeItem('vercelLoginAttempts');
     localStorage.removeItem('lastLoginAttempt');
     console.log('🧹 Cache utilisateur nettoyé (jwt conservé)');
-  } catch {}
-  try { presenceData = {}; } catch {}
+  } catch { }
+  try { presenceData = {}; } catch { }
 }
 
 function isProfileComplete(profile) {
@@ -56,10 +56,10 @@ function isWithinWorkHours(date = new Date()) {
   const currentHour = date.getHours();
   const currentMinute = date.getMinutes();
   const currentTimeInMinutes = currentHour * 60 + currentMinute;
-  
+
   const startTimeInMinutes = WORK_HOURS.start.hour * 60 + WORK_HOURS.start.minute;
   const endTimeInMinutes = WORK_HOURS.end.hour * 60 + WORK_HOURS.end.minute;
-  
+
   return currentTimeInMinutes >= startTimeInMinutes && currentTimeInMinutes <= endTimeInMinutes;
 }
 
@@ -76,7 +76,7 @@ function getWorkHoursStatus() {
   const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
   const startTimeInMinutes = WORK_HOURS.start.hour * 60 + WORK_HOURS.start.minute;
   const endTimeInMinutes = WORK_HOURS.end.hour * 60 + WORK_HOURS.end.minute;
-  
+
   if (currentTimeInMinutes < startTimeInMinutes) {
     const minutesUntilStart = startTimeInMinutes - currentTimeInMinutes;
     const hours = Math.floor(minutesUntilStart / 60);
@@ -108,14 +108,14 @@ function getWorkHoursStatus() {
 function updateWorkHoursDisplay() {
   const statusEl = $('work-hours-status');
   if (!statusEl) return;
-  
+
   const workStatus = getWorkHoursStatus();
   const now = new Date();
   const currentTime = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  
+
   let statusText = '';
   let statusColor = '';
-  
+
   switch (workStatus.status) {
     case 'before':
       statusText = `🕐 ${currentTime} - ${workStatus.message}`;
@@ -130,14 +130,14 @@ function updateWorkHoursDisplay() {
       statusColor = '#f44336'; // Rouge
       break;
   }
-  
+
   statusEl.textContent = statusText;
   statusEl.style.color = statusColor;
-  
+
   // Désactiver/activer les boutons selon les heures
   const startBtn = $('start-mission');
   const endBtn = $('end-mission');
-  
+
   if (workStatus.status !== 'during') {
     if (startBtn && !startBtn.disabled) {
       startBtn.style.opacity = '0.6';
@@ -160,15 +160,15 @@ function updateWorkHoursDisplay() {
 }
 
 function $(id) { return document.getElementById(id); }
-function show(el) { 
+function show(el) {
   if (el && el.classList) {
-    el.classList.remove('hidden'); 
+    el.classList.remove('hidden');
     el.classList.add('block');
   }
 }
-function hide(el) { 
+function hide(el) {
   if (el && el.classList) {
-    el.classList.add('hidden'); 
+    el.classList.add('hidden');
     el.classList.remove('block');
   }
 }
@@ -176,7 +176,7 @@ function hide(el) {
 // Fonctions d'animation et d'effets visuels
 function addLoadingState(element, text = 'Chargement...') {
   if (!element) return;
-  
+
   element.classList.add('btn-loading');
   element.disabled = true;
   element.setAttribute('data-original-text', element.textContent);
@@ -185,7 +185,7 @@ function addLoadingState(element, text = 'Chargement...') {
 
 function removeLoadingState(element) {
   if (!element) return;
-  
+
   element.classList.remove('btn-loading');
   element.disabled = false;
   const originalText = element.getAttribute('data-original-text');
@@ -212,9 +212,9 @@ function showNotification(message, type = 'info', duration = 3000) {
     z-index: 10000;
     animation: slideInRight 0.3s ease-out;
   `;
-  
+
   document.body.appendChild(notification);
-  
+
   setTimeout(() => {
     notification.style.animation = 'slideInRight 0.3s ease-out reverse';
     setTimeout(() => notification.remove(), 300);
@@ -227,7 +227,7 @@ function createRippleEffect(event) {
   const size = Math.max(rect.width, rect.height);
   const x = event.clientX - rect.left - size / 2;
   const y = event.clientY - rect.top - size / 2;
-  
+
   const ripple = document.createElement('span');
   ripple.style.cssText = `
     position: absolute;
@@ -241,7 +241,7 @@ function createRippleEffect(event) {
     animation: ripple 0.6s linear;
     pointer-events: none;
   `;
-  
+
   button.appendChild(ripple);
   setTimeout(() => ripple.remove(), 600);
 }
@@ -262,7 +262,7 @@ function addScrollAnimations() {
       }
     });
   }, { threshold: 0.1 });
-  
+
   document.querySelectorAll('.card, .form-group, .list-item').forEach(el => {
     observer.observe(el);
   });
@@ -280,7 +280,7 @@ function bindNavbarLinks() {
     });
     document.querySelectorAll('.navbar-logout, [data-action="logout"]').forEach((btn) => {
       if (btn._logoutBound) return; btn._logoutBound = true;
-      btn.addEventListener('click', (ev) => { ev.preventDefault(); try { window.logout && window.logout(); } catch {} });
+      btn.addEventListener('click', (ev) => { ev.preventDefault(); try { window.logout && window.logout(); } catch { } });
     });
     // IDs fallback
     const idToUrl = {
@@ -334,7 +334,7 @@ function applyBootstrapEnhancements() {
 // Fonction pour initialiser l'image hero
 function initHeroImage() {
   console.log('🖼️ Initialisation de l\'image hero...');
-  
+
   const heroImage = document.querySelector('.hero-image');
   if (heroImage) {
     // Précharger l'image
@@ -349,7 +349,7 @@ function initHeroImage() {
         // Fallback vers une image par défaut si disponible
         heroImage.src = '/Media/default-hero.png';
         heroImage.classList.add('loaded');
-      } catch {}
+      } catch { }
     };
     img.src = heroImage.src;
   }
@@ -378,10 +378,10 @@ document.addEventListener('click', (ev) => {
     if (logoutBtn) {
       ev.preventDefault();
       ev.stopPropagation();
-      try { window.logout && window.logout(); } catch {}
+      try { window.logout && window.logout(); } catch { }
       return;
     }
-  } catch {}
+  } catch { }
 });
 
 // Bind navbar dès que le DOM est prêt (renforce la délégation globale)
@@ -394,7 +394,7 @@ function updateCircleActionsVisibility() {
     const token = localStorage.getItem('jwt') || '';
     const actions = document.getElementById('circle-actions');
     if (actions) actions.style.display = token ? 'grid' : 'none';
-  } catch {}
+  } catch { }
 }
 document.addEventListener('DOMContentLoaded', updateCircleActionsVisibility);
 window.addEventListener('storage', (e) => {
@@ -404,30 +404,30 @@ window.addEventListener('storage', (e) => {
 // Bouton retour générique
 function attachBackButtons() {
   try {
-    document.querySelectorAll('[data-back]')?.forEach((b)=>{
+    document.querySelectorAll('[data-back]')?.forEach((b) => {
       if (b._backBound) return; b._backBound = true;
-      b.addEventListener('click', (e)=>{ e.preventDefault(); history.length > 1 ? history.back() : (window.location.href = '/'); });
+      b.addEventListener('click', (e) => { e.preventDefault(); history.length > 1 ? history.back() : (window.location.href = '/'); });
     });
-  } catch {}
+  } catch { }
 }
 document.addEventListener('DOMContentLoaded', attachBackButtons);
 window.addEventListener('load', attachBackButtons);
 
-async function api(path, opts={}) {
+async function api(path, opts = {}) {
   const headers = opts.headers || {};
   if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
   if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
-  
+
   console.log('API call:', apiBase + path, { method: opts.method || 'GET', headers, body: opts.body });
-  
+
   const res = await fetch(apiBase + path, {
     method: opts.method || 'GET',
     headers,
     body: opts.body instanceof FormData ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined),
   });
-  
+
   console.log('API response:', res.status, res.statusText);
-  
+
   if (res.status === 401) {
     // Ne pas supprimer le token automatiquement ni rediriger.
     console.warn('401 détecté: accès non autorisé');
@@ -441,15 +441,15 @@ async function api(path, opts={}) {
         banner.textContent = '🔒 Session requise. Ouvrez la page d\'accueil pour vous connecter, puis revenez.';
         container.prepend(banner);
       }
-    } catch {}
-    throw new Error(JSON.stringify({ success:false, unauthorized:true, message: "Accès non autorisé" }));
+    } catch { }
+    throw new Error(JSON.stringify({ success: false, unauthorized: true, message: "Accès non autorisé" }));
   }
   if (!res.ok) {
     const errorText = await res.text();
     console.error('API error:', errorText);
     throw new Error(errorText || res.statusText);
   }
-  
+
   const ct = res.headers.get('content-type') || '';
   const result = ct.includes('application/json') ? await res.json() : await res.text();
   console.log('API result:', result);
@@ -459,21 +459,21 @@ async function api(path, opts={}) {
 function geoPromise() {
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
-      p => resolve(p.coords), 
+      p => resolve(p.coords),
       e => {
         console.warn('Erreur GPS:', e);
         // En cas d'erreur, essayer avec des paramètres plus permissifs
         navigator.geolocation.getCurrentPosition(
           p => resolve(p.coords),
           e2 => reject(new Error(`GPS indisponible: ${e2.message}`)),
-          { 
+          {
             enableHighAccuracy: false,
             timeout: 60000, // 60 secondes
             maximumAge: 300000 // 5 minutes de cache
           }
         );
-      }, 
-      { 
+      },
+      {
         enableHighAccuracy: true, // Essayer d'abord avec haute précision
         timeout: 45000, // 45 secondes
         maximumAge: 300000 // 5 minutes de cache
@@ -488,25 +488,25 @@ async function autoLogin(email, password) {
     console.log('⚠️ Connexion déjà en cours, ignorée');
     return;
   }
-  
+
   if (loginAttempts >= MAX_LOGIN_ATTEMPTS) {
     console.log('❌ Trop de tentatives de connexion, arrêt');
     return;
   }
-  
+
   isLoginInProgress = true;
   loginAttempts++;
-  
+
   try {
     console.log('🔐 Tentative de connexion automatique...', loginAttempts);
-    
+
     const response = await api('/login', {
       method: 'POST',
       body: { email, password }
     });
-    
+
     console.log('Réponse de l\'API:', response);
-    
+
     if (response.success && response.token) {
       // Stocker le token et les données de connexion
       localStorage.setItem('jwt', response.token);
@@ -517,20 +517,20 @@ async function autoLogin(email, password) {
         role: response.user?.role || 'agent'
       }));
       localStorage.setItem('lastUserEmail', email);
-      
+
       // Mettre à jour le JWT global
       jwt = response.token;
-      
+
       console.log('✅ Connexion automatique réussie');
-      
+
       // Réinitialiser les compteurs
       loginAttempts = 0;
       isLoginInProgress = false;
-      
+
       // Mettre à jour l'interface sans recharger la page
       await loadAgentProfile();
       await updateNavbar();
-      
+
       // Afficher la section principale
       const authSection = $('auth-section');
       const appSection = $('app-section');
@@ -542,20 +542,20 @@ async function autoLogin(email, password) {
   } catch (e) {
     console.error('❌ Erreur de connexion automatique:', e);
     isLoginInProgress = false;
-    
+
     // Si c'est une erreur 429 (Too Many Requests), arrêter complètement
     if (e.message && e.message.includes('429')) {
       console.log('❌ Trop de requêtes, arrêt des tentatives');
       loginAttempts = MAX_LOGIN_ATTEMPTS;
     }
-    
+
     // Attendre avant la prochaine tentative
     if (loginAttempts < MAX_LOGIN_ATTEMPTS) {
       setTimeout(() => {
         isLoginInProgress = false;
       }, 5000); // Attendre 5 secondes
     }
-    
+
     throw e;
   }
 }
@@ -571,18 +571,18 @@ async function init() {
   try {
     const s = await api('/settings');
     if (s && s.success) appSettings = s.settings || null;
-  } catch {}
-  
+  } catch { }
+
   // Assurer que navigation.js est chargé avant de l'utiliser
   if (!window.navigation || typeof window.navigation.updateForUser !== 'function') {
     try {
       await new Promise((resolve) => setTimeout(resolve, 100));
-    } catch {}
+    } catch { }
   }
   if ('serviceWorker' in navigator) {
-    try { await navigator.serviceWorker.register('/service-worker.js'); } catch {}
+    try { await navigator.serviceWorker.register('/service-worker.js'); } catch { }
   }
-  
+
   // Vérifier la connexion automatique via les paramètres URL
   const urlParams = new URLSearchParams(window.location.search);
   // Auth via token propagé dans l'URL (depuis navbar)
@@ -592,14 +592,14 @@ async function init() {
       localStorage.setItem('jwt', urlToken);
       jwt = urlToken;
       console.log('🔐 Token restauré depuis l\'URL');
-    } catch {}
+    } catch { }
   }
   const email = urlParams.get('email');
   const password = urlParams.get('password');
-  
+
   if (email && password) {
     console.log('🔐 Tentative de connexion automatique avec:', { email, password: '***' });
-    
+
     // Vérifier si on a déjà tenté cette connexion récemment
     const lastAttempt = localStorage.getItem('lastLoginAttempt');
     const now = Date.now();
@@ -607,7 +607,7 @@ async function init() {
       console.log('⚠️ Tentative de connexion trop récente, ignorée');
       return;
     }
-    
+
     // Sur Vercel, limiter les tentatives de connexion automatique
     if (window.location.hostname.includes('vercel.app')) {
       const vercelAttempts = parseInt(localStorage.getItem('vercelLoginAttempts') || '0');
@@ -617,33 +617,33 @@ async function init() {
       }
       localStorage.setItem('vercelLoginAttempts', (vercelAttempts + 1).toString());
     }
-    
+
     // Marquer cette tentative
     localStorage.setItem('lastLoginAttempt', now.toString());
-    
+
     // Si l'email a changé, nettoyer le cache local (évite stats d'un autre utilisateur)
     try {
       const lastEmail = localStorage.getItem('lastUserEmail');
       if (lastEmail && lastEmail.toLowerCase() !== email.toLowerCase()) {
         clearCachedUserData();
       }
-    } catch {}
+    } catch { }
     try {
       await autoLogin(email, password);
     } catch (e) {
       console.error('❌ Échec de la connexion automatique:', e);
     }
   }
-  
+
   // Initialiser les notifications
   await initializeNotifications();
-  
-    // Gérer la navbar selon l'état de connexion
-  try { await updateNavbar(); } catch {}
-  
+
+  // Gérer la navbar selon l'état de connexion
+  try { await updateNavbar(); } catch { }
+
   const authSection = $('auth-section');
   const appSection = $('app-section');
-  if (jwt) { 
+  if (jwt) {
     // Vérifier d'abord la validité du token
     try {
       const testResponse = await api('/profile');
@@ -661,7 +661,7 @@ async function init() {
       if (emailForProfile) {
         profileData = normalizeProfileResponse(await api(`/profile?email=${encodeURIComponent(emailForProfile)}`));
         // Sauvegarder pour d'autres fonctions (notifications)
-        try { localStorage.setItem('userProfile', JSON.stringify(profileData || {})); } catch {}
+        try { localStorage.setItem('userProfile', JSON.stringify(profileData || {})); } catch { }
       }
       const alreadyPrompted = localStorage.getItem('onboardingPrompted') === '1';
       if (!isProfileComplete(profileData) && !alreadyPrompted) {
@@ -678,23 +678,23 @@ async function init() {
               profileNav.style.transform = '';
             }, 3000);
           }
-        } catch {}
+        } catch { }
         // Continuer sans forcer la navigation
       }
-    } catch {}
+    } catch { }
 
     hide(authSection);
     show(appSection);
     await loadAgentProfile();
-    
+
     // Initialiser les sélecteurs géographiques
     setTimeout(() => {
       console.log('🌍 Initialisation des sélecteurs géographiques après connexion...');
       initGeoSelectorsLocal();
     }, 100);
-  } else { 
-    show(authSection); 
-    hide(appSection); 
+  } else {
+    show(authSection);
+    hide(appSection);
     // Si le dashboard est ouvert sans token, afficher juste un message non bloquant
     const path = window.location.pathname || '';
     if (path.includes('dashboard') || path.includes('admin')) {
@@ -713,27 +713,27 @@ async function init() {
         };
         localStorage.clear();
         if (keep.lastUserEmail) localStorage.setItem('lastUserEmail', keep.lastUserEmail);
-      } catch {}
+      } catch { }
 
       const email = $('email').value.trim();
       const password = $('password').value.trim();
-      
+
       console.log('Tentative de connexion avec:', { email, password: password ? '***' : 'missing' });
-      
+
       const data = await api('/login', { method: 'POST', body: { email, password } });
-      
+
       console.log('Réponse de l\'API:', data);
-      
-      jwt = data.token; 
+
+      jwt = data.token;
       localStorage.setItem('jwt', jwt);
       localStorage.setItem('loginData', JSON.stringify(data.user));
       localStorage.setItem('userProfile', JSON.stringify(data.user));
       localStorage.setItem('userEmail', data.user.email || email);
       localStorage.setItem('lastUserEmail', data.user.email || email);
-      
+
       hide(authSection); show(appSection);
       // Rediriger systématiquement vers l'accueil après connexion (peu importe le rôle)
-      try { window.location.href = '/index.html'; } catch {}
+      try { window.location.href = '/index.html'; } catch { }
       // Vérifier l'onboarding immédiatement après connexion
       try {
         const prof = normalizeProfileResponse(await api(`/profile?email=${encodeURIComponent(data.user.email || email)}`));
@@ -750,22 +750,22 @@ async function init() {
                 profileNav.style.transform = '';
               }, 3000);
             }
-          } catch {}
+          } catch { }
           // Ne pas interrompre le flux de la page d'accueil
         }
-      } catch {}
+      } catch { }
 
       await loadAgentProfile();
-      
-  // Charger les données après connexion
-  await loadPresenceData();
-  await loadDashboardMetrics();
-  
-  // Bouton unique: rien à mettre à jour dynamiquement
-  
-  // Forcer le rendu du calendrier
-  renderCalendar();
-      
+
+      // Charger les données après connexion
+      await loadPresenceData();
+      await loadDashboardMetrics();
+
+      // Bouton unique: rien à mettre à jour dynamiquement
+
+      // Forcer le rendu du calendrier
+      renderCalendar();
+
       // Initialiser les sélecteurs géographiques après connexion
       setTimeout(() => {
         if (typeof initGeoSelectors === 'function') {
@@ -775,7 +775,7 @@ async function init() {
           console.error('❌ initGeoSelectors non disponible');
         }
       }, 100);
-      
+
       await updateNavbar(); // Mettre à jour la navbar après connexion
       // Garde de cohérence session: si le profil ne correspond pas à l'email saisi, forcer logout
       try {
@@ -789,16 +789,16 @@ async function init() {
           window.location.href = '/index.html';
           return;
         }
-      } catch {}
+      } catch { }
       // Rendre immédiatement les actions circulaires
-      try { updateCircleActionsVisibility(); } catch {}
-    } catch (e) { 
+      try { updateCircleActionsVisibility(); } catch { }
+    } catch (e) {
       console.error('Erreur de connexion:', e);
-      
+
       // Gestion intelligente des erreurs de connexion
       let errorMessage = 'Erreur de connexion.';
       let suggestions = [];
-      
+
       if (e.message && e.message.includes('401')) {
         errorMessage = 'Identifiants incorrects.';
         suggestions = [
@@ -826,41 +826,41 @@ async function init() {
           'Contactez votre administrateur si le problème persiste'
         ];
       }
-      
+
       showEnhancedErrorMessage(errorMessage, suggestions);
     }
   });
 
   // Variables pour la récupération de mot de passe
   let recoveryEmail = '';
-  
+
   // Fonctions pour la récupération de mot de passe
   function showForgotPasswordForm() {
     const loginContainer = $('login-form-container');
     const registerContainer = $('register-form-container');
     const forgotContainer = $('forgot-password-container');
     const resetContainer = $('reset-password-container');
-    
+
     if (loginContainer) loginContainer.style.display = 'none';
     if (registerContainer) registerContainer.style.display = 'none';
     if (forgotContainer) forgotContainer.style.display = 'block';
     if (resetContainer) resetContainer.style.display = 'none';
-    
+
     // Masquer les onglets
     document.querySelectorAll('.auth-tab').forEach(tab => tab.style.display = 'none');
   }
-  
+
   function showResetPasswordForm() {
     const loginContainer = $('login-form-container');
     const registerContainer = $('register-form-container');
     const forgotContainer = $('forgot-password-container');
     const resetContainer = $('reset-password-container');
-    
+
     if (loginContainer) loginContainer.style.display = 'none';
     if (registerContainer) registerContainer.style.display = 'none';
     if (forgotContainer) forgotContainer.style.display = 'none';
     if (resetContainer) resetContainer.style.display = 'block';
-    
+
     // Masquer les onglets
     document.querySelectorAll('.auth-tab').forEach(tab => tab.style.display = 'none');
   }
@@ -871,7 +871,7 @@ async function init() {
     const registerContainer = $('register-form-container');
     const forgotContainer = $('forgot-password-container');
     const resetContainer = $('reset-password-container');
-    
+
     if (loginContainer) {
       loginContainer.style.display = 'block';
     }
@@ -884,7 +884,7 @@ async function init() {
     if (resetContainer) {
       resetContainer.style.display = 'none';
     }
-    
+
     document.querySelectorAll('.auth-tab').forEach(tab => tab.classList.remove('active'));
     const loginTab = document.querySelector('.auth-tab[data-tab="login"]');
     if (loginTab) {
@@ -894,8 +894,8 @@ async function init() {
   // Expose globally for navbar buttons without inline JS (guarded)
   if (typeof window !== 'undefined') {
     window.showLoginForm = showLoginForm;
-    try { window.showForgotPasswordForm = showForgotPasswordForm; } catch {}
-    try { window.showResetPasswordForm = showResetPasswordForm; } catch {}
+    try { window.showForgotPasswordForm = showForgotPasswordForm; } catch { }
+    try { window.showResetPasswordForm = showResetPasswordForm; } catch { }
   }
 
   window.showRegisterForm = () => {
@@ -911,37 +911,37 @@ async function init() {
   const registerForm = $('register-form');
   if (registerForm) {
     registerForm.addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    const name = $('name').value.trim();
-    const email = $('email').value.trim();
-    const password = $('password').value.trim();
-    const confirmPassword = $('confirmPassword').value.trim();
-    
-    if (password !== confirmPassword) {
-      alert('Les mots de passe ne correspondent pas');
-      return;
-    }
-    
-    if (password.length < 6) {
-      alert('Le mot de passe doit contenir au moins 6 caractères');
-      return;
-    }
-    
-    try {
-      const data = await api('/register', { method: 'POST', body: { name, email, password, role: 'agent' } });
-      
-      if (data.success) {
-        alert('Code de validation envoyé par email. Veuillez vérifier votre boîte mail et utiliser le code pour activer votre compte.');
-        // Afficher le formulaire de connexion après inscription
-        window.showLoginForm();
-      } else {
-        alert(data.message || 'Erreur lors de l\'inscription');
+      ev.preventDefault();
+      const name = $('name').value.trim();
+      const email = $('email').value.trim();
+      const password = $('password').value.trim();
+      const confirmPassword = $('confirmPassword').value.trim();
+
+      if (password !== confirmPassword) {
+        alert('Les mots de passe ne correspondent pas');
+        return;
       }
-      await loadAgentProfile();
-    try { await updateNavbar(); } catch {}
-    } catch (e) { 
-      alert('Échec de la création du compte: ' + (e.message || 'Erreur inconnue'));
-    }
+
+      if (password.length < 6) {
+        alert('Le mot de passe doit contenir au moins 6 caractères');
+        return;
+      }
+
+      try {
+        const data = await api('/register', { method: 'POST', body: { name, email, password, role: 'agent' } });
+
+        if (data.success) {
+          alert('Code de validation envoyé par email. Veuillez vérifier votre boîte mail et utiliser le code pour activer votre compte.');
+          // Afficher le formulaire de connexion après inscription
+          window.showLoginForm();
+        } else {
+          alert(data.message || 'Erreur lors de l\'inscription');
+        }
+        await loadAgentProfile();
+        try { await updateNavbar(); } catch { }
+      } catch (e) {
+        alert('Échec de la création du compte: ' + (e.message || 'Erreur inconnue'));
+      }
     });
   }
 
@@ -970,8 +970,8 @@ async function init() {
           navigator.serviceWorker.controller.postMessage({ type: 'flush-queue' }, [mc.port2]);
           const ok = await promise;
           showNotification(ok ? 'Présences envoyées au serveur' : 'File traitée (vérifiez le réseau)', ok ? 'success' : 'info');
-          try { await refreshCheckins(); } catch {}
-          try { await loadPresenceData(); } catch {}
+          try { await refreshCheckins(); } catch { }
+          try { await loadPresenceData(); } catch { }
         } else {
           showNotification('Service Worker non actif', 'warning');
         }
@@ -988,7 +988,7 @@ async function init() {
       await endMission(currentMissionId, endBtnEl, status);
     });
     endBtnEl._bound = true;
-    try { endBtnEl.textContent = 'Finir mission'; } catch {}
+    try { endBtnEl.textContent = 'Finir mission'; } catch { }
   }
 
   // Si une mission a été démarrée en offline, activer le bouton de fin et le flush
@@ -1002,7 +1002,7 @@ async function init() {
       const flushBtn2 = $('flush-queue');
       if (flushBtn2) flushBtn2.disabled = false;
     }
-  } catch {}
+  } catch { }
 
   // Fonction pour commencer une mission
   async function startMission(button, status) {
@@ -1013,7 +1013,7 @@ async function init() {
       if (!selectedPhoto) {
         // Notification plus visible et explicite
         showNotification('📸 Photo obligatoire ! Veuillez prendre une photo avant de débuter la mission.', 'error');
-        
+
         // Animation du bouton pour attirer l'attention
         if (button) {
           button.style.animation = 'shake 0.5s ease-in-out';
@@ -1021,17 +1021,17 @@ async function init() {
             if (button) button.style.animation = '';
           }, 500);
         }
-        
+
         // Ouvrir automatiquement le sélecteur de photo
-        try { 
+        try {
           if (photoInput && photoInput.click) {
             photoInput.click();
           }
-        } catch {}
-        
+        } catch { }
+
         return;
       }
-      
+
       // Vérifier les heures de présence avant de commencer
       if (!isWithinWorkHours()) {
         const workStatus = getWorkHoursStatus();
@@ -1041,10 +1041,10 @@ async function init() {
         showNotification(`Présence autorisée uniquement de ${formatWorkHours()}. ${workStatus.message}`, 'warning');
         return;
       }
-      
+
       createRippleEffect({ currentTarget: button, clientX: 0, clientY: 0 });
       addLoadingState(button, 'Récupération GPS...');
-      
+
       let coords = await getCurrentLocationWithValidation();
       // Sauvegarder immédiatement la position trouvée (si valide) et notifier
       if (coords && isFinite(coords.latitude) && isFinite(coords.longitude)) {
@@ -1055,8 +1055,8 @@ async function init() {
             accuracy: Number(coords.accuracy || 0),
             timestamp: Date.now()
           }));
-        } catch {}
-        try { showNotification(`Position sauvegardée: ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)} (~${Math.round(coords.accuracy||0)}m)`, 'success'); } catch {}
+        } catch { }
+        try { showNotification(`Position sauvegardée: ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)} (~${Math.round(coords.accuracy || 0)}m)`, 'success'); } catch { }
       }
       // Fallback: si coords invalides ou précision extrême, utiliser le dernier GPS stocké
       if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 10000) {
@@ -1066,14 +1066,14 @@ async function init() {
             coords = { latitude: Number(last.lat), longitude: Number(last.lon), accuracy: Number(last.accuracy || 9999) };
             console.log('📍 Utilisation du GPS en cache:', coords);
           }
-        } catch {}
+        } catch { }
       }
-      
+
       // Validation plus permissive pour Vercel
       if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude)) {
         // Détecter si on est sur Vercel
         const isVercel = false; // désactivé pour build APK basé Render
-        
+
         if (isVercel) {
           // Sur Vercel, utiliser des coordonnées fixes du Bénin
           coords = {
@@ -1093,7 +1093,7 @@ async function init() {
           console.log('📍 Utilisation des coordonnées par défaut du Bénin:', coords);
         }
       }
-      
+
       // Vérifier la précision et demander confirmation si faible
       let lowPrecision = false;
       if (coords.accuracy > 500) {
@@ -1106,7 +1106,7 @@ async function init() {
         lowPrecision = true;
       }
       const fd = new FormData();
-      
+
       fd.append('lat', String(coords.latitude));
       fd.append('lon', String(coords.longitude));
       fd.append('departement', $('departement').value);
@@ -1122,7 +1122,7 @@ async function init() {
       } else {
         fd.append('note', baseNote);
       }
-      
+
       const photo = selectedPhoto;
       if (photo) fd.append('photo', photo);
 
@@ -1141,17 +1141,17 @@ async function init() {
             localStorage.setItem('selectedZoneId', String(nearest.id));
           }
         }
-      } catch {}
+      } catch { }
 
       status.textContent = 'Envoi...';
-      
+
       const data = await api('/presence/start', { method: 'POST', body: fd });
       // Tenter de récupérer l'ID de mission créé et activer les actions liées
       const missionIdFromResp = (data && (data.mission_id || (data.mission && data.mission.id)))
         || (data && data.data && (data.data.mission_id || (data.data.mission && data.data.mission.id)));
       if (missionIdFromResp) {
         currentMissionId = missionIdFromResp;
-        try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch {}
+        try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch { }
       } else {
         try {
           const missionsResponse = await api('/me/missions');
@@ -1159,10 +1159,10 @@ async function init() {
             ? missionsResponse
             : (missionsResponse.missions || (missionsResponse.data && missionsResponse.data.missions) || []);
           const active = missions.find(m => m.status === 'active');
-          if (active) { currentMissionId = active.id; try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch {} }
-        } catch {}
+          if (active) { currentMissionId = active.id; try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch { } }
+        } catch { }
       }
-      
+
       status.textContent = 'Position signalée - Mission démarrée';
       animateElement(status, 'bounce');
       showNotification('Position journalière signalée - Mission démarrée !', 'success');
@@ -1170,13 +1170,13 @@ async function init() {
       try {
         localStorage.setItem('mission_in_progress', 'true');
         localStorage.setItem('mission_start_at', String(Date.now()));
-      } catch {}
-      
+      } catch { }
+
       await refreshCheckins();
       await loadPresenceData();
-      try { await computeAndStoreDailyDistance(currentMissionId); } catch {}
-      try { markTodayPresentOnCalendar(); } catch {}
-      try { notifyPresenceUpdate('start'); } catch {}
+      try { await computeAndStoreDailyDistance(currentMissionId); } catch { }
+      try { markTodayPresentOnCalendar(); } catch { }
+      try { notifyPresenceUpdate('start'); } catch { }
       // Afficher zone retenue
       try {
         const zId = localStorage.getItem('selectedZoneId');
@@ -1184,15 +1184,15 @@ async function init() {
           const z = userZonesCache.find(zz => String(zz.id) === String(zId));
           if (z) showNotification(`Zone active: ${z.name} (${z.commune || ''} ${z.village || ''})`, 'info');
         }
-      } catch {}
-      
+      } catch { }
+
       // Activer le bouton Finir position et désactiver début
       const endBtn = $('end-mission');
       if (endBtn) endBtn.disabled = false;
       if (button) button.disabled = true;
       const checkinBtn = $('checkin-btn');
       if (checkinBtn) checkinBtn.disabled = false;
-      
+
     } catch (e) {
       // Pas d'erreur bloquante: mettre en file et notifier doucement
       console.warn('Début mission offline ou erreur réseau, mise en file:', e?.message || e);
@@ -1212,8 +1212,8 @@ async function init() {
             payload
           });
         }
-      } catch {}
-      try { showNotification('Hors ligne: présence mise en file. Elle sera envoyée dès retour réseau.', 'info'); } catch {}
+      } catch { }
+      try { showNotification('Hors ligne: présence mise en file. Elle sera envoyée dès retour réseau.', 'info'); } catch { }
       // Considérer la mission comme active côté UI pour permettre la fin même offline
       try {
         localStorage.setItem('hasActiveMissionOffline', 'true');
@@ -1221,7 +1221,7 @@ async function init() {
         if (!localStorage.getItem('mission_start_at')) {
           localStorage.setItem('mission_start_at', String(Date.now()));
         }
-      } catch {}
+      } catch { }
       const endBtn = $('end-mission');
       if (endBtn) endBtn.disabled = false;
       if (button) button.disabled = true;
@@ -1245,7 +1245,7 @@ async function init() {
         photoInputEl._boundEnableOnChange = true;
       }
     }
-  } catch {}
+  } catch { }
 
   // Fonction pour finir une mission
   async function endMission(missionId, button, status) {
@@ -1259,10 +1259,10 @@ async function init() {
         showNotification(`Présence autorisée uniquement de ${formatWorkHours()}. ${workStatus.message}`, 'warning');
         return;
       }
-      
+
       createRippleEffect({ currentTarget: button, clientX: 0, clientY: 0 });
       addLoadingState(button, 'Récupération GPS...');
-      
+
       let coords = await getCurrentLocationWithValidation();
       // Sauvegarder immédiatement la position trouvée (si valide) et notifier
       if (coords && isFinite(coords.latitude) && isFinite(coords.longitude)) {
@@ -1273,8 +1273,8 @@ async function init() {
             accuracy: Number(coords.accuracy || 0),
             timestamp: Date.now()
           }));
-        } catch {}
-        try { showNotification(`Position sauvegardée: ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)} (~${Math.round(coords.accuracy||0)}m)`, 'success'); } catch {}
+        } catch { }
+        try { showNotification(`Position sauvegardée: ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)} (~${Math.round(coords.accuracy || 0)}m)`, 'success'); } catch { }
       }
       if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude) || coords.accuracy > 10000) {
         try {
@@ -1282,7 +1282,7 @@ async function init() {
           if (isFinite(last.lat) && isFinite(last.lon)) {
             coords = { latitude: Number(last.lat), longitude: Number(last.lon), accuracy: Number(last.accuracy || 9999) };
           }
-        } catch {}
+        } catch { }
       }
       let lowPrecision = false;
       if (!coords || !isFinite(coords.latitude) || !isFinite(coords.longitude)) {
@@ -1301,7 +1301,7 @@ async function init() {
       }
       // (déduplication)
       const fd = new FormData();
-      
+
       if (missionId) {
         fd.append('mission_id', String(missionId));
       }
@@ -1313,18 +1313,18 @@ async function init() {
         const sel = document.getElementById('zone-select');
         const chosen = (sel && sel.value) ? sel.value : (selectedZoneId || localStorage.getItem('selectedZoneId') || '');
         if (chosen) fd.append('zone_id', String(chosen));
-      } catch {}
+      } catch { }
       if (typeof coords.accuracy !== 'undefined') fd.append('accuracy', String(Math.round(coords.accuracy)));
-      
+
       const photo = $('photo').files[0];
       if (photo) fd.append('photo', photo);
       if (lowPrecision) {
         const baseNote = $('note').value || 'Fin de mission';
         fd.set('note', `${baseNote} (faible précision ~${Math.round(coords.accuracy)}m)`);
       }
-      
+
       status.textContent = 'Envoi...';
-      
+
       // Inclure mission_id si connu (éviter doublon)
       if (missionId && !fd.has('mission_id')) fd.append('mission_id', String(missionId));
       await api('/presence/end', { method: 'POST', body: fd });
@@ -1332,12 +1332,12 @@ async function init() {
       status.textContent = 'Position signalée - Mission terminée';
       animateElement(status, 'bounce');
       showNotification('Position journalière signalée - Mission terminée !', 'success');
-      
+
       await refreshCheckins();
       await loadPresenceData();
-      try { await computeAndStoreDailyDistance(missionId); } catch {}
-      try { notifyPresenceUpdate('end'); } catch {}
-      
+      try { await computeAndStoreDailyDistance(missionId); } catch { }
+      try { notifyPresenceUpdate('end'); } catch { }
+
       // Réactiver le bouton Débuter et désactiver Finir
       const startBtn = $('start-mission');
       if (startBtn) startBtn.disabled = false;
@@ -1346,19 +1346,19 @@ async function init() {
       const checkinBtn = $('checkin-btn');
       if (checkinBtn) checkinBtn.disabled = false;
       currentMissionId = null;
-      try { localStorage.removeItem('currentMissionId'); } catch {}
+      try { localStorage.removeItem('currentMissionId'); } catch { }
       try {
         localStorage.removeItem('mission_in_progress');
         localStorage.removeItem('mission_start_at');
-      } catch {}
-      
+      } catch { }
+
       // Recharger l'historique des missions avec heures de début/fin fiables
       try {
         const missionsResponse = await api('/me/missions');
         const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
         await renderMissionHistory(missions);
-      } catch {}
-      
+      } catch { }
+
     } catch (e) {
       // Pas d'erreur bloquante: mettre en file et notifier doucement
       console.warn('Fin mission offline ou erreur réseau, mise en file:', e?.message || e);
@@ -1377,14 +1377,14 @@ async function init() {
             payload
           });
         }
-      } catch {}
-      try { showNotification('Hors ligne: fin de mission mise en file. Elle sera envoyée dès retour réseau.', 'info'); } catch {}
+      } catch { }
+      try { showNotification('Hors ligne: fin de mission mise en file. Elle sera envoyée dès retour réseau.', 'info'); } catch { }
       // Fin en offline: marquer la mission locale comme terminée
       try {
         localStorage.removeItem('hasActiveMissionOffline');
         localStorage.removeItem('mission_in_progress');
         localStorage.removeItem('mission_start_at');
-      } catch {}
+      } catch { }
     } finally {
       removeLoadingState(button);
     }
@@ -1395,9 +1395,9 @@ async function init() {
     try {
       createRippleEffect({ currentTarget: button, clientX: 0, clientY: 0 });
       addLoadingState(button, 'Fin forcée...');
-      
+
       status.textContent = 'Fin forcée en cours...';
-      
+
       const response = await api('/presence/force-end', {
         method: 'POST',
         body: JSON.stringify({
@@ -1410,26 +1410,26 @@ async function init() {
         status.textContent = 'Mission terminée (sans GPS)';
         animateElement(status, 'bounce');
         showNotification('Mission terminée avec succès (sans position GPS)', 'success');
-        
+
         await refreshCheckins();
         await loadPresenceData();
-        try { notifyPresenceUpdate('force-end'); } catch {}
-        
+        try { notifyPresenceUpdate('force-end'); } catch { }
+
         // Réactiver le bouton Débuter et désactiver Finir
         const startBtn = $('start-mission');
         if (startBtn) startBtn.disabled = false;
         if (button) button.disabled = true;
         const checkinBtn = $('checkin-btn');
-      if (checkinBtn) checkinBtn.disabled = true;
-      currentMissionId = null;
-      try { localStorage.removeItem('currentMissionId'); } catch {}
-        
+        if (checkinBtn) checkinBtn.disabled = true;
+        currentMissionId = null;
+        try { localStorage.removeItem('currentMissionId'); } catch { }
+
         // Masquer le bouton de secours
         hideForceEndButton();
       } else {
         throw new Error(response.message || 'Erreur lors de la fin forcée');
       }
-      
+
     } catch (e) {
       console.error('Erreur fin forcée mission:', e);
       status.textContent = 'Erreur fin forcée';
@@ -1450,14 +1450,14 @@ async function init() {
       forceBtn.className = 'btn btn-warning mt-2';
       forceBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Finir sans GPS (Secours)';
       forceBtn.style.display = 'block';
-      
+
       // Ajouter le bouton après le bouton de fin normal
       const endBtn = $('end-mission');
       if (endBtn && endBtn.parentNode) {
         endBtn.parentNode.insertBefore(forceBtn, endBtn.nextSibling);
       }
     }
-    
+
     // Configurer l'événement
     forceBtn.addEventListener('click', () => forceEndMission(missionId, forceBtn, status));
     forceBtn.style.display = 'block';
@@ -1489,24 +1489,24 @@ async function init() {
         showNotification(`Présence autorisée uniquement de ${formatWorkHours()}. ${workStatus.message}`, 'warning');
         return;
       }
-      
+
       // Enregistrer la mission de la journée: clôturer sans GPS
       // Restaurer mission active si manquante
-    if (!currentMissionId) {
-      try {
-        const saved = localStorage.getItem('currentMissionId');
-        if (saved) currentMissionId = Number(saved);
-      } catch {}
-      try {
-          if (!currentMissionId) {
-        const missionsResponse = await api('/me/missions');
-        const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
-        const active = missions.find(m => m.status === 'active');
-        if (active) { currentMissionId = active.id; try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch {} }
-          }
-      } catch {}
       if (!currentMissionId) {
-        const status = $('status');
+        try {
+          const saved = localStorage.getItem('currentMissionId');
+          if (saved) currentMissionId = Number(saved);
+        } catch { }
+        try {
+          if (!currentMissionId) {
+            const missionsResponse = await api('/me/missions');
+            const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
+            const active = missions.find(m => m.status === 'active');
+            if (active) { currentMissionId = active.id; try { localStorage.setItem('currentMissionId', String(currentMissionId)); } catch { } }
+          }
+        } catch { }
+        if (!currentMissionId) {
+          const status = $('status');
           status.textContent = 'Aucune mission active';
           showNotification('Aucune mission active à enregistrer.', 'warning');
           return;
@@ -1519,22 +1519,22 @@ async function init() {
       try {
         await api(`/missions/${currentMissionId}/complete`, { method: 'POST', body: { note: $('note').value || '' } });
         status.textContent = 'Mission enregistrée';
-          animateElement(status, 'bounce');
+        animateElement(status, 'bounce');
         showNotification('Mission de la journée enregistrée et clôturée.', 'success');
         const startBtn = $('start-mission'); if (startBtn) startBtn.disabled = false;
         const endBtn = $('end-mission'); if (endBtn) endBtn.disabled = true;
-        try { await computeAndStoreDailyDistance(currentMissionId); } catch {}
-        currentMissionId = null; try { localStorage.removeItem('currentMissionId'); } catch {}
-          await refreshCheckins();
+        try { await computeAndStoreDailyDistance(currentMissionId); } catch { }
+        currentMissionId = null; try { localStorage.removeItem('currentMissionId'); } catch { }
+        await refreshCheckins();
         await loadPresenceData();
         // Rafraîchir l'historique des missions pour voir le statut "completed"
         try {
           const missionsResponse = await api('/me/missions');
           const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
           await renderMissionHistory(missions);
-        } catch {}
-        try { notifyPresenceUpdate('complete'); } catch {}
-        } catch (e) {
+        } catch { }
+        try { notifyPresenceUpdate('complete'); } catch { }
+      } catch (e) {
         status.textContent = 'Erreur enregistrement';
         showNotification("Erreur lors de l'enregistrement de la mission.", 'error');
       } finally {
@@ -1566,25 +1566,25 @@ async function init() {
           try {
             const cached = localStorage.getItem(`mission:${m.id}:total_distance_m`);
             if (cached && Number.isFinite(Number(cached))) distanceStr = `${Math.round(Number(cached))} m`;
-          } catch {}
+          } catch { }
         }
         if (startStr === '-' || endStr === '-') {
           const resp = await api(`/missions/${m.id}/checkins`);
           const rows = Array.isArray(resp) ? resp : (resp.items || resp.checkins || (resp.data && (resp.data.items || resp.data.checkins)) || []);
           if (rows && rows.length) {
-            const sorted = rows.slice().sort((a,b)=> new Date(a.timestamp) - new Date(b.timestamp));
+            const sorted = rows.slice().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
             if (startStr === '-' && sorted[0] && sorted[0].timestamp) startStr = new Date(sorted[0].timestamp).toLocaleString();
-            if (endStr === '-' && sorted[sorted.length-1] && sorted[sorted.length-1].timestamp) endStr = new Date(sorted[sorted.length-1].timestamp).toLocaleString();
+            if (endStr === '-' && sorted[sorted.length - 1] && sorted[sorted.length - 1].timestamp) endStr = new Date(sorted[sorted.length - 1].timestamp).toLocaleString();
             if (!distanceStr) {
-              try { await computeAndStoreDailyDistance(m.id); } catch {}
+              try { await computeAndStoreDailyDistance(m.id); } catch { }
               try {
                 const cached2 = localStorage.getItem(`mission:${m.id}:total_distance_m`);
                 if (cached2 && Number.isFinite(Number(cached2))) distanceStr = `${Math.round(Number(cached2))} m`;
-        } catch {}
-      }
+              } catch { }
+            }
           }
         }
-  } catch {}
+      } catch { }
       const li = document.createElement('li');
       const depName = getDepartementNameById(m.departement);
       // Préférer champs manuels si lookups manquent
@@ -1620,27 +1620,27 @@ async function init() {
       const points = rows
         .filter(r => Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon)))
         .map(r => ({ lat: Number(r.lat), lon: Number(r.lon), t: new Date(r.timestamp).getTime() }))
-        .sort((a,b)=> a.t - b.t);
+        .sort((a, b) => a.t - b.t);
       if (points.length < 2) return;
       const toRad = (v) => (v * Math.PI) / 180;
       const R = 6371000;
       let total = 0;
       for (let i = 1; i < points.length; i++) {
-        const a = points[i-1];
+        const a = points[i - 1];
         const b = points[i];
         const dLat = toRad(b.lat - a.lat);
         const dLon = toRad(b.lon - a.lon);
         const lat1 = toRad(a.lat);
         const lat2 = toRad(b.lat);
-        const hav = Math.sin(dLat/2)**2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon/2)**2;
+        const hav = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
         const c = 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1 - hav));
         total += R * c;
       }
       const totalMeters = Math.round(total);
-      try { localStorage.setItem(`mission:${missionId}:total_distance_m`, String(totalMeters)); } catch {}
+      try { localStorage.setItem(`mission:${missionId}:total_distance_m`, String(totalMeters)); } catch { }
       // Si un endpoint existe pour stocker, l'appeler (fallback silencieux si 404)
-      try { await api(`/missions/${missionId}/distance`, { method: 'POST', body: { total_distance_m: totalMeters } }); } catch {}
-      } catch {}
+      try { await api(`/missions/${missionId}/distance`, { method: 'POST', body: { total_distance_m: totalMeters } }); } catch { }
+    } catch { }
   }
 
   // Restore current mission (uniquement si connecté)
@@ -1657,7 +1657,7 @@ async function init() {
     }
     // Render missions history list (avec heures fiables)
     await renderMissionHistory(missions);
-  } catch {}
+  } catch { }
 
   // Initialiser l'affichage des heures de travail
   updateWorkHoursDisplay();
@@ -1695,37 +1695,37 @@ async function init() {
 
   // Initialize calendar
   await initializeCalendar();
-  
+
   // Ne charger les données que si l'utilisateur est connecté
   if (jwt && jwt.length > 20) {
     await loadPresenceData();
-  await loadDashboardMetrics();
+    await loadDashboardMetrics();
   }
-  
+
   // Initialiser les animations de scroll
   addScrollAnimations();
-  
+
   // Ajouter les effets ripple aux boutons (éviter multiples bindings)
   document.querySelectorAll('button, .btn-primary, .btn-secondary').forEach(btn => {
     if (!btn._rippleBound) {
-    btn.addEventListener('click', createRippleEffect);
+      btn.addEventListener('click', createRippleEffect);
       btn._rippleBound = true;
     }
   });
-  
+
   // Charger les statistiques mensuelles
-  try { await calculateMonthlyStats(); } catch {}
-  
+  try { await calculateMonthlyStats(); } catch { }
+
   // Vérifier les absences quotidiennes
-  try { await checkDailyAbsences(); } catch {}
-  
+  try { await checkDailyAbsences(); } catch { }
+
   // Initialiser l'image hero
   setTimeout(() => {
     initHeroImage();
   }, 100);
 
   // Appliquer Bootstrap
-  try { applyBootstrapEnhancements(); } catch {}
+  try { applyBootstrapEnhancements(); } catch { }
 }
 
 async function refreshCheckins() {
@@ -1734,13 +1734,13 @@ async function refreshCheckins() {
   list.innerHTML = '';
   const response = await api(`/missions/${currentMissionId}/checkins`);
   const items = response.checkins || [];
-  
+
   for (let i = 0; i < items.length; i++) {
     const c = items[i];
     const li = document.createElement('li');
     li.className = 'list-item';
     li.style.animationDelay = `${i * 0.1}s`;
-    
+
     const when = new Date(c.timestamp + 'Z').toLocaleString();
     li.innerHTML = `
       <div class="checkin-item">
@@ -1749,17 +1749,17 @@ async function refreshCheckins() {
         <div class="checkin-note">${c.note || ''}</div>
       </div>
     `;
-    
+
     if (c.photo_path) {
       const img = document.createElement('img');
-      img.src = c.photo_path; 
+      img.src = c.photo_path;
       img.style.cssText = 'max-width: 120px; display: block; margin-top: 8px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);';
       li.appendChild(img);
     }
-    
+
     list.appendChild(li);
   }
-  
+
   // Mettre à jour le calendrier après avoir chargé les check-ins
   await loadPresenceData();
 }
@@ -1772,9 +1772,9 @@ async function loadAgentProfile() {
     console.log('🔄 loadAgentProfile déjà en cours, ignoré');
     return;
   }
-  
+
   isLoadingProfile = true;
-  
+
   try {
     // Récupérer l'email depuis l'URL ou le localStorage
     const urlParams = new URLSearchParams(window.location.search);
@@ -1789,23 +1789,23 @@ async function loadAgentProfile() {
           clearCachedUserData();
           localStorage.setItem('lastUserEmail', profile.email);
         }
-      } catch {}
+      } catch { }
       $('agent-name').textContent = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.name;
       $('agent-phone').textContent = profile.phone || '-';
       $('agent-role').textContent = profile.role || '-';
       $('agent-project').textContent = profile.project_name || '-';
-      $('agent-planning').textContent = profile.planning_start_date && profile.planning_end_date 
-        ? `${profile.planning_start_date} - ${profile.planning_end_date}` 
+      $('agent-planning').textContent = profile.planning_start_date && profile.planning_end_date
+        ? `${profile.planning_start_date} - ${profile.planning_end_date}`
         : '-';
       $('agent-zone').textContent = profile.zone_name || '-';
       $('agent-expected-days').textContent = profile.expected_days_per_month || '-';
-      
+
       if (profile.photo_path) {
         $('agent-avatar').src = profile.photo_path;
       }
-      
+
       $('agent-profile').classList.remove('hidden');
-      
+
       // Mettre à jour la navbar après chargement du profil
       await updateNavbar();
     }
@@ -1822,7 +1822,7 @@ async function calculateMonthlyStats() {
     const currentDate = new Date();
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth() + 1;
-    
+
     // Récupérer les données de présence du mois
     const urlParams = new URLSearchParams(window.location.search);
     const email = urlParams.get('email') || localStorage.getItem('userEmail');
@@ -1838,20 +1838,20 @@ async function calculateMonthlyStats() {
 
     if (response && response.success) {
       const stats = response.stats;
-      
+
       // Calculer les jours travaillés
       const daysWorked = stats.days_worked || 0;
-      
+
       // Calculer les heures travaillées (approximation basée sur les check-ins)
       const hoursWorked = stats.hours_worked || 0;
-      
+
       // Calculer le taux de présence
       let expectedDays = stats.expected_days || 22;
       if (!stats.expected_days && appSettings && appSettings['presence.expected_days_per_month']) {
         expectedDays = Number(appSettings['presence.expected_days_per_month']) || expectedDays;
       }
       const presenceRate = expectedDays > 0 ? Math.round((daysWorked / expectedDays) * 100) : 0;
-      
+
       // Mettre à jour l'interface (inclure hebdomadaire si disponible)
       updateDashboardStats({
         daysWorked,
@@ -1860,7 +1860,7 @@ async function calculateMonthlyStats() {
         currentPosition: stats.current_position || 'Non disponible',
         weekly: Array.isArray(stats.weekly) ? stats.weekly : []
       });
-      
+
       return stats;
     }
   } catch (e) {
@@ -1882,7 +1882,7 @@ function updateDashboardStats(stats) {
   const rateElement = document.querySelector('.stat-rate .stat-value');
   const positionElement = document.querySelector('.stat-position .stat-value');
   const weeklyList = document.getElementById('weekly-stats');
-  
+
   if (daysElement) daysElement.textContent = stats.daysWorked;
   if (hoursElement) hoursElement.textContent = `${stats.hoursWorked}h`;
   if (rateElement) {
@@ -1905,8 +1905,8 @@ function updateDashboardStats(stats) {
       const li = document.createElement('li');
       const start = new Date(w.week_start);
       const end = new Date(w.week_end);
-      const pad = (n) => String(n).padStart(2,'0');
-      const range = `${pad(start.getDate())}/${pad(start.getMonth()+1)} - ${pad(end.getDate())}/${pad(end.getMonth()+1)}`;
+      const pad = (n) => String(n).padStart(2, '0');
+      const range = `${pad(start.getDate())}/${pad(start.getMonth() + 1)} - ${pad(end.getDate())}/${pad(end.getMonth() + 1)}`;
       li.textContent = `${range}: ${w.days_worked} j • ${w.hours_worked} h`;
       weeklyList.appendChild(li);
     });
@@ -1918,20 +1918,20 @@ async function checkDailyAbsences() {
   try {
     const today = new Date();
     const hour = today.getHours();
-    
+
     // Si on est après 18h30 et qu'aucune présence n'a été marquée aujourd'hui
     if (hour >= 18 || (hour === 18 && today.getMinutes() >= 30)) {
       const urlParams = new URLSearchParams(window.location.search);
       const email = urlParams.get('email') || localStorage.getItem('userEmail') || 'admin@ccrb.local';
       const response = await api(`/presence/check-today?email=${encodeURIComponent(email)}`);
-      
+
       if (response.success && !response.has_presence) {
         // Marquer comme absent pour aujourd'hui
         await api(`/presence/mark-absent?email=${encodeURIComponent(email)}`, {
           method: 'POST',
           body: { date: today.toISOString().split('T')[0] }
         });
-        
+
         // Afficher une notification
         showNotification('Absence enregistrée', 'Vous n\'avez pas marqué votre présence aujourd\'hui', 'warning');
       }
@@ -1957,9 +1957,9 @@ function logout() {
     localStorage.removeItem('lastUserEmail');
     localStorage.removeItem('vercelLoginAttempts');
     localStorage.setItem('presence_update', JSON.stringify({ type: 'logout', ts: Date.now() }));
-  } catch {}
+  } catch { }
   jwt = '';
-  try { showNotification('Déconnexion réussie', 'success', 1500); } catch {}
+  try { showNotification('Déconnexion réussie', 'success', 1500); } catch { }
   setTimeout(() => { window.location.href = '/'; }, 150);
 }
 
@@ -1974,12 +1974,12 @@ function showEnhancedErrorMessage(message, suggestions = [], type = 'error') {
   if (existingError) {
     existingError.remove();
   }
-  
+
   // Créer le conteneur d'erreur
   const errorContainer = document.createElement('div');
   errorContainer.id = 'enhanced-error-message';
   errorContainer.className = 'enhanced-error-message';
-  
+
   // Styles selon le type
   if (type === 'success') {
     errorContainer.style.cssText = `
@@ -2004,34 +2004,34 @@ function showEnhancedErrorMessage(message, suggestions = [], type = 'error') {
       line-height: 1.5;
     `;
   }
-  
+
   // Message principal
   const mainMessage = document.createElement('div');
   mainMessage.style.cssText = 'font-weight: bold; margin-bottom: 12px; font-size: 16px;';
   const icon = type === 'success' ? '✅' : '❌';
   mainMessage.textContent = `${icon} ${message}`;
   errorContainer.appendChild(mainMessage);
-  
+
   // Suggestions
   if (suggestions.length > 0) {
     const suggestionsTitle = document.createElement('div');
     suggestionsTitle.style.cssText = 'font-weight: bold; margin-bottom: 8px; color: #666;';
     suggestionsTitle.textContent = '💡 Que faire :';
     errorContainer.appendChild(suggestionsTitle);
-    
+
     const suggestionsList = document.createElement('ul');
     suggestionsList.style.cssText = 'margin: 0; padding-left: 20px; color: #666;';
-    
+
     suggestions.forEach(suggestion => {
       const li = document.createElement('li');
       li.textContent = suggestion;
       li.style.marginBottom = '4px';
       suggestionsList.appendChild(li);
     });
-    
+
     errorContainer.appendChild(suggestionsList);
   }
-  
+
   // Bouton de fermeture
   const closeButton = document.createElement('button');
   closeButton.textContent = '✕';
@@ -2049,13 +2049,13 @@ function showEnhancedErrorMessage(message, suggestions = [], type = 'error') {
   closeButton.onclick = () => errorContainer.remove();
   errorContainer.style.position = 'relative';
   errorContainer.appendChild(closeButton);
-  
+
   // Insérer le message d'erreur
   const authSection = document.getElementById('auth-section');
   if (authSection) {
     authSection.insertBefore(errorContainer, authSection.firstChild);
   }
-  
+
   // Auto-suppression après 10 secondes
   setTimeout(() => {
     if (errorContainer.parentNode) {
@@ -2084,8 +2084,8 @@ if (typeof window !== 'undefined') {
   window.clearAllCache = clearAllCache;
   window.clearCachedUserData = clearCachedUserData;
   // Guard assignments in case functions are not defined yet
-  try { window.showLoginForm = showLoginForm; } catch {}
-  try { window.showRegisterForm = showRegisterForm; } catch {}
+  try { window.showLoginForm = showLoginForm; } catch { }
+  try { window.showRegisterForm = showRegisterForm; } catch { }
 }
 
 // Attacher les handlers de déconnexion sans inline (CSP-compatible)
@@ -2093,11 +2093,11 @@ function bindLogoutButtons() {
   try {
     document.querySelectorAll('.navbar-logout').forEach(btn => {
       if (!btn._logoutBound) {
-        btn.addEventListener('click', (ev) => { ev.preventDefault(); try { window.logout(); } catch {} });
+        btn.addEventListener('click', (ev) => { ev.preventDefault(); try { window.logout(); } catch { } });
         btn._logoutBound = true;
       }
     });
-  } catch {}
+  } catch { }
 }
 
 // Attacher tous les gestionnaires d'événements pour les boutons
@@ -2110,26 +2110,26 @@ function bindAllButtons() {
         btn._loginTabBound = true;
       }
     });
-    
+
     document.querySelectorAll('[data-tab="register"]').forEach(btn => {
       if (!btn._registerTabBound) {
         btn.addEventListener('click', (ev) => { ev.preventDefault(); window.showRegisterForm(); });
         btn._registerTabBound = true;
       }
     });
-    
+
     // Boutons d'inscription dans les cartes
     document.querySelectorAll('.btn-register, .btn-inscription, [data-action="register"]').forEach(btn => {
       if (!btn._registerBound) {
-        btn.addEventListener('click', (ev) => { 
-          ev.preventDefault(); 
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
           // Rediriger vers la page d'inscription dédiée
           window.location.href = '/register.html';
         });
         btn._registerBound = true;
       }
     });
-    
+
     // Boutons de connexion dans les cartes
     document.querySelectorAll('.btn-login, .btn-connexion, [data-action="login"]').forEach(btn => {
       if (!btn._loginBound) {
@@ -2137,19 +2137,19 @@ function bindAllButtons() {
         btn._loginBound = true;
       }
     });
-    
+
     // Boutons de navigation
     document.querySelectorAll('[data-action="navigate"]').forEach(btn => {
       if (!btn._navigateBound) {
-        btn.addEventListener('click', (ev) => { 
-          ev.preventDefault(); 
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
           const url = btn.getAttribute('data-url');
           if (url) window.location.href = url;
         });
         btn._navigateBound = true;
       }
     });
-    
+
     // Bouton de déconnexion
     document.querySelectorAll('[data-action="logout"]').forEach(btn => {
       if (!btn._logoutBound) {
@@ -2157,12 +2157,12 @@ function bindAllButtons() {
         btn._logoutBound = true;
       }
     });
-    
+
     // Bouton menu mobile
     document.querySelectorAll('[data-action="toggle-mobile-menu"]').forEach(btn => {
       if (!btn._menuBound) {
-        btn.addEventListener('click', (ev) => { 
-          ev.preventDefault(); 
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
           if (window.navigation && window.navigation.toggleMobileMenu) {
             window.navigation.toggleMobileMenu();
           }
@@ -2170,7 +2170,7 @@ function bindAllButtons() {
         btn._menuBound = true;
       }
     });
-    
+
     console.log('🔗 Gestionnaires d\'événements attachés');
   } catch (error) {
     console.error('Erreur lors de l\'attachement des gestionnaires:', error);
@@ -2182,41 +2182,41 @@ function bindAllButtons() {
 async function initializeCalendar() {
   const prevBtn = $('prev-month');
   const nextBtn = $('next-month');
-  
+
   if (prevBtn) {
     prevBtn.addEventListener('click', () => {
       currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
       renderCalendar();
     });
   }
-  
+
   if (nextBtn) {
     nextBtn.addEventListener('click', () => {
       currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
       renderCalendar();
     });
   }
-  
+
   renderCalendar();
 }
 
 function renderCalendar() {
   const calendarGrid = $('calendar-grid');
   const monthYearHeader = $('current-month-year');
-  
+
   if (!calendarGrid || !monthYearHeader) return;
-  
+
   // Mettre à jour l'en-tête
   const monthNames = [
     'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
     'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
   ];
-  
+
   monthYearHeader.textContent = `${monthNames[currentCalendarDate.getMonth()]} ${currentCalendarDate.getFullYear()}`;
-  
+
   // Vider la grille
   calendarGrid.innerHTML = '';
-  
+
   // Ajouter les en-têtes des jours
   const dayHeaders = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
   dayHeaders.forEach(day => {
@@ -2225,32 +2225,32 @@ function renderCalendar() {
     dayHeader.textContent = day;
     calendarGrid.appendChild(dayHeader);
   });
-  
+
   // Obtenir le premier jour du mois et le nombre de jours
   const firstDay = new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth(), 1);
   const lastDay = new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth() + 1, 0);
   const daysInMonth = lastDay.getDate();
   const startingDayOfWeek = firstDay.getDay();
-  
+
   // Ajouter les jours du mois précédent
   const prevMonth = new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth() - 1, 0);
   const daysInPrevMonth = prevMonth.getDate();
-  
+
   for (let i = startingDayOfWeek - 1; i >= 0; i--) {
     const dayElement = createDayElement(daysInPrevMonth - i, true);
     calendarGrid.appendChild(dayElement);
   }
-  
+
   // Ajouter les jours du mois actuel
   for (let day = 1; day <= daysInMonth; day++) {
     const dayElement = createDayElement(day, false);
     calendarGrid.appendChild(dayElement);
   }
-  
+
   // Ajouter les jours du mois suivant pour compléter la grille
   const totalCells = calendarGrid.children.length - 7; // -7 pour les en-têtes
   const remainingCells = 42 - totalCells; // 6 semaines * 7 jours = 42 cellules
-  
+
   for (let day = 1; day <= remainingCells; day++) {
     const dayElement = createDayElement(day, true);
     calendarGrid.appendChild(dayElement);
@@ -2261,26 +2261,26 @@ function createDayElement(day, isOtherMonth) {
   const dayElement = document.createElement('div');
   dayElement.className = 'calendar-day';
   dayElement.textContent = day;
-  
+
   if (isOtherMonth) {
     dayElement.classList.add('other-month');
     return dayElement;
   }
-  
+
   // Vérifier si c'est aujourd'hui
   const today = new Date();
   const isToday = currentCalendarDate.getFullYear() === today.getFullYear() &&
-                  currentCalendarDate.getMonth() === today.getMonth() &&
-                  day === today.getDate();
-  
+    currentCalendarDate.getMonth() === today.getMonth() &&
+    day === today.getDate();
+
   if (isToday) {
     dayElement.classList.add('today');
   }
-  
+
   // Vérifier le statut de présence
   const dateKey = formatDateKey(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth(), day);
   const presenceStatus = presenceData[dateKey];
-  
+
   if (presenceStatus) {
     switch (presenceStatus.status) {
       case 'present':
@@ -2297,10 +2297,10 @@ function createDayElement(day, isOtherMonth) {
         break;
     }
   }
-  
+
   // Ajouter l'événement de clic
   dayElement.addEventListener('click', () => handleDayClick(day, isOtherMonth));
-  
+
   return dayElement;
 }
 
@@ -2331,22 +2331,22 @@ function formatDateKey(year, month, day) {
 
 function handleDayClick(day, isOtherMonth) {
   if (isOtherMonth) return;
-  
+
   const today = new Date();
   const clickedDate = new Date(currentCalendarDate.getFullYear(), currentCalendarDate.getMonth(), day);
-  
+
   // Vérifier si la date est dans le futur
   if (clickedDate > today) {
     alert('Vous ne pouvez pas marquer votre présence pour une date future.');
     return;
   }
-  
+
   // Vérifier si c'est aujourd'hui et qu'il n'y a pas de mission active
   if (clickedDate.getTime() === today.setHours(0, 0, 0, 0) && !currentMissionId) {
     alert('Pour marquer votre présence aujourd\'hui, utilisez le bouton "Marquer présence (début)" ci-dessous.');
     return;
   }
-  
+
   // Afficher les détails de présence pour cette date
   showPresenceDetails(clickedDate);
 }
@@ -2354,9 +2354,9 @@ function handleDayClick(day, isOtherMonth) {
 function showPresenceDetails(date) {
   const dateKey = formatDateKey(date.getFullYear(), date.getMonth(), date.getDate());
   const presenceInfo = presenceData[dateKey];
-  
+
   let message = `Détails de présence pour le ${date.toLocaleDateString('fr-FR')}:\n\n`;
-  
+
   if (presenceInfo) {
     message += `Statut: ${presenceInfo.status}\n`;
     message += `Heure de début: ${presenceInfo.startTime || 'Non définie'}\n`;
@@ -2366,7 +2366,7 @@ function showPresenceDetails(date) {
   } else {
     message += 'Aucune donnée de présence pour cette date.';
   }
-  
+
   alert(message);
 }
 
@@ -2375,28 +2375,28 @@ async function loadPresenceData() {
     // Charger les données de présence pour le mois actuel
     const year = currentCalendarDate.getFullYear();
     const month = currentCalendarDate.getMonth() + 1;
-    
+
     if (!jwt) return;
-    
+
     // Charger les missions ET les check-ins pour avoir l'historique complet
     const [missionsResponse, checkinsResponse] = await Promise.all([
       api('/me/missions').catch(() => ({ missions: [] })),
       api('/checkins/mine').catch(() => ({ items: [] }))
     ]);
-    
+
     const missions = Array.isArray(missionsResponse) ? missionsResponse : (missionsResponse.missions || []);
     const checkins = checkinsResponse?.items || checkinsResponse?.data?.items || [];
-    
+
     // Traiter les données de présence
     presenceData = {};
-    
+
     // 1) Marquer les jours avec des missions
     missions.forEach(mission => {
       if ((mission.status === 'completed' || mission.status === 'active') && mission.start_time) {
         const startDate = new Date(mission.start_time);
         const dateKey = formatDateKey(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-        
-      presenceData[dateKey] = {
+
+        presenceData[dateKey] = {
           status: 'present',
           startTime: mission.start_time ? new Date(mission.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null,
           endTime: mission.end_time ? new Date(mission.end_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null,
@@ -2405,13 +2405,13 @@ async function loadPresenceData() {
         };
       }
     });
-    
+
     // 2) Marquer aussi les jours avec des check-ins (même sans mission complète)
     checkins.forEach(checkin => {
       if (checkin.timestamp) {
         const checkinDate = new Date(checkin.timestamp);
         const dateKey = formatDateKey(checkinDate.getFullYear(), checkinDate.getMonth(), checkinDate.getDate());
-        
+
         // Si pas déjà marqué par une mission, marquer comme présent
         if (!presenceData[dateKey]) {
           presenceData[dateKey] = {
@@ -2424,10 +2424,10 @@ async function loadPresenceData() {
         }
       }
     });
-    
+
     // Re-rendre le calendrier avec les nouvelles données
     renderCalendar();
-    
+
   } catch (error) {
     console.error('Erreur lors du chargement des données de présence:', error);
   }
@@ -2487,24 +2487,24 @@ function schedulePresenceReminders() {
         if (resp && resp.success && !resp.has_presence) {
           showSystemNotification(title, message);
         }
-      } catch {}
+      } catch { }
       schedulePresenceReminders();
     }, ms);
-  } catch {}
+  } catch { }
 }
 
 function scheduleReminder(hour, minute, title, message) {
   const now = new Date();
   const reminderTime = new Date();
   reminderTime.setHours(hour, minute, 0, 0);
-  
+
   // Si l'heure est déjà passée aujourd'hui, programmer pour demain
   if (reminderTime <= now) {
     reminderTime.setDate(reminderTime.getDate() + 1);
   }
-  
+
   const timeUntilReminder = reminderTime.getTime() - now.getTime();
-  
+
   setTimeout(() => {
     showSystemNotification(title, message);
     // Reprogrammer pour le lendemain
@@ -2562,7 +2562,7 @@ async function getCurrentLocationWithValidation() {
     //     // Continuer avec la méthode normale
     //   }
     // }
-    
+
     // Utiliser le GPS Manager amélioré si disponible, avec repli natif si échec/coordonnées invalides
     if (window.gpsManager) {
       try {
@@ -2587,13 +2587,13 @@ async function getCurrentLocationWithValidation() {
           throw new Error('Accès GPS refusé');
         }
       }
-    } catch {}
+    } catch { }
 
     // Vérifier d'abord que le serveur répond
     try {
-      const healthCheck = await fetch(apiBase + '/health', { 
+      const healthCheck = await fetch(apiBase + '/health', {
         method: 'GET',
-        timeout: 5000 
+        timeout: 5000
       });
       if (!healthCheck.ok) {
         throw new Error('Serveur indisponible');
@@ -2602,7 +2602,7 @@ async function getCurrentLocationWithValidation() {
       console.warn('Serveur non accessible:', serverError);
       // Continuer quand même pour le GPS local
     }
-    
+
     // Déterminer la précision maximale souhaitée via l'UI
     const gpsPrecision = document.getElementById('gps-precision')?.value || 'medium';
     let targetAccuracy = 500; // fallback
@@ -2616,7 +2616,7 @@ async function getCurrentLocationWithValidation() {
     // Lecture multi-essais pour améliorer la précision
     const getOnce = () => new Promise((resolve, reject) => {
       if (!navigator.geolocation) return reject(new Error('Géolocalisation non supportée'));
-      navigator.geolocation.getCurrentPosition((p)=>{
+      navigator.geolocation.getCurrentPosition((p) => {
         try {
           const { latitude, longitude, accuracy } = p && p.coords ? p.coords : {};
           if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
@@ -2626,7 +2626,7 @@ async function getCurrentLocationWithValidation() {
         } catch (e) {
           reject(e);
         }
-      }, (err)=>{
+      }, (err) => {
         reject(err);
       }, {
         enableHighAccuracy: true,
@@ -2657,7 +2657,7 @@ async function getCurrentLocationWithValidation() {
     }
     if (!best) throw new Error('GPS indisponible');
     const coords = best;
-    
+
     // Vérifier la précision GPS selon le paramètre choisi
     let maxAccuracy = 1000; // Par défaut pour l'avertissement
     switch (gpsPrecision) {
@@ -2666,16 +2666,16 @@ async function getCurrentLocationWithValidation() {
       case 'low': maxAccuracy = 1000; break;
       case 'any': maxAccuracy = Infinity; break;
     }
-    
+
     if (coords.accuracy > maxAccuracy) {
       // Afficher un avertissement mais permettre la présence
       console.warn(`Précision GPS faible: ${Math.round(coords.accuracy)}m`);
       showNotification('Avertissement GPS', `Précision faible (${Math.round(coords.accuracy)}m). La présence sera enregistrée.`);
     }
-    
+
     // Afficher les informations de localisation
     showLocationInfo(coords);
-    
+
     // Stocker les coordonnées localement en cas de problème serveur
     localStorage.setItem('lastGPS', JSON.stringify({
       lat: coords.latitude,
@@ -2683,11 +2683,11 @@ async function getCurrentLocationWithValidation() {
       accuracy: coords.accuracy,
       timestamp: Date.now()
     }));
-    
+
     return coords;
   } catch (error) {
     console.error('Erreur de géolocalisation:', error);
-    
+
     // Messages d'erreur plus clairs
     let errorMessage = 'Erreur de géolocalisation';
     if (error.message.includes('timeout')) {
@@ -2697,17 +2697,17 @@ async function getCurrentLocationWithValidation() {
     } else if (error.message.includes('unavailable')) {
       errorMessage = 'GPS indisponible: Vérifiez que la géolocalisation est activée sur votre appareil';
     }
-    
+
     throw new Error(errorMessage);
   }
 }
 
 function showLocationInfo(coords) {
   const status = $('status');
-  const accuracy = coords.accuracy < 10 ? 'Excellente' : 
-                   coords.accuracy < 50 ? 'Bonne' : 
-                   coords.accuracy < 100 ? 'Moyenne' : 'Faible';
-  
+  const accuracy = coords.accuracy < 10 ? 'Excellente' :
+    coords.accuracy < 50 ? 'Bonne' :
+      coords.accuracy < 100 ? 'Moyenne' : 'Faible';
+
   status.innerHTML = `
     <div style="background: #e8f5e8; padding: 12px; border-radius: 8px; margin: 8px 0;">
       <strong>📍 Position détectée</strong><br>
@@ -2729,13 +2729,13 @@ async function loadDashboardMetrics() {
 
     // Profil utilisateur
     let me = null;
-    try { const res = await api('/me'); me = res?.data?.user || res?.user || null; } catch {}
+    try { const res = await api('/me'); me = res?.data?.user || res?.user || null; } catch { }
     const userId = me?.id;
 
     // Supabase config
     const metaUrl = document.querySelector('meta[name="supabase-url"]')?.content || localStorage.getItem('SUPABASE_URL') || window.SUPABASE_URL || '';
     const metaKey = document.querySelector('meta[name="supabase-anon-key"]')?.content || localStorage.getItem('SUPABASE_ANON_KEY') || window.SUPABASE_ANON_KEY || '';
-    const sbUrl = (metaUrl || '').trim().replace(/\/+$/,'');
+    const sbUrl = (metaUrl || '').trim().replace(/\/+$/, '');
     const sbKey = (metaKey || '').trim();
     const disableSb = String(localStorage.getItem('DISABLE_SB_DIRECT') || '').trim() === '1';
 
@@ -2766,13 +2766,13 @@ async function loadDashboardMetrics() {
           if (u.expected_days_per_month != null) expectedDays = Number(u.expected_days_per_month);
         }
       }
-    } catch {}
+    } catch { }
 
     // 2) Check-ins utilisateur (mois courant)
     let checkins = [];
     try {
-      const fromIso = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 0,0,0).toISOString();
-      const toIso = new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23,59,59).toISOString();
+      const fromIso = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 0, 0, 0).toISOString();
+      const toIso = new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59).toISOString();
 
       // Tentative 1: colonne created_at
       const s1 = new URLSearchParams();
@@ -2802,12 +2802,12 @@ async function loadDashboardMetrics() {
         }
       }
       if (res.ok) checkins = await res.json().catch(() => []);
-    } catch {}
+    } catch { }
 
     // 3) Calcul distance min/jour
     const toIsoDate = d => d.toISOString().split('T')[0];
     const computeDistanceMeters = (lat1, lon1, lat2, lon2) => {
-      try { const toRad = v => (Number(v)*Math.PI)/180; const R=6371000; const dLat=toRad(lat2-lat1); const dLon=toRad(lon2-lon1); const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2; const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); return Math.round(R*c);} catch { return null; }
+      try { const toRad = v => (Number(v) * Math.PI) / 180; const R = 6371000; const dLat = toRad(lat2 - lat1); const dLon = toRad(lon2 - lon1); const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2; const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); return Math.round(R * c); } catch { return null; }
     };
     const perDay = new Map();
     const isInRange = (d) => {
@@ -2832,27 +2832,29 @@ async function loadDashboardMetrics() {
     let plannedHoursTotal = 0;
     try {
       const p = new URLSearchParams();
-      p.set('select', 'agent_id,date,planned_start_time,planned_end_time');
-      p.set('agent_id', 'eq.' + Number(userId));
+      // Utiliser select * pour éviter les erreurs si certaines colonnes n'existent pas
+      // et filtrer par user_id qui est plus fiable que agent_id
+      p.set('select', '*');
+      p.set('user_id', 'eq.' + Number(userId));
       p.set('date', 'gte.' + toIsoDate(from));
       p.append('date', 'lte.' + toIsoDate(to));
       const resPlan = await fetch(`${sbUrl}/rest/v1/planifications?${p.toString()}`, { headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey } });
       if (resPlan.ok) {
         const plans = await resPlan.json().catch(() => []);
         for (const pl of plans) {
-          const day = (pl.date || '').toString().slice(0,10);
+          const day = (pl.date || '').toString().slice(0, 10);
           if (day) plannedDaysSet.add(day);
           if (pl.planned_start_time && pl.planned_end_time) {
             try {
               const start = new Date(`${day}T${pl.planned_start_time}`);
               const end = new Date(`${day}T${pl.planned_end_time}`);
-              const hours = Math.max(0, (end - start) / (1000*60*60));
+              const hours = Math.max(0, (end - start) / (1000 * 60 * 60));
               plannedHoursTotal += hours;
-            } catch {}
+            } catch { }
           }
         }
       }
-    } catch {}
+    } catch { }
 
     const presentDays = new Set();
     perDay.forEach((v, day) => { if (v.minDist != null ? v.minDist <= tol : v.any) presentDays.add(day); });
@@ -2873,7 +2875,7 @@ async function loadDashboardMetrics() {
       if (plannedDaysEl) plannedDaysEl.textContent = String(plannedDays);
       const plannedHoursEl = document.getElementById('planned-hours');
       if (plannedHoursEl) plannedHoursEl.textContent = `${plannedHours}h`;
-    } catch {}
+    } catch { }
 
     await updateCurrentLocation();
   } catch (error) {
@@ -2887,7 +2889,7 @@ function calculateMetrics(missions, month, year) {
     const missionDate = new Date(mission.start_time);
     return missionDate.getMonth() === month && missionDate.getFullYear() === year;
   });
-  
+
   // Calculer les jours travaillés
   const uniqueDays = new Set();
   currentMonthMissions.forEach(mission => {
@@ -2896,7 +2898,7 @@ function calculateMetrics(missions, month, year) {
       uniqueDays.add(date.toDateString());
     }
   });
-  
+
   // Calculer les heures travaillées
   let totalHours = 0;
   currentMonthMissions.forEach(mission => {
@@ -2907,11 +2909,11 @@ function calculateMetrics(missions, month, year) {
       totalHours += Math.max(0, hours);
     }
   });
-  
+
   // Calculer le taux de présence
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const attendanceRate = Math.round((uniqueDays.size / daysInMonth) * 100);
-  
+
   return {
     daysWorked: uniqueDays.size,
     hoursWorked: Math.round(totalHours * 10) / 10,
@@ -2927,7 +2929,7 @@ function displayMetrics(metrics) {
       card.classList.add('animate');
     }, index * 200);
   });
-  
+
   // Afficher les valeurs
   const daysEl = $('days-worked');
   const hoursEl = $('hours-worked');
@@ -2935,7 +2937,7 @@ function displayMetrics(metrics) {
   if (daysEl) daysEl.textContent = metrics.daysWorked;
   if (hoursEl) hoursEl.textContent = `${metrics.hoursWorked}h`;
   if (rateEl) rateEl.textContent = `${metrics.attendanceRate}%`;
-  
+
   // Ajouter des couleurs selon les performances
   const attendanceRateElement = $('attendance-rate');
   if (attendanceRateElement) {
@@ -2971,15 +2973,15 @@ async function updateNavbar() {
   try {
     if (!jwt) {
       // Utilisateur non connecté
-    if (window.navigation && typeof window.navigation.updateForUser === 'function') {
-      await window.navigation.updateForUser(null);
+      if (window.navigation && typeof window.navigation.updateForUser === 'function') {
+        await window.navigation.updateForUser(null);
       }
       return;
     }
 
     // Utilisateur connecté - récupérer les infos
     let profile = JSON.parse(localStorage.getItem('userProfile') || '{}');
-    
+
     // Si pas de profil en cache, essayer l'API
     if (!profile.id) {
       try {
@@ -2992,7 +2994,7 @@ async function updateNavbar() {
         profile = JSON.parse(localStorage.getItem('loginData') || '{}');
       }
     }
-    
+
     // Charger zones d'intervention (multi-UD)
     try {
       userZonesCache = await api('/me/zones'); // attendu: { zones: [{id,name,departement,commune,arrondissement,village,reference_lat,reference_lon,tolerance_radius_meters}] }
@@ -3012,19 +3014,19 @@ async function updateNavbar() {
         try {
           const saved = localStorage.getItem('selectedZoneId');
           if (saved && userZonesCache.some(z => String(z.id) === String(saved))) selectedZoneId = saved;
-        } catch {}
+        } catch { }
       } else {
         userZonesCache = [];
       }
     } catch { userZonesCache = []; }
     // Exposer globalement pour index.html (injection sélecteur)
-    try { window.userZonesCache = userZonesCache || []; } catch {}
+    try { window.userZonesCache = userZonesCache || []; } catch { }
 
     // Utiliser le nouveau système de navigation
-  if (window.navigation && typeof window.navigation.updateForUser === 'function') {
-    await window.navigation.updateForUser(profile);
-  }
-    
+    if (window.navigation && typeof window.navigation.updateForUser === 'function') {
+      await window.navigation.updateForUser(profile);
+    }
+
     // Ajouter un bouton Paramètres Admin si absent (pour les admins)
     if (profile && profile.role === 'admin') {
       const adminLink = $('admin-link');
@@ -3049,7 +3051,7 @@ async function updateNavbar() {
         if (settingsLink) settingsLink.style.display = 'none';
       }
     }
-    
+
   } catch (e) {
     console.error('Error updating navbar:', e);
     // En cas d'erreur, masquer les éléments sensibles
@@ -3062,20 +3064,20 @@ async function updateNavbar() {
 // Fonctions pour la saisie manuelle des unités géographiques
 function setupManualGeoInputs() {
   console.log('🔧 Configuration de la saisie manuelle des unités géographiques...');
-  
+
   // Configuration des boutons de basculement
   const geoFields = ['departement', 'commune', 'arrondissement', 'village'];
-  
+
   geoFields.forEach(field => {
     const select = $(field);
     const manualInput = $(`${field}-manual`);
     const toggleBtn = $(`toggle-${field}`);
-    
+
     if (select && manualInput && toggleBtn) {
       // Gestionnaire pour le bouton de basculement
       toggleBtn.addEventListener('click', () => {
         const isManual = manualInput.style.display !== 'none';
-        
+
         if (isManual) {
           // Passer en mode sélection
           select.style.display = 'block';
@@ -3093,22 +3095,22 @@ function setupManualGeoInputs() {
           manualInput.focus();
         }
       });
-      
+
       // Synchroniser les valeurs entre select et input manuel
       select.addEventListener('change', () => {
         if (manualInput.style.display === 'none') {
           manualInput.value = select.options[select.selectedIndex]?.text || '';
         }
       });
-      
+
       manualInput.addEventListener('input', () => {
         if (select.style.display === 'none') {
           // Trouver l'option correspondante dans le select
           const options = Array.from(select.options);
-          const matchingOption = options.find(option => 
+          const matchingOption = options.find(option =>
             option.text.toLowerCase().includes(manualInput.value.toLowerCase())
           );
-          
+
           if (matchingOption) {
             select.value = matchingOption.value;
           }
@@ -3122,7 +3124,7 @@ function setupManualGeoInputs() {
 function getGeoValue(field) {
   const select = $(field);
   const manualInput = $(`${field}-manual`);
-  
+
   if (manualInput && manualInput.style.display !== 'none' && manualInput.value.trim()) {
     return manualInput.value.trim();
   } else if (select && select.value) {
@@ -3134,8 +3136,8 @@ function getGeoValue(field) {
     try {
       const commune = (z.commune || '').trim();
       const village = (z.village || '').trim();
-      const c3 = commune ? commune.slice(0,3).toUpperCase() : 'XXX';
-      const v3 = village ? village.slice(0,3).toUpperCase() : 'XXX';
+      const c3 = commune ? commune.slice(0, 3).toUpperCase() : 'XXX';
+      const v3 = village ? village.slice(0, 3).toUpperCase() : 'XXX';
       return `Zone_${c3}_${v3}`;
     } catch { return 'Zone'; }
   }
@@ -3162,11 +3164,11 @@ function getGeoValue(field) {
     const toRad = (v) => v * Math.PI / 180;
     const dLat = toRad(lat2 - lat1);
     const dLon = toRad(lon2 - lon1);
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }
-  
+
   return '';
 }
 
@@ -3175,21 +3177,21 @@ async function loadDepartements() {
   try {
     const deptSelect = $('departement');
     if (!deptSelect) return;
-    
+
     // Éviter la duplication en cas d'appels concurrents
     if (deptSelect.dataset.loading === '1') return;
     if (deptSelect.options && deptSelect.options.length > 1 && deptSelect.dataset.loaded === '1') return;
     deptSelect.dataset.loading = '1';
-    
+
     deptSelect.innerHTML = '<option value="">Sélectionner un département</option>';
     // Assurer qu'il est activé pour interaction
     deptSelect.disabled = false;
-    
+
     // Attendre que les données géographiques soient chargées
     if (window.loadGeoData) {
       await window.loadGeoData();
     }
-    
+
     // Utiliser uniquement les données locales (plus fiables)
     if (window.geoData && window.geoData.departements) {
       window.geoData.departements.forEach(d => {
@@ -3207,7 +3209,7 @@ async function loadDepartements() {
     deptSelect.dataset.loading = '0';
   } catch (error) {
     console.error('Erreur chargement départements:', error);
-    try { const deptSelect = $('departement'); if (deptSelect) deptSelect.dataset.loading = '0'; } catch {}
+    try { const deptSelect = $('departement'); if (deptSelect) deptSelect.dataset.loading = '0'; } catch { }
   }
 }
 
@@ -3219,22 +3221,22 @@ async function loadCommunes(departementId) {
       console.error('❌ Élément commune non trouvé');
       return;
     }
-    
+
     communeSelect.innerHTML = '<option value="">Sélectionner une commune</option>';
     communeSelect.disabled = true;
-    
+
     // Attendre que les données géographiques soient chargées
     if (window.loadGeoData) {
       await window.loadGeoData();
     }
-    
+
     console.log('🔍 Vérification de window.geoData:', !!window.geoData);
     if (window.geoData) {
       console.log('🔍 window.geoData.communes:', !!window.geoData.communes);
       console.log('🔍 Clés disponibles dans communes:', Object.keys(window.geoData.communes || {}));
       console.log('🔍 Communes pour departementId', departementId, ':', window.geoData.communes[departementId]);
     }
-    
+
     // Utiliser uniquement les données locales (plus fiables)
     if (window.geoData && window.geoData.communes && window.geoData.communes[departementId]) {
       const communes = window.geoData.communes[departementId];
@@ -3250,7 +3252,7 @@ async function loadCommunes(departementId) {
       console.error('❌ Communes non disponibles pour le département ID:', departementId);
       console.log('Données disponibles:', window.geoData ? Object.keys(window.geoData.communes || {}) : 'geoData non disponible');
     }
-    
+
     // Réinitialiser les niveaux suivants
     const arrSel = $('arrondissement');
     const vilSel = $('village');
@@ -3266,12 +3268,12 @@ async function loadArrondissements(communeId) {
     const arrSelect = $('arrondissement');
     const vilSelect = $('village');
     if (!arrSelect) return;
-    
+
     arrSelect.innerHTML = '<option value="">Sélectionner un arrondissement</option>';
     if (vilSelect) vilSelect.innerHTML = '<option value="">Sélectionner un village</option>';
     arrSelect.disabled = true;
     if (vilSelect) vilSelect.disabled = true;
-    
+
     // Utiliser uniquement les données locales (plus fiables)
     let arrondissements = [];
     if (window.geoData && window.geoData.arrondissements) {
@@ -3279,7 +3281,7 @@ async function loadArrondissements(communeId) {
       if (window.geoData.arrondissements[communeId]) {
         arrondissements = window.geoData.arrondissements[communeId] || [];
       }
-      
+
       // 2) Par nom de commune en clé
       if (arrondissements.length === 0) {
         // Retrouver l'objet commune pour obtenir son nom
@@ -3289,11 +3291,11 @@ async function loadArrondissements(communeId) {
             const found = (communes || []).find(c => String(c.id) === String(communeId));
             if (found) { commune = found; break; }
           }
-        } catch {}
+        } catch { }
         if (commune && window.geoData.arrondissements[commune.name]) {
           arrondissements = window.geoData.arrondissements[commune.name] || [];
         }
-        
+
         // 3) Fallback: parcourir toutes les listes et filtrer par suffixe de nom "..._Commune"
         if (arrondissements.length === 0 && commune && commune.name) {
           try {
@@ -3304,11 +3306,11 @@ async function loadArrondissements(communeId) {
                 return parts.length > 1 && parts[parts.length - 1] === commune.name;
               });
             arrondissements = all;
-          } catch {}
+          } catch { }
         }
       }
     }
-    
+
     // Peupler le select
     if (arrondissements.length > 0) {
       arrondissements.forEach(a => {
@@ -3334,15 +3336,15 @@ async function loadVillages(arrondissementId) {
   try {
     const villageSelect = $('village');
     if (!villageSelect) return;
-    
-      villageSelect.innerHTML = '<option value="">Sélectionner un village</option>';
-      villageSelect.disabled = true;
-    
+
+    villageSelect.innerHTML = '<option value="">Sélectionner un village</option>';
+    villageSelect.disabled = true;
+
     // S'assurer que les données géographiques asynchrones sont chargées
     if (window.loadGeoData) {
-      try { await window.loadGeoData(); } catch {}
+      try { await window.loadGeoData(); } catch { }
     }
-    
+
     // Utiliser uniquement les données locales (plus fiables)
     let villages = [];
     if (window.geoData && window.geoData.villages) {
@@ -3350,14 +3352,14 @@ async function loadVillages(arrondissementId) {
       if (window.geoData.villages[arrondissementId]) {
         villages = window.geoData.villages[arrondissementId] || [];
       }
-      
+
       // 2) Par nom d'arrondissement en clé
       if (villages.length === 0) {
         let arrondissement = null;
         try {
           const allArr = Object.values(window.geoData.arrondissements || {}).flat();
           arrondissement = allArr.find(a => String(a.id) === String(arrondissementId)) || null;
-        } catch {}
+        } catch { }
         if (arrondissement && window.geoData.villages[arrondissement.name]) {
           villages = window.geoData.villages[arrondissement.name] || [];
         }
@@ -3378,7 +3380,7 @@ async function loadVillages(arrondissementId) {
                 return vn.endsWith('_' + arrNameNorm) || vn.includes(arrNameNorm);
               });
             villages = all;
-          } catch {}
+          } catch { }
         }
 
         // 4) Fallback supplémentaire: certaines données lient les villages à la commune (pas à l'arrondissement)
@@ -3409,7 +3411,7 @@ async function loadVillages(arrondissementId) {
                     const found = (grp || []).find(c => String(c.id) === String(communeIdForArr));
                     if (found) { communeName = found.name; break; }
                   }
-                } catch {}
+                } catch { }
                 if (!communeName && typeof communeIdForArr === 'string' && isNaN(Number(communeIdForArr))) {
                   communeName = communeIdForArr;
                 }
@@ -3440,7 +3442,7 @@ async function loadVillages(arrondissementId) {
                         const found = (grp || []).find(c => String(c.id) === String(communeIdForArr));
                         if (found) { communeName = found.name; break; }
                       }
-                    } catch {}
+                    } catch { }
                     if (communeName) {
                       const cn = normalize(communeName);
                       const base = window.geoData.villages[communeIdForArr] || window.geoData.villages[communeName] || [];
@@ -3455,13 +3457,13 @@ async function loadVillages(arrondissementId) {
                     }
                   }
                 }
-              } catch {}
+              } catch { }
             }
-          } catch {}
+          } catch { }
         }
       }
     }
-    
+
     if (villages.length > 0) {
       villages.forEach(v => {
         const opt = document.createElement('option');
@@ -3484,50 +3486,50 @@ async function loadVillages(arrondissementId) {
 function validateGeoFields() {
   const departement = getGeoValue('departement');
   const commune = getGeoValue('commune');
-  
+
   if (!departement.trim()) {
     alert('❌ Veuillez sélectionner ou saisir un département');
     return false;
   }
-  
+
   if (!commune.trim()) {
     alert('❌ Veuillez sélectionner ou saisir une commune');
     return false;
   }
-  
+
   return true;
 }
 
 // Fonction d'initialisation locale des sélecteurs géographiques
 function initGeoSelectorsLocal() {
   console.log('🌍 Initialisation locale des sélecteurs géographiques...');
-  
+
   // Charger les départements
   loadDepartements();
-  
+
   // Ajouter les événements
   const departementSelect = $('departement');
   const communeSelect = $('commune');
   const arrondissementSelect = $('arrondissement');
-  
+
   if (departementSelect) {
-    departementSelect.addEventListener('change', function() {
+    departementSelect.addEventListener('change', function () {
       loadCommunes(this.value);
     });
   }
-  
+
   if (communeSelect) {
-    communeSelect.addEventListener('change', function() {
+    communeSelect.addEventListener('change', function () {
       loadArrondissements(this.value);
     });
   }
-  
+
   if (arrondissementSelect) {
-    arrondissementSelect.addEventListener('change', function() {
+    arrondissementSelect.addEventListener('change', function () {
       loadVillages(this.value);
     });
   }
-  
+
   console.log('✅ Sélecteurs géographiques initialisés localement');
 }
 
@@ -3554,7 +3556,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   } else {
     console.log('🚀 Application chargée sur Vercel');
   }
-  
+
   // Vérifier le token au chargement
   const jwt = localStorage.getItem('jwt');
   if (jwt && jwt.length < 20) {
@@ -3564,7 +3566,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     localStorage.removeItem('userProfile');
     // Ne pas forcer la reconnexion, laisser l'utilisateur naviguer normalement
   }
-  
+
   // Nettoyer les tokens potentiellement corrompus
   if (jwt && (jwt.includes('undefined') || jwt.includes('null') || jwt === 'null' || jwt === 'undefined')) {
     console.warn('⚠️ Token corrompu détecté, nettoyage automatique');
@@ -3572,7 +3574,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     localStorage.removeItem('loginData');
     localStorage.removeItem('userProfile');
   }
-  
+
   // Vérifier si la base de données est vierge et nettoyer le cache si nécessaire
   try {
     const response = await api('/settings');
@@ -3590,38 +3592,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('⚠️ Impossible de vérifier la base de données, nettoyage du cache');
     clearCachedUserData();
   }
-  
+
   // Gestionnaires pour la récupération de mot de passe
   const forgotPasswordBtn = document.getElementById('forgot-password-btn');
   if (forgotPasswordBtn) {
-    const forgotHandler = (typeof showForgotPasswordForm === 'function') 
-      ? showForgotPasswordForm 
-      : (() => { try { if (window.showForgotPasswordForm) window.showForgotPasswordForm(); } catch {} });
+    const forgotHandler = (typeof showForgotPasswordForm === 'function')
+      ? showForgotPasswordForm
+      : (() => { try { if (window.showForgotPasswordForm) window.showForgotPasswordForm(); } catch { } });
     forgotPasswordBtn.addEventListener('click', forgotHandler);
   }
-  
+
   const backToLoginBtn = document.getElementById('back-to-login-btn');
   if (backToLoginBtn) {
     const loginHandler = (typeof showLoginForm === 'function')
       ? showLoginForm
-      : (() => { try { if (window.showLoginForm) window.showLoginForm(); } catch {} });
+      : (() => { try { if (window.showLoginForm) window.showLoginForm(); } catch { } });
     backToLoginBtn.addEventListener('click', loginHandler);
   }
-  
+
   const backToForgotBtn = document.getElementById('back-to-forgot-btn');
   if (backToForgotBtn) {
-    const forgotHandler2 = (typeof showForgotPasswordForm === 'function') 
-      ? showForgotPasswordForm 
-      : (() => { try { if (window.showForgotPasswordForm) window.showForgotPasswordForm(); } catch {} });
+    const forgotHandler2 = (typeof showForgotPasswordForm === 'function')
+      ? showForgotPasswordForm
+      : (() => { try { if (window.showForgotPasswordForm) window.showForgotPasswordForm(); } catch { } });
     backToForgotBtn.addEventListener('click', forgotHandler2);
   }
-  
+
   // Formulaire de demande de récupération
   const forgotPasswordForm = document.getElementById('forgot-password-form');
   if (forgotPasswordForm) {
     forgotPasswordForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      
+
       const email = document.getElementById('forgot-email').value.trim();
       if (!email) {
         showEnhancedErrorMessage('Veuillez entrer votre adresse email.', [
@@ -3630,13 +3632,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         ]);
         return;
       }
-      
+
       try {
         const response = await api('/forgot-password', {
           method: 'POST',
           body: { email }
         });
-        
+
         if (response.success) {
           recoveryEmail = email;
           showResetPasswordForm();
@@ -3645,14 +3647,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             'Entrez le code à 6 chiffres reçu',
             'Le code est valide pendant 15 minutes'
           ], 'success');
-          try { alert('Code de récupération envoyé avec succès à ' + email); } catch {}
+          try { alert('Code de récupération envoyé avec succès à ' + email); } catch { }
         } else {
           showEnhancedErrorMessage(response.message || 'Erreur lors de l\'envoi du code.', [
             'Vérifiez que l\'email est correct',
             'Assurez-vous d\'avoir un compte sur cette plateforme',
             'Réessayez dans quelques instants'
           ]);
-          try { alert('Échec de l\'envoi du mail de récupération'); } catch {}
+          try { alert('Échec de l\'envoi du mail de récupération'); } catch { }
         }
       } catch (error) {
         console.error('Erreur récupération mot de passe:', error);
@@ -3661,21 +3663,21 @@ document.addEventListener('DOMContentLoaded', async () => {
           'Réessayez dans quelques instants',
           'Contactez votre administrateur si le problème persiste'
         ]);
-        try { alert('Échec de l\'envoi du mail de récupération'); } catch {}
+        try { alert('Échec de l\'envoi du mail de récupération'); } catch { }
       }
     });
   }
-  
+
   // Formulaire de réinitialisation du mot de passe
   const resetPasswordForm = document.getElementById('reset-password-form');
   if (resetPasswordForm) {
     resetPasswordForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      
+
       const code = document.getElementById('reset-code').value.trim();
       const password = document.getElementById('reset-password').value;
       const confirmPassword = document.getElementById('reset-confirm-password').value;
-      
+
       // Validations
       if (!code || code.length !== 6) {
         showEnhancedErrorMessage('Code invalide.', [
@@ -3684,36 +3686,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         ]);
         return;
       }
-      
+
       if (password.length < 6) {
         showEnhancedErrorMessage('Mot de passe trop court.', [
           'Le mot de passe doit contenir au moins 6 caractères'
         ]);
         return;
       }
-      
+
       if (password !== confirmPassword) {
         showEnhancedErrorMessage('Les mots de passe ne correspondent pas.', [
           'Vérifiez que les deux mots de passe sont identiques'
         ]);
         return;
       }
-      
+
       try {
         const response = await api('/reset-password', {
           method: 'POST',
-          body: { 
+          body: {
             email: recoveryEmail,
             code: code,
             password: password
           }
         });
-        
+
         if (response.success) {
           showEnhancedErrorMessage('Mot de passe réinitialisé avec succès !', [
             'Vous pouvez maintenant vous connecter avec votre nouveau mot de passe'
           ], 'success');
-          
+
           // Retourner au formulaire de connexion après 3 secondes
           setTimeout(() => {
             showLoginForm();
@@ -3747,7 +3749,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     bindAllButtons();
     bindLogoutButtons();
   }, 500);
-  
+
   // Initialiser le détecteur mobile GPS
   setTimeout(() => {
     try {
@@ -3775,7 +3777,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (startBtn) startBtn.disabled = false;
       if (endBtn) endBtn.disabled = true;
     }
-  } catch {}
+  } catch { }
 });
 
 // Exposer les fonctions globalement

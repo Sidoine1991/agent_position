@@ -3,186 +3,226 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nettoyage du Cache - Presence CCRB</title>
+    <title>Vider le Cache - Presence CCRB</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             max-width: 800px;
             margin: 50px auto;
             padding: 20px;
-            background: #f5f5f5;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .container {
             background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
         }
         h1 {
-            color: #0d6efd;
-            margin-bottom: 20px;
+            color: #333;
+            margin-bottom: 10px;
         }
-        .btn {
-            padding: 12px 24px;
-            margin: 10px 5px;
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
             border: none;
-            border-radius: 5px;
-            cursor: pointer;
+            padding: 15px 30px;
             font-size: 16px;
-            font-weight: bold;
-            transition: all 0.3s;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 5px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: 600;
         }
-        .btn-primary {
-            background: #0d6efd;
-            color: white;
-        }
-        .btn-primary:hover {
-            background: #0b5ed7;
+        .button:hover {
             transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
-        .btn-danger {
-            background: #dc3545;
-            color: white;
+        .button:active {
+            transform: translateY(0);
         }
-        .btn-danger:hover {
-            background: #bb2d3b;
+        .button-danger {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .button-success {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
         }
         .info-box {
-            background: #e7f3ff;
-            border-left: 4px solid #0d6efd;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
             padding: 15px;
             margin: 20px 0;
-            border-radius: 5px;
+            border-radius: 4px;
         }
-        .success {
-            background: #d1e7dd;
-            border-left: 4px solid #198754;
-            color: #0f5132;
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
         }
-        .warning {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            color: #856404;
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            display: block;
+        }
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
         }
         code {
-            background: #f8f9fa;
+            background: #f4f4f4;
             padding: 2px 6px;
             border-radius: 3px;
             font-family: 'Courier New', monospace;
-        }
-        .manual-steps {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 2px solid #dee2e6;
-        }
-        .manual-steps h3 {
-            color: #495057;
-            margin-bottom: 15px;
-        }
-        .manual-steps ol {
-            line-height: 2;
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🧹 Nettoyage du Cache du Navigateur</h1>
+        <h1>🧹 Vider le Cache du Navigateur</h1>
+        <p class="subtitle">Presence CCRB - Outil de nettoyage du cache</p>
         
-        <div class="info-box warning">
-            <strong>⚠️ Attention :</strong> Cette action va vider le cache de votre navigateur. Vous devrez peut-être vous reconnecter à certaines applications.
+        <div class="info-box">
+            <strong>ℹ️ Information :</strong>
+            <p>Cet outil vous permet de vider le cache du navigateur et de forcer le rechargement des ressources. 
+            Utilisez-le si vous rencontrez des problèmes d'affichage ou de chargement.</p>
         </div>
 
-        <div id="result"></div>
-
-        <div style="text-align: center; margin: 30px 0;">
-            <button class="btn btn-primary" onclick="clearCache()">
-                🗑️ Vider le Cache
+        <div class="actions">
+            <button class="button button-success" onclick="clearCacheAndReload()">
+                ✅ Vider le Cache et Recharger
             </button>
-            <button class="btn btn-danger" onclick="clearAllStorage()">
-                🧹 Vider Tout (Cache + LocalStorage)
+            <button class="button" onclick="clearLocalStorage()">
+                🗑️ Vider LocalStorage
             </button>
-            <button class="btn btn-primary" onclick="reloadWithoutCache()">
-                🔄 Recharger Sans Cache
+            <button class="button" onclick="clearSessionStorage()">
+                🗑️ Vider SessionStorage
+            </button>
+            <button class="button button-danger" onclick="clearAll()">
+                🔥 Tout Vider
             </button>
         </div>
 
-        <div class="manual-steps">
-            <h3>📋 Instructions Manuelles par Navigateur</h3>
-            
-            <h4>🌐 Chrome / Edge / Brave</h4>
-            <ol>
-                <li>Appuyez sur <code>Ctrl + Shift + Delete</code> (Windows) ou <code>Cmd + Shift + Delete</code> (Mac)</li>
-                <li>Sélectionnez "Images et fichiers en cache"</li>
-                <li>Choisissez "Tout le temps"</li>
-                <li>Cliquez sur "Effacer les données"</li>
-            </ol>
+        <div id="status" class="status"></div>
 
-            <h4>🦊 Firefox</h4>
-            <ol>
-                <li>Appuyez sur <code>Ctrl + Shift + Delete</code> (Windows) ou <code>Cmd + Shift + Delete</code> (Mac)</li>
-                <li>Sélectionnez "Cache"</li>
-                <li>Choisissez "Tout" dans la période</li>
-                <li>Cliquez sur "Effacer maintenant"</li>
-            </ol>
-
-            <h4>🧭 Safari</h4>
-            <ol>
-                <li>Menu Safari → Préférences → Avancé</li>
-                <li>Cochez "Afficher le menu Développement"</li>
-                <li>Menu Développement → Vider les caches</li>
-            </ol>
-
-            <h4>⚡ Raccourci Rapide (Tous Navigateurs)</h4>
-            <ol>
-                <li><strong>Rechargement forcé :</strong> <code>Ctrl + F5</code> ou <code>Ctrl + Shift + R</code></li>
-                <li><strong>Ouvrir les outils développeur :</strong> <code>F12</code></li>
-                <li><strong>Recharger sans cache (dans DevTools) :</strong> Clic droit sur le bouton actualiser → "Vider le cache et actualiser"</li>
-            </ol>
+        <div class="info-box" style="margin-top: 30px;">
+            <strong>📋 Raccourcis clavier :</strong>
+            <ul>
+                <li><code>Ctrl + Shift + R</code> (Windows/Linux) ou <code>Cmd + Shift + R</code> (Mac) : Recharger sans cache</li>
+                <li><code>Ctrl + F5</code> : Forcer le rechargement</li>
+                <li><code>F12</code> : Ouvrir les outils de développement</li>
+            </ul>
         </div>
     </div>
 
     <script>
-        function showMessage(message, type = 'info') {
-            const resultDiv = document.getElementById('result');
-            const className = type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info-box';
-            resultDiv.innerHTML = `<div class="${className}">${message}</div>`;
-            setTimeout(() => {
-                resultDiv.innerHTML = '';
-            }, 5000);
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+            statusDiv.style.display = 'block';
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 3000);
+            }
         }
 
-        function clearCache() {
+        function clearCacheAndReload() {
             try {
-                // Vider le cache du Service Worker si présent
-                if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                        for(let registration of registrations) {
-                            registration.unregister();
-                        }
-                    });
-                }
-
-                // Vider le cache API
+                // Vider le cache du navigateur en utilisant l'API Cache
                 if ('caches' in window) {
                     caches.keys().then(function(names) {
                         for (let name of names) {
                             caches.delete(name);
                         }
+                        console.log('Cache API vidé');
                     });
                 }
 
-                showMessage('✅ Cache vidé avec succès ! Veuillez recharger la page (Ctrl + F5).', 'success');
+                // Vider le cache de l'application
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                        for(let registration of registrations) {
+                            registration.unregister();
+                            console.log('Service Worker désenregistré');
+                        }
+                    });
+                }
+
+                showStatus('✅ Cache vidé ! Rechargement de la page...', 'success');
+                
+                // Recharger la page sans cache après un court délai
+                setTimeout(() => {
+                    // Méthode 1: Utiliser location.reload avec un timestamp
+                    window.location.reload(true);
+                }, 1000);
+                
             } catch (error) {
-                showMessage('⚠️ Erreur lors du vidage du cache : ' + error.message, 'warning');
+                console.error('Erreur lors du vidage du cache:', error);
+                showStatus('❌ Erreur: ' + error.message, 'error');
             }
         }
 
-        function clearAllStorage() {
+        function clearLocalStorage() {
             try {
-                // Vider localStorage
+                const itemsCount = localStorage.length;
+                localStorage.clear();
+                showStatus(`✅ LocalStorage vidé (${itemsCount} éléments supprimés)`, 'success');
+                console.log('LocalStorage vidé');
+            } catch (error) {
+                console.error('Erreur lors du vidage de LocalStorage:', error);
+                showStatus('❌ Erreur: ' + error.message, 'error');
+            }
+        }
+
+        function clearSessionStorage() {
+            try {
+                const itemsCount = sessionStorage.length;
+                sessionStorage.clear();
+                showStatus(`✅ SessionStorage vidé (${itemsCount} éléments supprimés)`, 'success');
+                console.log('SessionStorage vidé');
+            } catch (error) {
+                console.error('Erreur lors du vidage de SessionStorage:', error);
+                showStatus('❌ Erreur: ' + error.message, 'error');
+            }
+        }
+
+        function clearAll() {
+            if (!confirm('⚠️ Êtes-vous sûr de vouloir tout vider ? Cela supprimera toutes les données locales et vous déconnectera.')) {
+                return;
+            }
+
+            try {
+                // Vider LocalStorage
                 localStorage.clear();
                 
-                // Vider sessionStorage
+                // Vider SessionStorage
                 sessionStorage.clear();
                 
                 // Vider le cache
@@ -194,7 +234,7 @@
                     });
                 }
 
-                // Vider les Service Workers
+                // Désenregistrer les Service Workers
                 if ('serviceWorker' in navigator) {
                     navigator.serviceWorker.getRegistrations().then(function(registrations) {
                         for(let registration of registrations) {
@@ -203,30 +243,37 @@
                     });
                 }
 
-                showMessage('✅ Tout a été vidé (Cache + LocalStorage + SessionStorage) ! Redirection dans 2 secondes...', 'success');
+                showStatus('✅ Tout a été vidé ! Redirection vers la page de connexion...', 'success');
                 
                 setTimeout(() => {
-                    window.location.href = '/index.html';
+                    window.location.href = '/login.html';
                 }, 2000);
+                
             } catch (error) {
-                showMessage('⚠️ Erreur : ' + error.message, 'warning');
+                console.error('Erreur lors du vidage complet:', error);
+                showStatus('❌ Erreur: ' + error.message, 'error');
             }
         }
 
-        function reloadWithoutCache() {
-            // Recharger la page sans utiliser le cache
-            if (window.location.search.indexOf('reload=true') === -1) {
-                window.location.href = window.location.href + '?reload=true&t=' + new Date().getTime();
-            } else {
-                // Forcer le rechargement sans cache
-                window.location.reload(true);
+        // Afficher les informations sur le cache actuel
+        window.addEventListener('load', () => {
+            const localStorageSize = localStorage.length;
+            const sessionStorageSize = sessionStorage.length;
+            
+            if (localStorageSize > 0 || sessionStorageSize > 0) {
+                showStatus(
+                    `📊 État actuel: ${localStorageSize} éléments dans LocalStorage, ${sessionStorageSize} dans SessionStorage`,
+                    'info'
+                );
             }
-        }
+        });
 
-        // Afficher un message au chargement
-        window.addEventListener('load', function() {
-            if (window.location.search.indexOf('reload=true') !== -1) {
-                showMessage('✅ Page rechargée sans cache !', 'success');
+        // Raccourci clavier pour vider le cache
+        document.addEventListener('keydown', (e) => {
+            // Ctrl + Shift + K pour vider le cache
+            if (e.ctrlKey && e.shiftKey && e.key === 'K') {
+                e.preventDefault();
+                clearCacheAndReload();
             }
         });
     </script>

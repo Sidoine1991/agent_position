@@ -5359,6 +5359,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialiser les filtres de projet des tableaux
   initializeTableProjectFilters();
   
+  // Charger les projets pour le filtre
+  await loadProjectsForFilter();
+  
   window.updateDateInputs();
   window.loadUsersPlanning = loadUsersPlanning; // Exposer la fonction au scope global
   const dateInput = document.getElementById('date');
@@ -5373,6 +5376,20 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error('Erreur lors du chargement initial:', error);
   }
   console.log('✅ Reports.js initialisé avec succès');
+  
+  // Ajouter un gestionnaire d'événement pour le changement de sélection du filtre de projet
+  const projectFilter = document.getElementById('project-filter');
+  if (projectFilter) {
+    projectFilter.addEventListener('change', async () => {
+      console.log('Changement de sélection du projet détecté');
+      try {
+        await loadUsersPlanning();
+        await window.generateReport();
+      } catch (error) {
+        console.error('Erreur lors de la mise à jour des données après changement de projet:', error);
+      }
+    });
+  }
 });
 
 /**

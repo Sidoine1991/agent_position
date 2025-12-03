@@ -173,6 +173,65 @@
       transform: translateY(-1px) scale(1.02);
     }
 
+    /* Menu mobile */
+    .mobile-menu-toggle {
+      display: none;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+    }
+
+    .mobile-menu-toggle:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .mobile-menu {
+      display: none;
+      position: fixed;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+      flex-direction: column;
+      gap: 0;
+      padding: 20px;
+      transform: translateY(-100%);
+      transition: all 0.3s ease;
+      z-index: 999;
+    }
+
+    .mobile-menu.active {
+      transform: translateY(0);
+    }
+
+    .mobile-menu a {
+      color: #333;
+      text-decoration: none;
+      padding: 15px 20px;
+      border-radius: 8px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .mobile-menu a:hover {
+      background: rgba(102, 126, 234, 0.1);
+      color: #667eea;
+    }
+
+    .mobile-menu a.btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      margin-top: 10px;
+    }
+
     /* Animation colorée pour le titre */
     .animated-title {
       background: linear-gradient(45deg, #667eea, #764ba2, #f093fb, #f5576c, #4facfe, #00f2fe);
@@ -1913,17 +1972,52 @@
         <span class="animated-title">Presence CCR-B</span>
       </a>
       
-      <!-- Navigation par sections retirée (liens non fonctionnels) -->
+      <!-- Navigation principale -->
+      <nav class="nav-menu">
+        <a href="/home.html" class="active">Accueil</a>
+        <a href="/web/agent-dashboard.html">Rapports</a>
+        <a href="/web/objectifs.html">Objectifs</a>
+        <a href="/web/permissions.html">Permissions</a>
+        <a href="/web/agents.html">Agents</a>
+        <a href="/web/admin.html">Admin</a>
+      </nav>
       
-      <!-- Toggle mode sombre/clair -->
-      <button class="theme-toggle" id="theme-toggle" title="Basculer le mode sombre/clair">
-        <i class="fas fa-moon"></i>
+      <!-- Boutons d'action -->
+      <div class="nav-buttons">
+        <a href="/web/objectifs.html" class="btn-nav btn-secondary">
+          <i class="fas fa-bullseye me-2"></i>Objectifs
+        </a>
+        <a href="/web/agent-dashboard.html" class="btn-nav btn-primary">
+          <i class="bi bi-download me-2"></i>Rapport Agent
+        </a>
+        
+        <!-- Toggle mode sombre/clair -->
+        <button class="theme-toggle" id="theme-toggle" title="Basculer le mode sombre/clair">
+          <i class="fas fa-moon"></i>
+        </button>
+      </div>
+      
+      <!-- Bouton menu mobile -->
+      <button class="mobile-menu-toggle" id="mobile-menu-toggle">
+        <i class="fas fa-bars"></i>
       </button>
-      
-      <!-- Bouton menu mobile retiré -->
     </div>
     
-    <!-- Menu mobile retiré (liens non fonctionnels) -->
+    <!-- Menu mobile -->
+    <nav class="mobile-menu" id="mobile-menu">
+      <a href="/home.html">Accueil</a>
+      <a href="/web/agent-dashboard.html">Rapports</a>
+      <a href="/web/objectifs.html">Objectifs</a>
+      <a href="/web/permissions.html">Permissions</a>
+      <a href="/web/agents.html">Agents</a>
+      <a href="/web/admin.html">Admin</a>
+      <a href="/web/objectifs.html" class="btn-nav btn-secondary">
+        <i class="fas fa-bullseye me-2"></i>Objectifs
+      </a>
+      <a href="/web/agent-dashboard.html" class="btn-nav btn-primary">
+        <i class="fas fa-chart-line me-2"></i>Rapport Agent
+      </a>
+    </nav>
   </header>
 
   <!-- Hero Section -->
@@ -2511,7 +2605,32 @@
   </footer>
 
   <script>
-    // Navigation mobile supprimée
+    // Navigation mobile
+    const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+    const mobileMenu = document.getElementById('mobile-menu');
+    
+    if (mobileMenuToggle && mobileMenu) {
+      mobileMenuToggle.addEventListener('click', () => {
+        mobileMenu.classList.toggle('active');
+        const icon = mobileMenuToggle.querySelector('i');
+        if (icon) {
+          icon.classList.toggle('fa-bars');
+          icon.classList.toggle('fa-times');
+        }
+      });
+      
+      // Fermer le menu mobile en cliquant à l'extérieur
+      document.addEventListener('click', (e) => {
+        if (!mobileMenu.contains(e.target) && !mobileMenuToggle.contains(e.target)) {
+          mobileMenu.classList.remove('active');
+          const icon = mobileMenuToggle.querySelector('i');
+          if (icon) {
+            icon.classList.add('fa-bars');
+            icon.classList.remove('fa-times');
+          }
+        }
+      });
+    }
 
     // Dashboard access control
     async function handleDashboardAccess(e) {

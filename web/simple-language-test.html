@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Simple - Sélecteur de Langue</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .language-selector {
+            padding: 10px;
+            border: 2px solid #007bff;
+            border-radius: 5px;
+            font-size: 16px;
+            background: white;
+            cursor: pointer;
+            margin: 20px 0;
+        }
+        .test-result {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .success { border-left-color: #28a745; }
+        .error { border-left-color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test Simple du Sélecteur de Langue</h1>
+        
+        <div>
+            <label for="language-selector">Choisir la langue :</label>
+            <select id="language-selector" class="language-selector">
+                <option value="fr">🇫🇷 Français</option>
+                <option value="en">🇬🇧 English</option>
+            </select>
+        </div>
+        
+        <div class="test-result" id="test-result">
+            Cliquez sur le sélecteur pour tester...
+        </div>
+        
+        <div>
+            <h3>Test de traduction :</h3>
+            <p><strong>Bonjour :</strong> <span id="hello-text">Bonjour</span></p>
+            <p><strong>Au revoir :</strong> <span id="goodbye-text">Au revoir</span></p>
+        </div>
+        
+        <div>
+            <button onclick="testSelector()">Tester le sélecteur</button>
+            <button onclick="changeLanguage('fr')">Forcer Français</button>
+            <button onclick="changeLanguage('en')">Forcer English</button>
+        </div>
+    </div>
+    
+    <script>
+        // Traductions simples
+        const translations = {
+            fr: {
+                hello: 'Bonjour',
+                goodbye: 'Au revoir',
+                test: 'Test réussi !'
+            },
+            en: {
+                hello: 'Hello',
+                goodbye: 'Goodbye',
+                test: 'Test successful!'
+            }
+        };
+        
+        let currentLanguage = 'fr';
+        
+        function updateTranslations() {
+            document.getElementById('hello-text').textContent = translations[currentLanguage].hello;
+            document.getElementById('goodbye-text').textContent = translations[currentLanguage].goodbye;
+        }
+        
+        function changeLanguage(lang) {
+            console.log('Changement de langue vers:', lang);
+            currentLanguage = lang;
+            document.getElementById('language-selector').value = lang;
+            updateTranslations();
+            document.getElementById('test-result').innerHTML = 
+                `<div class="success">✅ Langue changée vers: ${lang}</div>`;
+        }
+        
+        function testSelector() {
+            const selector = document.getElementById('language-selector');
+            const result = document.getElementById('test-result');
+            
+            if (selector) {
+                result.innerHTML = `
+                    <div class="success">
+                        ✅ Sélecteur trouvé<br>
+                        📋 Valeur: ${selector.value}<br>
+                        🎯 Cliquable: ${selector.disabled ? 'Non' : 'Oui'}<br>
+                        👁️ Visible: ${selector.offsetParent !== null ? 'Oui' : 'Non'}
+                    </div>
+                `;
+            } else {
+                result.innerHTML = '<div class="error">❌ Sélecteur non trouvé</div>';
+            }
+        }
+        
+        // Configuration du sélecteur
+        document.addEventListener('DOMContentLoaded', function() {
+            const selector = document.getElementById('language-selector');
+            
+            if (selector) {
+                selector.addEventListener('change', function(e) {
+                    changeLanguage(e.target.value);
+                });
+                
+                selector.addEventListener('click', function() {
+                    console.log('Clic sur le sélecteur');
+                });
+                
+                console.log('✅ Sélecteur configuré');
+            } else {
+                console.error('❌ Sélecteur non trouvé');
+            }
+        });
+    </script>
+</body>
+</html>

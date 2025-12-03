@@ -1,4 +1,4 @@
-const CACHE_NAME = 'presence-v3-20250930';
+const CACHE_NAME = 'presence-v3-20251202';
 
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
@@ -13,7 +13,7 @@ self.addEventListener('install', (e) => {
     } catch (err) {
       console.warn('SW install: cache open failed', err);
     } finally {
-      try { await self.skipWaiting(); } catch {}
+      try { await self.skipWaiting(); } catch { }
     }
   })());
 });
@@ -23,58 +23,138 @@ self.addEventListener('activate', (event) => {
     try {
       const keys = await caches.keys();
       await Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)));
-    } catch {}
-    try { await clients.claim(); } catch {}
+    } catch { }
+    try { await clients.claim(); } catch { }
   })());
 });
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (url.origin !== self.location.origin) return; // Only same-origin
 
-  // Always bypass cache for API - network only, don't intercept if server is down
+  // Skip non-GET requests and cross-origin requests
+  if (e.request.method !== 'GET' || url.origin !== self.location.origin) {
+    return;
+  }
+
+  // For API requests, try to fetch from network first
   if (url.pathname.startsWith('/api/')) {
     e.respondWith(
       (async () => {
         try {
-          const response = await fetch(e.request.clone());
+          // Try to fetch from network first
+          const response = await fetch(e.request);
+
+          // If the response is not ok (status not in the range 200-299),
+          // it's still a response, so we should return it
+          if (!response.ok) {
+            console.warn('API response not OK:', response.status, response.statusText, url.pathname);
+          }
+
+          // Cache the response for future offline use
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(e.request, responseToCache).catch(err => {
+              console.warn('Failed to cache API response:', err);
+            });
+          });
+
           return response;
         } catch (error) {
-          console.error('Service Worker: API fetch failed:', error);
-          // Don't intercept - let the error propagate to the page
-          // This allows the page to handle the error properly
-          throw error;
+          console.warn('Network request failed, trying cache for:', url.pathname, error);
+
+          // If fetch fails (network error), try to get from cache
+          try {
+            const cachedResponse = await caches.match(e.request);
+            if (cachedResponse) {
+              console.log('Serving from cache:', url.pathname);
+              return cachedResponse;
+            }
+
+            // If not in cache, rethrow the original error
+            console.error('No cache available for failed request:', url.pathname, error);
+            throw error;
+          } catch (cacheError) {
+            console.error('Cache lookup failed:', cacheError);
+            throw error; // Re-throw the original error
+          }
         }
       })()
     );
     return;
   }
 
-  const dest = e.request.destination;
-  const isDoc = e.request.mode === 'navigate' || dest === 'document';
-  const isCode = dest === 'script' || dest === 'style';
-
-  // Network-first for HTML, JS, CSS to ensure newest UI without hard reload
-  if (isDoc || isCode) {
-    e.respondWith((async () => {
-      try {
-        const fresh = await fetch(e.request, { cache: 'no-store' });
-        try {
-          const cache = await caches.open(CACHE_NAME);
-          cache.put(e.request, fresh.clone());
-        } catch {}
-        return fresh;
-      } catch {
-        const cached = await caches.match(e.request, { ignoreSearch: false });
-        if (cached) return cached;
-        throw new Error('offline');
-      }
-    })());
+  // For navigation requests, always try network first
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request)
+        .then(response => {
+          // Only cache successful responses
+          if (response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(e.request, responseToCache);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          // If fetch fails, try to get from cache
+          return caches.match(e.request).then(response => {
+            return response || caches.match('/offline.html');
+          });
+        })
+    );
     return;
   }
 
-  // Cache-first for other static assets (images, fonts)
-  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+  // For other static assets (JS, CSS, images, fonts), try cache first
+  e.respondWith(
+    caches.match(e.request).then(cachedResponse => {
+      // Return cached response if found
+      if (cachedResponse) {
+        // Update cache in the background
+        fetchAndCache(e.request);
+        return cachedResponse;
+      }
+
+      // If not in cache, fetch from network and cache the response
+      return fetchAndCache(e.request);
+    })
+  );
+
+  // Helper function to fetch and cache a request
+  function fetchAndCache(request) {
+    return fetch(request).then(response => {
+      // Check if we received a valid response
+      if (!response || response.status !== 200 || response.type !== 'basic') {
+        return response;
+      }
+
+      // Clone the response (a stream can only be consumed once)
+      const responseToCache = response.clone();
+
+      // Cache the response
+      caches.open(CACHE_NAME).then(cache => {
+        cache.put(request, responseToCache).catch(err => {
+          console.warn('Failed to cache response:', err);
+        });
+      });
+
+      return response;
+    }).catch(error => {
+      console.error('Fetch failed:', error);
+      // If offline and the request is for an image, return a fallback
+      if (request.headers.get('Accept').includes('image/')) {
+        return caches.match('/images/offline.png');
+      }
+      // Return a 503 response instead of throwing to avoid unhandled promise rejections in the browser console
+      return new Response(JSON.stringify({ error: 'Network error', message: error.message }), {
+        status: 503,
+        statusText: 'Service Unavailable',
+        headers: { 'Content-Type': 'application/json' }
+      });
+    });
+  }
 });
 
 // IndexedDB helpers for offline queue
@@ -127,9 +207,9 @@ self.addEventListener('message', async (event) => {
     try {
       await addToQueue({ endpoint: data.endpoint, method: data.method || 'POST', payload: data.payload, headers: data.headers });
       if (self.registration && 'sync' in self.registration) {
-        try { await self.registration.sync.register('sync-checkins'); } catch {}
+        try { await self.registration.sync.register('sync-checkins'); } catch { }
       }
-    } catch {}
+    } catch { }
   } else if (data.type === 'flush-queue') {
     // Traitement manuel immédiat de la file d'attente
     try {
@@ -142,12 +222,12 @@ self.addEventListener('message', async (event) => {
             body: JSON.stringify(item.payload || {})
           });
           await deleteFromQueue(item.id);
-        } catch {}
+        } catch { }
       }
       if (event && event.ports && event.ports[0]) {
-        try { event.ports[0].postMessage({ ok: true }); } catch {}
+        try { event.ports[0].postMessage({ ok: true }); } catch { }
       }
-    } catch {}
+    } catch { }
   }
 });
 
@@ -165,9 +245,9 @@ self.addEventListener('sync', (event) => {
               body: JSON.stringify(item.payload || {})
             });
             await deleteFromQueue(item.id);
-          } catch {}
+          } catch { }
         }
-      } catch {}
+      } catch { }
     })());
   }
 });

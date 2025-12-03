@@ -24,6 +24,7 @@ const PAGE_ACCESS = {
   // Pages pour Admins (et plus)
   '/admin-agents.html': [ROLES.ADMIN, ROLES.SUPERADMIN],
   '/reports.html': [ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN],
+  '/synthese-globale.html': [ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN],
 
   // Page Superadmin
   '/admin.html': [ROLES.SUPERADMIN],
@@ -40,56 +41,229 @@ const PAGE_ACCESS = {
 // Durée de validité du token (24 heures)
 const TOKEN_EXPIRY_HOURS = 24;
 
+/**
+ * Rafraîchir le token JWT si nécessaire
+ * @param {string} token - Le token actuel
+ * @returns {Promise<string>} Le token actuel ou un nouveau token rafraîchi
+ */
 async function refreshTokenIfNeeded(token) {
+  if (!token) {
+    console.warn('❌ Aucun token fourni pour le rafraîchissement');
+    return null;
+  }
+  
   try {
+    // Vérifier d'abord si le token est expiré
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const now = Date.now() / 1000; // en secondes
+    
+    // Si le token est toujours valide pendant plus de 30 minutes, pas besoin de rafraîchir
+    if (payload.exp && (payload.exp - now) > 1800) {
+      console.log('ℹ️ Token toujours valide, pas besoin de rafraîchissement');
+      return token;
+    }
+    
+    console.log('🔄 Tentative de rafraîchissement du token...');
+    
+    // Vérifier si le token est expiré depuis trop longtemps (plus de 7 jours)
+    const maxRefreshTime = 7 * 24 * 60 * 60; // 7 jours en secondes
+    if (payload.exp && (now - payload.exp) > maxRefreshTime) {
+      console.warn('⚠️ Impossible de rafraîchir le token : délai de rafraîchissement dépassé');
+      return null;
+    }
+    
     const response = await fetch('/api/auth/refresh', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
       },
-      credentials: 'include' // Important pour les cookies de session
+      credentials: 'include',
+      timeout: 10000 // 10 secondes de timeout
     });
 
     if (response.ok) {
       const data = await response.json();
-      if (data.token) {
+      if (data && data.token) {
+        console.log('✅ Token rafraîchi avec succès');
+        
+        // Mettre à jour le token dans le localStorage
         localStorage.setItem('jwt', data.token);
+        
+        // Mettre à jour le gestionnaire de session si disponible
+        if (window.sessionManager) {
+          const session = window.sessionManager.getSession();
+          if (session) {
+            await window.sessionManager.saveSession(
+              data.token, 
+              session.userEmail, 
+              session.userProfile
+            );
+          }
+        }
+        
         return data.token;
+      } else {
+        console.warn('⚠️ Réponse de rafraîchissement invalide:', data);
       }
+    } else {
+      const errorText = await response.text();
+      console.warn(`❌ Échec du rafraîchissement du token (${response.status}):`, errorText);
     }
-    return token; // Retourne l'ancien token si le rafraîchissement échoue
   } catch (error) {
-    console.error('Erreur lors du rafraîchissement du token:', error);
-    return token;
+    console.error('❌ Erreur lors du rafraîchissement du token:', error);
   }
+  
+  return token; // En cas d'échec, on retourne l'ancien token
 }
 
+/**
+ * Vérifier si un token JWT est valide avec une gestion d'erreur améliorée
+ * @param {string} token - Le token à vérifier
+ * @returns {Promise<boolean>} true si le token est valide, false sinon
+ */
 async function isTokenValid(token) {
-  if (!token) return false;
+  if (!token) {
+    console.log('🔍 Aucun token fourni pour la validation');
+    return false;
+  }
+  
+  // Vérification basique de la longueur du token
+  if (token.length < 30) {
+    console.warn('⚠️ Token trop court pour être valide');
+    return false;
+  }
+  
+  // Vérification du format JWT (doit avoir 3 parties séparées par des points)
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    console.warn('❌ Format de token JWT invalide (doit avoir 3 parties)');
+    return false;
+  }
   
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    const now = Date.now() / 1000; // en secondes
-    
-    // Si le token expire dans moins de 30 minutes, on le rafraîchit
-    if (payload.exp && (payload.exp - now) < 1800) {
-      const newToken = await refreshTokenIfNeeded(token);
-      if (newToken !== token) {
-        return true; // Le token a été rafraîchi
+    // Décodage sécurisé du payload
+    let payload;
+    try {
+      const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const payloadJson = atob(payloadBase64);
+      payload = JSON.parse(payloadJson);
+      
+      if (!payload) {
+        console.warn('❌ Impossible de décoder le payload du token');
+        return false;
       }
-    }
-    
-    // Vérifier si le token est expiré
-    if (payload.exp && now >= payload.exp) {
+    } catch (e) {
+      console.error('❌ Erreur lors du décodage du payload JWT:', e);
       return false;
     }
     
+    const now = Math.floor(Date.now() / 1000); // en secondes, arrondi à l'entier inférieur
+    
+    // Vérification de la présence du champ exp
+    if (typeof payload.exp !== 'number') {
+      console.warn('❌ Token invalide: champ exp manquant ou invalide');
+      return false;
+    }
+    
+    // Vérification si le token est expiré
+    if (now >= payload.exp) {
+      console.log(`ℹ️ Token expiré le ${new Date(payload.exp * 1000).toISOString()}, tentative de rafraîchissement...`);
+      
+      try {
+        const newToken = await refreshTokenIfNeeded(token);
+        
+        if (!newToken || newToken === token) {
+          console.warn('⚠️ Impossible de rafraîchir le token expiré');
+          return false;
+        }
+        
+        console.log('✅ Token rafraîchi avec succès');
+        
+        // Mettre à jour le token dans le stockage
+        const tokenKey = findTokenStorageKey();
+        if (tokenKey) {
+          const storage = getTokenStorage(tokenKey);
+          if (storage) {
+            storage.setItem(tokenKey, newToken);
+            console.log('🔑 Token mis à jour dans le stockage');
+          }
+        }
+        
+        return true;
+      } catch (refreshError) {
+        console.error('❌ Erreur lors du rafraîchissement du token:', refreshError);
+        return false;
+      }
+    }
+    
+    // Vérification si le token expire bientôt (moins de 30 minutes)
+    const expiresIn = payload.exp - now;
+    const thirtyMinutes = 30 * 60; // 30 minutes en secondes
+    
+    if (expiresIn < thirtyMinutes) {
+      console.log(`ℹ️ Token expire dans ${Math.floor(expiresIn / 60)} minutes, rafraîchissement anticipé...`);
+      
+      // Rafraîchissement en arrière-plan sans attendre
+      refreshTokenIfNeeded(token)
+        .then(newToken => {
+          if (newToken && newToken !== token) {
+            console.log('✅ Token rafraîchi avec succès (en arrière-plan)');
+            const tokenKey = findTokenStorageKey();
+            if (tokenKey) {
+              const storage = getTokenStorage(tokenKey);
+              if (storage) {
+                storage.setItem(tokenKey, newToken);
+              }
+            }
+          }
+        })
+        .catch(e => {
+          console.error('⚠️ Échec du rafraîchissement en arrière-plan:', e);
+        });
+    } else {
+      console.log(`✅ Token valide, expire dans ${Math.ceil(expiresIn / 60)} minutes`);
+    }
+    
     return true;
+    
   } catch (e) {
-    console.error('Erreur de validation du token:', e);
+    console.error('❌ Erreur critique lors de la validation du token:', e);
     return false;
   }
+}
+
+/**
+ * Trouve la clé sous laquelle le token est stocké
+ * @returns {string|null} La clé du token ou null si non trouvée
+ */
+function findTokenStorageKey() {
+  const TOKEN_KEYS = ['jwt', 'access_token', 'token', 'sb-access-token', 'sb:token'];
+  for (const key of TOKEN_KEYS) {
+    if (localStorage.getItem(key) || sessionStorage.getItem(key)) {
+      return key;
+    }
+  }
+  return null;
+}
+
+/**
+ * Récupère le stockage (localStorage ou sessionStorage) qui contient le token
+ * @param {string} key - La clé du token
+ * @returns {Storage|null} Le stockage contenant le token ou null si non trouvé
+ */
+function getTokenStorage(key) {
+  if (!key) return null;
+  
+  try {
+    if (localStorage.getItem(key)) return localStorage;
+    if (sessionStorage.getItem(key)) return sessionStorage;
+  } catch (e) {
+    console.error('Erreur lors de l\'accès au stockage:', e);
+  }
+  
+  return null;
 }
 
 async function getUserRole() {
@@ -332,10 +506,42 @@ async function renderNavbar() {
   }
 }
 
+async function isLoggedIn() {
+  const token = localStorage.getItem('jwt');
+  if (!token) return false;
+  
+  // Vérifier la validité du token
+  return await isTokenValid(token);
+}
+
+/**
+ * Fonction de déconnexion complète
+ * Nettoie le localStorage et redirige vers la page de connexion
+ */
 function logout() {
-  localStorage.removeItem('jwt');
-  localStorage.removeItem('userProfile');
-  window.location.href = '/index.html';
+  try {
+    // Appeler la fonction de déconnexion globale si elle existe
+    if (typeof window.logout === 'function') {
+      window.logout();
+    } else {
+      // Nettoyage de base si la fonction globale n'existe pas
+      localStorage.removeItem('jwt');
+      localStorage.removeItem('userProfile');
+      localStorage.removeItem('userEmail');
+      
+      // Nettoyer la session via le gestionnaire de session s'il existe
+      if (window.sessionManager) {
+        window.sessionManager.clearSession();
+      }
+      
+      // Rediriger vers la page de connexion
+      window.location.href = '/index.html';
+    }
+  } catch (error) {
+    console.error('Erreur lors de la déconnexion:', error);
+    // Forcer la redirection en cas d'erreur
+    window.location.href = '/index.html';
+  }
 }
 
 // Injection légère des scripts temps réel + bulle si non présents

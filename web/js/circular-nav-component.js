@@ -44,6 +44,12 @@ class CircularNav extends HTMLElement {
         roles: ['AGENT']
       },
       { 
+        href: '/agent-dashboard.html', 
+        icon: '📄', 
+        label: 'Rapport Agent',
+        roles: ['AGENT', 'SUPERVISEUR', 'ADMIN', 'SUPERADMIN']
+      },
+      { 
         href: '/dashboard.html', 
         icon: '📈', 
         label: 'Tableau de Bord',

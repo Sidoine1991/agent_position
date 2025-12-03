@@ -402,7 +402,11 @@
     <main class="main-content">
       <div class="page-header">
         <h2>Demandes de Permission</h2>
-        <p>Gérez vos demandes de permission et validez celles de vos agents</p>
+        <p>Gérez vos propres demandes de permission et, selon votre rôle, traitez celles de vos agents.</p>
+        <small class="text-muted d-block mt-1">
+          Les agents peuvent uniquement créer et suivre leurs demandes. La validation, le rejet et la modification des demandes des autres
+          sont réservés aux superviseurs et administrateurs.
+        </small>
       </div>
 
       <!-- Section pour créer/modifier une demande (Agents uniquement - EN PREMIER pour agents) -->
@@ -438,6 +442,39 @@
                   <input type="date" class="form-control form-control-lg" id="end-date" required>
                   <div class="invalid-feedback">Veuillez sélectionner une date de fin.</div>
                   <small class="form-text text-muted">Sélectionnez le dernier jour de votre permission</small>
+                </div>
+              </div>
+
+              <div class="row mb-4">
+                <div class="col-md-8 mb-3">
+                  <label for="reason" class="form-label fw-bold">
+                    <i class="bi bi-chat-left-text me-2 text-primary"></i>Raison / Motif de la permission <span class="text-danger">*</span>
+                  </label>
+                  <textarea
+                    id="reason"
+                    class="form-control form-control-lg"
+                    rows="3"
+                    placeholder="Expliquez clairement la raison de votre absence (ex : maladie, rendez-vous administratif, mission, urgence familiale, etc.)"
+                    required
+                  ></textarea>
+                  <div class="invalid-feedback">Veuillez indiquer la raison de votre demande.</div>
+                  <small class="form-text text-muted">
+                    Cette information aide votre superviseur à comprendre le contexte et à prendre une décision juste.
+                  </small>
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label for="justification-file" class="form-label fw-bold">
+                    <i class="bi bi-paperclip me-2 text-primary"></i>Pièce justificative (optionnel)
+                  </label>
+                  <input
+                    type="file"
+                    id="justification-file"
+                    class="form-control form-control-lg"
+                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  />
+                  <small class="form-text text-muted">
+                    Vous pouvez joindre un justificatif (certificat médical, convocation, etc.).
+                  </small>
                 </div>
               </div>
               
@@ -495,8 +532,14 @@
             <div class="p-4 bg-light border-bottom">
               <div class="alert alert-info mb-0">
                 <i class="bi bi-info-circle me-2"></i>
-                <strong>Rôle superviseur :</strong> Vous pouvez valider ou rejeter les demandes de permission de vos agents. 
-                Pour rejeter une demande, vous devez obligatoirement indiquer un motif.
+                <strong>Section de traitement des permissions :</strong>
+                cette zone est réservée aux superviseurs et administrateurs.
+                Ils peuvent valider ou rejeter les demandes de permission de leurs agents. Pour rejeter une demande,
+                un motif est obligatoire.
+                <br />
+                <span class="small text-muted">
+                  Les agents ne peuvent pas utiliser ces boutons de validation/rejet/modification sur les demandes des autres.
+                </span>
               </div>
             </div>
 

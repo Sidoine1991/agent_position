@@ -22,15 +22,35 @@ class GPSTracker {
 
   async loadWorkZones() {
     try {
-      const token = localStorage.getItem('jwt');
+      // Utiliser la même logique de récupération du token que dans app.js et auth.js
+      const token = localStorage.getItem('jwt') || 
+                   localStorage.getItem('jwt_token') || 
+                   localStorage.getItem('token') || 
+                   (window.userSession && window.userSession.token);
+      
       const headers = {};
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
+        console.log('🔑 Token JWT trouvé et ajouté aux en-têtes');
+      } else {
+        console.warn('⚠️ Aucun token JWT trouvé dans le stockage local');
       }
       
+      console.log('🔍 Envoi de la requête à /api/work-zones avec les en-têtes:', headers);
       const response = await fetch('/api/work-zones', { headers });
+      
       if (response.ok) {
         this.workZones = await response.json();
+        console.log('✅ Zones de travail chargées avec succès');
+      } else {
+        console.error('❌ Erreur lors du chargement des zones de travail:', response.status, response.statusText);
+        // Afficher plus de détails sur l'erreur
+        try {
+          const errorData = await response.json();
+          console.error('Détails de l\'erreur:', errorData);
+        } catch (e) {
+          console.error('Impossible de parser la réponse d\'erreur:', e);
+        }
       }
     } catch (error) {
       console.warn('Impossible de charger les zones de travail:', error);

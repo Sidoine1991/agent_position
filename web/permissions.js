@@ -59,42 +59,32 @@ async function loadUserInfo() {
     const createSection = document.getElementById('create-permission-section');
     const supervisorSection = document.getElementById('supervisor-section');
     const myPermissionsSection = document.getElementById('my-permissions-section');
+    const agentsPermissionsSection = document.getElementById('agents-permissions-section');
     const agentFiltersSection = document.getElementById('agent-filters-section');
     const newPermissionBtn = document.getElementById('new-permission-btn');
-    
-    // Logique selon le rôle
-    if (userRole === 'AGENT') {
-      // Pour les AGENTS : Formulaire en premier, puis "Mes demandes"
-      if (createSection) {
-        createSection.style.display = 'block';
-        createSection.style.visibility = 'visible';
-        createSection.style.opacity = '1';
-      }
-      if (myPermissionsSection) myPermissionsSection.style.display = 'block';
-      if (agentFiltersSection) agentFiltersSection.style.display = 'block';
-      if (newPermissionBtn) newPermissionBtn.style.display = 'block';
-      if (supervisorSection) supervisorSection.style.display = 'none';
-      
-      // S'assurer que les boutons sont visibles
-      setTimeout(() => {
-        const buttons = createSection?.querySelectorAll('button');
-        if (buttons) {
-          buttons.forEach(btn => {
-            btn.style.display = '';
-            btn.style.visibility = 'visible';
-            btn.style.opacity = '1';
-          });
-        }
-      }, 100);
-    } else if (userRole === 'SUPERVISEUR' || userRole === 'ADMIN' || userRole === 'SUPERADMIN') {
-      // Pour les SUPERVISEURS/ADMINS : Section validation en premier, pas de formulaire ni "Mes demandes"
-      const agentsPermissionsSection = document.getElementById('agents-permissions-section');
+
+    const isSupervisor =
+      userRole === 'SUPERVISEUR' || userRole === 'ADMIN' || userRole === 'SUPERADMIN';
+
+    // Tous les rôles connectés peuvent créer et suivre leurs propres demandes
+    if (createSection) {
+      createSection.style.display = 'block';
+      createSection.style.visibility = 'visible';
+      createSection.style.opacity = '1';
+    }
+    if (myPermissionsSection) myPermissionsSection.style.display = 'block';
+    if (newPermissionBtn) newPermissionBtn.style.display = 'block';
+
+    // Filtres spécifiques "mes demandes" uniquement utiles pour les agents
+    if (agentFiltersSection) {
+      agentFiltersSection.style.display = userRole === 'AGENT' ? 'block' : 'none';
+    }
+
+    // Section de traitement / liste des agents permissionnaires réservée aux superviseurs & admins
+    if (isSupervisor) {
       if (supervisorSection) supervisorSection.style.display = 'block';
       if (agentsPermissionsSection) agentsPermissionsSection.style.display = 'block';
-      if (createSection) createSection.style.display = 'none';
-      if (myPermissionsSection) myPermissionsSection.style.display = 'none';
-      if (agentFiltersSection) agentFiltersSection.style.display = 'none';
-      if (newPermissionBtn) newPermissionBtn.style.display = 'none';
+
       await loadProjects();
       await loadAgents();
       await loadSupervisors();
@@ -102,10 +92,20 @@ async function loadUserInfo() {
       await loadAgentsPermissionsList();
       setupAgentsPermissionsFilters();
     } else {
-      // Pour les autres rôles : tout masqué
-      if (createSection) createSection.style.display = 'none';
       if (supervisorSection) supervisorSection.style.display = 'none';
-      if (myPermissionsSection) myPermissionsSection.style.display = 'none';
+      if (agentsPermissionsSection) agentsPermissionsSection.style.display = 'none';
+    }
+
+    // S'assurer que les boutons du formulaire sont visibles
+    if (createSection) {
+      setTimeout(() => {
+        const buttons = createSection.querySelectorAll('button');
+        buttons.forEach(btn => {
+          btn.style.display = '';
+          btn.style.visibility = 'visible';
+          btn.style.opacity = '1';
+        });
+      }, 100);
     }
   } catch (error) {
     console.error('Erreur lors du chargement des informations utilisateur:', error);
@@ -183,9 +183,12 @@ async function createPermission(status = 'pending') {
   try {
     const startDate = document.getElementById('start-date').value;
     const endDate = document.getElementById('end-date').value;
+    const reason = document.getElementById('reason')?.value?.trim() || '';
+    const fileInput = document.getElementById('justification-file');
+    const file = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
 
-    if (!startDate || !endDate) {
-      showMessage('Veuillez remplir tous les champs', 'error');
+    if (!startDate || !endDate || !reason) {
+      showMessage('Veuillez remplir la date de début, la date de fin et la raison de la demande.', 'error');
       return;
     }
 
@@ -195,17 +198,22 @@ async function createPermission(status = 'pending') {
     }
 
     const token = localStorage.getItem('jwt');
+
+    const formData = new FormData();
+    formData.append('start_date', startDate);
+    formData.append('end_date', endDate);
+    formData.append('status', status);
+    formData.append('reason', reason);
+    if (file) {
+      formData.append('justification', file);
+    }
+
     const response = await fetch('/api/permissions', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({
-        start_date: startDate,
-        end_date: endDate,
-        status: status
-      })
+      body: formData
     });
 
     const data = await response.json();

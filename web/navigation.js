@@ -235,6 +235,7 @@ class NavigationManager {
             menu.appendChild(linkElement);
         });
 
+        this.addSyncButton(menu);
         // Add user dropdown
         this.addUserDropdown(menu, profile);
     }
@@ -295,6 +296,25 @@ class NavigationManager {
             </div>
         `;
         menu.appendChild(dropdown);
+    }
+
+    addSyncButton(menu) {
+        if (!menu || menu.querySelector('#sync-offline-checkins-btn')) {
+            return;
+        }
+
+        const button = document.createElement('button');
+        button.id = 'sync-offline-checkins-btn';
+        button.className = 'navbar-link';
+        button.title = 'Synchroniser les check-ins en attente';
+        button.innerHTML = `
+            <span style="font-size: 24px;">🔄</span>
+            <span>Sync</span>
+            <span id="sync-checkins-badge" class="badge bg-danger" style="position: absolute; top: -5px; right: -5px; font-size: 10px; padding: 2px 5px; display: none;">0</span>
+        `;
+
+        menu.appendChild(button);
+        document.dispatchEvent(new CustomEvent('syncButtonAdded'));
     }
 
     showLoginMenu() {

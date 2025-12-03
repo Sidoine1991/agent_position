@@ -16,6 +16,39 @@
     return trimmed || 'Non spécifié';
   };
   const getStatProjectSlug = (stat) => normalizeProjectName(stat?.normalized_project || stat?.project_name);
+
+  const extractArrayFromResponse = (payload, preferredKeys = []) => {
+    if (!payload) return [];
+    if (Array.isArray(payload)) return payload;
+
+    const candidateKeys = [
+      ...preferredKeys,
+      'items',
+      'data',
+      'results',
+      'records',
+      'rows',
+      'planifications',
+      'activities',
+      'checkins',
+      'validations',
+      'agents',
+      'users'
+    ];
+
+    for (const key of candidateKeys) {
+      if (Array.isArray(payload?.[key])) {
+        return payload[key];
+      }
+    }
+
+    if (typeof payload === 'object') {
+      const firstArray = Object.values(payload).find(Array.isArray);
+      if (firstArray) return firstArray;
+    }
+
+    return [];
+  };
   
   // Constantes pour l'authentification (déclarées au début)
   const DEFAULT_TOKEN_CANDIDATES = ['jwt', 'access_token', 'token', 'sb-access-token', 'sb:token'];
@@ -1606,7 +1639,7 @@
         const res = await fetch(`${apiBase}/admin/agents`, { headers });
         if (res.ok) {
           const payload = await res.json();
-          const list = payload?.data || payload?.agents || payload?.items || [];
+      const list = extractArrayFromResponse(payload, ['agents']);
           if (Array.isArray(list) && list.length) {
             // Charger TOUS les utilisateurs (agents ET superviseurs)
             agents = list; // Ne pas filtrer par rôle
@@ -1623,7 +1656,7 @@
           const res = await fetch(`${apiBase}/agents`, { headers });
           if (res.ok) {
             const payload = await res.json();
-            const list = payload?.data || payload?.agents || payload?.items || [];
+        const list = extractArrayFromResponse(payload, ['agents']);
             if (Array.isArray(list) && list.length) {
               // Charger TOUS les utilisateurs (agents ET superviseurs)
               agents = list; // Ne pas filtrer par rôle
@@ -1641,7 +1674,7 @@
           const res = await fetch(`${apiBase}/users`, { headers });
           if (res.ok) {
             const payload = await res.json();
-            const list = payload?.data || payload?.users || payload?.items || [];
+        const list = extractArrayFromResponse(payload, ['users']);
             if (Array.isArray(list) && list.length) {
               // Charger TOUS les utilisateurs (agents ET superviseurs)
               agents = list; // Ne pas filtrer par rôle
@@ -2010,7 +2043,7 @@
 
       if (res.ok) {
         const data = await res.json();
-        activities = data.items || [];
+        activities = extractArrayFromResponse(data, ['planifications', 'activities']);
 
         // Enrichir les activités avec infos agent si disponibles (pour filtre superviseur)
         // (best-effort: si backend renvoie déjà l'agent/superviseur, on l'utilise)

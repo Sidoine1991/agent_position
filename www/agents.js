@@ -375,10 +375,228 @@ function updateStatistics() {
   $('supervisor-count').textContent = supervisorCount;
 }
 
-// Filtrer les agents
-function filterAgents() {
+// Filtrer les agents avec debounce
+const filterAgents = debounce(function() {
+  console.log('Filtrage des agents...');
   agentPagination.page = 1;
   loadAgents();
+}, 300);
+
+// Initialiser les écouteurs d'événements pour les filtres
+function initFilters() {
+  const searchInput = $('search-agents');
+  const roleFilter = $('filter-role');
+  const statusFilter = $('filter-status');
+  const projectFilter = $('report-project-select');
+  const agentFilter = $('report-agent-select');
+  const monthInput = $('report-month-input');
+
+  if (searchInput) {
+    searchInput.addEventListener('input', filterAgents);
+  }
+  
+  if (roleFilter) {
+    roleFilter.addEventListener('change', filterAgents);
+  }
+  
+  if (statusFilter) {
+    statusFilter.addEventListener('change', filterAgents);
+  }
+
+  // Filtres pour le rapport mensuel
+  if (projectFilter) {
+    projectFilter.addEventListener('change', function() {
+      // Mettre à jour la liste des agents selon le projet sélectionné
+      updateAgentOptionsByProject();
+    });
+  }
+
+  if (agentFilter) {
+    agentFilter.addEventListener('change', function() {
+      // Valider que l'agent est sélectionné avant de permettre la génération
+      validateReportInputs();
+    });
+  }
+
+  if (monthInput) {
+    monthInput.addEventListener('change', function() {
+      // Valider que le mois est sélectionné
+      validateReportInputs();
+    });
+  }
+}
+
+// Charger les options de projets depuis Supabase
+async function loadProjectOptions() {
+  const projectSelect = $('report-project-select');
+  if (!projectSelect) return;
+  
+  try {
+    // Récupérer la configuration Supabase
+    const supabaseUrl = (window.SUPABASE_URL || localStorage.getItem('SUPABASE_URL') || '').replace(/\/+$/, '');
+    const supabaseKey = (window.SUPABASE_ANON_KEY || localStorage.getItem('SUPABASE_ANON_KEY') || '').trim();
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn('Configuration Supabase manquante pour les projets');
+      return;
+    }
+    
+    // Récupérer les projets depuis Supabase
+    const response = await fetch(`${supabaseUrl}/rest/v1/projects?select=id,name,description,status&order=name.asc`, {
+      headers: {
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      console.warn('Erreur lors de la récupération des projets:', response.status, response.statusText);
+      return;
+    }
+    
+    const projects = await response.json();
+    
+    // Conserver la sélection actuelle
+    const currentValue = projectSelect.value;
+    
+    projectSelect.innerHTML = '<option value="">Tous les projets</option>';
+    
+    if (Array.isArray(projects) && projects.length > 0) {
+      projects.forEach(project => {
+        if (!project || !project.id) return;
+        const option = document.createElement('option');
+        option.value = project.id;
+        option.textContent = project.name || `Projet ${project.id}`;
+        projectSelect.appendChild(option);
+      });
+      console.log(`Chargé ${projects.length} projets depuis Supabase`);
+    } else {
+      console.warn('Aucun projet trouvé dans Supabase');
+    }
+    
+    // Restaurer la sélection si possible
+    if (currentValue && projectSelect.querySelector(`option[value="${currentValue}"]`)) {
+      projectSelect.value = currentValue;
+    }
+    
+  } catch (error) {
+    console.error('Erreur lors du chargement des projets depuis Supabase:', error);
+  }
+}
+
+// Mettre à jour les options d'agents selon le projet sélectionné (avec données Supabase)
+async function updateAgentOptionsByProject() {
+  const projectSelect = $('report-project-select');
+  const agentSelect = $('report-agent-select');
+  
+  if (!projectSelect || !agentSelect) return;
+  
+  const selectedProject = projectSelect.value;
+  
+  try {
+    let filteredAgents = agents;
+    
+    // Si un projet est sélectionné, filtrer les agents selon leurs affectations
+    if (selectedProject) {
+      // Récupérer la configuration Supabase
+      const supabaseUrl = (window.SUPABASE_URL || localStorage.getItem('SUPABASE_URL') || '').replace(/\/+$/, '');
+      const supabaseKey = (window.SUPABASE_ANON_KEY || localStorage.getItem('SUPABASE_ANON_KEY') || '').trim();
+      
+      if (supabaseUrl && supabaseKey) {
+        // Récupérer les affectations user_projects pour ce projet
+        const userProjectsResponse = await fetch(`${supabaseUrl}/rest/v1/user_projects?select=user_id,project_id,role&project_id=eq.${selectedProject}`, {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (userProjectsResponse.ok) {
+          const userProjects = await userProjectsResponse.json();
+          const userIdsInProject = new Set(userProjects.map(up => up.user_id));
+          
+          // Filtrer les agents selon leur appartenance au projet
+          filteredAgents = agents.filter(agent => 
+            userIdsInProject.has(Number(agent.id)) || 
+            agent.project === selectedProject || 
+            agent.adminUnit?.includes(selectedProject.toUpperCase())
+          );
+          
+          console.log(`Filtré ${filteredAgents.length} agents pour le projet ${selectedProject} (basé sur ${userProjects.length} affectations)`);
+        } else {
+          console.warn('Erreur lors de la récupération des affectations de projet:', userProjectsResponse.status);
+          // Fallback: filtrer selon les champs locaux
+          filteredAgents = agents.filter(agent => 
+            agent.project === selectedProject || 
+            agent.adminUnit?.includes(selectedProject.toUpperCase())
+          );
+        }
+      } else {
+        console.warn('Configuration Supabase manquante, utilisation du filtrage local');
+        // Fallback: filtrer selon les champs locaux
+        filteredAgents = agents.filter(agent => 
+          agent.project === selectedProject || 
+          agent.adminUnit?.includes(selectedProject.toUpperCase())
+        );
+      }
+    }
+    
+    // Conserver la sélection actuelle si elle existe dans les options filtrées
+    const currentValue = agentSelect.value;
+    
+    agentSelect.innerHTML = '<option value="">Sélectionnez un agent</option>';
+    
+    filteredAgents.forEach(agent => {
+      if (!agent || typeof agent.id === 'undefined') return;
+      const option = document.createElement('option');
+      option.value = agent.id;
+      option.textContent = agent.name || agent.email || `Agent ${agent.id}`;
+      agentSelect.appendChild(option);
+    });
+    
+    // Restaurer la sélection si possible
+    if (currentValue && agentSelect.querySelector(`option[value="${currentValue}"]`)) {
+      agentSelect.value = currentValue;
+    }
+    
+    validateReportInputs();
+    
+  } catch (error) {
+    console.error('Erreur lors du filtrage des agents par projet:', error);
+    // En cas d'erreur, afficher tous les agents
+    populateReportAgentOptions();
+  }
+}
+
+// Valider les entrées du formulaire de rapport
+function validateReportInputs() {
+  const projectSelect = $('report-project-select');
+  const agentSelect = $('report-agent-select');
+  const monthInput = $('report-month-input');
+  const generateBtn = $('report-generate-btn');
+  
+  if (!agentSelect || !monthInput || !generateBtn) return;
+  
+  const projectId = projectSelect?.value || '';
+  const agentId = agentSelect.value;
+  const monthValue = monthInput.value;
+  
+  // Le projet est optionnel, mais l'agent et le mois sont obligatoires
+  const isValid = agentId && monthValue;
+  generateBtn.disabled = !isValid;
+  
+  if (!isValid) {
+    const missingFields = [];
+    if (!agentId) missingFields.push('agent');
+    if (!monthValue) missingFields.push('mois');
+    
+    setReportStatus(`Veuillez sélectionner un ${missingFields.join(' et un ')} pour générer le rapport.`, 'info');
+  } else {
+    const projectName = projectId ? projectSelect.options[projectSelect.selectedIndex]?.text : 'Tous les projets';
+    setReportStatus(`Prêt à générer le rapport pour ${projectName}.`, 'info');
+  }
 }
 
 // Ouvrir le modal de création d'agent
@@ -767,20 +985,99 @@ function renderMonthlyReport(report) {
   const photosEl = $('report-photos');
   const photos = Array.isArray(report?.photos) ? report.photos : [];
   if (photosEl) {
-    photosEl.innerHTML = photos.length
-      ? photos.map(photo => `<img src="${escapeHtml(photo.url)}" alt="Photo check-in" loading="lazy">`).join('')
-      : '<p>Aucune photo disponible pour ce mois.</p>';
+    if (photos.length === 0) {
+      photosEl.innerHTML = '<p>Aucune photo disponible pour ce mois.</p>';
+    } else {
+      photosEl.innerHTML = photos.map(photo => {
+        const locationText = photo.location ? `<small>📍 ${escapeHtml(photo.location)}</small>` : '';
+        const dateText = photo.date ? `<small>${formatDateShort(photo.date, true)}</small>` : '';
+        return `
+          <div class="photo-item" style="display: inline-block; margin: 4px; text-align: center; max-width: 120px;">
+            <img src="${escapeHtml(photo.url)}" alt="Photo check-in" loading="lazy" 
+                 style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <div style="margin-top: 4px; font-size: 0.8em; color: #64748b;">
+              ${dateText}
+              ${locationText ? `<br>${locationText}` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  // Afficher le classement du projet
+  const rankingEl = $('report-ranking');
+  const projectRanking = Array.isArray(report?.projectRanking) ? report.projectRanking : [];
+  if (rankingEl) {
+    if (projectRanking.length === 0) {
+      rankingEl.innerHTML = '<p>Aucun classement disponible pour ce mois.</p>';
+    } else {
+      const currentAgentId = reportState.selectedAgentId;
+      rankingEl.innerHTML = `
+        <div class="ranking-table-container" style="margin-top: 16px;">
+          <h4 style="margin-bottom: 12px; color: #1e293b;">🏆 Classement du projet</h4>
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+              <thead>
+                <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                  <th style="padding: 8px 12px; text-align: center; font-weight: 600; color: #475569;">Rang</th>
+                  <th style="padding: 8px 12px; text-align: left; font-weight: 600; color: #475569;">Agent</th>
+                  <th style="padding: 8px 12px; text-align: center; font-weight: 600; color: #475569;">Jours</th>
+                  <th style="padding: 8px 12px; text-align: center; font-weight: 600; color: #475569;">Tâches</th>
+                  <th style="padding: 8px 12px; text-align: center; font-weight: 600; color: #475569;">Réalisées</th>
+                  <th style="padding: 8px 12px; text-align: center; font-weight: 600; color: #475569;">Taux</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${projectRanking.map(agent => {
+                  const isCurrentAgent = agent.agentId == currentAgentId;
+                  const rankColor = agent.rank === 1 ? '#fbbf24' : agent.rank === 2 ? '#cbd5e1' : agent.rank === 3 ? '#f97316' : '#64748b';
+                  const rowStyle = isCurrentAgent ? 'background: #fef3c7; font-weight: 600;' : 'background: #ffffff; border-bottom: 1px solid #f1f5f9;';
+                  return `
+                    <tr style="${rowStyle}">
+                      <td style="padding: 8px 12px; text-align: center;">
+                        <span style="color: ${rankColor}; font-weight: bold; font-size: 1.1em;">${agent.rank}</span>
+                      </td>
+                      <td style="padding: 8px 12px; text-align: left;">
+                        ${escapeHtml(agent.agentName)}
+                        ${isCurrentAgent ? '<span style="margin-left: 8px; background: #3b82f6; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8em;">VOUS</span>' : ''}
+                      </td>
+                      <td style="padding: 8px 12px; text-align: center; color: #1e293b;">${agent.workedDays}</td>
+                      <td style="padding: 8px 12px; text-align: center; color: #1e293b;">${agent.totalActivities}</td>
+                      <td style="padding: 8px 12px; text-align: center; color: #059669; font-weight: 600;">${agent.realizedActivities}</td>
+                      <td style="padding: 8px 12px; text-align: center;">
+                        <span style="background: ${agent.completionRate >= 80 ? '#dcfce7' : agent.completionRate >= 60 ? '#fef3c7' : '#fee2e2'}; 
+                                   color: ${agent.completionRate >= 80 ? '#166534' : agent.completionRate >= 60 ? '#92400e' : '#991b1b'}; 
+                                   padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 0.85em;">
+                          ${agent.completionRate}%
+                        </span>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+          <small style="color: #64748b; margin-top: 8px; display: block;">
+            Classement basé sur le taux de réalisation des tâches, puis par nombre de jours travaillés
+          </small>
+        </div>
+      `;
+    }
   }
 
   toggleReportGrid(true);
 }
 
 async function generateAgentMonthlyReport() {
+  const projectSelect = $('report-project-select');
   const agentSelect = $('report-agent-select');
   const monthInput = $('report-month-input');
   const generateBtn = $('report-generate-btn');
+  
   if (!agentSelect || !monthInput) return;
 
+  const projectId = projectSelect?.value || '';
   const agentId = agentSelect.value;
   const monthValue = monthInput.value || getCurrentMonthValue();
   reportState.monthValue = monthValue;
@@ -799,15 +1096,22 @@ async function generateAgentMonthlyReport() {
   toggleReportGrid(false);
 
   try {
-    const params = new URLSearchParams({ agentId, month: monthValue });
+    const params = new URLSearchParams({ 
+      agentId, 
+      month: monthValue,
+      ...(projectId && { projectId }) // Ajouter le projectId si sélectionné
+    });
     const response = await api(`/agents/monthly-report?${params.toString()}`);
+    
     if (!response || response.success === false) {
       throw new Error(response?.error || 'Impossible de générer le rapport');
     }
+    
     if (requestToken !== reportState.requestToken) {
-      console.debug('Rapport mensuel ignoré (requête obsolète)', { agentId, monthValue });
+      console.debug('Rapport mensuel ignoré (requête obsolète)', { agentId, monthValue, projectId });
       return;
     }
+    
     reportState.selectedAgentId = agentId;
     reportState.currentReport = response;
     renderMonthlyReport(response);
@@ -876,7 +1180,7 @@ function buildReportHtml(report) {
   <section class="card">
     <h2>Activités</h2>
     <p>Total activités : ${activities.total || 0}</p>
-    <ul>${(activities.list || []).slice(0, 10).map(act => `<li>${formatDateShort(act.date, true)} — ${escapeHtml(act.description)} (${escapeHtml(act.result || 'Planifié')})</li>`).join('') || '<li>Aucune activité détaillée.</li>'}</ul>
+    <ul>${(activities.list || []).map(act => `<li>${formatDateShort(act.date, true)} — ${escapeHtml(act.description)} (${escapeHtml(act.result || 'Planifié')})</li>`).join('') || '<li>Aucune activité détaillée.</li>'}</ul>
   </section>
 
   <section class="card">
@@ -914,7 +1218,7 @@ function buildReportText(report) {
     `Présence: ${presence.presenceRate || 0}% (${presence.workedDays || 0}/${presence.workingDays || 0} jours, ${presence.totalCheckins || 0} check-ins)`,
     '',
     `Activités consignées: ${activities.total || 0}`,
-    ...((activities.list || []).slice(0, 10).map(act => `- ${formatDateShort(act.date, true)}: ${act.description} (${act.result || 'Planifié'})`)),
+    ...((activities.list || []).map(act => `- ${formatDateShort(act.date, true)}: ${act.description} (${act.result || 'Planifié'})`)),
     '',
     'Suggestions:',
     ...(suggestions.length ? suggestions.map(item => `- ${item}`) : ['- Aucune recommandation particulière.'])
@@ -942,7 +1246,10 @@ function downloadMonthlyReport(format) {
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     await checkAuth();
+    // Initialiser les filtres
+    initFilters();
     await loadAdminUnits();
+    await loadProjectOptions();
     
     // Initialiser les écouteurs d'événements pour les filtres
     const searchInput = $('search-agents');

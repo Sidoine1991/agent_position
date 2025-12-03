@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#0ea5e9" />
+  <title>Synthèse Globale - Presence CCRB</title>
+  <script type="module" src="/auth.js?v=2" defer></script>
+  <!-- Import du SDK Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Configuration Supabase -->
+  <script src="/js/supabase-config.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
+  <link rel="stylesheet" href="/styles.css?v=2" />
+  <link rel="stylesheet" href="/contrast-fixes.css" />
+  <style>
+    body {
+      background: #f8f9fa;
+      padding-top: 20px;
+    }
+
+    .page-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px 0;
+      margin-bottom: 30px;
+      border-radius: 0 0 20px 20px;
+    }
+
+    .filter-card {
+      background: white;
+      border-radius: 15px;
+      padding: 25px;
+      margin-bottom: 30px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .summary-table-container {
+      background: white;
+      border-radius: 15px;
+      padding: 25px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      overflow-x: auto;
+    }
+
+    .summary-table {
+      width: 100%;
+      min-width: 1200px;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    .summary-table thead {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .summary-table th {
+      padding: 12px 8px;
+      text-align: center;
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      white-space: nowrap;
+    }
+
+    .summary-table td {
+      padding: 10px 8px;
+      text-align: center;
+      border: 1px solid #dee2e6;
+      vertical-align: middle;
+    }
+
+    .summary-table tbody tr:hover {
+      background-color: #f8f9fa;
+    }
+
+    .summary-table tbody tr:nth-child(even) {
+      background-color: #f8f9fa;
+    }
+
+    .agent-name {
+      font-weight: 600;
+      color: #2c3e50;
+      text-align: left !important;
+      padding-left: 15px !important;
+    }
+
+    .metric-excellent {
+      background-color: #d4edda;
+      color: #155724;
+      font-weight: 600;
+    }
+
+    .metric-good {
+      background-color: #d1ecf1;
+      color: #0c5460;
+      font-weight: 600;
+    }
+
+    .metric-average {
+      background-color: #fff3cd;
+      color: #856404;
+      font-weight: 600;
+    }
+
+    .metric-poor {
+      background-color: #f8d7da;
+      color: #721c24;
+      font-weight: 600;
+    }
+
+    .metric-critical {
+      background-color: #f5c6cb;
+      color: #721c24;
+      font-weight: 700;
+    }
+
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      color: white;
+      font-size: 1.2rem;
+    }
+
+    .loading-spinner {
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .stats-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .stat-card .value {
+      font-size: 2rem;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .stat-card .label {
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page-header">
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="mb-0"><i class="bi bi-table me-2"></i>Synthèse Globale des Rapports</h1>
+          <p class="mb-0 mt-2 opacity-75">Vue d'ensemble de tous les agents d'un projet</p>
+        </div>
+        <div>
+          <a href="/index.html" class="btn btn-light">
+            <i class="bi bi-house me-1"></i>Accueil
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Filtres -->
+    <div class="filter-card">
+      <h5 class="mb-3"><i class="bi bi-funnel me-2"></i>Filtres</h5>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label for="project-filter" class="form-label">Projet</label>
+          <select id="project-filter" class="form-select">
+            <option value="">Chargement...</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label for="month-filter" class="form-label">Mois</label>
+          <input type="month" id="month-filter" class="form-control" value="">
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <button type="button" class="btn btn-primary w-100" onclick="loadSummary()">
+            <i class="bi bi-search me-1"></i>Charger la synthèse
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Statistiques globales -->
+    <div id="stats-summary" class="stats-summary" style="display: none;">
+      <!-- Sera rempli dynamiquement -->
+    </div>
+
+    <!-- Tableau de synthèse -->
+    <div class="summary-table-container">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="bi bi-table me-2"></i>Tableau de synthèse</h5>
+        <div>
+          <button type="button" class="btn btn-success btn-sm" onclick="exportToCSV()">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Exporter CSV
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="exportToHTML()">
+            <i class="bi bi-file-earmark-code me-1"></i>Exporter HTML
+          </button>
+        </div>
+      </div>
+      <div id="summary-table-wrapper">
+        <div class="text-center py-5 text-muted">
+          <i class="bi bi-info-circle me-2"></i>
+          Sélectionnez un projet et un mois, puis cliquez sur "Charger la synthèse"
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overlay de chargement -->
+  <div id="loading-overlay" class="loading-overlay" style="display: none;">
+    <div class="text-center">
+      <div class="loading-spinner"></div>
+      <div id="loading-text">Chargement des données...</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Variables globales
+    let summaryData = [];
+    let allAgents = [];
+    let jwt = localStorage.getItem('jwt');
+
+    // Fonction pour obtenir le token JWT
+    async function getJWT() {
+      if (!jwt) {
+        try {
+          const response = await fetch('/api/profile');
+          if (response.ok) {
+            jwt = localStorage.getItem('jwt');
+          }
+        } catch (e) {
+          console.error('Erreur récupération JWT:', e);
+        }
+      }
+      return jwt;
+    }
+
+    // Fonction API
+    async function api(path, opts = {}) {
+      const headers = opts.headers || {};
+      if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+      const token = await getJWT();
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+
+      const res = await fetch('/api' + path, {
+        method: opts.method || 'GET',
+        headers,
+        body: opts.body instanceof FormData ? opts.body : (opts.body ? JSON.stringify(opts.body) : undefined),
+      });
+
+      if (res.status === 401) {
+        window.location.href = '/index.html';
+        throw new Error('Non autorisé');
+      }
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || res.statusText);
+      }
+
+      const ct = res.headers.get('content-type') || '';
+      return ct.includes('application/json') ? await res.json() : await res.text();
+    }
+
+    // Fonction pour charger les projets
+    async function loadProjects() {
+      try {
+        const select = document.getElementById('project-filter');
+        select.innerHTML = '<option value="">Chargement...</option>';
+
+        const agents = await api('/agents');
+        const projects = new Set();
+        
+        if (agents && Array.isArray(agents)) {
+          agents.forEach(agent => {
+            const project = agent.project_name || agent.project || 'Non spécifié';
+            if (project) projects.add(project);
+          });
+        }
+
+        select.innerHTML = '<option value="">Tous les projets</option>';
+        Array.from(projects).sort().forEach(project => {
+          const option = document.createElement('option');
+          option.value = project;
+          option.textContent = project;
+          select.appendChild(option);
+        });
+
+        allAgents = agents || [];
+      } catch (error) {
+        console.error('Erreur chargement projets:', error);
+        document.getElementById('project-filter').innerHTML = '<option value="">Erreur de chargement</option>';
+      }
+    }
+
+    // Fonction pour formater le temps terrain
+    function formatFieldTime(hours) {
+      if (!hours || hours === 0) return '0h';
+      const h = Math.floor(hours);
+      const m = Math.round((hours - h) * 60);
+      return m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
+    }
+
+    // Fonction pour obtenir la classe CSS selon la valeur
+    function getMetricClass(value, type) {
+      if (type === 'presence') {
+        if (value >= 90) return 'metric-excellent';
+        if (value >= 80) return 'metric-good';
+        if (value >= 70) return 'metric-average';
+        if (value >= 50) return 'metric-poor';
+        return 'metric-critical';
+      } else if (type === 'tep') {
+        if (value >= 90) return 'metric-excellent';
+        if (value >= 80) return 'metric-good';
+        if (value >= 70) return 'metric-average';
+        if (value >= 50) return 'metric-poor';
+        return 'metric-critical';
+      } else if (type === 'fieldTime') {
+        if (value >= 100) return 'metric-excellent';
+        if (value >= 80) return 'metric-good';
+        if (value >= 60) return 'metric-average';
+        if (value >= 40) return 'metric-poor';
+        return 'metric-critical';
+      } else if (type === 'composite') {
+        if (value >= 90) return 'metric-excellent';
+        if (value >= 80) return 'metric-good';
+        if (value >= 70) return 'metric-average';
+        if (value >= 60) return 'metric-poor';
+        return 'metric-critical';
+      }
+      return '';
+    }
+
+    // Fonction pour charger la synthèse
+    async function loadSummary() {
+      const projectFilter = document.getElementById('project-filter').value;
+      const monthValue = document.getElementById('month-filter').value;
+
+      if (!monthValue) {
+        alert('Veuillez sélectionner un mois');
+        return;
+      }
+
+      const loadingOverlay = document.getElementById('loading-overlay');
+      const loadingText = document.getElementById('loading-text');
+      loadingOverlay.style.display = 'flex';
+
+      try {
+        // Filtrer les agents par projet
+        let agentsToProcess = allAgents;
+        if (projectFilter) {
+          agentsToProcess = allAgents.filter(agent => 
+            (agent.project_name || agent.project || '') === projectFilter
+          );
+        }
+
+        if (agentsToProcess.length === 0) {
+          alert('Aucun agent trouvé pour ce projet');
+          loadingOverlay.style.display = 'none';
+          return;
+        }
+
+        loadingText.textContent = `Chargement des rapports (0/${agentsToProcess.length})...`;
+        summaryData = [];
+
+        // Charger le rapport de chaque agent
+        for (let i = 0; i < agentsToProcess.length; i++) {
+          const agent = agentsToProcess[i];
+          loadingText.textContent = `Chargement des rapports (${i + 1}/${agentsToProcess.length})... ${agent.name || agent.email}`;
+
+          try {
+            // Extraire l'année et le mois du format YYYY-MM
+            const [year, month] = monthValue.split('-');
+            
+            const report = await api(`/agent/monthly-report`, {
+              method: 'POST',
+              body: {
+                agentId: agent.id || agent.user_id,
+                month: month,
+                year: year
+              }
+            });
+
+            if (report && report.success && report.report) {
+              const reportData = report.report;
+              const presence = reportData.presence || {};
+              const activities = reportData.activities || {};
+              const meta = reportData.meta || {};
+
+              // Calculer le score composite
+              const presenceRate = Number(presence.presenceRate || 0);
+              const tepRate = Number(activities.performance?.executionRate || 0);
+              const fieldTimeHours = Number(presence.fieldTimeHours || 0);
+              
+              // Normaliser le temps terrain pour le score (max 160h/mois = 100%)
+              const fieldTimeScore = Math.min(100, (fieldTimeHours / 160) * 100);
+              const compositeScore = (presenceRate * 0.7) + (tepRate * 0.15) + (fieldTimeScore * 0.15);
+
+              summaryData.push({
+                agentId: agent.id || agent.user_id,
+                agentName: agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email,
+                email: agent.email,
+                project: agent.project_name || agent.project,
+                presenceRate: presenceRate,
+                workedDays: presence.workedDays || 0,
+                totalDays: presence.workingDays || 22,
+                totalCheckins: presence.totalCheckins || 0,
+                avgCheckinsPerDay: presence.averageCheckinsPerDay || 0,
+                permissionDays: presence.permissionDays || 0,
+                fieldTimeHours: fieldTimeHours,
+                avgFieldTimePerDay: presence.avgFieldTimePerDay || 0,
+                missionsCount: presence.missionsCount || 0,
+                plannedTotal: activities.total || 0,
+                realizedTotal: activities.breakdown?.find(b => b.key === 'realized')?.count || 0,
+                partiallyTotal: activities.breakdown?.find(b => b.key === 'partiallyRealized')?.count || 0,
+                inProgressTotal: activities.breakdown?.find(b => b.key === 'inProgress')?.count || 0,
+                notRealizedTotal: activities.breakdown?.find(b => b.key === 'notRealized')?.count || 0,
+                tepRate: tepRate,
+                compositeScore: compositeScore,
+                rank: null // Sera rempli si disponible
+              });
+            }
+          } catch (error) {
+            console.warn(`Erreur chargement rapport pour ${agent.name || agent.email}:`, error);
+            // Ajouter quand même l'agent avec des valeurs vides
+            summaryData.push({
+              agentId: agent.id || agent.user_id,
+              agentName: agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email,
+              email: agent.email,
+              project: agent.project_name || agent.project,
+              presenceRate: 0,
+              workedDays: 0,
+              totalDays: 22,
+              totalCheckins: 0,
+              avgCheckinsPerDay: 0,
+              permissionDays: 0,
+              fieldTimeHours: 0,
+              avgFieldTimePerDay: 0,
+              missionsCount: 0,
+              plannedTotal: 0,
+              realizedTotal: 0,
+              partiallyTotal: 0,
+              inProgressTotal: 0,
+              notRealizedTotal: 0,
+              tepRate: 0,
+              compositeScore: 0,
+              rank: null,
+              error: true
+            });
+          }
+
+          // Petit délai pour ne pas surcharger le serveur
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        // Trier par score composite décroissant
+        summaryData.sort((a, b) => b.compositeScore - a.compositeScore);
+        
+        // Ajouter les rangs
+        summaryData.forEach((data, index) => {
+          data.rank = index + 1;
+        });
+
+        // Afficher le tableau
+        renderSummaryTable();
+        renderStatsSummary();
+
+      } catch (error) {
+        console.error('Erreur chargement synthèse:', error);
+        alert('Erreur lors du chargement de la synthèse: ' + error.message);
+      } finally {
+        loadingOverlay.style.display = 'none';
+      }
+    }
+
+    // Fonction pour afficher les statistiques globales
+    function renderStatsSummary() {
+      const statsContainer = document.getElementById('stats-summary');
+      if (summaryData.length === 0) {
+        statsContainer.style.display = 'none';
+        return;
+      }
+
+      const totalAgents = summaryData.length;
+      const avgPresence = summaryData.reduce((sum, d) => sum + d.presenceRate, 0) / totalAgents;
+      const avgTEP = summaryData.reduce((sum, d) => sum + d.tepRate, 0) / totalAgents;
+      const avgFieldTime = summaryData.reduce((sum, d) => sum + d.fieldTimeHours, 0) / totalAgents;
+      const avgComposite = summaryData.reduce((sum, d) => sum + d.compositeScore, 0) / totalAgents;
+      const totalFieldTime = summaryData.reduce((sum, d) => sum + d.fieldTimeHours, 0);
+      const totalCheckins = summaryData.reduce((sum, d) => sum + d.totalCheckins, 0);
+
+      statsContainer.innerHTML = `
+        <div class="stat-card">
+          <div class="value">${totalAgents}</div>
+          <div class="label">Agents</div>
+        </div>
+        <div class="stat-card">
+          <div class="value">${avgPresence.toFixed(1)}%</div>
+          <div class="label">Présence moyenne</div>
+        </div>
+        <div class="stat-card">
+          <div class="value">${avgTEP.toFixed(1)}%</div>
+          <div class="label">TEP moyen</div>
+        </div>
+        <div class="stat-card">
+          <div class="value">${formatFieldTime(avgFieldTime)}</div>
+          <div class="label">Temps terrain moyen</div>
+        </div>
+        <div class="stat-card">
+          <div class="value">${avgComposite.toFixed(1)}</div>
+          <div class="label">Score composite moyen</div>
+        </div>
+        <div class="stat-card">
+          <div class="value">${formatFieldTime(totalFieldTime)}</div>
+          <div class="label">Temps terrain total</div>
+        </div>
+        <div class="stat-card">
+          <div class="value">${totalCheckins}</div>
+          <div class="label">Check-ins total</div>
+        </div>
+      `;
+      statsContainer.style.display = 'grid';
+    }
+
+    // Fonction pour afficher le tableau
+    function renderSummaryTable() {
+      const wrapper = document.getElementById('summary-table-wrapper');
+      
+      if (summaryData.length === 0) {
+        wrapper.innerHTML = '<div class="text-center py-5 text-muted">Aucune donnée disponible</div>';
+        return;
+      }
+
+      let tableHTML = `
+        <table class="summary-table">
+          <thead>
+            <tr>
+              <th rowspan="2">Rang</th>
+              <th rowspan="2">Agent</th>
+              <th rowspan="2">Email</th>
+              <th colspan="5">Présence</th>
+              <th colspan="3">Temps Terrain</th>
+              <th colspan="5">Activités</th>
+              <th rowspan="2">TEP</th>
+              <th rowspan="2">Score<br>Composite</th>
+            </tr>
+            <tr>
+              <th>Taux</th>
+              <th>Jours<br>Présents</th>
+              <th>Jours<br>Ouvrés</th>
+              <th>Check-ins</th>
+              <th>Moy.<br>Check-ins/j</th>
+              <th>Total</th>
+              <th>Moy./j</th>
+              <th>Missions</th>
+              <th>Planifiées</th>
+              <th>Réalisées</th>
+              <th>Partielles</th>
+              <th>En cours</th>
+              <th>Non<br>réalisées</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      summaryData.forEach((data, index) => {
+        const presenceClass = getMetricClass(data.presenceRate, 'presence');
+        const tepClass = getMetricClass(data.tepRate, 'tep');
+        const fieldTimeClass = getMetricClass(data.fieldTimeHours, 'fieldTime');
+        const compositeClass = getMetricClass(data.compositeScore, 'composite');
+        const errorRow = data.error ? ' style="opacity: 0.6;"' : '';
+
+        tableHTML += `
+          <tr${errorRow}>
+            <td><strong>${data.rank}</strong></td>
+            <td class="agent-name">${escapeHtml(data.agentName)}</td>
+            <td style="font-size: 0.85rem;">${escapeHtml(data.email || '')}</td>
+            <td class="${presenceClass}">${data.presenceRate.toFixed(1)}%</td>
+            <td>${data.workedDays}</td>
+            <td>${data.totalDays}</td>
+            <td>${data.totalCheckins}</td>
+            <td>${data.avgCheckinsPerDay.toFixed(1)}</td>
+            <td class="${fieldTimeClass}">${formatFieldTime(data.fieldTimeHours)}</td>
+            <td>${formatFieldTime(data.avgFieldTimePerDay)}</td>
+            <td>${data.missionsCount}</td>
+            <td>${data.plannedTotal}</td>
+            <td class="text-success fw-semibold">${data.realizedTotal}</td>
+            <td class="text-warning fw-semibold">${data.partiallyTotal}</td>
+            <td class="text-info fw-semibold">${data.inProgressTotal}</td>
+            <td class="text-danger fw-semibold">${data.notRealizedTotal}</td>
+            <td class="${tepClass}">${data.tepRate.toFixed(1)}%</td>
+            <td class="${compositeClass}">${data.compositeScore.toFixed(1)}</td>
+          </tr>
+        `;
+      });
+
+      tableHTML += `
+          </tbody>
+        </table>
+      `;
+
+      wrapper.innerHTML = tableHTML;
+    }
+
+    // Fonction d'échappement HTML
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Fonction pour exporter en CSV
+    function exportToCSV() {
+      if (summaryData.length === 0) {
+        alert('Aucune donnée à exporter');
+        return;
+      }
+
+      const monthValue = document.getElementById('month-filter').value;
+      const projectFilter = document.getElementById('project-filter').value;
+      const projectName = projectFilter || 'Tous_projets';
+      const monthLabel = monthValue.replace('-', '_');
+      const filename = `Synthese_${projectName}_${monthLabel}.csv`;
+
+      // En-têtes CSV
+      const headers = [
+        'Rang', 'Agent', 'Email', 'Projet',
+        'Taux Présence (%)', 'Jours Présents', 'Jours Ouvrés', 'Check-ins Total', 'Moyenne Check-ins/jour',
+        'Temps Terrain Total', 'Temps Terrain Moy/jour', 'Nombre Missions',
+        'Activités Planifiées', 'Activités Réalisées', 'Activités Partielles', 'Activités En cours', 'Activités Non réalisées',
+        'TEP (%)', 'Score Composite'
+      ];
+
+      // Lignes de données
+      const rows = summaryData.map(data => [
+        data.rank,
+        data.agentName,
+        data.email || '',
+        data.project || '',
+        data.presenceRate.toFixed(1),
+        data.workedDays,
+        data.totalDays,
+        data.totalCheckins,
+        data.avgCheckinsPerDay.toFixed(1),
+        data.fieldTimeHours.toFixed(1),
+        data.avgFieldTimePerDay.toFixed(1),
+        data.missionsCount,
+        data.plannedTotal,
+        data.realizedTotal,
+        data.partiallyTotal,
+        data.inProgressTotal,
+        data.notRealizedTotal,
+        data.tepRate.toFixed(1),
+        data.compositeScore.toFixed(1)
+      ]);
+
+      // Créer le contenu CSV
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
+
+      // Télécharger
+      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Fonction pour exporter en HTML
+    function exportToHTML() {
+      if (summaryData.length === 0) {
+        alert('Aucune donnée à exporter');
+        return;
+      }
+
+      const monthValue = document.getElementById('month-filter').value;
+      const projectFilter = document.getElementById('project-filter').value;
+      const projectName = projectFilter || 'Tous_projets';
+      const monthLabel = monthValue.replace('-', '_');
+      const filename = `Synthese_${projectName}_${monthLabel}.html`;
+
+      const tableHTML = document.querySelector('.summary-table').outerHTML;
+      const statsHTML = document.getElementById('stats-summary').innerHTML;
+
+      const htmlContent = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Synthèse Globale - ${escapeHtml(projectName)} - ${escapeHtml(monthValue)}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <style>
+    body { padding: 20px; background: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .summary-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .summary-table thead { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    .summary-table th { padding: 12px 8px; text-align: center; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.2); }
+    .summary-table td { padding: 10px 8px; text-align: center; border: 1px solid #dee2e6; }
+    .summary-table tbody tr:nth-child(even) { background-color: #f8f9fa; }
+    .agent-name { font-weight: 600; color: #2c3e50; text-align: left !important; padding-left: 15px !important; }
+    .metric-excellent { background-color: #d4edda; color: #155724; font-weight: 600; }
+    .metric-good { background-color: #d1ecf1; color: #0c5460; font-weight: 600; }
+    .metric-average { background-color: #fff3cd; color: #856404; font-weight: 600; }
+    .metric-poor { background-color: #f8d7da; color: #721c24; font-weight: 600; }
+    .metric-critical { background-color: #f5c6cb; color: #721c24; font-weight: 700; }
+    .stats-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+    .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; text-align: center; }
+    .stat-card .value { font-size: 2rem; font-weight: bold; margin-bottom: 5px; }
+    .stat-card .label { font-size: 0.9rem; opacity: 0.9; }
+    @media print { body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="mb-4">Synthèse Globale - ${escapeHtml(projectName)}</h1>
+    <p class="text-muted">Période : ${escapeHtml(monthValue)} | Généré le ${new Date().toLocaleString('fr-FR')}</p>
+    <div class="stats-summary">${statsHTML}</div>
+    ${tableHTML}
+  </div>
+</body>
+</html>`;
+
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Initialisation
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Définir le mois actuel par défaut
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      document.getElementById('month-filter').value = currentMonth;
+
+      // Charger les projets
+      await loadProjects();
+    });
+  </script>
+</body>
+
+</html>
+

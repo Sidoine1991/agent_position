@@ -3,7 +3,8 @@
  * Affiche les objectifs, progression, badges et statistiques personnelles
  */
 
-class AgentDashboard {
+if (typeof AgentDashboard === 'undefined') {
+  class AgentDashboard {
   constructor() {
     this.currentAgent = null;
     this.currentUser = null;
@@ -13,7 +14,7 @@ class AgentDashboard {
     this.performanceMetrics = {};
     this.badges = [];
     this.leaderboard = [];
-    
+
     this.init();
   }
 
@@ -45,7 +46,7 @@ class AgentDashboard {
         this.currentAgent = userProfile;
         this.currentUser = userProfile;
       }
-      
+
       await this.refreshAllData();
     } catch (error) {
       console.error('❌ Erreur chargement tableau de bord:', error);
@@ -57,7 +58,7 @@ class AgentDashboard {
       console.warn('Aucun agent actif pour le tableau de bord');
       return;
     }
-    
+
     await Promise.all([
       this.loadPersonalStats(),
       this.loadPersonalGoals(),
@@ -66,7 +67,7 @@ class AgentDashboard {
       this.loadBadges(),
       this.loadLeaderboard()
     ]);
-    
+
     this.renderDashboard();
   }
 
@@ -209,7 +210,7 @@ class AgentDashboard {
 
       // Calculer les statistiques réelles (presenceStats n'est plus nécessaire)
       this.personalStats = this.calculateRealStats({}, missions, checkins);
-      
+
       console.log('📊 Statistiques personnelles chargées:', this.personalStats);
     } catch (error) {
       console.error('Erreur chargement stats personnelles:', error);
@@ -221,7 +222,7 @@ class AgentDashboard {
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
-    
+
     // Calculer les heures travaillées ce mois
     const monthlyCheckins = checkins.filter(checkin => {
       const checkinDate = new Date(checkin.checkin_time);
@@ -267,7 +268,7 @@ class AgentDashboard {
   getWorkingDaysInMonth(month, year) {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     let workingDays = 0;
-    
+
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day);
       const dayOfWeek = date.getDay();
@@ -276,29 +277,29 @@ class AgentDashboard {
         workingDays++;
       }
     }
-    
+
     return workingDays;
   }
 
   calculateWeeklyStats(checkins) {
     const weeks = [];
     const now = new Date();
-    
+
     // Calculer les 4 dernières semaines
     for (let i = 3; i >= 0; i--) {
       const weekStart = new Date(now);
       weekStart.setDate(now.getDate() - (now.getDay() + 7 * i));
       weekStart.setHours(0, 0, 0, 0);
-      
+
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekStart.getDate() + 6);
       weekEnd.setHours(23, 59, 59, 999);
-      
+
       const weekCheckins = checkins.filter(checkin => {
         const checkinDate = new Date(checkin.checkin_time);
         return checkinDate >= weekStart && checkinDate <= weekEnd;
       });
-      
+
       let weekHours = 0;
       weekCheckins.forEach(checkin => {
         if (checkin.checkin_time && checkin.checkout_time) {
@@ -308,7 +309,7 @@ class AgentDashboard {
           weekHours += hours;
         }
       });
-      
+
       weeks.push({
         week: `Semaine ${4 - i}`,
         startDate: weekStart.toISOString().split('T')[0],
@@ -317,26 +318,26 @@ class AgentDashboard {
         days: new Set(weekCheckins.map(c => new Date(c.checkin_time).toDateString())).size
       });
     }
-    
+
     return weeks;
   }
 
   calculateCurrentStreak(checkins) {
     if (checkins.length === 0) return 0;
-    
+
     const sortedCheckins = checkins.sort((a, b) => new Date(b.checkin_time) - new Date(a.checkin_time));
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     let streak = 0;
     let currentDate = new Date(today);
-    
+
     for (let i = 0; i < 30; i++) { // Vérifier les 30 derniers jours
       const dateStr = currentDate.toDateString();
-      const hasCheckin = sortedCheckins.some(checkin => 
+      const hasCheckin = sortedCheckins.some(checkin =>
         new Date(checkin.checkin_time).toDateString() === dateStr
       );
-      
+
       if (hasCheckin) {
         streak++;
         currentDate.setDate(currentDate.getDate() - 1);
@@ -344,7 +345,7 @@ class AgentDashboard {
         break;
       }
     }
-    
+
     return streak;
   }
 
@@ -391,7 +392,7 @@ class AgentDashboard {
 
       // Calculer les métriques de performance réelles
       this.performanceMetrics = this.calculatePerformanceMetrics(checkins, missions);
-      
+
       console.log('📈 Métriques de performance calculées:', this.performanceMetrics);
     } catch (error) {
       console.error('Erreur chargement métriques:', error);
@@ -403,7 +404,7 @@ class AgentDashboard {
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
-    
+
     // Calculer les métriques mensuelles
     const monthlyCheckins = checkins.filter(checkin => {
       const checkinDate = new Date(checkin.checkin_time);
@@ -463,10 +464,10 @@ class AgentDashboard {
 
   calculateEfficiencyScore(totalHours, completedMissions, workingDays) {
     if (workingDays === 0) return 0;
-    
+
     const averageHoursPerDay = totalHours / workingDays;
     const missionsPerDay = completedMissions / workingDays;
-    
+
     // Score basé sur l'équilibre entre heures travaillées et missions accomplies
     const efficiencyScore = (missionsPerDay * 10) + (averageHoursPerDay * 0.5);
     return Math.min(Math.round(efficiencyScore), 100);
@@ -606,26 +607,26 @@ class AgentDashboard {
     if (mission.status === 'completed') {
       this.personalStats.completedMissions++;
     }
-    
+
     // Mettre à jour les objectifs
     this.updateGoalsProgress('missions', 1);
-    
+
     // Vérifier les nouveaux badges
     this.checkMissionBadges();
-    
+
     this.notifyStatsUpdated();
   }
 
   updateAttendanceStats(presence) {
     // Mettre à jour le taux de présence
     this.calculateAttendanceRate();
-    
+
     // Mettre à jour les objectifs
     this.updateGoalsProgress('attendance', 1);
-    
+
     // Vérifier les nouveaux badges
     this.checkAttendanceBadges();
-    
+
     this.notifyStatsUpdated();
   }
 
@@ -640,7 +641,7 @@ class AgentDashboard {
     for (const goal of this.goals) {
       if (goal.type === type && goal.status === 'active') {
         goal.current += increment;
-        
+
         // Vérifier si l'objectif est atteint
         if (goal.current >= goal.target) {
           goal.status = 'completed';
@@ -659,7 +660,7 @@ class AgentDashboard {
         requireInteraction: true
       });
     }
-    
+
     // Ajouter une réalisation
     this.addAchievement({
       title: `Objectif: ${goal.title}`,
@@ -671,17 +672,17 @@ class AgentDashboard {
 
   checkMissionBadges() {
     const totalMissions = this.personalStats.totalMissions;
-    
+
     // Badge "Première mission"
     if (totalMissions === 1) {
       this.earnBadge('premiere-mission');
     }
-    
+
     // Badge "10 missions"
     if (totalMissions === 10) {
       this.earnBadge('10-missions');
     }
-    
+
     // Badge "50 missions"
     if (totalMissions === 50) {
       this.earnBadge('50-missions');
@@ -690,12 +691,12 @@ class AgentDashboard {
 
   checkAttendanceBadges() {
     const attendanceRate = this.personalStats.attendanceRate;
-    
+
     // Badge "Présence parfaite"
     if (attendanceRate >= 100) {
       this.earnBadge('presence-parfaite');
     }
-    
+
     // Badge "Très ponctuel"
     if (attendanceRate >= 95) {
       this.earnBadge('tres-ponctuel');
@@ -712,11 +713,11 @@ class AgentDashboard {
 
   checkEfficiencyBadges() {
     const efficiency = this.personalStats.efficiencyScore;
-    
+
     if (efficiency >= 90) {
       this.earnBadge('efficace');
     }
-    
+
     if (efficiency >= 95) {
       this.earnBadge('tres-efficace');
     }
@@ -724,11 +725,11 @@ class AgentDashboard {
 
   checkTimeBadges() {
     const fieldTime = this.personalStats.totalFieldTime;
-    
+
     if (fieldTime >= 100) {
       this.earnBadge('100-heures');
     }
-    
+
     if (fieldTime >= 500) {
       this.earnBadge('500-heures');
     }
@@ -739,7 +740,7 @@ class AgentDashboard {
     if (badge && !badge.earned) {
       badge.earned = true;
       badge.earnedDate = new Date().toISOString();
-      
+
       // Afficher une notification
       if (window.notificationManager) {
         window.notificationManager.sendNotification('🏆 Nouveau Badge!', {
@@ -748,7 +749,7 @@ class AgentDashboard {
           requireInteraction: true
         });
       }
-      
+
       // Ajouter une réalisation
       this.addAchievement({
         title: `Badge: ${badge.name}`,
@@ -756,7 +757,7 @@ class AgentDashboard {
         icon: badge.icon,
         type: 'badge'
       });
-      
+
       this.notifyBadgeEarned(badge);
     }
   }
@@ -767,14 +768,14 @@ class AgentDashboard {
       ...achievement,
       date: new Date().toISOString()
     };
-    
+
     this.achievements.unshift(newAchievement);
-    
+
     // Garder seulement les 50 dernières réalisations
     if (this.achievements.length > 50) {
       this.achievements = this.achievements.slice(0, 50);
     }
-    
+
     this.notifyAchievementAdded(newAchievement);
   }
 
@@ -847,7 +848,7 @@ class AgentDashboard {
     if (!container) return;
 
     const metrics = this.performanceMetrics;
-    
+
     container.innerHTML = `
       <div class="row">
         <div class="col-md-6">
@@ -933,7 +934,7 @@ class AgentDashboard {
     if (!container) return;
 
     const stats = this.personalStats;
-    
+
     container.innerHTML = `
       <div class="stats-grid">
         <div class="stat-card">
@@ -1107,9 +1108,131 @@ class AgentDashboard {
     `).join('');
   }
 }
+} // Fermeture de la condition if (typeof AgentDashboard === 'undefined')
 
-// Initialiser le tableau de bord agent
-window.agentDashboard = new AgentDashboard();
+/**
+ * Charge tous les agents depuis Supabase et peuple les filtres
+ * Cette fonction est appelée par agent-dashboard.html
+ */
+async function loadAgentsForReport() {
+  const debugLog = console.log; // Utiliser console.log si debugLog n'est pas défini
+  debugLog('[DEBUG] loadAgentsForReport() - Début');
+
+  const agentSelect = document.getElementById('report-agent-select');
+  if (!agentSelect) {
+    debugLog('[DEBUG] Élément report-agent-select non trouvé');
+    return;
+  }
+
+  // Vérifier que Supabase est disponible
+  if (typeof window.supabase === 'undefined') {
+    debugLog('[DEBUG] Client Supabase non disponible');
+    agentSelect.innerHTML = '<option value="">Erreur: Supabase non initialisé</option>';
+    return;
+  }
+
+  try {
+    // Afficher un état de chargement
+    agentSelect.innerHTML = '<option value="">Chargement des agents...</option>';
+    debugLog('[DEBUG] Requête Supabase en cours...');
+
+    // Récupérer tous les agents depuis Supabase
+    // Utiliser directement la table users (plus fiable que profiles)
+    let agents = null;
+    let error = null;
+
+    try {
+      // Essayer avec users (table principale)
+      console.log('[DEBUG] Tentative avec la table users...');
+      const usersResult = await window.supabase
+        .from('users')
+        .select('id, name, first_name, last_name, email, role, project_name, photo_path, auth_uuid, user_id')
+        .in('role', ['agent', 'superviseur', 'admin'])
+        .order('name', { ascending: true });
+
+      if (usersResult.error) {
+        error = usersResult.error;
+        debugLog('[DEBUG] Erreur avec users:', error);
+      } else {
+        agents = usersResult.data;
+        debugLog('[DEBUG] Agents chargés depuis users:', agents?.length || 0);
+      }
+    } catch (e) {
+      debugLog('[DEBUG] Erreur lors de la requête Supabase:', e);
+      error = e;
+    }
+
+    if (error) {
+      debugLog('[DEBUG] Erreur Supabase lors du chargement des agents:', error);
+      throw error;
+    }
+
+    if (!agents || agents.length === 0) {
+      agentSelect.innerHTML = '<option value="">Aucun agent disponible</option>';
+      return;
+    }
+
+    // Stocker les agents dans la variable globale
+    window.dashboardAgents = agents;
+
+    // Peupler le select des agents
+    const agentOptions = ['<option value="">Sélectionnez un agent</option>'];
+
+    agents.forEach(agent => {
+      const agentId = agent.id || agent.user_id || agent.auth_uuid;
+      const agentName = agent.name ||
+        `${agent.first_name || ''} ${agent.last_name || ''}`.trim() ||
+        agent.email?.split('@')[0] ||
+        'Agent sans nom';
+      const projectName = agent.project_name || agent.project || '';
+
+      // Fonction simple pour échapper le HTML
+      const escapeHtml = (str) => {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      };
+
+      agentOptions.push(
+        `<option value="${agentId}" data-project="${escapeHtml(projectName)}">${escapeHtml(agentName)}</option>`
+      );
+    });
+
+    agentSelect.innerHTML = agentOptions.join('');
+    debugLog('[DEBUG] Select des agents peuplé avec', agents.length, 'agents');
+
+    // Extraire et peupler les projets
+    const projects = new Set();
+    agents.forEach(agent => {
+      const projectName = agent.project_name || agent.project;
+      if (projectName && projectName.trim() &&
+        projectName !== 'Projet non attribué' &&
+        projectName !== 'Non attribué') {
+        projects.add(projectName.trim());
+      }
+    });
+
+    const projectsArray = Array.from(projects).sort((a, b) =>
+      a.localeCompare(b, 'fr', { sensitivity: 'base' })
+    );
+
+    debugLog('[DEBUG] Projets uniques extraits:', projectsArray.length);
+
+    // Appeler populateProjectFilterOptions si elle existe
+    if (typeof window.populateProjectFilterOptions === 'function') {
+      window.populateProjectFilterOptions(projectsArray);
+    }
+
+  } catch (error) {
+    debugLog('[DEBUG] Erreur lors du chargement des agents:', error);
+    agentSelect.innerHTML = '<option value="">Erreur de chargement</option>';
+  }
+}
+
+// Initialiser le tableau de bord agent - éviter la double création
+if (typeof window !== 'undefined' && !window.agentDashboard) {
+  window.agentDashboard = new AgentDashboard();
+}
 
 // Exporter pour utilisation dans d'autres modules
 if (typeof module !== 'undefined' && module.exports) {

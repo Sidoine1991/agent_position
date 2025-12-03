@@ -10,7 +10,13 @@
     "build:css": "npx tailwindcss -i ./web/tailwind.css -o ./web/styles-tailwind.css",
     "postinstall": "echo 'Dependencies installed successfully'",
     "build:geo": "node scripts/generate-geo-data.js",
-    "test": "node test-runner.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:backend": "vitest run tests/unit/monthlyReport.test.js tests/unit/server-api.test.js",
+    "test:frontend": "vitest run tests/unit/agent-dashboard",
+    "test:integration": "vitest run tests/integration",
+    "test:old": "node test-runner.js",
     "test:local": "node test-runner.js local",
     "test:all": "node test-runner.js all",
     "test:mobile": "node test-runner.js mobile",
@@ -21,7 +27,8 @@
   "dependencies": {
     "@capacitor/android": "^7.4.3",
     "@capacitor/core": "^7.4.3",
-    "@supabase/supabase-js": "^2.84.0",
+    "@supabase/supabase-js": "^2.86.0",
+    "axios": "^1.13.2",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
@@ -43,8 +50,11 @@
     "@capacitor/cli": "^7.4.3",
     "@playwright/test": "^1.55.1",
     "@tailwindcss/vite": "^4.1.13",
+    "@vitest/coverage-v8": "^2.1.8",
+    "happy-dom": "^15.11.7",
     "prettier": "^3.6.2",
-    "tailwindcss": "^4.1.17"
+    "tailwindcss": "^4.1.17",
+    "vitest": "^2.1.8"
   },
   "repository": {
     "type": "git",
