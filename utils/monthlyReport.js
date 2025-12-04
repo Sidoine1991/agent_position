@@ -422,17 +422,19 @@ function summarizeZones(missions = [], checkins = []) {
 }
 
 function summarizeActivities(planifications = [], checkins = []) {
-  const list = (planifications || []).map(plan => ({
-    id: plan.id,
-    date: plan.date,
-    description: plan.description_activite || plan.activity_name || plan.description || 'Activité non spécifiée',
-    result: plan.resultat_journee || plan.status || 'planifie',
-    observations: plan.observations || plan.result_details || '',
-    project: plan.project_name || plan.project || null,
-    planned_hours: plan.planned_hours || plan.estimated_hours || null,
-    planned_start_time: plan.planned_start_time || null,
-    planned_end_time: plan.planned_end_time || null
-  }));
+  const list = (planifications || []).map(plan => {
+    return {
+      id: plan.id,
+      date: plan.date,
+      description: plan.description_activite || plan.activity_name || plan.description || 'Activité non spécifiée',
+      result: plan.resultat_journee || plan.status || 'planifie',
+      observations: plan.observations || plan.result_details || '',
+      project: plan.project_name || plan.project || null,
+      planned_hours: plan.planned_hours || plan.estimated_hours || null,
+      planned_start_time: plan.planned_start_time || null,
+      planned_end_time: plan.planned_end_time || null
+    };
+  });
 
   // Calculer les jours planifiés (jours distincts avec des planifications)
   const plannedDaysSet = new Set();
@@ -1137,7 +1139,7 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
     // Une permission chevauche le mois si: start_date <= mois_fin ET end_date >= mois_début
     const { data, error } = await supabaseClient
       .from('permissions')
-      .select('start_date, end_date, status')
+      .select('start_date, end_date, status, reason')
       .eq('agent_id', agentId)
       .eq('status', 'approved')
       .lte('start_date', endIso)
@@ -1179,7 +1181,9 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
         details.push({
           start: perm.start_date,
           end: perm.end_date,
-          days: days
+          days: days,
+          status: perm.status,
+          reason: perm.reason || null
         });
       }
     });
@@ -1850,7 +1854,9 @@ async function buildAgentMonthlyReport({
     // Récupérer les jours permissionnaires avec gestion d'erreur (fallback si report_presence_view indisponible)
     let permissionDays = presenceSummary?.permissionDays ?? 0;
     let permissionsData = { days: 0, details: [] };
+
     if (!presenceSummary) {
+      // Aucun récapitulatif pré-calculé: utiliser uniquement la table permissions
       try {
         permissionsData = await fetchMonthlyPermissions(supabaseClient, targetAgentId, monthContext);
         console.log('✅ Permissions récupérées (fallback):', {
@@ -1865,7 +1871,8 @@ async function buildAgentMonthlyReport({
       }
       permissionDays = permissionsData.days;
     } else {
-      // Si presenceSummary existe, essayer quand même de récupérer les détails des permissions
+      // presenceSummary existe (via report_presence_view) mais peut ne pas compter correctement les permissions.
+      // On récupère toujours les permissions détaillées et on fusionne.
       try {
         permissionsData = await fetchMonthlyPermissions(supabaseClient, targetAgentId, monthContext);
         console.log('✅ Détails permissions récupérés:', {
@@ -1874,6 +1881,11 @@ async function buildAgentMonthlyReport({
           days: permissionsData.days,
           detailsCount: permissionsData.details?.length || 0
         });
+
+        // Si la table permissions indique plus de jours que le résumé, on prend le maximum
+        if (typeof permissionsData.days === 'number') {
+          permissionDays = Math.max(permissionDays || 0, permissionsData.days);
+        }
       } catch (error) {
         console.warn('Erreur lors de la récupération des détails permissions:', error.message || error);
         permissionsData = { days: permissionDays, details: [] };
@@ -1910,8 +1922,9 @@ async function buildAgentMonthlyReport({
       missionsData = [];
     }
 
-    // Récupérer une photo de terrain depuis presence_validations pour enrichir le rapport
+    // Récupérer jusqu'à 3 photos de terrain depuis presence_validations pour enrichir le rapport
     let fieldPhoto = null;
+    let fieldPhotos = [];
     try {
       const { data: validationPhotos, error: validationError } = await supabaseClient
         .from('presence_validations')
@@ -1921,15 +1934,15 @@ async function buildAgentMonthlyReport({
         .lte('checkin_timestamp', monthContext.endIso)
         .not('photo_url', 'is', null)
         .order('checkin_timestamp', { ascending: false })
-        .limit(1);
+        .limit(3);
 
       if (!validationError && Array.isArray(validationPhotos) && validationPhotos.length > 0) {
-        const p = validationPhotos[0];
-        fieldPhoto = {
+        fieldPhotos = validationPhotos.map(p => ({
           url: p.photo_url,
           date: p.checkin_timestamp,
           location: p.checkin_location_name || null
-        };
+        }));
+        fieldPhoto = fieldPhotos[0] || null;
       }
     } catch (photoError) {
       console.warn('Erreur lors de la récupération des photos terrain (presence_validations):', photoError.message || photoError);
@@ -2148,6 +2161,7 @@ async function buildAgentMonthlyReport({
       locations,
       photos,
       fieldPhoto,
+      fieldPhotos,
       projectRanking,
       fieldTimeHours: presence.fieldTimeHours || 0,
       dailyMissions: presence.dailyMissions || [],  // Nouveau : détail quotidien

@@ -1,6 +1,8 @@
 // Gestion des demandes de permission
 let currentUser = null;
 let userRole = null;
+// Cache des superviseurs pour filtrage par nom
+let supervisorsCache = [];
 
 // Initialisation
 document.addEventListener('DOMContentLoaded', async () => {
@@ -19,14 +21,18 @@ function setupFilterHandlers() {
   const filterStatus = document.getElementById('filter-status');
   const filterStartDate = document.getElementById('filter-start-date');
   const filterEndDate = document.getElementById('filter-end-date');
-
+  const filterAgentName = document.getElementById('filter-agent-name');
+  const filterSupervisorName = document.getElementById('filter-supervisor-name');
+  
   if (filterProject) filterProject.addEventListener('change', applyFilters);
   if (filterAgent) filterAgent.addEventListener('change', applyFilters);
   if (filterSupervisor) filterSupervisor.addEventListener('change', applyFilters);
   if (filterStatus) filterStatus.addEventListener('change', applyFilters);
   if (filterStartDate) filterStartDate.addEventListener('change', applyFilters);
   if (filterEndDate) filterEndDate.addEventListener('change', applyFilters);
-
+  if (filterAgentName) filterAgentName.addEventListener('input', applyFilters);
+  if (filterSupervisorName) filterSupervisorName.addEventListener('input', applyFilters);
+  
   // Filtres pour agents
   const filterMyStatus = document.getElementById('filter-my-status');
   const filterMyStartDate = document.getElementById('filter-my-start-date');
@@ -46,11 +52,15 @@ async function loadUserInfo() {
       return;
     }
 
-    // Décoder le token pour obtenir le rôle
+    // Décoder le token pour obtenir le rôle et les infos de l'utilisateur
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
       userRole = payload.role?.toUpperCase();
-      currentUser = { id: payload.id || payload.userId };
+      currentUser = {
+        id: payload.id || payload.userId,
+        name: payload.name || payload.full_name || `${payload.first_name || ''} ${payload.last_name || ''}`.trim() || payload.email || '',
+        email: payload.email || ''
+      };
     } catch (e) {
       console.error('Erreur lors du décodage du token:', e);
     }
@@ -647,6 +657,12 @@ async function loadSupervisors() {
       users = data.users;
     }
 
+<<<<<<< HEAD
+=======
+    // Mémoriser pour le filtrage par nom
+    supervisorsCache = users || [];
+    
+>>>>>>> fe4244f (Mise à jour gestion des permissions et géolocalisation)
     if (response.ok && users.length > 0) {
       if (supervisorSelect) {
         supervisorSelect.innerHTML = '<option value="all">Tous les superviseurs</option>';
@@ -812,7 +828,13 @@ window.applyFilters = function applyFilters() {
   const statusFilter = document.getElementById('filter-status')?.value || 'all';
   const startDateFilter = document.getElementById('filter-start-date')?.value || '';
   const endDateFilter = document.getElementById('filter-end-date')?.value || '';
+<<<<<<< HEAD
 
+=======
+  const agentNameFilter = (document.getElementById('filter-agent-name')?.value || '').trim().toLowerCase();
+  const supervisorNameFilter = (document.getElementById('filter-supervisor-name')?.value || '').trim().toLowerCase();
+  
+>>>>>>> fe4244f (Mise à jour gestion des permissions et géolocalisation)
   let filtered = [...allPendingPermissions];
 
   // Filtrer par projet
@@ -832,6 +854,22 @@ window.applyFilters = function applyFilters() {
     });
   }
 
+<<<<<<< HEAD
+=======
+  // Filtrer par nom d'agent (recherche texte)
+  if (agentNameFilter) {
+    filtered = filtered.filter(perm => {
+      const a = perm.agent || {};
+      const displayName = (a.name ||
+        `${a.first_name || ''} ${a.last_name || ''}`.trim() ||
+        a.email ||
+        ''
+      ).toLowerCase();
+      return displayName.includes(agentNameFilter);
+    });
+  }
+  
+>>>>>>> fe4244f (Mise à jour gestion des permissions et géolocalisation)
   // Filtrer par superviseur
   if (supervisorFilter !== 'all') {
     const supervisorId = parseInt(supervisorFilter, 10);
@@ -842,6 +880,25 @@ window.applyFilters = function applyFilters() {
     });
   }
 
+<<<<<<< HEAD
+=======
+  // Filtrer par nom de superviseur (recherche texte)
+  if (supervisorNameFilter && Array.isArray(supervisorsCache) && supervisorsCache.length) {
+    filtered = filtered.filter(perm => {
+      const supervisorId = perm.agent?.supervisor_id;
+      if (!supervisorId) return false;
+      const sup = supervisorsCache.find(s => s.id === supervisorId);
+      if (!sup) return false;
+      const displayName = (sup.name ||
+        `${sup.first_name || ''} ${sup.last_name || ''}`.trim() ||
+        sup.email ||
+        ''
+      ).toLowerCase();
+      return displayName.includes(supervisorNameFilter);
+    });
+  }
+  
+>>>>>>> fe4244f (Mise à jour gestion des permissions et géolocalisation)
   // Filtrer par statut
   if (statusFilter !== 'all') {
     filtered = filtered.filter(perm => perm.status === statusFilter);
@@ -1016,13 +1073,27 @@ function resetMyFilters() {
   applyMyFilters();
 }
 
-// Calculer la durée en jours
+// Calculer la durée en jours de permission (sans compter les dimanches)
 function calculateDuration(startDate, endDate) {
   const start = new Date(startDate);
   const end = new Date(endDate);
-  const diffTime = Math.abs(end - start);
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 pour inclure le jour de fin
-  return diffDays;
+
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+    return 0;
+  }
+
+  let days = 0;
+  const current = new Date(start);
+
+  while (current <= end) {
+    const dayOfWeek = current.getDay(); // 0 = dimanche, 1 = lundi, ...
+    if (dayOfWeek !== 0) {
+      days++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return days;
 }
 
 // Rendre une ligne de tableau pour une permission
@@ -1166,8 +1237,33 @@ function renderPermissionRow(permission, isSupervisorView = false) {
       </tr>
     `;
   } else {
+    // Vue "Mes demandes" (agent) : afficher aussi le nom de l'agent (moi)
+    const agentNameRaw =
+      permission.agent?.name ||
+      `${permission.agent?.first_name || ''} ${permission.agent?.last_name || ''}`.trim() ||
+      permission.agent?.email ||
+      currentUser?.name ||
+      currentUser?.email ||
+      'Moi';
+    const agentInitial = agentNameRaw.charAt(0).toUpperCase();
+
     return `
       <tr class="permission-row-${permission.id}" data-status="${status}">
+        <td>
+          <div class="d-flex align-items-center">
+            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px; font-weight: bold;">
+              ${agentInitial}
+            </div>
+            <div>
+              <div class="fw-bold">${escapeHtml(agentNameRaw)}</div>
+              ${
+                (permission.agent?.email || currentUser?.email)
+                  ? `<small class="text-muted">${escapeHtml(permission.agent?.email || currentUser.email)}</small>`
+                  : ''
+              }
+            </div>
+          </div>
+        </td>
         <td><strong>${startDate}</strong></td>
         <td><strong>${endDate}</strong></td>
         <td><span class="badge bg-info">${duration} jour(s)</span></td>

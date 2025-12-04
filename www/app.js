@@ -1109,10 +1109,11 @@ async function init() {
 
       fd.append('lat', String(coords.latitude));
       fd.append('lon', String(coords.longitude));
-      fd.append('departement', $('departement').value);
-      fd.append('commune', $('commune').value);
-      fd.append('arrondissement', $('arrondissement').value);
-      fd.append('village', $('village').value);
+      // Utiliser les libellés visibles (ou la saisie manuelle) plutôt que les codes internes
+      fd.append('departement', getGeoValue('departement'));
+      fd.append('commune', getGeoValue('commune'));
+      fd.append('arrondissement', getGeoValue('arrondissement'));
+      fd.append('village', getGeoValue('village'));
       if (typeof coords.accuracy !== 'undefined') fd.append('accuracy', String(Math.round(coords.accuracy)));
       // Ajouter l'horodatage de la capture
       fd.append('captured_at', new Date().toISOString());

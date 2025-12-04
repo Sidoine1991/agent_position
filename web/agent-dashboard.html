@@ -3009,6 +3009,17 @@ Présence: ${presenceRateValue.toFixed(1)}% (${presenceData.workedDays || 0}/${w
 Check-ins total: ${presenceData.totalCheckins || 0}
 Moyenne check-ins/jour: ${(presenceData.averageCheckinsPerDay || 0).toFixed(1)}
 Jours permissionnaires: ${presenceData.permissionDays || 0}
+${(report.presence?.permissionDetails && report.presence.permissionDetails.length)
+  ? '\nDétail des permissions:\n' + report.presence.permissionDetails.map((p, idx) => {
+      const start = p.start || p.start_date || '';
+      const end = p.end || p.end_date || start;
+      const label = start && end && start !== end ? `${start} → ${end}` : start || end || 'Période non spécifiée';
+      const days = typeof p.days === 'number' ? `${p.days} jour(s)` : '';
+      const reason = p.reason ? ` — Raison: ${p.reason}` : '';
+      const status = p.status ? ` [${p.status}]` : '';
+      return `  ${idx + 1}. ${label} (${days})${status}${reason}`;
+    }).join('\n')
+  : ''}
 `;
       
       const fieldTimeInfo = `
@@ -3973,11 +3984,23 @@ Commence ton analyse maintenant.`;
             const computedPresence = summarizePresenceFromCheckins(monthlyCheckins, monthRange);
             console.log('Statistiques calculées:', computedPresence);
             if (computedPresence) {
+              // Préserver les jours de permission et leurs détails calculés côté backend
+              const existingPermissionDays = Number((report.presence && report.presence.permissionDays) || 0);
+              const existingPermissionDetails = (report.presence && report.presence.permissionDetails) || null;
+
               report.presence = { 
                 ...(report.presence || {}), 
                 ...computedPresence 
               };
-              console.log('✅ Données de présence finales:', report.presence);
+
+              if (existingPermissionDays > 0) {
+                report.presence.permissionDays = existingPermissionDays;
+              }
+              if (existingPermissionDetails && !report.presence.permissionDetails) {
+                report.presence.permissionDetails = existingPermissionDetails;
+              }
+
+              console.log('✅ Données de présence finales (avec permissions préservées):', report.presence);
             } else {
               console.warn('⚠️ Aucune statistique de présence calculée');
             }
@@ -4070,6 +4093,8 @@ Commence ton analyse maintenant.`;
             console.warn('⚠️ Aucun projet identifié pour le classement');
           }
 
+          // Ne plus écraser systématiquement les jours permissionnaires calculés côté backend.
+          // Utiliser /api/permission-days uniquement comme override si une valeur stricte > 0 est définie.
           try {
             console.log('🔍 Récupération des jours de permission pour:', { 
               agentId: resolvedAgentId, 
@@ -4077,9 +4102,12 @@ Commence ton analyse maintenant.`;
             });
             const permissionRecord = await fetchPermissionDaysRecord(resolvedAgentId, monthRange.value);
             console.log('📊 Réponse de fetchPermissionDaysRecord:', permissionRecord);
-            if (permissionRecord && typeof permissionRecord.days !== 'undefined') {
+            if (permissionRecord && typeof permissionRecord.days === 'number' && permissionRecord.days > 0) {
               report.presence = report.presence || {};
-              report.presence.permissionDays = Math.max(0, Number(permissionRecord.days) || 0);
+              report.presence.permissionDays = Math.max(
+                Number(report.presence.permissionDays || 0),
+                Number(permissionRecord.days)
+              );
               console.log('✅ Jours de permission définis:', report.presence.permissionDays);
             } else {
               console.warn('⚠️ Aucun jour de permission trouvé ou réponse invalide');
@@ -5029,6 +5057,9 @@ Commence ton analyse maintenant.`;
         .filter(photo => photo && (photo.url || photo.path || photo.photoUrl || photo.photo_url || photo.file_url || photo.imageUrl))
         .slice(0, 20);
       const fieldPhoto = report.fieldPhoto || null;
+      const fieldPhotos = Array.isArray(report.fieldPhotos) && report.fieldPhotos.length
+        ? report.fieldPhotos.slice(0, 3)
+        : (fieldPhoto ? [fieldPhoto] : []);
 
       const activityPerformance = activitiesData.performance || null;
 
@@ -5052,6 +5083,35 @@ Commence ton analyse maintenant.`;
       const generationTimestamp = new Date().toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' });
       const periodStart = meta?.month?.start ? formatIsoDateToFr(meta.month.start) : 'N/A';
       const periodEnd = meta?.month?.end ? formatIsoDateToFr(meta.month.end) : 'N/A';
+
+      // Mettre à jour le fallbackSummary côté front avec les VRAIES valeurs de présence déjà calculées
+      try {
+        const p = report.presence || presenceData || {};
+        const safePresenceRate = typeof p.presenceRate === 'number' ? p.presenceRate : (presenceRateValue || 0);
+        const safeWorkedDays = typeof p.workedDays === 'number' ? p.workedDays : (presenceData.workedDays || 0);
+        const safeWorkingDays = typeof p.workingDays === 'number' ? p.workingDays : (presenceData.workingDays || workingDaysValue || 0);
+        const safeTotalCheckins = typeof p.totalCheckins === 'number' ? p.totalCheckins : (presenceData.totalCheckins || 0);
+
+        const mainLine = `${agentDisplayName} — Synthèse ${referenceMonthLabel}. ` +
+          `${safePresenceRate.toFixed(1)}% de présence (${safeWorkedDays}/${safeWorkingDays} jours ouvrés, ${safeTotalCheckins} check-ins).`;
+
+        const activitySummary = (() => {
+          const totalActs = activitiesData.total || activityList.length || 0;
+          const breakdown = (activitiesData.breakdown || [])
+            .slice(0, 3)
+            .map(item => `${item.label}: ${item.count}`)
+            .join(', ') || 'Aucune activité consignée';
+          return ` Activités: ${totalActs} (${breakdown}).`;
+        })();
+
+        const newFallback = mainLine + activitySummary;
+
+        if (!commentsData.aiSummary) {
+          commentsData.fallbackSummary = newFallback;
+        }
+      } catch (e) {
+        console.warn('⚠️ Impossible de recalculer le résumé automatique côté front:', e);
+      }
 
       // Pour le rapport mensuel, le classement retourné par le backend est déjà filtré par projet.
       // On n'applique donc PAS de filtre supplémentaire côté frontend pour éviter de masquer des agents.
@@ -5692,6 +5752,7 @@ Commence ton analyse maintenant.`;
         return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleDateString('fr-FR');
       };
 
+      // Mettre en avant quelques activités à partir de la liste brute, mais les compteurs officiels viennent du breakdown backend
       const realizedHighlights = activityList
         .filter(act => detectActivityStatus(act.result) === 'realized')
         .slice(0, 3);
@@ -5928,39 +5989,30 @@ Commence ton analyse maintenant.`;
             ${activitySummaryTable}
             ${activityDistributionSection}
             ${activityKpiTable}
-            ${fieldPhoto ? `
+            ${fieldPhotos.length ? `
               <div class="mt-4">
-                <h6 class="mb-2"><i class="bi bi-camera me-2"></i>Photo de terrain (exemple)</h6>
-                <div class="d-flex align-items-start gap-3">
-                  <img src="${fieldPhoto.url}" alt="Photo de terrain" class="img-thumbnail" style="max-width: 260px; max-height: 260px; object-fit: cover;">
-                  <div class="small text-muted">
-                    ${fieldPhoto.date ? `<div><strong>Date :</strong> ${new Date(fieldPhoto.date).toLocaleString('fr-FR')}</div>` : ''}
-                    ${fieldPhoto.location ? `<div><strong>Lieu :</strong> ${escapeHtml(fieldPhoto.location)}</div>` : ''}
-                    <div class="mt-2">Photo extraite des validations de présence (presence_validations).</div>
+                <h6 class="mb-2">
+                  <i class="bi bi-camera me-2"></i>Photos de terrain du mois (jusqu'à 3)
+                </h6>
+                <div class="d-flex flex-wrap gap-3">
+                  ${fieldPhotos.map(p => `
+                    <div class="d-flex align-items-start gap-2">
+                      <img 
+                        src="${p.url}" 
+                        alt="Photo de terrain" 
+                        class="img-thumbnail"
+                        style="max-width: 140px; max-height: 140px; object-fit: cover;"
+                      >
+                      <div class="small text-muted">
+                        ${p.date ? `<div><strong>Date :</strong> ${new Date(p.date).toLocaleString('fr-FR')}</div>` : ''}
+                        ${p.location ? `<div><strong>Lieu :</strong> ${escapeHtml(p.location)}</div>` : ''}
+                      </div>
+                    </div>
+                  `).join('')}
+                  <div class="w-100 small text-muted mt-2">
+                    Photos extraites des validations de présence (<code>presence_validations.photo_url</code>).
                   </div>
                 </div>
-              </div>
-            ` : ''}
-            ${breakdownList.length ? `
-              <div class="table-responsive mb-4">
-                <table class="table table-sm table-hover align-middle">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Statut détaillé</th>
-                      <th style="width: 120px;" class="text-center">Volume</th>
-                      <th style="width: 120px;" class="text-center">Part (%)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${breakdownList.map(item => `
-                      <tr>
-                        <td>${escapeHtml(item.label)}</td>
-                        <td class="text-center fw-semibold">${item.count}</td>
-                        <td class="text-center">${item.percentage}%</td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
               </div>
             ` : ''}
             ${activityList.length ? `

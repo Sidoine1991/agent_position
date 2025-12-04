@@ -625,6 +625,13 @@
                   <select id="filter-agent" class="form-select">
                     <option value="all">👤 Tous les agents</option>
                   </select>
+                  <input
+                    type="text"
+                    id="filter-agent-name"
+                    class="form-control mt-2"
+                    placeholder="Filtrer par nom ou email d'agent..."
+                  />
+                  <small class="text-muted">Tapez une partie du nom ou de l'email de l'agent</small>
                 </div>
                 <div class="col-md-3">
                   <label for="filter-supervisor" class="form-label fw-bold">
@@ -633,6 +640,13 @@
                   <select id="filter-supervisor" class="form-select">
                     <option value="all">👔 Tous les superviseurs</option>
                   </select>
+                  <input
+                    type="text"
+                    id="filter-supervisor-name"
+                    class="form-control mt-2"
+                    placeholder="Filtrer par nom ou email de superviseur..."
+                  />
+                  <small class="text-muted">Tapez une partie du nom ou de l'email du superviseur</small>
                 </div>
                 <div class="col-md-3">
                   <label for="filter-status" class="form-label fw-bold">
@@ -786,6 +800,7 @@
               <table class="table table-striped table-hover align-middle mb-0">
                 <thead class="table-light">
                   <tr>
+                    <th><i class="bi bi-person me-1"></i>Agent</th>
                     <th><i class="bi bi-calendar-event me-1"></i>Date de début</th>
                     <th><i class="bi bi-calendar-check me-1"></i>Date de fin</th>
                     <th><i class="bi bi-clock me-1"></i>Durée</th>
