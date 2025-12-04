@@ -2369,6 +2369,26 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
+// Routes explicites pour index.html (AVANT les middlewares statiques)
+// Ces routes doivent être définies avant express.static pour être prioritaires
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'web', 'index.html'), (err) => {
+    if (err) {
+      console.error('Erreur lors de l\'envoi de index.html:', err);
+      res.status(500).send('Erreur serveur');
+    }
+  });
+});
+
+app.get('/index.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'web', 'index.html'), (err) => {
+    if (err) {
+      console.error('Erreur lors de l\'envoi de index.html:', err);
+      res.status(500).send('Erreur serveur');
+    }
+  });
+});
+
 // Servir les fichiers statiques
 app.use(express.static('web'));
 app.use(express.static('www')); // Servir aussi le dossier www
@@ -2395,16 +2415,6 @@ app.use((req, res, next) => {
     res.setHeader('Content-Type', 'text/html');
   }
   next();
-});
-
-// Route explicite pour index.html à la racine (AVANT les middlewares statiques)
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'web', 'index.html'));
-});
-
-// Route explicite pour index.html avec chemin complet
-app.get('/index.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'web', 'index.html'));
 });
 
 // Middleware d'authentification
