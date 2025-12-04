@@ -3363,10 +3363,10 @@ async function loadPresenceData() {
       if (!key) return;
       const d = new Date(key + 'T00:00:00');
       const isPastDay = d < new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const isTodayAfter19 = key === todayKey && now.getHours() >= 19;
+      const isTodayAfter20 = key === todayKey && now.getHours() >= 20;
       const isPlanned = Boolean(p.planned_start_time || p.planned_end_time || p.description_activite);
       if (!isPlanned) return;
-      if (!presenceData[key] && (isPastDay || isTodayAfter19)) {
+      if (!presenceData[key] && (isPastDay || isTodayAfter20)) {
         presenceData[key] = { status: 'absent' };
       }
     });
