@@ -81,6 +81,19 @@ class MissionSync {
     
     return new Promise((resolve, reject) => {
       try {
+        // Vérifier que la base de données et le store existent
+        if (!this.db) {
+          console.warn("⚠️ Base de données non initialisée");
+          resolve([]);
+          return;
+        }
+        
+        if (!this.db.objectStoreNames.contains('pendingMissions')) {
+          console.warn("⚠️ Store 'pendingMissions' n'existe pas encore");
+          resolve([]);
+          return;
+        }
+        
         const transaction = this.db.transaction(['pendingMissions'], 'readonly');
         const store = transaction.objectStore('pendingMissions');
         
@@ -90,11 +103,11 @@ class MissionSync {
           .then(resolve)
           .catch(error => {
             console.error("Erreur lors de la récupération des missions:", error);
-            reject(error);
+            resolve([]); // Retourner un tableau vide au lieu de rejeter
           });
       } catch (error) {
         console.error("Erreur lors de la récupération des missions:", error);
-        reject(error);
+        resolve([]); // Retourner un tableau vide au lieu de rejeter
       }
     });
   }

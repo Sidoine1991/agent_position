@@ -5492,5 +5492,3 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 10000); // 10 secondes
   }
 });
-
->>>>>>> fe4244f (Mise à jour gestion des permissions et géolocalisation)
