@@ -46,7 +46,7 @@ CREATE TABLE absences (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id),
     date DATE NOT NULL,
-    reason VARCHAR(255) DEFAULT 'Non marquage de présence avant 19h30',
+    reason VARCHAR(255) DEFAULT 'Non marquage de présence avant 20h30',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, date)
 );
