@@ -154,7 +154,7 @@ build-*.js
 
 # Fichiers de configuration spécifiques
 railway.toml
-render.yaml
+# render.yaml - DOIT être versionné pour le déploiement automatique
 capacitor.config.json
 
 # Fichiers de migration et SQL temporaires

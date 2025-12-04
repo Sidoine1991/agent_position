@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: presence-ccrb
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NODE_ENV
+        value: production
+    healthCheckPath: /web-config.js
+
+

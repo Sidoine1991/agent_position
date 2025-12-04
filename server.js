@@ -2397,6 +2397,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// Route explicite pour index.html à la racine (AVANT les middlewares statiques)
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'web', 'index.html'));
+});
+
+// Route explicite pour index.html avec chemin complet
+app.get('/index.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'web', 'index.html'));
+});
+
 // Middleware d'authentification
 async function authenticateToken(req, res, next) {
   console.log('🔍 Middleware authenticateToken appelé');
