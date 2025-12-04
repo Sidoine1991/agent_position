@@ -847,8 +847,6 @@ window.applyFilters = function applyFilters() {
     });
   }
 
-<<<<<<< HEAD
-=======
   // Filtrer par nom d'agent (recherche texte)
   if (agentNameFilter) {
     filtered = filtered.filter(perm => {
@@ -862,7 +860,6 @@ window.applyFilters = function applyFilters() {
     });
   }
   
->>>>>>> fe4244f (Mise à jour gestion des permissions et géolocalisation)
   // Filtrer par superviseur
   if (supervisorFilter !== 'all') {
     const supervisorId = parseInt(supervisorFilter, 10);
