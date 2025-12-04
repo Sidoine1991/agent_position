@@ -11,7 +11,7 @@ if (typeof window !== 'undefined' && typeof window.logout !== 'function') {
       localStorage.setItem('presence_update', JSON.stringify({ type: 'logout', ts: Date.now() }));
     } catch { }
     // Rediriger vers l'accueil uniquement
-    window.location.href = '/';
+    window.location.href = '/index.html';
   };
 }
 let jwt = localStorage.getItem('jwt') || '';
@@ -118,6 +118,40 @@ async function api(path, opts = {}) {
   if (!res.ok) {
     const errorText = await res.text();
     console.error('API error:', res.status, errorText);
+    
+    // Si erreur 403 avec message "réservé au superadmin", déconnecter et rediriger
+    if (res.status === 403) {
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.error && (errorJson.error.includes('superadmin') || errorJson.error.includes('réservé') || errorJson.error.includes('administrateur requis'))) {
+          console.log('❌ Accès refusé (superadmin requis) - Déconnexion et redirection');
+          localStorage.removeItem('jwt');
+          localStorage.removeItem('userProfile');
+          localStorage.removeItem('userEmail');
+          localStorage.setItem('logout_flag', 'true');
+          if (window.sessionManager) {
+            window.sessionManager.clearSession();
+          }
+          window.location.replace('/index.html');
+          return;
+        }
+      } catch (e) {
+        // Si ce n'est pas du JSON, vérifier le texte brut
+        if (errorText.includes('superadmin') || errorText.includes('réservé') || errorText.includes('administrateur requis')) {
+          console.log('❌ Accès refusé (superadmin requis) - Déconnexion et redirection');
+          localStorage.removeItem('jwt');
+          localStorage.removeItem('userProfile');
+          localStorage.removeItem('userEmail');
+          localStorage.setItem('logout_flag', 'true');
+          if (window.sessionManager) {
+            window.sessionManager.clearSession();
+          }
+          window.location.replace('/index.html');
+          return;
+        }
+      }
+    }
+    
     const err = new Error(errorText || res.statusText);
     err.status = res.status;
     throw err;
@@ -2245,7 +2279,11 @@ if (typeof window !== 'undefined') {
 function logout() {
   if (confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) {
     localStorage.removeItem('jwt');
-    window.location.href = window.location.origin + '/';
+    localStorage.setItem('logout_flag', 'true');
+    if (window.sessionManager) {
+      window.sessionManager.clearSession();
+    }
+    window.location.replace('/index.html');
   }
 }
 

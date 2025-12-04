@@ -344,8 +344,29 @@ class CircularNav extends HTMLElement {
             </a>
           `).join('')}
         </nav>
+        <div class="navbar-user" style="margin-left: auto; display: flex; align-items: center; gap: 12px;">
+          <button type="button" class="navbar-logout" onclick="window.logout && window.logout();" style="background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.3); color: #dc3545; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s ease;">
+            <span style="margin-right: 6px;">🚪</span>
+            <span>Déconnexion</span>
+          </button>
+        </div>
       </div>
     `;
+    
+    // S'assurer que la fonction logout est disponible
+    if (typeof window.logout !== 'function') {
+      // Attendre que app.js soit chargé
+      setTimeout(() => {
+        if (typeof window.logout === 'function') {
+          const logoutBtn = this.querySelector('.navbar-logout');
+          if (logoutBtn) {
+            logoutBtn.onclick = () => {
+              window.logout();
+            };
+          }
+        }
+      }, 500);
+    }
   }
 }
 

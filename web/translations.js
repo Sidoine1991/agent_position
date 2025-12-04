@@ -67,7 +67,7 @@ class TranslationManager {
                 'planning.refresh': 'Actualiser',
                 'planning.summary.info': 'Résumé des activités planifiées regroupées par semaine avec possibilité d\'édition.',
                 'planning.loading': 'Chargement du récap hebdomadaire...',
-                'planning.alert': 'Les jours planifiés sans présence avant 18:30 seront marqués en rouge.',
+                'planning.alert': 'Les jours planifiés sans présence avant 19:30 seront marqués en rouge.',
                 
                 // Dashboard
                 'dashboard.title': 'Système de Gestion de Présence',

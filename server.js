@@ -1050,6 +1050,452 @@ app.get('/api/admin/stats', async (req, res) => {
   }
 });
 
+// ===== ENDPOINTS POUR SAUVEGARDE/SUPPRESSION FILTRÉE =====
+
+// Prévisualiser les données selon les filtres
+app.post('/api/admin/filtered-data/preview', authenticateToken, authenticateAdmin, async (req, res) => {
+  try {
+    const { startDate, endDate, projects, agentIds, dataTypes } = req.body || {};
+    
+    const counts = {};
+    
+    // Construire les filtres de base
+    let dateFilter = {};
+    if (startDate) {
+      dateFilter.gte = startDate;
+    }
+    if (endDate) {
+      const endDateTime = new Date(endDate);
+      endDateTime.setHours(23, 59, 59, 999);
+      dateFilter.lte = endDateTime.toISOString();
+    }
+    
+    // Compter les checkins
+    if (dataTypes.includes('checkins')) {
+      let checkinsQuery = supabaseClient
+        .from('checkins')
+        .select('id', { count: 'exact', head: true });
+      
+      if (startDate || endDate) {
+        if (startDate) checkinsQuery = checkinsQuery.gte('start_time', startDate);
+        if (endDate) {
+          const endDateTime = new Date(endDate);
+          endDateTime.setHours(23, 59, 59, 999);
+          checkinsQuery = checkinsQuery.lte('start_time', endDateTime.toISOString());
+        }
+      }
+      
+      if (agentIds && agentIds.length > 0) {
+        checkinsQuery = checkinsQuery.in('user_id', agentIds);
+      }
+      
+      const { count, error } = await checkinsQuery;
+      if (!error) counts.checkins = count || 0;
+    }
+    
+    // Compter les missions
+    if (dataTypes.includes('missions')) {
+      let missionsQuery = supabaseClient
+        .from('missions')
+        .select('id', { count: 'exact', head: true });
+      
+      if (startDate || endDate) {
+        if (startDate) missionsQuery = missionsQuery.gte('start_time', startDate);
+        if (endDate) {
+          const endDateTime = new Date(endDate);
+          endDateTime.setHours(23, 59, 59, 999);
+          missionsQuery = missionsQuery.lte('start_time', endDateTime.toISOString());
+        }
+      }
+      
+      if (agentIds && agentIds.length > 0) {
+        missionsQuery = missionsQuery.in('agent_id', agentIds);
+      }
+      
+      const { count, error } = await missionsQuery;
+      if (!error) counts.missions = count || 0;
+    }
+    
+    // Compter les presences
+    if (dataTypes.includes('presences')) {
+      let presencesQuery = supabaseClient
+        .from('presences')
+        .select('id', { count: 'exact', head: true });
+      
+      if (startDate || endDate) {
+        if (startDate) presencesQuery = presencesQuery.gte('start_time', startDate);
+        if (endDate) {
+          const endDateTime = new Date(endDate);
+          endDateTime.setHours(23, 59, 59, 999);
+          presencesQuery = presencesQuery.lte('start_time', endDateTime.toISOString());
+        }
+      }
+      
+      if (agentIds && agentIds.length > 0) {
+        presencesQuery = presencesQuery.in('user_id', agentIds);
+      }
+      
+      const { count, error } = await presencesQuery;
+      if (!error) counts.presences = count || 0;
+    }
+    
+    // Compter les permissions
+    if (dataTypes.includes('permissions')) {
+      let permissionsQuery = supabaseClient
+        .from('permissions')
+        .select('id', { count: 'exact', head: true });
+      
+      if (startDate || endDate) {
+        if (startDate) permissionsQuery = permissionsQuery.gte('start_date', startDate);
+        if (endDate) permissionsQuery = permissionsQuery.lte('end_date', endDate);
+      }
+      
+      if (agentIds && agentIds.length > 0) {
+        permissionsQuery = permissionsQuery.in('agent_id', agentIds);
+      }
+      
+      const { count, error } = await permissionsQuery;
+      if (!error) counts.permissions = count || 0;
+    }
+    
+    // Filtrer par projet si nécessaire (nécessite une jointure avec users)
+    if (projects && projects.length > 0) {
+      // Pour les checkins et missions, filtrer via user_id/agent_id
+      const { data: usersInProjects } = await supabaseClient
+        .from('users')
+        .select('id')
+        .in('project_name', projects);
+      
+      const userIdsInProjects = (usersInProjects || []).map(u => u.id);
+      
+      if (userIdsInProjects.length > 0) {
+        // Recompter avec filtrage par projet
+        if (dataTypes.includes('checkins')) {
+          let checkinsQuery = supabaseClient
+            .from('checkins')
+            .select('id', { count: 'exact', head: true })
+            .in('user_id', userIdsInProjects);
+          
+          if (startDate) checkinsQuery = checkinsQuery.gte('start_time', startDate);
+          if (endDate) {
+            const endDateTime = new Date(endDate);
+            endDateTime.setHours(23, 59, 59, 999);
+            checkinsQuery = checkinsQuery.lte('start_time', endDateTime.toISOString());
+          }
+          
+          if (agentIds && agentIds.length > 0) {
+            checkinsQuery = checkinsQuery.in('user_id', agentIds.filter(id => userIdsInProjects.includes(id)));
+          }
+          
+          const { count } = await checkinsQuery;
+          counts.checkins = count || 0;
+        }
+        
+        if (dataTypes.includes('missions')) {
+          let missionsQuery = supabaseClient
+            .from('missions')
+            .select('id', { count: 'exact', head: true })
+            .in('agent_id', userIdsInProjects);
+          
+          if (startDate) missionsQuery = missionsQuery.gte('start_time', startDate);
+          if (endDate) {
+            const endDateTime = new Date(endDate);
+            endDateTime.setHours(23, 59, 59, 999);
+            missionsQuery = missionsQuery.lte('start_time', endDateTime.toISOString());
+          }
+          
+          if (agentIds && agentIds.length > 0) {
+            missionsQuery = missionsQuery.in('agent_id', agentIds.filter(id => userIdsInProjects.includes(id)));
+          }
+          
+          const { count } = await missionsQuery;
+          counts.missions = count || 0;
+        }
+      } else {
+        // Aucun utilisateur dans ces projets
+        if (dataTypes.includes('checkins')) counts.checkins = 0;
+        if (dataTypes.includes('missions')) counts.missions = 0;
+      }
+    }
+    
+    res.json({ success: true, counts });
+  } catch (error) {
+    console.error('Erreur prévisualisation données filtrées:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Exporter les données selon les filtres
+app.post('/api/admin/filtered-data/export', authenticateToken, authenticateAdmin, async (req, res) => {
+  try {
+    const { startDate, endDate, projects, agentIds, dataTypes } = req.body || {};
+    
+    const exportData = {};
+    
+    // Construire les filtres de date
+    const buildDateFilter = (field) => {
+      let query = supabaseClient.from('checkins').select('*');
+      if (startDate) query = query.gte(field, startDate);
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        query = query.lte(field, endDateTime.toISOString());
+      }
+      return query;
+    };
+    
+    // Récupérer les IDs d'utilisateurs si filtrage par projet
+    let userIdsInProjects = null;
+    if (projects && projects.length > 0) {
+      const { data: usersInProjects } = await supabaseClient
+        .from('users')
+        .select('id')
+        .in('project_name', projects);
+      userIdsInProjects = (usersInProjects || []).map(u => u.id);
+    }
+    
+    // Exporter checkins
+    if (dataTypes.includes('checkins')) {
+      let query = supabaseClient.from('checkins').select('*');
+      if (startDate) query = query.gte('start_time', startDate);
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        query = query.lte('start_time', endDateTime.toISOString());
+      }
+      if (agentIds && agentIds.length > 0) {
+        query = query.in('user_id', agentIds);
+      } else if (userIdsInProjects) {
+        query = query.in('user_id', userIdsInProjects);
+      }
+      const { data, error } = await query;
+      if (!error) exportData.checkins = data || [];
+    }
+    
+    // Exporter missions
+    if (dataTypes.includes('missions')) {
+      let query = supabaseClient.from('missions').select('*');
+      if (startDate) query = query.gte('start_time', startDate);
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        query = query.lte('start_time', endDateTime.toISOString());
+      }
+      if (agentIds && agentIds.length > 0) {
+        query = query.in('agent_id', agentIds);
+      } else if (userIdsInProjects) {
+        query = query.in('agent_id', userIdsInProjects);
+      }
+      const { data, error } = await query;
+      if (!error) exportData.missions = data || [];
+    }
+    
+    // Exporter presences
+    if (dataTypes.includes('presences')) {
+      let query = supabaseClient.from('presences').select('*');
+      if (startDate) query = query.gte('start_time', startDate);
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        query = query.lte('start_time', endDateTime.toISOString());
+      }
+      if (agentIds && agentIds.length > 0) {
+        query = query.in('user_id', agentIds);
+      } else if (userIdsInProjects) {
+        query = query.in('user_id', userIdsInProjects);
+      }
+      const { data, error } = await query;
+      if (!error) exportData.presences = data || [];
+    }
+    
+    // Exporter permissions
+    if (dataTypes.includes('permissions')) {
+      let query = supabaseClient.from('permissions').select('*');
+      if (startDate) query = query.gte('start_date', startDate);
+      if (endDate) query = query.lte('end_date', endDate);
+      if (agentIds && agentIds.length > 0) {
+        query = query.in('agent_id', agentIds);
+      } else if (userIdsInProjects) {
+        query = query.in('agent_id', userIdsInProjects);
+      }
+      const { data, error } = await query;
+      if (!error) exportData.permissions = data || [];
+    }
+    
+    // Ajouter les métadonnées d'export
+    exportData.metadata = {
+      exportDate: new Date().toISOString(),
+      filters: { startDate, endDate, projects, agentIds, dataTypes },
+      counts: {}
+    };
+    
+    Object.keys(exportData).forEach(key => {
+      if (key !== 'metadata' && Array.isArray(exportData[key])) {
+        exportData.metadata.counts[key] = exportData[key].length;
+      }
+    });
+    
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="export_donnees_${new Date().toISOString().split('T')[0]}.json"`);
+    res.json(exportData);
+  } catch (error) {
+    console.error('Erreur export données filtrées:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Supprimer les données selon les filtres
+app.post('/api/admin/filtered-data/delete', authenticateToken, authenticateAdmin, async (req, res) => {
+  try {
+    const { startDate, endDate, projects, agentIds, dataTypes } = req.body || {};
+    
+    const deleted = {};
+    
+    // Récupérer les IDs d'utilisateurs si filtrage par projet
+    let userIdsInProjects = null;
+    if (projects && projects.length > 0) {
+      const { data: usersInProjects } = await supabaseClient
+        .from('users')
+        .select('id')
+        .in('project_name', projects);
+      userIdsInProjects = (usersInProjects || []).map(u => u.id);
+    }
+    
+    // Supprimer checkins
+    if (dataTypes.includes('checkins')) {
+      // Compter d'abord
+      let countQuery = supabaseClient.from('checkins').select('id', { count: 'exact', head: true });
+      if (startDate) countQuery = countQuery.gte('start_time', startDate);
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        countQuery = countQuery.lte('start_time', endDateTime.toISOString());
+      }
+      if (agentIds && agentIds.length > 0) {
+        countQuery = countQuery.in('user_id', agentIds);
+      } else if (userIdsInProjects) {
+        countQuery = countQuery.in('user_id', userIdsInProjects);
+      }
+      const { count: countBefore } = await countQuery;
+      
+      // Puis supprimer
+      let deleteQuery = supabaseClient.from('checkins').delete();
+      if (startDate) deleteQuery = deleteQuery.gte('start_time', startDate);
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        deleteQuery = deleteQuery.lte('start_time', endDateTime.toISOString());
+      }
+      if (agentIds && agentIds.length > 0) {
+        deleteQuery = deleteQuery.in('user_id', agentIds);
+      } else if (userIdsInProjects) {
+        deleteQuery = deleteQuery.in('user_id', userIdsInProjects);
+      }
+      const { error } = await deleteQuery;
+      if (!error) deleted.checkins = countBefore || 0;
+    }
+    
+    // Supprimer missions
+    if (dataTypes.includes('missions')) {
+      // Compter d'abord
+      let countQuery = supabaseClient.from('missions').select('id', { count: 'exact', head: true });
+      if (startDate) countQuery = countQuery.gte('start_time', startDate);
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        countQuery = countQuery.lte('start_time', endDateTime.toISOString());
+      }
+      if (agentIds && agentIds.length > 0) {
+        countQuery = countQuery.in('agent_id', agentIds);
+      } else if (userIdsInProjects) {
+        countQuery = countQuery.in('agent_id', userIdsInProjects);
+      }
+      const { count: countBefore } = await countQuery;
+      
+      // Puis supprimer
+      let deleteQuery = supabaseClient.from('missions').delete();
+      if (startDate) deleteQuery = deleteQuery.gte('start_time', startDate);
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        deleteQuery = deleteQuery.lte('start_time', endDateTime.toISOString());
+      }
+      if (agentIds && agentIds.length > 0) {
+        deleteQuery = deleteQuery.in('agent_id', agentIds);
+      } else if (userIdsInProjects) {
+        deleteQuery = deleteQuery.in('agent_id', userIdsInProjects);
+      }
+      const { error } = await deleteQuery;
+      if (!error) deleted.missions = countBefore || 0;
+    }
+    
+    // Supprimer presences
+    if (dataTypes.includes('presences')) {
+      // Compter d'abord
+      let countQuery = supabaseClient.from('presences').select('id', { count: 'exact', head: true });
+      if (startDate) countQuery = countQuery.gte('start_time', startDate);
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        countQuery = countQuery.lte('start_time', endDateTime.toISOString());
+      }
+      if (agentIds && agentIds.length > 0) {
+        countQuery = countQuery.in('user_id', agentIds);
+      } else if (userIdsInProjects) {
+        countQuery = countQuery.in('user_id', userIdsInProjects);
+      }
+      const { count: countBefore } = await countQuery;
+      
+      // Puis supprimer
+      let deleteQuery = supabaseClient.from('presences').delete();
+      if (startDate) deleteQuery = deleteQuery.gte('start_time', startDate);
+      if (endDate) {
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        deleteQuery = deleteQuery.lte('start_time', endDateTime.toISOString());
+      }
+      if (agentIds && agentIds.length > 0) {
+        deleteQuery = deleteQuery.in('user_id', agentIds);
+      } else if (userIdsInProjects) {
+        deleteQuery = deleteQuery.in('user_id', userIdsInProjects);
+      }
+      const { error } = await deleteQuery;
+      if (!error) deleted.presences = countBefore || 0;
+    }
+    
+    // Supprimer permissions
+    if (dataTypes.includes('permissions')) {
+      // Compter d'abord
+      let countQuery = supabaseClient.from('permissions').select('id', { count: 'exact', head: true });
+      if (startDate) countQuery = countQuery.gte('start_date', startDate);
+      if (endDate) countQuery = countQuery.lte('end_date', endDate);
+      if (agentIds && agentIds.length > 0) {
+        countQuery = countQuery.in('agent_id', agentIds);
+      } else if (userIdsInProjects) {
+        countQuery = countQuery.in('agent_id', userIdsInProjects);
+      }
+      const { count: countBefore } = await countQuery;
+      
+      // Puis supprimer
+      let deleteQuery = supabaseClient.from('permissions').delete();
+      if (startDate) deleteQuery = deleteQuery.gte('start_date', startDate);
+      if (endDate) deleteQuery = deleteQuery.lte('end_date', endDate);
+      if (agentIds && agentIds.length > 0) {
+        deleteQuery = deleteQuery.in('agent_id', agentIds);
+      } else if (userIdsInProjects) {
+        deleteQuery = deleteQuery.in('agent_id', userIdsInProjects);
+      }
+      const { error } = await deleteQuery;
+      if (!error) deleted.permissions = countBefore || 0;
+    }
+    
+    res.json({ success: true, deleted });
+  } catch (error) {
+    console.error('Erreur suppression données filtrées:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Calendar day status for attendance coloring
 // GET /api/attendance/day-status?agent_id=ID&from=ISO&to=ISO
 app.get('/api/attendance/day-status', async (req, res) => {
@@ -2112,10 +2558,23 @@ async function authenticateToken(req, res, next) {
 
 // Middleware d'authentification admin
 function authenticateAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'admin') {
-    console.log('❌ Accès administrateur requis');
-    return res.status(403).json({ error: 'Accès administrateur requis' });
+  if (!req.user) {
+    console.log('❌ Utilisateur non authentifié');
+    return res.status(401).json({ error: 'Authentification requise' });
   }
+  const role = (req.user.role || '').toLowerCase();
+  const email = req.user.email || 'inconnu';
+  console.log(`🔍 Vérification accès admin - Email: ${email}, Rôle: ${role}`);
+  
+  if (role !== 'admin' && role !== 'superadmin') {
+    console.log(`❌ Accès administrateur requis - Email: ${email}, Rôle actuel: ${role}`);
+    return res.status(403).json({ 
+      error: 'Accès administrateur requis',
+      currentRole: role,
+      email: email
+    });
+  }
+  console.log(`✅ Accès admin autorisé pour ${email} (rôle: ${role})`);
   next();
 }
 

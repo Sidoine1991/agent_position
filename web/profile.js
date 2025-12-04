@@ -30,8 +30,13 @@ if (typeof window !== 'undefined') {
       localStorage.removeItem('userProfile');
       localStorage.setItem('presence_update', JSON.stringify({ type: 'logout', ts: Date.now() }));
     } catch {}
+    // Marquer la déconnexion explicite
+    localStorage.setItem('logout_flag', 'true');
+    if (window.sessionManager) {
+      window.sessionManager.clearSession();
+    }
     // Toujours rester cohérent: retour à l'accueil sans vider tout le storage
-    window.location.href = '/';
+    window.location.replace('/index.html');
   };
 }
 

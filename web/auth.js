@@ -26,8 +26,8 @@ const PAGE_ACCESS = {
   '/reports.html': [ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN],
   '/synthese-globale.html': [ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN],
 
-  // Page Superadmin
-  '/admin.html': [ROLES.SUPERADMIN],
+  // Page Admin (Admin et Superadmin)
+  '/admin.html': [ROLES.ADMIN, ROLES.SUPERADMIN],
 
   // Pages publiques
   '/index.html': 'public',
@@ -290,8 +290,64 @@ function checkAccess(page, role) {
   return allowedRoles.includes(role);
 }
 
+// Flag pour éviter les vérifications répétées sur admin.html
+let adminPageChecked = false;
+
 async function protectPage() {
   const currentPage = window.location.pathname;
+  
+  // Pour la page admin, vérification unique pour éviter les boucles
+  if (currentPage === '/admin.html') {
+    // Si déjà vérifié, ne pas revérifier (évite les boucles)
+    if (adminPageChecked) {
+      console.log('🔒 Page admin déjà vérifiée - Pas de revérification');
+      return;
+    }
+    adminPageChecked = true;
+    
+    // Ne pas restaurer de session automatiquement sur admin.html
+    // Vérifier directement le token sans restaurer
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      // Pas de token, rediriger immédiatement
+      window.location.replace('/index.html');
+      return;
+    }
+    
+    // Vérifier le rôle directement sans restaurer la session
+    try {
+      const userRole = await getUserRole();
+      const role = (userRole || '').toLowerCase();
+      
+      if (role !== 'admin' && role !== 'superadmin') {
+        // Déconnexion immédiate sans tentative de reconnexion
+        console.log('❌ Accès refusé à /admin.html - Déconnexion immédiate');
+        localStorage.clear();
+        if (window.sessionManager) {
+          window.sessionManager.clearSession();
+        }
+        window.location.replace('/index.html');
+        return;
+      }
+      
+      // Si l'utilisateur est admin, permettre la navigation normale
+      // Ne pas forcer à rester sur admin.html - permettre de quitter librement
+      console.log('✅ Accès admin autorisé - Navigation libre autorisée');
+      return;
+    } catch (error) {
+      // En cas d'erreur, déconnecter et rediriger
+      console.error('Erreur vérification admin:', error);
+      localStorage.clear();
+      if (window.sessionManager) {
+        window.sessionManager.clearSession();
+      }
+      window.location.replace('/index.html');
+      return;
+    }
+  } else {
+    // Réinitialiser le flag si on quitte admin.html
+    adminPageChecked = false;
+  }
   
   // Vérifier d'abord si on a un token dans l'URL (pour les liens de connexion par email)
   const urlParams = new URLSearchParams(window.location.search);
@@ -305,6 +361,19 @@ async function protectPage() {
   
   // Si la page est publique, ne rien faire
   if (PAGE_ACCESS[currentPage] === 'public') {
+    // Vérifier si une déconnexion explicite a été effectuée
+    const logoutFlag = localStorage.getItem('logout_flag');
+    if (logoutFlag === 'true') {
+      // Nettoyer le flag et s'assurer qu'on reste sur la page publique
+      localStorage.removeItem('logout_flag');
+      // Nettoyer aussi le token s'il existe encore
+      localStorage.removeItem('jwt');
+      if (window.sessionManager) {
+        window.sessionManager.clearSession();
+      }
+      return;
+    }
+    
     // Vérifier si l'utilisateur est déjà connecté
     const token = localStorage.getItem('jwt');
     if (token && await isTokenValid(token) && (currentPage === '/index.html' || currentPage === '/')) {
@@ -339,23 +408,55 @@ async function protectPage() {
     console.log('🔍 Debug auth - Accès à la page:', hasAccess);
     
     if (!hasAccess) {
-      // Si l'utilisateur n'a pas accès, on le redirige vers une page appropriée
-      let redirectUrl = '/index.html';
-      
-      if (userRole === ROLES.AGENT) {
-        redirectUrl = '/agent-dashboard.html';
-      } else if (userRole === ROLES.SUPERVISEUR || userRole === 'supervisor') {
-        redirectUrl = '/dashboard.html';
-      } else if (userRole === ROLES.ADMIN) {
-        // Les admins non-superadmin ne doivent pas être redirigés vers /admin.html
-        redirectUrl = '/dashboard.html';
-      } else if (userRole === ROLES.SUPERADMIN) {
-        redirectUrl = '/admin.html';
-      } else {
-        redirectUrl = '/index.html';
+      // Si l'utilisateur essaie d'accéder à /admin.html sans être admin/superadmin, déconnecter complètement
+      if (currentPage === '/admin.html') {
+        const role = (userRole || '').toLowerCase();
+        if (role !== 'admin' && role !== 'superadmin') {
+          console.log('❌ Tentative d\'accès à /admin.html sans autorisation - Déconnexion complète');
+          // Déconnexion complète
+          localStorage.removeItem('jwt');
+          localStorage.removeItem('userProfile');
+          localStorage.removeItem('userEmail');
+          localStorage.removeItem('loginData');
+          localStorage.setItem('logout_flag', 'true');
+          if (window.sessionManager) {
+            window.sessionManager.clearSession();
+          }
+          // Rediriger vers index.html et empêcher le retour
+          window.location.replace('/index.html');
+          return;
+        }
       }
       
-      console.log('🔍 Debug auth - Redirection vers:', redirectUrl, 'pour rôle:', userRole);
+      // Si l'utilisateur n'a pas accès, on le redirige vers une page appropriée
+      // MAIS ne JAMAIS forcer les admins à rester sur admin.html
+      // Permettre la navigation libre entre les pages autorisées
+      let redirectUrl = '/index.html';
+      
+      // Vérifier si l'utilisateur est déjà sur une page autorisée pour son rôle
+      const allowedPagesForRole = [];
+      if (userRole === ROLES.AGENT) {
+        allowedPagesForRole.push('/agent-dashboard.html', '/permissions.html', '/index.html');
+        redirectUrl = '/agent-dashboard.html';
+      } else if (userRole === ROLES.SUPERVISEUR || userRole === 'supervisor') {
+        allowedPagesForRole.push('/dashboard.html', '/permissions.html', '/index.html');
+        redirectUrl = '/dashboard.html';
+      } else if (userRole === ROLES.ADMIN || userRole === ROLES.SUPERADMIN) {
+        // Les admins peuvent accéder à plusieurs pages
+        allowedPagesForRole.push('/admin.html', '/dashboard.html', '/permissions.html', '/agent-dashboard.html', '/index.html');
+        // Ne rediriger vers admin.html QUE si l'utilisateur essaie d'accéder à une page vraiment non autorisée
+        // Sinon, laisser naviguer librement
+        redirectUrl = '/admin.html';
+      }
+      
+      // Si l'utilisateur est déjà sur une page autorisée, NE PAS rediriger
+      if (allowedPagesForRole.includes(currentPage)) {
+        console.log('✅ Utilisateur déjà sur une page autorisée:', currentPage);
+        return; // Permettre de rester sur la page actuelle
+      }
+      
+      // Seulement rediriger si vraiment nécessaire
+      console.log('🔍 Debug auth - Redirection vers:', redirectUrl, 'pour rôle:', userRole, 'depuis:', currentPage);
       window.location.href = redirectUrl;
     }
   } catch (error) {
@@ -369,13 +470,33 @@ async function protectPage() {
 // Appeler la protection sur chaque chargement de page
 // Optimisation: vérifier la session d'abord pour éviter les redirections inutiles
 document.addEventListener('DOMContentLoaded', async () => {
-  // Si une session existe, restaurer rapidement avant la protection
-  if (window.sessionManager) {
-    const restored = await window.sessionManager.init();
-    if (restored) {
-      // Session restaurée, déclencher l'événement pour que les autres scripts le sachent
-      window.dispatchEvent(new CustomEvent('sessionRestored'));
+  // Pour admin.html, ne pas restaurer de session automatiquement
+  const currentPage = window.location.pathname;
+  if (currentPage !== '/admin.html') {
+    // Vérifier d'abord si une déconnexion explicite a été effectuée
+    const logoutFlag = localStorage.getItem('logout_flag');
+    if (logoutFlag === 'true') {
+      // Ne pas restaurer la session si déconnexion explicite
+      console.log('🚪 Déconnexion détectée, pas de restauration automatique');
+      if (window.sessionManager) {
+        window.sessionManager.clearSession();
+      }
+      localStorage.removeItem('logout_flag');
+      // Nettoyer aussi le token s'il existe encore
+      localStorage.removeItem('jwt');
+    } else {
+      // Si une session existe, restaurer rapidement avant la protection (sauf pour admin.html)
+      if (window.sessionManager) {
+        const restored = await window.sessionManager.init();
+        if (restored) {
+          // Session restaurée, déclencher l'événement pour que les autres scripts le sachent
+          window.dispatchEvent(new CustomEvent('sessionRestored'));
+        }
+      }
     }
+  } else {
+    // Pour admin.html, ne jamais restaurer automatiquement
+    console.log('🔒 Page admin détectée - Pas de restauration automatique de session');
   }
   
   await protectPage();
@@ -396,7 +517,7 @@ async function renderNavbar() {
     { name: 'Objectifs', href: '/agent-dashboard.html', icon: '🎯', roles: [ROLES.AGENT, ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN] },
     { name: 'Permissions', href: '/permissions.html', icon: '📋', roles: [ROLES.AGENT, ROLES.SUPERVISEUR, ROLES.ADMIN, ROLES.SUPERADMIN] },
     { name: 'Aide', href: '/help.html', icon: '❓', roles: 'public' },
-    { name: 'Administration', href: '/admin.html', icon: '⚙️', roles: [ROLES.SUPERADMIN] }
+    { name: 'Administration', href: '/admin.html', icon: '⚙️', roles: [ROLES.ADMIN, ROLES.SUPERADMIN] }
   ];
 
   // Filtrer les liens en fonction du rôle de l'utilisateur
@@ -428,8 +549,10 @@ async function renderNavbar() {
     if (link.roles !== 'public' || !userRole) {
       const isActive = currentPage === link.href || 
                       (currentPage === '/' && link.href === '/index.html');
+      // Pour le lien admin, ajouter un gestionnaire d'événement pour vérifier les permissions
+      const onClickHandler = link.href === '/admin.html' ? 'onclick="return checkAdminAccess(event)"' : '';
       navbarHtml += `
-        <a href="${link.href}" class="nav-circle-container ${isActive ? 'active' : ''}" title="${link.name}">
+        <a href="${link.href}" class="nav-circle-container ${isActive ? 'active' : ''}" title="${link.name}" ${onClickHandler}>
           <div class="nav-circle">${link.icon}</div>
           <span class="nav-label">${link.name.split(' ').pop()}</span>
         </a>
@@ -449,9 +572,11 @@ async function renderNavbar() {
     if (link.roles !== 'public' || !userRole) {
       const isActive = currentPage === link.href || 
                       (currentPage === '/' && link.href === '/index.html');
+      // Pour le lien admin, ajouter un gestionnaire d'événement pour vérifier les permissions
+      const onClickHandler = link.href === '/admin.html' ? 'onclick="return checkAdminAccess(event)"' : '';
       navbarHtml += `
         <li class="nav-item">
-          <a class="nav-link ${isActive ? 'active' : ''}" href="${link.href}">
+          <a class="nav-link ${isActive ? 'active' : ''}" href="${link.href}" ${onClickHandler}>
             <span class="me-2">${link.icon}</span> ${link.name}
           </a>
         </li>
@@ -534,8 +659,11 @@ function logout() {
         window.sessionManager.clearSession();
       }
       
+      // Marquer la déconnexion explicite
+      localStorage.setItem('logout_flag', 'true');
+      
       // Rediriger vers la page de connexion
-      window.location.href = '/index.html';
+      window.location.replace('/index.html');
     }
   } catch (error) {
     console.error('Erreur lors de la déconnexion:', error);
@@ -543,6 +671,37 @@ function logout() {
     window.location.href = '/index.html';
   }
 }
+
+// Fonction pour vérifier l'accès admin avant de naviguer
+window.checkAdminAccess = async function(event) {
+  try {
+    const userRole = await getUserRole();
+    const role = (userRole || '').toLowerCase();
+    
+    if (role !== 'admin' && role !== 'superadmin') {
+      event.preventDefault();
+      console.log('❌ Accès refusé à /admin.html - Déconnexion complète');
+      // Déconnexion complète
+      localStorage.removeItem('jwt');
+      localStorage.removeItem('userProfile');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('loginData');
+      localStorage.setItem('logout_flag', 'true');
+      if (window.sessionManager) {
+        window.sessionManager.clearSession();
+      }
+      // Rediriger vers index.html
+      window.location.replace('/index.html');
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Erreur vérification accès admin:', error);
+    event.preventDefault();
+    window.location.replace('/index.html');
+    return false;
+  }
+};
 
 // Injection légère des scripts temps réel + bulle si non présents
 function initGlobalMessagingUI() {

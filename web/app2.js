@@ -7,7 +7,7 @@ const CONFIG = {
   API_BASE_URL: '/api',
   WORK_HOURS: {
     start: { hour: 6, minute: 30 },
-    end: { hour: 18, minute: 30 }
+    end: { hour: 19, minute: 30 }
   },
   CACHE: {
     PROFILE_DURATION: 30000, // 30 secondes
@@ -286,7 +286,7 @@ let analyticsInsights = null;
 // Configuration des heures de présence sur le terrain
 const WORK_HOURS = {
   start: { hour: 6, minute: 30 }, // 06h30
-  end: { hour: 18, minute: 30 }   // 18h30
+  end: { hour: 19, minute: 30 }   // 19h30
 };
 
 // Protection contre les boucles de connexion
@@ -2755,8 +2755,8 @@ async function checkDailyAbsences() {
     const today = new Date();
     const hour = today.getHours();
 
-    // Si on est après 18h30 et qu'aucune présence n'a été marquée aujourd'hui
-    if (hour >= 18 || (hour === 18 && today.getMinutes() >= 30)) {
+    // Si on est après 19h30 et qu'aucune présence n'a été marquée aujourd'hui
+    if (hour >= 19 || (hour === 19 && today.getMinutes() >= 30)) {
       const urlParams = new URLSearchParams(window.location.search);
       const email = urlParams.get('email') || localStorage.getItem('userEmail') || 'admin@ccrb.local';
       const response = await api(`/presence/check-today?email=${encodeURIComponent(email)}`);
@@ -3355,7 +3355,7 @@ async function loadPresenceData() {
       }
     });
 
-    // 4) Marquer en rouge (absent) les jours planifiés sans présence après 18h30
+    // 4) Marquer en rouge (absent) les jours planifiés sans présence après 19h30
     const now = new Date();
     const todayKey = formatDateKey(now.getFullYear(), now.getMonth(), now.getDate());
     plans.forEach(p => {
@@ -3363,10 +3363,10 @@ async function loadPresenceData() {
       if (!key) return;
       const d = new Date(key + 'T00:00:00');
       const isPastDay = d < new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const isTodayAfter18 = key === todayKey && now.getHours() >= 18;
+      const isTodayAfter19 = key === todayKey && now.getHours() >= 19;
       const isPlanned = Boolean(p.planned_start_time || p.planned_end_time || p.description_activite);
       if (!isPlanned) return;
-      if (!presenceData[key] && (isPastDay || isTodayAfter18)) {
+      if (!presenceData[key] && (isPastDay || isTodayAfter19)) {
         presenceData[key] = { status: 'absent' };
       }
     });
@@ -3415,11 +3415,11 @@ function schedulePresenceReminders() {
     // Rappel de check-in (12h00)
     if (inPlannedWindow) scheduleReminder(12, 0, 'Check-in', 'Faites un check-in si votre mission est en cours.');
 
-    // Rappel de fin de journée (17h00)
-    if (inPlannedWindow) scheduleReminder(17, 0, 'Fin de journée', 'Pensez à marquer la fin de votre présence.');
+    // Rappel de fin de journée (18h30)
+    if (inPlannedWindow) scheduleReminder(18, 30, 'Fin de journée', 'Pensez à marquer la fin de votre présence.');
 
-    // Rappel d'absence à 18h30: si aucune présence, notifier
-    const hour = 18; const minute = 30;
+    // Rappel d'absence à 19h30: si aucune présence, notifier
+    const hour = 19; const minute = 30;
     const title = 'Rappel présence: fin de journée';
     const message = 'Aucune présence détectée aujourd\'hui. Marquez votre présence sinon la journée sera comptée absente.';
     const now2 = new Date();

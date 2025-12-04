@@ -12,7 +12,7 @@ let isLoadingProfile = false; // Protection contre les appels répétés
 // Configuration des heures de présence sur le terrain
 const WORK_HOURS = {
   start: { hour: 6, minute: 30 }, // 06h30
-  end: { hour: 18, minute: 30 }   // 18h30
+  end: { hour: 19, minute: 30 }   // 19h30
 };
 
 // Protection contre les boucles de connexion
@@ -1920,8 +1920,8 @@ async function checkDailyAbsences() {
     const today = new Date();
     const hour = today.getHours();
 
-    // Si on est après 18h30 et qu'aucune présence n'a été marquée aujourd'hui
-    if (hour >= 18 || (hour === 18 && today.getMinutes() >= 30)) {
+    // Si on est après 19h30 et qu'aucune présence n'a été marquée aujourd'hui
+    if (hour >= 19 || (hour === 19 && today.getMinutes() >= 30)) {
       const urlParams = new URLSearchParams(window.location.search);
       const email = urlParams.get('email') || localStorage.getItem('userEmail') || 'admin@ccrb.local';
       const response = await api(`/presence/check-today?email=${encodeURIComponent(email)}`);
@@ -2470,11 +2470,11 @@ function schedulePresenceReminders() {
     // Rappel de check-in (12h00)
     if (inPlannedWindow) scheduleReminder(12, 0, 'Check-in', 'Faites un check-in si votre mission est en cours.');
 
-    // Rappel de fin de journée (17h00)
-    if (inPlannedWindow) scheduleReminder(17, 0, 'Fin de journée', 'Pensez à marquer la fin de votre présence.');
+    // Rappel de fin de journée (18h30)
+    if (inPlannedWindow) scheduleReminder(18, 30, 'Fin de journée', 'Pensez à marquer la fin de votre présence.');
 
-    // Rappel d'absence à 18h30: si aucune présence, notifier
-    const hour = 18; const minute = 30;
+    // Rappel d'absence à 19h30: si aucune présence, notifier
+    const hour = 19; const minute = 30;
     const title = 'Rappel présence: fin de journée';
     const message = 'Aucune présence détectée aujourd\'hui. Marquez votre présence sinon la journée sera comptée absente.';
     const now2 = new Date();

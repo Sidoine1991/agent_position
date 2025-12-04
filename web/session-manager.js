@@ -20,12 +20,29 @@ class SessionManager {
     this.isInitialized = true;
     console.log('🔍 Initialisation de la session...');
 
+    // Vérifier si une déconnexion explicite a été effectuée
+    const logoutFlag = localStorage.getItem('logout_flag');
+    if (logoutFlag === 'true') {
+      console.log('🚪 Déconnexion détectée, nettoyage de la session...');
+      this.clearSession();
+      localStorage.removeItem('logout_flag');
+      return false;
+    }
+
     // Vérifier si une session existe
     const session = this.getSession();
     if (session && session.token) {
       console.log('🔍 Session trouvée, vérification de la validité...');
       // Vérifier si la session est toujours valide
       if (this.isSessionValid(session)) {
+        // Vérifier aussi que le JWT n'a pas été supprimé manuellement
+        const currentJwt = localStorage.getItem('jwt');
+        if (!currentJwt) {
+          console.log('⚠️ JWT manquant malgré session sauvegardée, nettoyage...');
+          this.clearSession();
+          return false;
+        }
+        
         // Restaurer la session
         localStorage.setItem('jwt', session.token);
         if (session.userEmail) {
@@ -35,7 +52,13 @@ class SessionManager {
           localStorage.setItem('userProfile', JSON.stringify(session.userProfile));
         }
         console.log('✅ Session restaurée automatiquement');
-        this.startAutoRefresh();
+        // Ne pas démarrer le rafraîchissement automatique sur admin.html
+        const currentPage = window.location.pathname;
+        if (currentPage !== '/admin.html') {
+          this.startAutoRefresh();
+        } else {
+          console.log('🔒 Page admin - Rafraîchissement automatique désactivé');
+        }
         return true;
       } else {
         console.log('⚠️ Session expirée, nettoyage...');
@@ -133,11 +156,16 @@ class SessionManager {
   clearSession() {
     try {
       localStorage.removeItem(this.SESSION_KEY);
+      localStorage.removeItem('jwt');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('userProfile');
+      localStorage.removeItem('loginData');
+      localStorage.removeItem('lastUserEmail');
       if (this.refreshTimer) {
         clearInterval(this.refreshTimer);
         this.refreshTimer = null;
       }
-      console.log('✅ Session effacée');
+      console.log('✅ Session effacée complètement');
     } catch (e) {
       console.warn('⚠️ Erreur effacement session:', e);
     }
@@ -145,8 +173,16 @@ class SessionManager {
 
   /**
    * Démarrer le rafraîchissement automatique du token
+   * Désactivé sur la page admin pour éviter les boucles
    */
   startAutoRefresh() {
+    // Ne pas démarrer le rafraîchissement automatique sur la page admin
+    const currentPage = window.location.pathname;
+    if (currentPage === '/admin.html') {
+      console.log('🔒 Page admin détectée - Rafraîchissement automatique désactivé');
+      return;
+    }
+    
     // Arrêter le timer existant s'il y en a un
     if (this.refreshTimer) {
       clearInterval(this.refreshTimer);
@@ -157,6 +193,15 @@ class SessionManager {
     
     // Démarrer un nouveau timer
     this.refreshTimer = setInterval(async () => {
+      // Vérifier à nouveau qu'on n'est pas sur admin.html
+      const currentPage = window.location.pathname;
+      if (currentPage === '/admin.html') {
+        console.log('🔒 Page admin détectée - Arrêt du rafraîchissement automatique');
+        clearInterval(this.refreshTimer);
+        this.refreshTimer = null;
+        return;
+      }
+      
       console.log('🔄 Vérification du rafraîchissement du token...');
       const session = this.getSession();
       if (session && session.token) {
@@ -172,6 +217,12 @@ class SessionManager {
           }
         } catch (error) {
           console.error('❌ Erreur lors du rafraîchissement automatique:', error);
+          // En cas d'erreur répétée, arrêter le rafraîchissement
+          if (error.message && error.message.includes('403')) {
+            console.log('🔒 Erreur 403 détectée - Arrêt du rafraîchissement automatique');
+            clearInterval(this.refreshTimer);
+            this.refreshTimer = null;
+          }
         }
       }
     }, this.REFRESH_INTERVAL);
@@ -192,7 +243,14 @@ if (typeof window !== 'undefined') {
   });
   
   // Démarrer le rafraîchissement automatique après le chargement complet
+  // Sauf sur la page admin
   window.addEventListener('DOMContentLoaded', () => {
+    const currentPage = window.location.pathname;
+    if (currentPage === '/admin.html') {
+      console.log('🔒 Page admin - Pas de rafraîchissement automatique');
+      return;
+    }
+    
     const session = sessionManager.getSession();
     if (session && session.token) {
       sessionManager.startAutoRefresh();

@@ -162,7 +162,7 @@ const CONFIG = {
   API_BASE_URL: '/api',
   WORK_HOURS: {
     start: { hour: 6, minute: 30 },
-    end: { hour: 18, minute: 30 }
+    end: { hour: 19, minute: 30 }
   },
   CACHE: {
     PROFILE_DURATION: 30000, // 30 secondes
@@ -308,7 +308,7 @@ let analyticsInsights = null;
 // Configuration des heures de présence sur le terrain
 const WORK_HOURS = {
   start: { hour: 6, minute: 30 }, // 06h30
-  end: { hour: 18, minute: 30 }   // 18h30
+  end: { hour: 19, minute: 30 }   // 19h30
 };
 
 // Protection contre les boucles de connexion
@@ -798,6 +798,40 @@ async function api(path, opts = {}) {
   if (!res.ok) {
     const errorText = await res.text();
     console.error('API error:', errorText);
+    
+    // Si erreur 403 avec message "réservé au superadmin", déconnecter et rediriger
+    if (res.status === 403) {
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.error && (errorJson.error.includes('superadmin') || errorJson.error.includes('réservé') || errorJson.error.includes('administrateur requis'))) {
+          console.log('❌ Accès refusé (superadmin requis) - Déconnexion et redirection');
+          localStorage.removeItem('jwt');
+          localStorage.removeItem('userProfile');
+          localStorage.removeItem('userEmail');
+          localStorage.setItem('logout_flag', 'true');
+          if (window.sessionManager) {
+            window.sessionManager.clearSession();
+          }
+          window.location.replace('/index.html');
+          return;
+        }
+      } catch (e) {
+        // Si ce n'est pas du JSON, vérifier le texte brut
+        if (errorText.includes('superadmin') || errorText.includes('réservé') || errorText.includes('administrateur requis')) {
+          console.log('❌ Accès refusé (superadmin requis) - Déconnexion et redirection');
+          localStorage.removeItem('jwt');
+          localStorage.removeItem('userProfile');
+          localStorage.removeItem('userEmail');
+          localStorage.setItem('logout_flag', 'true');
+          if (window.sessionManager) {
+            window.sessionManager.clearSession();
+          }
+          window.location.replace('/index.html');
+          return;
+        }
+      }
+    }
+    
     throw new Error(errorText || res.statusText);
   }
 
@@ -2678,8 +2712,8 @@ async function checkDailyAbsences() {
     const today = new Date();
     const hour = today.getHours();
 
-    // Si on est après 18h30 et qu'aucune présence n'a été marquée aujourd'hui
-    if (hour >= 18 || (hour === 18 && today.getMinutes() >= 30)) {
+    // Si on est après 19h30 et qu'aucune présence n'a été marquée aujourd'hui
+    if (hour >= 19 || (hour === 19 && today.getMinutes() >= 30)) {
       const urlParams = new URLSearchParams(window.location.search);
       const email = urlParams.get('email') || localStorage.getItem('userEmail') || 'admin@ccrb.local';
       const response = await api(`/presence/check-today?email=${encodeURIComponent(email)}`);
@@ -2709,17 +2743,30 @@ async function checkDailyAbsences() {
 // Fonction de déconnexion
 function logout() {
   try {
+    // Nettoyer toutes les données de session
     localStorage.removeItem('jwt');
     localStorage.removeItem('loginData');
     localStorage.removeItem('userProfile');
     localStorage.removeItem('userEmail');
     localStorage.removeItem('lastUserEmail');
     localStorage.removeItem('vercelLoginAttempts');
+    
+    // Nettoyer la session persistante pour éviter la reconnexion automatique
+    if (window.sessionManager) {
+      window.sessionManager.clearSession();
+    }
+    
+    // Marquer explicitement la déconnexion
     localStorage.setItem('presence_update', JSON.stringify({ type: 'logout', ts: Date.now() }));
+    localStorage.setItem('logout_flag', 'true'); // Flag pour empêcher la restauration automatique
+    
+    // Nettoyer aussi sessionStorage
+    sessionStorage.clear();
   } catch { }
   jwt = '';
   try { showNotification('Déconnexion réussie', 'success', 1500); } catch { }
-  setTimeout(() => { window.location.href = '/'; }, 150);
+  // Rediriger immédiatement vers index.html sans délai
+  window.location.replace('/index.html');
 }
 
 // Exposer la fonction logout globalement
@@ -3225,7 +3272,7 @@ async function loadPresenceData() {
       }
     });
 
-    // 4) Marquer en rouge (absent) les jours planifiés sans présence après 18h30
+    // 4) Marquer en rouge (absent) les jours planifiés sans présence après 19h30
     const now = new Date();
     const todayKey = formatDateKey(now.getFullYear(), now.getMonth(), now.getDate());
     plans.forEach(p => {
@@ -3233,10 +3280,10 @@ async function loadPresenceData() {
       if (!key) return;
       const d = new Date(key + 'T00:00:00');
       const isPastDay = d < new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const isTodayAfter18 = key === todayKey && now.getHours() >= 18;
+      const isTodayAfter19 = key === todayKey && now.getHours() >= 19;
       const isPlanned = Boolean(p.planned_start_time || p.planned_end_time || p.description_activite);
       if (!isPlanned) return;
-      if (!presenceData[key] && (isPastDay || isTodayAfter18)) {
+      if (!presenceData[key] && (isPastDay || isTodayAfter19)) {
         presenceData[key] = { status: 'absent' };
       }
     });
@@ -3285,11 +3332,11 @@ function schedulePresenceReminders() {
     // Rappel de check-in (12h00)
     if (inPlannedWindow) scheduleReminder(12, 0, 'Check-in', 'Faites un check-in si votre mission est en cours.');
 
-    // Rappel de fin de journée (17h00)
-    if (inPlannedWindow) scheduleReminder(17, 0, 'Fin de journée', 'Pensez à marquer la fin de votre présence.');
+    // Rappel de fin de journée (18h30)
+    if (inPlannedWindow) scheduleReminder(18, 30, 'Fin de journée', 'Pensez à marquer la fin de votre présence.');
 
-    // Rappel d'absence à 18h30: si aucune présence, notifier
-    const hour = 18; const minute = 30;
+    // Rappel d'absence à 19h30: si aucune présence, notifier
+    const hour = 19; const minute = 30;
     const title = 'Rappel présence: fin de journée';
     const message = 'Aucune présence détectée aujourd\'hui. Marquez votre présence sinon la journée sera comptée absente.';
     const now2 = new Date();
@@ -5406,21 +5453,44 @@ document.addEventListener('DOMContentLoaded', () => {
     syncBtn.addEventListener('click', syncOfflineDataIndex);
   }
 
-  // Rafraîchir automatiquement les métriques toutes les 30 secondes
-  setInterval(async () => {
-    try {
-      console.log('🔄 Rafraîchissement automatique des métriques...');
-      await loadDashboardMetrics();
-      await checkOfflineData();
-    } catch (error) {
-      console.error('Erreur rafraîchissement automatique:', error);
-    }
-  }, 30000); // 30 secondes
+  // Rafraîchir automatiquement les métriques toutes les 30 secondes (seulement si on est sur la page index)
+  // Arrêter les boucles si on n'est pas sur la bonne page
+  let metricsInterval = null;
+  let offlineInterval = null;
+  
+  if (window.location.pathname === '/index.html' || window.location.pathname === '/') {
+    metricsInterval = setInterval(async () => {
+      try {
+        // Vérifier qu'on est toujours sur la bonne page avant de rafraîchir
+        if (window.location.pathname !== '/index.html' && window.location.pathname !== '/') {
+          clearInterval(metricsInterval);
+          clearInterval(offlineInterval);
+          return;
+        }
+        console.log('🔄 Rafraîchissement automatique des métriques...');
+        await loadDashboardMetrics();
+        await checkOfflineData();
+      } catch (error) {
+        console.error('Erreur rafraîchissement automatique:', error);
+        // Arrêter les intervalles en cas d'erreur répétée
+        if (error.message && error.message.includes('403')) {
+          clearInterval(metricsInterval);
+          clearInterval(offlineInterval);
+        }
+      }
+    }, 30000); // 30 secondes
 
-  // Vérifier les données offline toutes les 10 secondes
-  setInterval(async () => {
-    await checkOfflineData();
-  }, 10000); // 10 secondes
+    // Vérifier les données offline toutes les 10 secondes
+    offlineInterval = setInterval(async () => {
+      // Vérifier qu'on est toujours sur la bonne page
+      if (window.location.pathname !== '/index.html' && window.location.pathname !== '/') {
+        clearInterval(metricsInterval);
+        clearInterval(offlineInterval);
+        return;
+      }
+      await checkOfflineData();
+    }, 10000); // 10 secondes
+  }
 });
 
 >>>>>>> fe4244f (Mise à jour gestion des permissions et géolocalisation)
