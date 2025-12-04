@@ -657,12 +657,9 @@ async function loadSupervisors() {
       users = data.users;
     }
 
-<<<<<<< HEAD
-=======
     // Mémoriser pour le filtrage par nom
     supervisorsCache = users || [];
     
->>>>>>> fe4244f (Mise à jour gestion des permissions et géolocalisation)
     if (response.ok && users.length > 0) {
       if (supervisorSelect) {
         supervisorSelect.innerHTML = '<option value="all">Tous les superviseurs</option>';
@@ -828,13 +825,9 @@ window.applyFilters = function applyFilters() {
   const statusFilter = document.getElementById('filter-status')?.value || 'all';
   const startDateFilter = document.getElementById('filter-start-date')?.value || '';
   const endDateFilter = document.getElementById('filter-end-date')?.value || '';
-<<<<<<< HEAD
-
-=======
   const agentNameFilter = (document.getElementById('filter-agent-name')?.value || '').trim().toLowerCase();
   const supervisorNameFilter = (document.getElementById('filter-supervisor-name')?.value || '').trim().toLowerCase();
   
->>>>>>> fe4244f (Mise à jour gestion des permissions et géolocalisation)
   let filtered = [...allPendingPermissions];
 
   // Filtrer par projet
@@ -898,7 +891,6 @@ window.applyFilters = function applyFilters() {
     });
   }
   
->>>>>>> fe4244f (Mise à jour gestion des permissions et géolocalisation)
   // Filtrer par statut
   if (statusFilter !== 'all') {
     filtered = filtered.filter(perm => perm.status === statusFilter);
