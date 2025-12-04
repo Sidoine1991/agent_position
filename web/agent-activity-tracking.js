@@ -1442,16 +1442,14 @@
   function setupEventListeners() {
     // Date input removed from filters; keep currentDate default for internal use if needed
 
-    // Month selector
+    // Month selector - ne s'applique plus automatiquement, seulement via le bouton
     const monthSelect = document.getElementById('month-select');
     if (monthSelect) {
       // Initialiser au mois courant
       const now = new Date();
       const monthValue = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
       monthSelect.value = monthValue;
-      monthSelect.addEventListener('change', () => {
-        loadActivities();
-      });
+      // Pas d'event listener automatique - appliqué via le bouton "Appliquer les filtres"
     }
 
     // Activity follow-up month selector (utilise le même sélecteur que le tableau d'évaluation)
@@ -1485,49 +1483,30 @@
       loadActivities();
     });
 
-    // Agent selector (ancien)
-    const agentSelect = document.getElementById('agent-select');
-    if (agentSelect) {
-      agentSelect.addEventListener('change', () => {
-        displayActivities(); // Mettre à jour le tableau d'évaluation
-        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
-        updateStatistics();
-        updateFilterIndicator();
+    // Agent selector (ancien) - ne s'applique plus automatiquement, seulement via le bouton
+    // Pas d'event listener automatique - appliqué via le bouton "Appliquer les filtres"
+    
+    // Fonction pour appliquer tous les filtres
+    function applyAllFilters() {
+      displayActivities(); // Mettre à jour le tableau d'évaluation
+      displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
+      updateStatistics();
+      updateFilterIndicator();
+    }
+    
+    // Bouton "Appliquer les filtres"
+    const applyFiltersBtn = document.getElementById('apply-filters-btn');
+    if (applyFiltersBtn) {
+      applyFiltersBtn.addEventListener('click', () => {
+        applyAllFilters();
       });
     }
     
-    // Agent filter (nouveau dans la section filtres)
-    const agentFilter = document.getElementById('agent-filter');
-    if (agentFilter) {
-      agentFilter.addEventListener('change', () => {
-        displayActivities(); // Mettre à jour le tableau d'évaluation
-        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
-        updateStatistics();
-        updateFilterIndicator();
-      });
-    }
-    
-    // Supervisor filter
-    const supervisorFilter = document.getElementById('supervisor-filter');
-    if (supervisorFilter) {
-      supervisorFilter.addEventListener('change', () => {
-        displayActivities(); // Mettre à jour le tableau d'évaluation
-        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
-        updateStatistics();
-        updateFilterIndicator();
-      });
-    }
-
-    // Project filter (uniquement pour les admins)
-    const projectFilter = document.getElementById('project-filter');
-    if (projectFilter) {
-      projectFilter.addEventListener('change', () => {
-        displayActivities(); // Mettre à jour le tableau d'évaluation
-        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
-        updateStatistics();
-        updateFilterIndicator();
-      });
-    }
+    // Retirer les event listeners automatiques des filtres
+    // Les filtres ne s'appliquent plus automatiquement, seulement via le bouton
+    // Agent filter - pas d'event listener automatique
+    // Supervisor filter - pas d'event listener automatique
+    // Project filter - pas d'event listener automatique
 
     // Activity project filter (tableau de suivi)
     const activityProjectFilter = document.getElementById('activity-project-filter');
@@ -1548,18 +1527,17 @@
       checkPendingData();
     }
 
-    // Status filter
-    document.getElementById('status-filter').addEventListener('change', () => {
-      displayActivities(); // Mettre à jour le tableau d'évaluation
-      displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
-      updateStatistics();
-      updateFilterIndicator();
-    });
+    // Status filter - ne s'applique plus automatiquement, seulement via le bouton
+    // Pas d'event listener automatique - appliqué via le bouton "Appliquer les filtres"
 
-    // Supervisor filter (visible only for admins)
-    const supervisorSelect = document.getElementById('supervisor-filter');
-    if (supervisorSelect) {
-      supervisorSelect.addEventListener('change', () => {
+    // Supervisor filter - ne s'applique plus automatiquement, seulement via le bouton
+    // Pas d'event listener automatique - appliqué via le bouton "Appliquer les filtres"
+    
+    // Week filter - ne s'applique plus automatiquement, seulement via le bouton
+    // Pas d'event listener automatique - appliqué via le bouton "Appliquer les filtres"
+    
+    // Note: Les anciens event listeners ont été retirés pour permettre à l'utilisateur
+    // de choisir tous les filtres avant de cliquer sur "Appliquer les filtres"
         displayActivities(); // Mettre à jour le tableau d'évaluation
         displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
         updateStatistics();
