@@ -130,16 +130,39 @@
    */
   function displayActivityFollowUp(rawActivities) {
     const tbody = document.getElementById('activity-follow-up-body');
-    const projectFilter = document.getElementById('activity-project-filter');
     
     if (!tbody) return;
     
-    // Obtenir tous les agents du projet sélectionné
-    const selectedProject = projectFilter ? projectFilter.value : null;
-    const normalizedSelectedProject = normalizeProjectName(selectedProject);
-    const projectAgents = selectedProject ? 
-      agents.filter(agent => normalizeProjectName(agent.project_name) === normalizedSelectedProject) : 
-      agents;
+    // Utiliser les filtres de la section principale (pas activity-project-filter)
+    const mainProjectFilter = document.getElementById('project-filter');
+    const agentFilter = document.getElementById('agent-filter') || document.getElementById('agent-select');
+    const supervisorFilter = document.getElementById('supervisor-filter');
+    
+    // Commencer avec tous les agents, puis appliquer les filtres
+    let projectAgents = [...agents];
+    
+    // Filtrer par superviseur d'abord (si sélectionné)
+    if (supervisorFilter && supervisorFilter.value) {
+      const selectedSupervisorId = parseInt(supervisorFilter.value, 10);
+      projectAgents = projectAgents.filter(agent => agent.supervisor_id === selectedSupervisorId);
+    }
+    
+    // Filtrer par agent (si sélectionné)
+    if (agentFilter && agentFilter.value) {
+      const selectedAgentId = agentFilter.value;
+      projectAgents = projectAgents.filter(agent => 
+        String(agent.id) === String(selectedAgentId) || agent.email === selectedAgentId
+      );
+    }
+    
+    // Filtrer par projet (si sélectionné)
+    if (mainProjectFilter && mainProjectFilter.value) {
+      const selectedProject = mainProjectFilter.value;
+      const normalizedSelectedProject = normalizeProjectName(selectedProject);
+      projectAgents = projectAgents.filter(agent => 
+        normalizeProjectName(agent.project_name) === normalizedSelectedProject
+      );
+    }
     
     console.log('📊 Agents du projet:', {
       selectedProject,
@@ -266,35 +289,9 @@
     const uniqueProjects = [...new Set(Array.from(agentsStats.values()).map(a => a.project_name).filter(p => p))];
     updateProjectFilter(uniqueProjects);
     
-    // Filtrer par projet - utiliser le filtre sélectionné
+    // Les filtres ont déjà été appliqués lors de la sélection des agents initiaux
+    // Il suffit de convertir la Map en tableau
     let filteredStats = Array.from(agentsStats.values());
-    if (projectFilter && projectFilter.value) {
-      // Utiliser le filtre sélectionné par l'utilisateur
-      const normalizedFilterProject = normalizeProjectName(projectFilter.value);
-      filteredStats = filteredStats.filter(a => (a.normalized_project || normalizeProjectName(a.project_name)) === normalizedFilterProject);
-    }
-    
-    // Filtrer par agent si un filtre est sélectionné
-    const agentFilter = document.getElementById('agent-filter') || document.getElementById('agent-select');
-    if (agentFilter && agentFilter.value) {
-      const selectedAgent = agents.find(a => a.id == agentFilter.value || a.email === agentFilter.value);
-      if (selectedAgent) {
-        const selectedAgentName = selectedAgent.name || `${selectedAgent.first_name || ''} ${selectedAgent.last_name || ''}`.trim() || selectedAgent.email;
-        filteredStats = filteredStats.filter(a => a.agent_name === selectedAgentName);
-      }
-    }
-    
-    // Filtrer par superviseur si un filtre est sélectionné
-    const supervisorFilter = document.getElementById('supervisor-filter');
-    if (supervisorFilter && supervisorFilter.value) {
-      const selectedSupervisorId = parseInt(supervisorFilter.value, 10);
-      // Filtrer les agents qui ont ce superviseur
-      const agentsWithSupervisor = agents.filter(agent => agent.supervisor_id === selectedSupervisorId);
-      const supervisorAgentNames = agentsWithSupervisor.map(agent => {
-        return agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
-      });
-      filteredStats = filteredStats.filter(a => supervisorAgentNames.includes(a.agent_name));
-    }
     
     if (filteredStats.length === 0) {
       tbody.innerHTML = `

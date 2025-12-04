@@ -44,36 +44,66 @@ class AnalyticsInsights {
 
   async fetchPresenceData() {
     try {
-      const response = await fetch('/api/analytics/presence');
+      const token = localStorage.getItem('jwt') || localStorage.getItem('token') || localStorage.getItem('access_token');
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch('/api/analytics/presence', { headers });
       if (response.ok) {
         return await response.json();
+      } else if (response.status === 403) {
+        // Accès refusé - réservé aux superviseurs/admins, ignorer silencieusement
+        console.debug('Accès analytics/presence refusé (réservé superviseur/admin)');
+        return [];
       }
     } catch (error) {
-      console.warn('Impossible de charger les données de présence');
+      console.debug('Impossible de charger les données de présence:', error.message);
     }
     return [];
   }
 
   async fetchMissionData() {
     try {
-      const response = await fetch('/api/analytics/missions');
+      const token = localStorage.getItem('jwt') || localStorage.getItem('token') || localStorage.getItem('access_token');
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch('/api/analytics/missions', { headers });
       if (response.ok) {
         return await response.json();
+      } else if (response.status === 403) {
+        // Accès refusé - réservé aux superviseurs/admins, ignorer silencieusement
+        console.debug('Accès analytics/missions refusé (réservé superviseur/admin)');
+        return [];
       }
     } catch (error) {
-      console.warn('Impossible de charger les données de missions');
+      console.debug('Impossible de charger les données de missions:', error.message);
     }
     return [];
   }
 
   async fetchPerformanceData() {
     try {
-      const response = await fetch('/api/analytics/performance');
+      const token = localStorage.getItem('jwt') || localStorage.getItem('token') || localStorage.getItem('access_token');
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch('/api/analytics/performance', { headers });
       if (response.ok) {
         return await response.json();
+      } else if (response.status === 403) {
+        // Accès refusé - réservé aux superviseurs/admins, ignorer silencieusement
+        console.debug('Accès analytics/performance refusé (réservé superviseur/admin)');
+        return [];
       }
     } catch (error) {
-      console.warn('Impossible de charger les données de performance');
+      console.debug('Impossible de charger les données de performance:', error.message);
     }
     return [];
   }
