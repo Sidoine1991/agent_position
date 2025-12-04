@@ -23,6 +23,15 @@ class MissionSync {
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         this.db = request.result;
+        // Vérifier que le store existe, sinon forcer une mise à jour
+        if (!this.db.objectStoreNames.contains('pendingMissions')) {
+          console.warn("⚠️ Store 'pendingMissions' manquant, mise à jour de la base nécessaire");
+          // Fermer et rouvrir avec une version supérieure pour déclencher onupgradeneeded
+          this.db.close();
+          this.dbVersion++;
+          this.openDB().then(resolve).catch(reject);
+          return;
+        }
         resolve();
       };
       
@@ -33,6 +42,7 @@ class MissionSync {
           store.createIndex('type', 'type', { unique: false });
           store.createIndex('synced', 'synced', { unique: false });
           store.createIndex('timestamp', 'timestamp', { unique: false });
+          console.log("✅ Store 'pendingMissions' créé");
         }
       };
     });
