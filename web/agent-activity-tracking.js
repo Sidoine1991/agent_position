@@ -164,10 +164,14 @@
       );
     }
     
-    console.log('📊 Agents du projet:', {
-      selectedProject,
+    console.log('📊 Filtrage des agents:', {
       totalAgents: projectAgents.length,
-      agentsWithActivities: rawActivities ? rawActivities.length : 0
+      agentsWithActivities: rawActivities ? rawActivities.length : 0,
+      filters: {
+        supervisor: supervisorFilter?.value || 'tous',
+        agent: agentFilter?.value || 'tous',
+        project: mainProjectFilter?.value || 'tous'
+      }
     });
     
     if (!projectAgents || projectAgents.length === 0) {
