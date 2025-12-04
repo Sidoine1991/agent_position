@@ -275,13 +275,25 @@
     }
     
     // Filtrer par agent si un filtre est sélectionné
-    const agentFilter = document.getElementById('agent-select');
+    const agentFilter = document.getElementById('agent-filter') || document.getElementById('agent-select');
     if (agentFilter && agentFilter.value) {
-      const selectedAgent = agents.find(a => a.id === agentFilter.value);
+      const selectedAgent = agents.find(a => a.id == agentFilter.value || a.email === agentFilter.value);
       if (selectedAgent) {
         const selectedAgentName = selectedAgent.name || `${selectedAgent.first_name || ''} ${selectedAgent.last_name || ''}`.trim() || selectedAgent.email;
         filteredStats = filteredStats.filter(a => a.agent_name === selectedAgentName);
       }
+    }
+    
+    // Filtrer par superviseur si un filtre est sélectionné
+    const supervisorFilter = document.getElementById('supervisor-filter');
+    if (supervisorFilter && supervisorFilter.value) {
+      const selectedSupervisorId = parseInt(supervisorFilter.value, 10);
+      // Filtrer les agents qui ont ce superviseur
+      const agentsWithSupervisor = agents.filter(agent => agent.supervisor_id === selectedSupervisorId);
+      const supervisorAgentNames = agentsWithSupervisor.map(agent => {
+        return agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
+      });
+      filteredStats = filteredStats.filter(a => supervisorAgentNames.includes(a.agent_name));
     }
     
     if (filteredStats.length === 0) {
@@ -1472,10 +1484,32 @@
       loadActivities();
     });
 
-    // Agent selector
+    // Agent selector (ancien)
     const agentSelect = document.getElementById('agent-select');
     if (agentSelect) {
       agentSelect.addEventListener('change', () => {
+        displayActivities(); // Mettre à jour le tableau d'évaluation
+        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
+        updateStatistics();
+        updateFilterIndicator();
+      });
+    }
+    
+    // Agent filter (nouveau dans la section filtres)
+    const agentFilter = document.getElementById('agent-filter');
+    if (agentFilter) {
+      agentFilter.addEventListener('change', () => {
+        displayActivities(); // Mettre à jour le tableau d'évaluation
+        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
+        updateStatistics();
+        updateFilterIndicator();
+      });
+    }
+    
+    // Supervisor filter
+    const supervisorFilter = document.getElementById('supervisor-filter');
+    if (supervisorFilter) {
+      supervisorFilter.addEventListener('change', () => {
         displayActivities(); // Mettre à jour le tableau d'évaluation
         displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
         updateStatistics();
@@ -1692,6 +1726,10 @@
       }
       console.log('Utilisateurs chargés:', agents.length);
       
+      // Remplir les filtres après chargement
+      populateAgentFilter();
+      populateSupervisorFilter();
+      
       // Debug: Compter les agents par projet après chargement principal
       const projectCountsMain = {};
       agents.forEach(agent => {
@@ -1708,24 +1746,38 @@
   // Remplir le filtre des agents
   function populateAgentFilter() {
     try {
-      const agentSelect = document.getElementById('agent-select');
-      if (!agentSelect) return;
+      // Remplir les deux sélecteurs (agent-select et agent-filter)
+      const agentSelects = [
+        document.getElementById('agent-select'),
+        document.getElementById('agent-filter')
+      ].filter(el => el !== null);
+
+      if (agentSelects.length === 0) return;
 
       console.log('👥 Remplissage filtre agents:', agents.length, 'agents disponibles');
       console.log('   Agents:', agents.map(a => ({ id: a.id, name: a.name, email: a.email })));
 
-      // Vider le sélecteur sauf l'option par défaut
-      agentSelect.innerHTML = '<option value="">Tous les agents</option>';
-
-      // Ajouter les agents
-      agents.forEach(agent => {
-        const option = document.createElement('option');
-        option.value = agent.id || agent.email;
-        option.textContent = `${agent.name || agent.first_name || 'Agent'} ${agent.last_name || ''}`.trim() || agent.email;
-        agentSelect.appendChild(option);
+      // Filtrer uniquement les agents (pas les superviseurs)
+      const agentsOnly = agents.filter(a => {
+        const role = (a.role || '').toLowerCase();
+        return role === 'agent' || role === '';
       });
 
-      console.log(`✅ Filtre agents rempli avec ${agents.length} agents`);
+      // Vider les sélecteurs sauf l'option par défaut
+      agentSelects.forEach(select => {
+        select.innerHTML = '<option value="">Tous les agents</option>';
+
+        // Ajouter les agents
+        agentsOnly.forEach(agent => {
+          const option = document.createElement('option');
+          option.value = agent.id || agent.email;
+          const displayName = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
+          option.textContent = displayName;
+          select.appendChild(option);
+        });
+      });
+
+      console.log(`✅ Filtre agents rempli avec ${agentsOnly.length} agents`);
     } catch (error) {
       console.error('❌ Erreur remplissage filtre agents:', error);
     }

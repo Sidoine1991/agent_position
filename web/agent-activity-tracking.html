@@ -634,21 +634,29 @@
     <!-- Filtres -->
     <div class="row mb-4">
       <div class="col-md-3">
+        <label for="agent-filter" class="form-label">Filtrer par agent:</label>
+        <select id="agent-filter" class="form-select">
+          <option value="">Tous les agents</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label for="supervisor-filter" class="form-label">Filtrer par superviseur:</label>
+        <select id="supervisor-filter" class="form-select">
+          <option value="">Tous les superviseurs</option>
+        </select>
+      </div>
+      <div class="col-md-3">
         <label for="project-filter" class="form-label">Filtrer par projet:</label>
         <select id="project-filter" class="form-select">
           <option value="">Tous les projets</option>
         </select>
       </div>
       <div class="col-md-3">
-        <label for="supervisor-filter" class="form-label">Filtrer par superviseur:</label>
-        <select id="supervisor-filter" class="form-select" style="display:none">
-          <option value="">Tous les superviseurs</option>
-        </select>
-      </div>
-      <div class="col-md-3">
         <label for="month-select" class="form-label">Mois:</label>
         <input id="month-select" type="month" class="form-control" />
       </div>
+    </div>
+    <div class="row mb-4">
       <div class="col-md-3">
         <label for="status-filter" class="form-label">Filtrer par statut:</label>
         <select id="status-filter" class="form-select">
