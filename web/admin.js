@@ -105,9 +105,9 @@ async function checkAuth() {
   }
 
   // Vérifier le token une seule fois
-  try {
-    const result = await api('/profile');
-    currentUser = result?.user || result || null;
+    try {
+      const result = await api('/profile');
+      currentUser = result?.user || result || null;
     
     if (!currentUser) {
       // Pas d'utilisateur trouvé = déconnexion immédiate
@@ -117,8 +117,8 @@ async function checkAuth() {
         window.sessionManager.clearSession();
       }
       window.location.replace('/index.html');
-      return false;
-    }
+    return false;
+  }
 
     // Vérifier rôle admin ou superadmin
     const role = (currentUser.role || '').toLowerCase();
@@ -130,10 +130,10 @@ async function checkAuth() {
         window.sessionManager.clearSession();
       }
       window.location.replace('/index.html');
-      return false;
-    }
+    return false;
+  }
 
-    return true;
+  return true;
   } catch (e) {
     // Erreur = déconnexion immédiate
     console.error('❌ Erreur vérification auth:', e);
