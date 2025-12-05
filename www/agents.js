@@ -337,6 +337,40 @@ function displayAgents() {
   }
 }
 
+// Charger TOUS les agents pour le filtre (sans pagination ni filtres)
+async function loadAllAgentsForFilter() {
+  try {
+    console.log('📡 Chargement de TOUS les agents pour le filtre...');
+    
+    let allAgents = [];
+    
+    // Essayer d'abord l'endpoint /admin/agents qui retourne tous les agents
+    try {
+      const response = await api('/admin/agents');
+      allAgents = Array.isArray(response) ? response : 
+                  (response.agents || response.items || response.data || []);
+      console.log(`📦 ${allAgents.length} agents reçus de /admin/agents`);
+    } catch (error) {
+      console.warn('⚠️ Erreur /admin/agents, tentative avec /users:', error);
+      
+      // Fallback: essayer /users avec une limite élevée
+      try {
+        const response = await api('/users?limit=1000');
+        allAgents = Array.isArray(response) ? response : 
+                    (response.items || response.users || response.data || []);
+        console.log(`📦 ${allAgents.length} agents reçus de /users`);
+      } catch (error2) {
+        console.error('❌ Erreur lors du chargement de tous les agents:', error2);
+      }
+    }
+    
+    return allAgents;
+  } catch (error) {
+    console.error('❌ Erreur lors du chargement de tous les agents:', error);
+    return [];
+  }
+}
+
 function populateReportAgentOptions() {
   const select = $('report-agent-select');
   if (!select) {
@@ -347,19 +381,38 @@ function populateReportAgentOptions() {
   const previousValue = select.value;
   select.innerHTML = '<option value="">Sélectionnez un agent</option>';
 
-  console.log(`Remplissage du select avec ${agents.length} agents`);
-  agents.forEach(agent => {
+  console.log(`📋 Remplissage du select avec ${agents.length} agents`);
+  
+  if (!Array.isArray(agents) || agents.length === 0) {
+    console.warn('⚠️ Aucun agent disponible pour remplir le select');
+    return;
+  }
+  
+  // Trier les agents par nom pour un meilleur affichage
+  const sortedAgents = [...agents].sort((a, b) => {
+    const nameA = (a.name || a.email || `Agent ${a.id}`).toLowerCase();
+    const nameB = (b.name || b.email || `Agent ${b.id}`).toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+  
+  sortedAgents.forEach(agent => {
     if (!agent || typeof agent.id === 'undefined') return;
+    
+    const agentName = agent.name || 
+                     (agent.first_name && agent.last_name ? `${agent.first_name} ${agent.last_name}`.trim() : '') ||
+                     agent.email || 
+                     `Agent ${agent.id}`;
+    
     const option = document.createElement('option');
     option.value = agent.id;
-    option.textContent = agent.name || agent.email || `Agent ${agent.id}`;
+    option.textContent = agentName;
     select.appendChild(option);
   });
 
   if (previousValue && select.querySelector(`option[value="${previousValue}"]`)) {
     select.value = previousValue;
   }
-  console.log(`Select rempli avec ${select.options.length - 1} agents (sans l'option par défaut)`);
+  console.log(`✅ Select rempli avec ${select.options.length - 1} agents (sans l'option par défaut)`);
 }
 
 // Mettre à jour les statistiques
@@ -426,54 +479,100 @@ function initFilters() {
   }
 }
 
-// Charger les options de projets depuis Supabase
+// Charger TOUS les projets depuis l'API (sans filtre de statut)
+async function loadAllProjects() {
+  try {
+    console.log('📡 Chargement de TOUS les projets depuis l\'API...');
+    
+    // Essayer d'abord l'endpoint /projects sans filtre
+    let projects = [];
+    try {
+      const response = await api('/projects');
+      projects = Array.isArray(response) ? response : (response.items || response.projects || response.data || []);
+      console.log(`📦 ${projects.length} projets reçus de l'API`);
+    } catch (error) {
+      console.warn('⚠️ Erreur API /projects, tentative avec /admin/agents pour extraire les projets:', error);
+    }
+    
+    // Si pas assez de projets, charger tous les agents pour extraire leurs projets
+    if (projects.length < 5) {
+      try {
+        console.log('📡 Chargement de tous les agents pour extraire les projets...');
+        const allAgentsResponse = await api('/admin/agents');
+        const allAgents = Array.isArray(allAgentsResponse) ? allAgentsResponse : 
+                         (allAgentsResponse.agents || allAgentsResponse.items || allAgentsResponse.data || []);
+        
+        // Extraire tous les projets uniques des agents
+        const projectNamesFromAgents = new Set();
+        allAgents.forEach(agent => {
+          if (agent.project_name && agent.project_name.trim()) {
+            projectNamesFromAgents.add(agent.project_name.trim());
+          }
+          if (agent.project && agent.project.trim()) {
+            projectNamesFromAgents.add(agent.project.trim());
+          }
+        });
+        
+        // Ajouter les projets des agents à la liste
+        projectNamesFromAgents.forEach(projectName => {
+          if (!projects.find(p => (p.name || p.project_name || p) === projectName)) {
+            projects.push({ name: projectName, project_name: projectName });
+          }
+        });
+        
+        console.log(`✅ Ajouté ${projectNamesFromAgents.size} projets depuis les agents`);
+      } catch (error) {
+        console.warn('⚠️ Erreur lors du chargement des agents pour extraire les projets:', error);
+      }
+    }
+    
+    return projects;
+  } catch (error) {
+    console.error('❌ Erreur lors du chargement de tous les projets:', error);
+    return [];
+  }
+}
+
+// Charger les options de projets depuis l'API
 async function loadProjectOptions() {
   const projectSelect = $('report-project-select');
-  if (!projectSelect) return;
+  if (!projectSelect) {
+    console.warn('Select report-project-select non trouvé');
+    return;
+  }
   
   try {
-    // Récupérer la configuration Supabase
-    const supabaseUrl = (window.SUPABASE_URL || localStorage.getItem('SUPABASE_URL') || '').replace(/\/+$/, '');
-    const supabaseKey = (window.SUPABASE_ANON_KEY || localStorage.getItem('SUPABASE_ANON_KEY') || '').trim();
-    
-    if (!supabaseUrl || !supabaseKey) {
-      console.warn('Configuration Supabase manquante pour les projets');
-      return;
-    }
-    
-    // Récupérer les projets depuis Supabase
-    const response = await fetch(`${supabaseUrl}/rest/v1/projects?select=id,name,description,status&order=name.asc`, {
-      headers: {
-        'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (!response.ok) {
-      console.warn('Erreur lors de la récupération des projets:', response.status, response.statusText);
-      return;
-    }
-    
-    const projects = await response.json();
+    // Charger TOUS les projets
+    const allProjects = await loadAllProjects();
     
     // Conserver la sélection actuelle
     const currentValue = projectSelect.value;
     
     projectSelect.innerHTML = '<option value="">Tous les projets</option>';
     
-    if (Array.isArray(projects) && projects.length > 0) {
-      projects.forEach(project => {
-        if (!project || !project.id) return;
-        const option = document.createElement('option');
-        option.value = project.id;
-        option.textContent = project.name || `Projet ${project.id}`;
-        projectSelect.appendChild(option);
-      });
-      console.log(`Chargé ${projects.length} projets depuis Supabase`);
-    } else {
-      console.warn('Aucun projet trouvé dans Supabase');
-    }
+    // Créer un Set pour éviter les doublons
+    const uniqueProjects = new Set();
+    
+    // Ajouter tous les projets
+    allProjects.forEach(project => {
+      if (!project) return;
+      const projectName = (project.name || project.project_name || String(project)).trim();
+      if (!projectName || projectName === 'null' || projectName === 'undefined' || projectName === '') return;
+      uniqueProjects.add(projectName);
+    });
+    
+    // Trier les projets par ordre alphabétique
+    const sortedProjects = Array.from(uniqueProjects).sort();
+    
+    // Ajouter les options au select
+    sortedProjects.forEach(projectName => {
+      const option = document.createElement('option');
+      option.value = projectName;
+      option.textContent = projectName;
+      projectSelect.appendChild(option);
+    });
+    
+    console.log(`✅ Chargé ${sortedProjects.length} projets uniques dans le filtre`);
     
     // Restaurer la sélection si possible
     if (currentValue && projectSelect.querySelector(`option[value="${currentValue}"]`)) {
@@ -481,11 +580,12 @@ async function loadProjectOptions() {
     }
     
   } catch (error) {
-    console.error('Erreur lors du chargement des projets depuis Supabase:', error);
+    console.error('❌ Erreur lors du chargement des projets:', error);
+    projectSelect.innerHTML = '<option value="">Erreur de chargement</option>';
   }
 }
 
-// Mettre à jour les options d'agents selon le projet sélectionné (avec données Supabase)
+// Mettre à jour les options d'agents selon le projet sélectionné
 async function updateAgentOptionsByProject() {
   const projectSelect = $('report-project-select');
   const agentSelect = $('report-agent-select');
@@ -495,76 +595,66 @@ async function updateAgentOptionsByProject() {
   const selectedProject = projectSelect.value;
   
   try {
-    let filteredAgents = agents;
+    // Charger TOUS les agents pour le filtre (pas seulement ceux paginés)
+    console.log('📡 Chargement de tous les agents pour filtrer par projet...');
+    let allAgentsForFilter = await loadAllAgentsForFilter();
     
-    // Si un projet est sélectionné, filtrer les agents selon leurs affectations
-    if (selectedProject) {
-      // Récupérer la configuration Supabase
-      const supabaseUrl = (window.SUPABASE_URL || localStorage.getItem('SUPABASE_URL') || '').replace(/\/+$/, '');
-      const supabaseKey = (window.SUPABASE_ANON_KEY || localStorage.getItem('SUPABASE_ANON_KEY') || '').trim();
-      
-      if (supabaseUrl && supabaseKey) {
-        // Récupérer les affectations user_projects pour ce projet
-        const userProjectsResponse = await fetch(`${supabaseUrl}/rest/v1/user_projects?select=user_id,project_id,role&project_id=eq.${selectedProject}`, {
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (userProjectsResponse.ok) {
-          const userProjects = await userProjectsResponse.json();
-          const userIdsInProject = new Set(userProjects.map(up => up.user_id));
-          
-          // Filtrer les agents selon leur appartenance au projet
-          filteredAgents = agents.filter(agent => 
-            userIdsInProject.has(Number(agent.id)) || 
-            agent.project === selectedProject || 
-            agent.adminUnit?.includes(selectedProject.toUpperCase())
-          );
-          
-          console.log(`Filtré ${filteredAgents.length} agents pour le projet ${selectedProject} (basé sur ${userProjects.length} affectations)`);
-        } else {
-          console.warn('Erreur lors de la récupération des affectations de projet:', userProjectsResponse.status);
-          // Fallback: filtrer selon les champs locaux
-          filteredAgents = agents.filter(agent => 
-            agent.project === selectedProject || 
-            agent.adminUnit?.includes(selectedProject.toUpperCase())
-          );
-        }
-      } else {
-        console.warn('Configuration Supabase manquante, utilisation du filtrage local');
-        // Fallback: filtrer selon les champs locaux
-        filteredAgents = agents.filter(agent => 
-          agent.project === selectedProject || 
-          agent.adminUnit?.includes(selectedProject.toUpperCase())
-        );
-      }
+    // Si on n'a pas réussi à charger tous les agents, utiliser ceux déjà chargés
+    if (!allAgentsForFilter || allAgentsForFilter.length === 0) {
+      console.warn('⚠️ Utilisation des agents déjà chargés (pagination)');
+      allAgentsForFilter = agents;
     }
     
-    // Conserver la sélection actuelle si elle existe dans les options filtrées
-    const currentValue = agentSelect.value;
+    let filteredAgents = allAgentsForFilter;
     
+    // Si un projet est sélectionné, filtrer les agents selon leurs projets
+    if (selectedProject) {
+      filteredAgents = allAgentsForFilter.filter(agent => {
+        const agentProject = (agent.project_name || agent.project || '').trim();
+        return agentProject === selectedProject;
+      });
+      
+      console.log(`✅ Filtré ${filteredAgents.length} agents pour le projet "${selectedProject}" sur ${allAgentsForFilter.length} agents totaux`);
+    } else {
+      console.log(`✅ Affichage de tous les ${filteredAgents.length} agents (aucun projet sélectionné)`);
+    }
+    
+    // Conserver la sélection actuelle
+    const previousValue = agentSelect.value;
+    
+    // Vider et remplir le select
     agentSelect.innerHTML = '<option value="">Sélectionnez un agent</option>';
     
-    filteredAgents.forEach(agent => {
+    // Trier les agents par nom
+    const sortedAgents = [...filteredAgents].sort((a, b) => {
+      const nameA = (a.name || a.email || `Agent ${a.id}`).toLowerCase();
+      const nameB = (b.name || b.email || `Agent ${b.id}`).toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+    
+    sortedAgents.forEach(agent => {
       if (!agent || typeof agent.id === 'undefined') return;
+      
+      const agentName = agent.name || 
+                       (agent.first_name && agent.last_name ? `${agent.first_name} ${agent.last_name}`.trim() : '') ||
+                       agent.email || 
+                       `Agent ${agent.id}`;
+      
       const option = document.createElement('option');
       option.value = agent.id;
-      option.textContent = agent.name || agent.email || `Agent ${agent.id}`;
+      option.textContent = agentName;
       agentSelect.appendChild(option);
     });
     
     // Restaurer la sélection si possible
-    if (currentValue && agentSelect.querySelector(`option[value="${currentValue}"]`)) {
-      agentSelect.value = currentValue;
+    if (previousValue && agentSelect.querySelector(`option[value="${previousValue}"]`)) {
+      agentSelect.value = previousValue;
     }
     
-    validateReportInputs();
+    console.log(`✅ Select agent rempli avec ${sortedAgents.length} agents`);
     
   } catch (error) {
-    console.error('Erreur lors du filtrage des agents par projet:', error);
+    console.error('❌ Erreur lors de la mise à jour des agents par projet:', error);
     // En cas d'erreur, afficher tous les agents
     populateReportAgentOptions();
   }
@@ -1249,6 +1339,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialiser les filtres
     initFilters();
     await loadAdminUnits();
+    
+    // Charger TOUS les agents pour le filtre du rapport mensuel (sans pagination)
+    console.log('🚀 Chargement de tous les agents pour les filtres du rapport mensuel...');
+    const allAgentsForFilter = await loadAllAgentsForFilter();
+    if (allAgentsForFilter.length > 0) {
+      // Sauvegarder temporairement les agents pour populateReportAgentOptions
+      const originalAgents = agents;
+      agents = allAgentsForFilter;
+      populateReportAgentOptions();
+      // Restaurer les agents pour la pagination normale
+      agents = originalAgents;
+    } else {
+      // Fallback: utiliser les agents chargés normalement
+      await loadAgents();
+    }
+    
+    // Charger TOUS les projets pour le filtre
     await loadProjectOptions();
     
     // Initialiser les écouteurs d'événements pour les filtres

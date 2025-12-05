@@ -130,48 +130,21 @@
    */
   function displayActivityFollowUp(rawActivities) {
     const tbody = document.getElementById('activity-follow-up-body');
+    const projectFilter = document.getElementById('activity-project-filter');
     
     if (!tbody) return;
     
-    // Utiliser les filtres de la section principale (pas activity-project-filter)
-    const mainProjectFilter = document.getElementById('project-filter');
-    const agentFilter = document.getElementById('agent-filter') || document.getElementById('agent-select');
-    const supervisorFilter = document.getElementById('supervisor-filter');
+    // Obtenir tous les agents du projet sélectionné
+    const selectedProject = projectFilter ? projectFilter.value : null;
+    const normalizedSelectedProject = normalizeProjectName(selectedProject);
+    const projectAgents = selectedProject ? 
+      agents.filter(agent => normalizeProjectName(agent.project_name) === normalizedSelectedProject) : 
+      agents;
     
-    // Commencer avec tous les agents, puis appliquer les filtres
-    let projectAgents = [...agents];
-    
-    // Filtrer par superviseur d'abord (si sélectionné)
-    if (supervisorFilter && supervisorFilter.value) {
-      const selectedSupervisorId = parseInt(supervisorFilter.value, 10);
-      projectAgents = projectAgents.filter(agent => agent.supervisor_id === selectedSupervisorId);
-    }
-    
-    // Filtrer par agent (si sélectionné)
-    if (agentFilter && agentFilter.value) {
-      const selectedAgentId = agentFilter.value;
-      projectAgents = projectAgents.filter(agent => 
-        String(agent.id) === String(selectedAgentId) || agent.email === selectedAgentId
-      );
-    }
-    
-    // Filtrer par projet (si sélectionné)
-    if (mainProjectFilter && mainProjectFilter.value) {
-      const selectedProject = mainProjectFilter.value;
-      const normalizedSelectedProject = normalizeProjectName(selectedProject);
-      projectAgents = projectAgents.filter(agent => 
-        normalizeProjectName(agent.project_name) === normalizedSelectedProject
-      );
-    }
-    
-    console.log('📊 Filtrage des agents:', {
+    console.log('📊 Agents du projet:', {
+      selectedProject,
       totalAgents: projectAgents.length,
-      agentsWithActivities: rawActivities ? rawActivities.length : 0,
-      filters: {
-        supervisor: supervisorFilter?.value || 'tous',
-        agent: agentFilter?.value || 'tous',
-        project: mainProjectFilter?.value || 'tous'
-      }
+      agentsWithActivities: rawActivities ? rawActivities.length : 0
     });
     
     if (!projectAgents || projectAgents.length === 0) {
@@ -293,9 +266,35 @@
     const uniqueProjects = [...new Set(Array.from(agentsStats.values()).map(a => a.project_name).filter(p => p))];
     updateProjectFilter(uniqueProjects);
     
-    // Les filtres ont déjà été appliqués lors de la sélection des agents initiaux
-    // Il suffit de convertir la Map en tableau
+    // Filtrer par projet - utiliser le filtre sélectionné
     let filteredStats = Array.from(agentsStats.values());
+    if (projectFilter && projectFilter.value) {
+      // Utiliser le filtre sélectionné par l'utilisateur
+      const normalizedFilterProject = normalizeProjectName(projectFilter.value);
+      filteredStats = filteredStats.filter(a => (a.normalized_project || normalizeProjectName(a.project_name)) === normalizedFilterProject);
+    }
+    
+    // Filtrer par agent si un filtre est sélectionné
+    const agentFilter = document.getElementById('agent-filter') || document.getElementById('agent-select');
+    if (agentFilter && agentFilter.value) {
+      const selectedAgent = agents.find(a => a.id == agentFilter.value || a.email === agentFilter.value);
+      if (selectedAgent) {
+        const selectedAgentName = selectedAgent.name || `${selectedAgent.first_name || ''} ${selectedAgent.last_name || ''}`.trim() || selectedAgent.email;
+        filteredStats = filteredStats.filter(a => a.agent_name === selectedAgentName);
+      }
+    }
+    
+    // Filtrer par superviseur si un filtre est sélectionné
+    const supervisorFilter = document.getElementById('supervisor-filter');
+    if (supervisorFilter && supervisorFilter.value) {
+      const selectedSupervisorId = parseInt(supervisorFilter.value, 10);
+      // Filtrer les agents qui ont ce superviseur
+      const agentsWithSupervisor = agents.filter(agent => agent.supervisor_id === selectedSupervisorId);
+      const supervisorAgentNames = agentsWithSupervisor.map(agent => {
+        return agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
+      });
+      filteredStats = filteredStats.filter(a => supervisorAgentNames.includes(a.agent_name));
+    }
     
     if (filteredStats.length === 0) {
       tbody.innerHTML = `
@@ -1442,14 +1441,16 @@
   function setupEventListeners() {
     // Date input removed from filters; keep currentDate default for internal use if needed
 
-    // Month selector - ne s'applique plus automatiquement, seulement via le bouton
+    // Month selector
     const monthSelect = document.getElementById('month-select');
     if (monthSelect) {
       // Initialiser au mois courant
       const now = new Date();
       const monthValue = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
       monthSelect.value = monthValue;
-      // Pas d'event listener automatique - appliqué via le bouton "Appliquer les filtres"
+      monthSelect.addEventListener('change', () => {
+        loadActivities();
+      });
     }
 
     // Activity follow-up month selector (utilise le même sélecteur que le tableau d'évaluation)
@@ -1483,30 +1484,49 @@
       loadActivities();
     });
 
-    // Agent selector (ancien) - ne s'applique plus automatiquement, seulement via le bouton
-    // Pas d'event listener automatique - appliqué via le bouton "Appliquer les filtres"
-    
-    // Fonction pour appliquer tous les filtres
-    function applyAllFilters() {
-      displayActivities(); // Mettre à jour le tableau d'évaluation
-      displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
-      updateStatistics();
-      updateFilterIndicator();
-    }
-    
-    // Bouton "Appliquer les filtres"
-    const applyFiltersBtn = document.getElementById('apply-filters-btn');
-    if (applyFiltersBtn) {
-      applyFiltersBtn.addEventListener('click', () => {
-        applyAllFilters();
+    // Agent selector (ancien)
+    const agentSelect = document.getElementById('agent-select');
+    if (agentSelect) {
+      agentSelect.addEventListener('change', () => {
+        displayActivities(); // Mettre à jour le tableau d'évaluation
+        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
+        updateStatistics();
+        updateFilterIndicator();
       });
     }
     
-    // Retirer les event listeners automatiques des filtres
-    // Les filtres ne s'appliquent plus automatiquement, seulement via le bouton
-    // Agent filter - pas d'event listener automatique
-    // Supervisor filter - pas d'event listener automatique
-    // Project filter - pas d'event listener automatique
+    // Agent filter (nouveau dans la section filtres)
+    const agentFilter = document.getElementById('agent-filter');
+    if (agentFilter) {
+      agentFilter.addEventListener('change', () => {
+        displayActivities(); // Mettre à jour le tableau d'évaluation
+        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
+        updateStatistics();
+        updateFilterIndicator();
+      });
+    }
+    
+    // Supervisor filter
+    const supervisorFilter = document.getElementById('supervisor-filter');
+    if (supervisorFilter) {
+      supervisorFilter.addEventListener('change', () => {
+        displayActivities(); // Mettre à jour le tableau d'évaluation
+        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
+        updateStatistics();
+        updateFilterIndicator();
+      });
+    }
+
+    // Project filter (uniquement pour les admins)
+    const projectFilter = document.getElementById('project-filter');
+    if (projectFilter) {
+      projectFilter.addEventListener('change', () => {
+        displayActivities(); // Mettre à jour le tableau d'évaluation
+        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
+        updateStatistics();
+        updateFilterIndicator();
+      });
+    }
 
     // Activity project filter (tableau de suivi)
     const activityProjectFilter = document.getElementById('activity-project-filter');
@@ -1527,17 +1547,18 @@
       checkPendingData();
     }
 
-    // Status filter - ne s'applique plus automatiquement, seulement via le bouton
-    // Pas d'event listener automatique - appliqué via le bouton "Appliquer les filtres"
+    // Status filter
+    document.getElementById('status-filter').addEventListener('change', () => {
+      displayActivities(); // Mettre à jour le tableau d'évaluation
+      displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
+      updateStatistics();
+      updateFilterIndicator();
+    });
 
-    // Supervisor filter - ne s'applique plus automatiquement, seulement via le bouton
-    // Pas d'event listener automatique - appliqué via le bouton "Appliquer les filtres"
-    
-    // Week filter - ne s'applique plus automatiquement, seulement via le bouton
-    // Pas d'event listener automatique - appliqué via le bouton "Appliquer les filtres"
-    
-    // Note: Les anciens event listeners ont été retirés pour permettre à l'utilisateur
-    // de choisir tous les filtres avant de cliquer sur "Appliquer les filtres"
+    // Supervisor filter (visible only for admins)
+    const supervisorSelect = document.getElementById('supervisor-filter');
+    if (supervisorSelect) {
+      supervisorSelect.addEventListener('change', () => {
         displayActivities(); // Mettre à jour le tableau d'évaluation
         displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
         updateStatistics();

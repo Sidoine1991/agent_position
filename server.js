@@ -491,34 +491,23 @@ app.get('/api/reports/validations', authenticateToken, async (req, res) => {
     }
 
     try {
-      // Construire la requête de base
+      // Construire la requête de base - MODIFICATION: utiliser checkins au lieu de checkin_validations
       let query = supabaseClient
-        .from('checkin_validations')
+        .from('checkins')
         .select(`
           id,
-          checkin_id,
-          agent_id,
-          valid,
-          distance_m,
-          reference_lat,
-          reference_lon,
-          tolerance_m,
-          created_at,
-          checkins!inner(
-            id,
-            mission_id,
-            user_id,
-            lat,
-            lon,
-            start_time,
-            end_time,
-            note,
-            photo_url
-          ),
+          user_id,
+          lat,
+          lon,
+          start_time,
+          end_time,
+          note,
+          photo_url,
           users!inner(
             id,
             first_name,
             last_name,
+            name,
             project_name,
             departement,
             commune,
@@ -529,9 +518,9 @@ app.get('/api/reports/validations', authenticateToken, async (req, res) => {
             reference_lon
           )
         `)
-        .order('start_time', { ascending: false, referencedTable: 'checkins' });
+        .order('start_time', { ascending: false });
 
-      console.log('🔍 Requête Supabase construite');
+      console.log('🔍 Requête Supabase construite (depuis checkins)');
 
       // Format date helper function
       const formatDateForQuery = (dateStr, isEndOfDay = false) => {
@@ -569,7 +558,7 @@ app.get('/api/reports/validations', authenticateToken, async (req, res) => {
         const fromDateStr = formatDateForQuery(from);
         if (fromDateStr) {
           console.log(`📅 Filtre from: ${fromDateStr}`);
-          query = query.gte('checkins.start_time', fromDateStr);
+          query = query.gte('start_time', fromDateStr);
         }
       }
 
@@ -577,13 +566,13 @@ app.get('/api/reports/validations', authenticateToken, async (req, res) => {
         const toDateStr = formatDateForQuery(to, true); // true = end of day
         if (toDateStr) {
           console.log(`📅 Filtre to: ${toDateStr}`);
-          query = query.lte('checkins.start_time', toDateStr);
+          query = query.lte('start_time', toDateStr);
         }
       }
 
       if (agent_id) {
         console.log(`👤 Filtre agent_id: ${agent_id}`);
-        query = query.eq('agent_id', agent_id);
+        query = query.eq('user_id', agent_id);
       }
 
       // Si un superviseur est spécifié, filtrer les agents supervisés
@@ -599,7 +588,7 @@ app.get('/api/reports/validations', authenticateToken, async (req, res) => {
 
         const agentIds = supervisedAgents.map(a => a.id);
         if (agentIds.length > 0) {
-          query = query.in('agent_id', agentIds);
+          query = query.in('user_id', agentIds);
         } else {
           // Aucun agent trouvé pour ce superviseur, retourner un tableau vide
           console.log('ℹ️ Aucun agent trouvé pour ce superviseur');
@@ -617,47 +606,48 @@ app.get('/api/reports/validations', authenticateToken, async (req, res) => {
 
       console.log(`✅ ${data ? data.length : 0} enregistrements trouvés`);
 
-      // Formater la réponse
-      const formattedData = data.map(item => {
-        const distance = item.distance_m !== null
-          ? item.distance_m
-          : calculateDistance(
-            item.users.reference_lat,
-            item.users.reference_lon,
-            item.checkins.lat,
-            item.checkins.lon
-          );
+      // Formater la réponse avec calcul de validation en temps réel
+      const formattedData = (data || []).map(checkin => {
+        const user = checkin.users;
 
-        const isWithinTolerance = distance <= (item.tolerance_m || item.users.tolerance_radius_meters || 0);
+        // Calculer la distance en temps réel
+        const distance = calculateDistance(
+          user.reference_lat,
+          user.reference_lon,
+          checkin.lat,
+          checkin.lon
+        );
+
+        // Déterminer la tolérance et le statut
+        const toleranceRadius = user.tolerance_radius_meters || 5000; // 5km par défaut
+        const isValid = distance !== null && distance <= toleranceRadius;
 
         return {
-          id: item.id,
-          user_id: item.agent_id,
-          agent: `${item.users.first_name || ''} ${item.users.last_name || ''}`.trim() || `Utilisateur #${item.agent_id}`,
-          projet: item.users.project_name || 'Non spécifié',
+          id: checkin.id,
+          user_id: checkin.user_id,
+          agent: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || `Agent #${checkin.user_id}`,
+          projet: user.project_name || 'Non spécifié',
           localisation: [
-            item.users.departement,
-            item.users.commune,
-            item.users.arrondissement,
-            item.users.village
+            user.departement,
+            user.commune,
+            user.arrondissement,
+            user.village
           ].filter(Boolean).join(' / ') || 'Non spécifiée',
-          rayon_m: item.tolerance_m || item.users.tolerance_radius_meters || 0,
-          ref_lat: item.reference_lat || item.users.reference_lat,
-          ref_lon: item.reference_lon || item.users.reference_lon,
-          lat: item.checkins.lat,
-          lon: item.checkins.lon,
-          ts: item.checkins.start_time,
+          rayon_m: toleranceRadius,
+          ref_lat: user.reference_lat,
+          ref_lon: user.reference_lon,
+          lat: checkin.lat,
+          lon: checkin.lon,
+          ts: checkin.start_time,
           distance_m: distance,
-          statut: item.valid !== null
-            ? (item.valid ? 'Présent' : 'Hors zone')
-            : (isWithinTolerance ? 'Présent' : 'Hors zone'),
-          note: item.checkins.note,
-          photo_url: item.checkins.photo_url,
-          mission_duration: item.checkins.end_time
-            ? (new Date(item.checkins.end_time) - new Date(item.checkins.start_time)) / 60000
+          statut: isValid ? 'Présent' : 'Hors zone',
+          note: checkin.note,
+          photo_url: checkin.photo_url,
+          mission_duration: checkin.end_time
+            ? (new Date(checkin.end_time) - new Date(checkin.start_time)) / 60000
             : null
         };
-      }).filter(Boolean); // Filtrer les entrées nulles en cas d'erreur
+      }).filter(item => item !== null); // Filtrer les entrées nulles en cas d'erreur
 
       console.log(`📊 ${formattedData.length} entrées valides après traitement`);
       res.json(formattedData);
@@ -1056,9 +1046,9 @@ app.get('/api/admin/stats', async (req, res) => {
 app.post('/api/admin/filtered-data/preview', authenticateToken, authenticateAdmin, async (req, res) => {
   try {
     const { startDate, endDate, projects, agentIds, dataTypes } = req.body || {};
-    
+
     const counts = {};
-    
+
     // Construire les filtres de base
     let dateFilter = {};
     if (startDate) {
@@ -1069,13 +1059,13 @@ app.post('/api/admin/filtered-data/preview', authenticateToken, authenticateAdmi
       endDateTime.setHours(23, 59, 59, 999);
       dateFilter.lte = endDateTime.toISOString();
     }
-    
+
     // Compter les checkins
     if (dataTypes.includes('checkins')) {
       let checkinsQuery = supabaseClient
         .from('checkins')
         .select('id', { count: 'exact', head: true });
-      
+
       if (startDate || endDate) {
         if (startDate) checkinsQuery = checkinsQuery.gte('start_time', startDate);
         if (endDate) {
@@ -1084,21 +1074,21 @@ app.post('/api/admin/filtered-data/preview', authenticateToken, authenticateAdmi
           checkinsQuery = checkinsQuery.lte('start_time', endDateTime.toISOString());
         }
       }
-      
+
       if (agentIds && agentIds.length > 0) {
         checkinsQuery = checkinsQuery.in('user_id', agentIds);
       }
-      
+
       const { count, error } = await checkinsQuery;
       if (!error) counts.checkins = count || 0;
     }
-    
+
     // Compter les missions
     if (dataTypes.includes('missions')) {
       let missionsQuery = supabaseClient
         .from('missions')
         .select('id', { count: 'exact', head: true });
-      
+
       if (startDate || endDate) {
         if (startDate) missionsQuery = missionsQuery.gte('start_time', startDate);
         if (endDate) {
@@ -1107,21 +1097,21 @@ app.post('/api/admin/filtered-data/preview', authenticateToken, authenticateAdmi
           missionsQuery = missionsQuery.lte('start_time', endDateTime.toISOString());
         }
       }
-      
+
       if (agentIds && agentIds.length > 0) {
         missionsQuery = missionsQuery.in('agent_id', agentIds);
       }
-      
+
       const { count, error } = await missionsQuery;
       if (!error) counts.missions = count || 0;
     }
-    
+
     // Compter les presences
     if (dataTypes.includes('presences')) {
       let presencesQuery = supabaseClient
         .from('presences')
         .select('id', { count: 'exact', head: true });
-      
+
       if (startDate || endDate) {
         if (startDate) presencesQuery = presencesQuery.gte('start_time', startDate);
         if (endDate) {
@@ -1130,34 +1120,34 @@ app.post('/api/admin/filtered-data/preview', authenticateToken, authenticateAdmi
           presencesQuery = presencesQuery.lte('start_time', endDateTime.toISOString());
         }
       }
-      
+
       if (agentIds && agentIds.length > 0) {
         presencesQuery = presencesQuery.in('user_id', agentIds);
       }
-      
+
       const { count, error } = await presencesQuery;
       if (!error) counts.presences = count || 0;
     }
-    
+
     // Compter les permissions
     if (dataTypes.includes('permissions')) {
       let permissionsQuery = supabaseClient
         .from('permissions')
         .select('id', { count: 'exact', head: true });
-      
+
       if (startDate || endDate) {
         if (startDate) permissionsQuery = permissionsQuery.gte('start_date', startDate);
         if (endDate) permissionsQuery = permissionsQuery.lte('end_date', endDate);
       }
-      
+
       if (agentIds && agentIds.length > 0) {
         permissionsQuery = permissionsQuery.in('agent_id', agentIds);
       }
-      
+
       const { count, error } = await permissionsQuery;
       if (!error) counts.permissions = count || 0;
     }
-    
+
     // Filtrer par projet si nécessaire (nécessite une jointure avec users)
     if (projects && projects.length > 0) {
       // Pour les checkins et missions, filtrer via user_id/agent_id
@@ -1165,9 +1155,9 @@ app.post('/api/admin/filtered-data/preview', authenticateToken, authenticateAdmi
         .from('users')
         .select('id')
         .in('project_name', projects);
-      
+
       const userIdsInProjects = (usersInProjects || []).map(u => u.id);
-      
+
       if (userIdsInProjects.length > 0) {
         // Recompter avec filtrage par projet
         if (dataTypes.includes('checkins')) {
@@ -1175,39 +1165,39 @@ app.post('/api/admin/filtered-data/preview', authenticateToken, authenticateAdmi
             .from('checkins')
             .select('id', { count: 'exact', head: true })
             .in('user_id', userIdsInProjects);
-          
+
           if (startDate) checkinsQuery = checkinsQuery.gte('start_time', startDate);
           if (endDate) {
             const endDateTime = new Date(endDate);
             endDateTime.setHours(23, 59, 59, 999);
             checkinsQuery = checkinsQuery.lte('start_time', endDateTime.toISOString());
           }
-          
+
           if (agentIds && agentIds.length > 0) {
             checkinsQuery = checkinsQuery.in('user_id', agentIds.filter(id => userIdsInProjects.includes(id)));
           }
-          
+
           const { count } = await checkinsQuery;
           counts.checkins = count || 0;
         }
-        
+
         if (dataTypes.includes('missions')) {
           let missionsQuery = supabaseClient
             .from('missions')
             .select('id', { count: 'exact', head: true })
             .in('agent_id', userIdsInProjects);
-          
+
           if (startDate) missionsQuery = missionsQuery.gte('start_time', startDate);
           if (endDate) {
             const endDateTime = new Date(endDate);
             endDateTime.setHours(23, 59, 59, 999);
             missionsQuery = missionsQuery.lte('start_time', endDateTime.toISOString());
           }
-          
+
           if (agentIds && agentIds.length > 0) {
             missionsQuery = missionsQuery.in('agent_id', agentIds.filter(id => userIdsInProjects.includes(id)));
           }
-          
+
           const { count } = await missionsQuery;
           counts.missions = count || 0;
         }
@@ -1217,7 +1207,7 @@ app.post('/api/admin/filtered-data/preview', authenticateToken, authenticateAdmi
         if (dataTypes.includes('missions')) counts.missions = 0;
       }
     }
-    
+
     res.json({ success: true, counts });
   } catch (error) {
     console.error('Erreur prévisualisation données filtrées:', error);
@@ -1229,9 +1219,9 @@ app.post('/api/admin/filtered-data/preview', authenticateToken, authenticateAdmi
 app.post('/api/admin/filtered-data/export', authenticateToken, authenticateAdmin, async (req, res) => {
   try {
     const { startDate, endDate, projects, agentIds, dataTypes } = req.body || {};
-    
+
     const exportData = {};
-    
+
     // Construire les filtres de date
     const buildDateFilter = (field) => {
       let query = supabaseClient.from('checkins').select('*');
@@ -1243,7 +1233,7 @@ app.post('/api/admin/filtered-data/export', authenticateToken, authenticateAdmin
       }
       return query;
     };
-    
+
     // Récupérer les IDs d'utilisateurs si filtrage par projet
     let userIdsInProjects = null;
     if (projects && projects.length > 0) {
@@ -1253,7 +1243,7 @@ app.post('/api/admin/filtered-data/export', authenticateToken, authenticateAdmin
         .in('project_name', projects);
       userIdsInProjects = (usersInProjects || []).map(u => u.id);
     }
-    
+
     // Exporter checkins
     if (dataTypes.includes('checkins')) {
       let query = supabaseClient.from('checkins').select('*');
@@ -1271,7 +1261,7 @@ app.post('/api/admin/filtered-data/export', authenticateToken, authenticateAdmin
       const { data, error } = await query;
       if (!error) exportData.checkins = data || [];
     }
-    
+
     // Exporter missions
     if (dataTypes.includes('missions')) {
       let query = supabaseClient.from('missions').select('*');
@@ -1289,7 +1279,7 @@ app.post('/api/admin/filtered-data/export', authenticateToken, authenticateAdmin
       const { data, error } = await query;
       if (!error) exportData.missions = data || [];
     }
-    
+
     // Exporter presences
     if (dataTypes.includes('presences')) {
       let query = supabaseClient.from('presences').select('*');
@@ -1307,7 +1297,7 @@ app.post('/api/admin/filtered-data/export', authenticateToken, authenticateAdmin
       const { data, error } = await query;
       if (!error) exportData.presences = data || [];
     }
-    
+
     // Exporter permissions
     if (dataTypes.includes('permissions')) {
       let query = supabaseClient.from('permissions').select('*');
@@ -1321,20 +1311,20 @@ app.post('/api/admin/filtered-data/export', authenticateToken, authenticateAdmin
       const { data, error } = await query;
       if (!error) exportData.permissions = data || [];
     }
-    
+
     // Ajouter les métadonnées d'export
     exportData.metadata = {
       exportDate: new Date().toISOString(),
       filters: { startDate, endDate, projects, agentIds, dataTypes },
       counts: {}
     };
-    
+
     Object.keys(exportData).forEach(key => {
       if (key !== 'metadata' && Array.isArray(exportData[key])) {
         exportData.metadata.counts[key] = exportData[key].length;
       }
     });
-    
+
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename="export_donnees_${new Date().toISOString().split('T')[0]}.json"`);
     res.json(exportData);
@@ -1348,9 +1338,9 @@ app.post('/api/admin/filtered-data/export', authenticateToken, authenticateAdmin
 app.post('/api/admin/filtered-data/delete', authenticateToken, authenticateAdmin, async (req, res) => {
   try {
     const { startDate, endDate, projects, agentIds, dataTypes } = req.body || {};
-    
+
     const deleted = {};
-    
+
     // Récupérer les IDs d'utilisateurs si filtrage par projet
     let userIdsInProjects = null;
     if (projects && projects.length > 0) {
@@ -1360,7 +1350,7 @@ app.post('/api/admin/filtered-data/delete', authenticateToken, authenticateAdmin
         .in('project_name', projects);
       userIdsInProjects = (usersInProjects || []).map(u => u.id);
     }
-    
+
     // Supprimer checkins
     if (dataTypes.includes('checkins')) {
       // Compter d'abord
@@ -1377,7 +1367,7 @@ app.post('/api/admin/filtered-data/delete', authenticateToken, authenticateAdmin
         countQuery = countQuery.in('user_id', userIdsInProjects);
       }
       const { count: countBefore } = await countQuery;
-      
+
       // Puis supprimer
       let deleteQuery = supabaseClient.from('checkins').delete();
       if (startDate) deleteQuery = deleteQuery.gte('start_time', startDate);
@@ -1394,7 +1384,7 @@ app.post('/api/admin/filtered-data/delete', authenticateToken, authenticateAdmin
       const { error } = await deleteQuery;
       if (!error) deleted.checkins = countBefore || 0;
     }
-    
+
     // Supprimer missions
     if (dataTypes.includes('missions')) {
       // Compter d'abord
@@ -1411,7 +1401,7 @@ app.post('/api/admin/filtered-data/delete', authenticateToken, authenticateAdmin
         countQuery = countQuery.in('agent_id', userIdsInProjects);
       }
       const { count: countBefore } = await countQuery;
-      
+
       // Puis supprimer
       let deleteQuery = supabaseClient.from('missions').delete();
       if (startDate) deleteQuery = deleteQuery.gte('start_time', startDate);
@@ -1428,7 +1418,7 @@ app.post('/api/admin/filtered-data/delete', authenticateToken, authenticateAdmin
       const { error } = await deleteQuery;
       if (!error) deleted.missions = countBefore || 0;
     }
-    
+
     // Supprimer presences
     if (dataTypes.includes('presences')) {
       // Compter d'abord
@@ -1445,7 +1435,7 @@ app.post('/api/admin/filtered-data/delete', authenticateToken, authenticateAdmin
         countQuery = countQuery.in('user_id', userIdsInProjects);
       }
       const { count: countBefore } = await countQuery;
-      
+
       // Puis supprimer
       let deleteQuery = supabaseClient.from('presences').delete();
       if (startDate) deleteQuery = deleteQuery.gte('start_time', startDate);
@@ -1462,7 +1452,7 @@ app.post('/api/admin/filtered-data/delete', authenticateToken, authenticateAdmin
       const { error } = await deleteQuery;
       if (!error) deleted.presences = countBefore || 0;
     }
-    
+
     // Supprimer permissions
     if (dataTypes.includes('permissions')) {
       // Compter d'abord
@@ -1475,7 +1465,7 @@ app.post('/api/admin/filtered-data/delete', authenticateToken, authenticateAdmin
         countQuery = countQuery.in('agent_id', userIdsInProjects);
       }
       const { count: countBefore } = await countQuery;
-      
+
       // Puis supprimer
       let deleteQuery = supabaseClient.from('permissions').delete();
       if (startDate) deleteQuery = deleteQuery.gte('start_date', startDate);
@@ -1488,7 +1478,7 @@ app.post('/api/admin/filtered-data/delete', authenticateToken, authenticateAdmin
       const { error } = await deleteQuery;
       if (!error) deleted.permissions = countBefore || 0;
     }
-    
+
     res.json({ success: true, deleted });
   } catch (error) {
     console.error('Erreur suppression données filtrées:', error);
@@ -2583,12 +2573,13 @@ function authenticateAdmin(req, res, next) {
     return res.status(401).json({ error: 'Authentification requise' });
   }
   const role = (req.user.role || '').toLowerCase();
+  // superadmin a tous les droits d'admin
   const email = req.user.email || 'inconnu';
   console.log(`🔍 Vérification accès admin - Email: ${email}, Rôle: ${role}`);
-  
+
   if (role !== 'admin' && role !== 'superadmin') {
     console.log(`❌ Accès administrateur requis - Email: ${email}, Rôle actuel: ${role}`);
-    return res.status(403).json({ 
+    return res.status(403).json({
       error: 'Accès administrateur requis',
       currentRole: role,
       email: email
@@ -2601,7 +2592,7 @@ function authenticateAdmin(req, res, next) {
 // Middleware d'authentification superviseur ou admin
 function authenticateSupervisorOrAdmin(req, res, next) {
   const role = (req.user && req.user.role) ? String(req.user.role).toLowerCase() : '';
-  const isAllowed = role === 'admin' || role === 'supervisor' || role === 'superviseur';
+  const isAllowed = role === 'admin' || role === 'supervisor' || role === 'superviseur' || role === 'superadmin';
   if (!isAllowed) {
     return res.status(403).json({ error: 'Accès superviseur ou administrateur requis' });
   }
@@ -2907,6 +2898,7 @@ app.post('/api/planifications', async (req, res) => {
   }
 });
 
+/* DÉSACTIVÉ - DOUBLON : Cette route était en conflit avec celle de la ligne 743
 // Récupérer la planification d'une période
 app.get('/api/planifications', authenticateToken, async (req, res) => {
   try {
@@ -2994,8 +2986,8 @@ app.get('/api/planifications', authenticateToken, async (req, res) => {
         console.warn('Requêtes parallèles échouées, utilisation de user_id uniquement:', queryError);
         query = query.eq('user_id', normalizedAgentId);
       }
-    } else if (req.user.role === 'admin') {
-      // Les admins voient toutes les planifications
+    } else if (req.user.role === 'admin' || req.user.role === 'superadmin') {
+      // Les admins et superadmins voient toutes les planifications
       // Pas de filtre par user_id
     } else if (req.user.role === 'superviseur') {
       // Les superviseurs voient seulement leurs propres planifications
@@ -3065,6 +3057,8 @@ app.get('/api/planifications', authenticateToken, async (req, res) => {
     return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
+FIN DU DOUBLON COMMENTÉ */
+
 
 // Mettre à jour le résultat d'une planification
 app.put('/api/planifications/result', authenticateToken, async (req, res) => {
@@ -5520,8 +5514,27 @@ app.post('/api/permissions', authenticateToken, upload.single('justification'), 
       return res.status(400).json({ success: false, error: 'start_date et end_date sont requis' });
     }
 
-    if (new Date(end_date) < new Date(start_date)) {
+    // Validation des dates
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Réinitialiser l'heure pour comparer uniquement les dates
+
+    if (endDate < startDate) {
       return res.status(400).json({ success: false, error: 'La date de fin doit être supérieure ou égale à la date de début' });
+    }
+
+    // Empêcher les permissions dans le passé (mois/année antérieur)
+    const startYear = startDate.getFullYear();
+    const startMonth = startDate.getMonth();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
+
+    if (startYear < currentYear || (startYear === currentYear && startMonth < currentMonth)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Impossible de demander une permission pour un mois ou une année antérieure à la date actuelle' 
+      });
     }
 
     // Déterminer pour quel agent la demande est créée
@@ -5564,12 +5577,43 @@ app.post('/api/permissions', authenticateToken, upload.single('justification'), 
       }
     }
 
+    // S'assurer que les dates sont au format YYYY-MM-DD (format date PostgreSQL)
+    const formatDateForDB = (dateStr) => {
+      if (!dateStr) return null;
+      // Si c'est déjà au format YYYY-MM-DD, le retourner tel quel
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return dateStr;
+      }
+      // Sinon, convertir en format YYYY-MM-DD
+      try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) {
+          throw new Error(`Date invalide: ${dateStr}`);
+        }
+        return date.toISOString().split('T')[0];
+      } catch (err) {
+        console.error('Erreur formatage date:', err.message, 'dateStr:', dateStr);
+        throw new Error(`Format de date invalide: ${dateStr}`);
+      }
+    };
+
+    let formattedStartDate, formattedEndDate;
+    try {
+      formattedStartDate = formatDateForDB(start_date);
+      formattedEndDate = formatDateForDB(end_date);
+    } catch (dateError) {
+      return res.status(400).json({ 
+        success: false, 
+        error: dateError.message || 'Format de date invalide' 
+      });
+    }
+
     const permissionData = {
       agent_id: targetAgentId,
-      start_date,
-      end_date,
+      start_date: formattedStartDate,
+      end_date: formattedEndDate,
       status,
-      rejection_reason: reason || null,
+      reason: reason || null, // Utiliser 'reason' au lieu de 'rejection_reason' selon le schéma
       proof_url: proofUrl,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -5585,7 +5629,30 @@ app.post('/api/permissions', authenticateToken, upload.single('justification'), 
       return res.status(404).json({ success: false, error: 'Table permissions non trouvée' });
     }
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Erreur lors de l\'insertion de la permission:', {
+        error: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        permissionData: {
+          agent_id: permissionData.agent_id,
+          start_date: permissionData.start_date,
+          end_date: permissionData.end_date,
+          status: permissionData.status,
+          reason: permissionData.reason
+        }
+      });
+      return res.status(500).json({ 
+        success: false, 
+        error: error.message || 'Erreur lors de la création de la permission',
+        details: process.env.NODE_ENV === 'development' ? {
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        } : undefined
+      });
+    }
 
     // Enrichir avec les données utilisateur
     let data = insertedData;
@@ -5647,21 +5714,54 @@ app.put('/api/permissions/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ success: false, error: 'Accès refusé' });
     }
 
+    // Fonction pour formater les dates au format YYYY-MM-DD
+    const formatDateForDB = (dateStr) => {
+      if (!dateStr) return null;
+      // Si c'est déjà au format YYYY-MM-DD, le retourner tel quel
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return dateStr;
+      }
+      // Sinon, convertir en format YYYY-MM-DD
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) {
+        throw new Error(`Date invalide: ${dateStr}`);
+      }
+      return date.toISOString().split('T')[0];
+    };
+
     // Construire l'objet de mise à jour
     const updateData = {
       updated_at: new Date().toISOString()
     };
 
-    if (start_date) updateData.start_date = start_date;
-    if (end_date) updateData.end_date = end_date;
+    if (start_date) updateData.start_date = formatDateForDB(start_date);
+    if (end_date) updateData.end_date = formatDateForDB(end_date);
     if (status) updateData.status = status;
-    if (reason !== undefined) updateData.rejection_reason = reason;
+    if (reason !== undefined) updateData.reason = reason; // Utiliser 'reason' selon le schéma (pas 'rejection_reason')
 
     // Vérifier les dates si fournies
     const finalStartDate = updateData.start_date || existing.start_date;
     const finalEndDate = updateData.end_date || existing.end_date;
-    if (new Date(finalEndDate) < new Date(finalStartDate)) {
+    const startDate = new Date(finalStartDate);
+    const endDate = new Date(finalEndDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Réinitialiser l'heure pour comparer uniquement les dates
+
+    if (endDate < startDate) {
       return res.status(400).json({ success: false, error: 'La date de fin doit être supérieure ou égale à la date de début' });
+    }
+
+    // Empêcher les permissions dans le passé (mois/année antérieur)
+    const startYear = startDate.getFullYear();
+    const startMonth = startDate.getMonth();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
+
+    if (startYear < currentYear || (startYear === currentYear && startMonth < currentMonth)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Impossible de modifier une permission pour un mois ou une année antérieure à la date actuelle' 
+      });
     }
 
     const { data: updatedData, error } = await supabaseClient
@@ -5675,7 +5775,30 @@ app.put('/api/permissions/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Table permissions non trouvée' });
     }
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Erreur lors de la mise à jour de la permission:', {
+        error: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        permissionId: permissionId,
+        updateData: {
+          start_date: updateData.start_date,
+          end_date: updateData.end_date,
+          status: updateData.status,
+          reason: updateData.reason
+        }
+      });
+      return res.status(500).json({ 
+        success: false, 
+        error: error.message || 'Erreur lors de la mise à jour de la permission',
+        details: process.env.NODE_ENV === 'development' ? {
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        } : undefined
+      });
+    }
 
     // Enrichir avec les données utilisateur
     let data = updatedData;
@@ -5957,106 +6080,209 @@ app.get('/api/permission-days', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Agent ID manquant' });
     }
 
-    // Convert the ID to UUID if needed
-    const userId = await getUserId(targetAgentId);
-    if (!userId) {
-      return res.status(404).json({
+    // La table permissions utilise agent_id qui est un bigint (pas un UUID)
+    // Convertir en nombre pour s'assurer que c'est un entier
+    targetAgentId = Number(targetAgentId);
+    
+    if (!Number.isFinite(targetAgentId) || targetAgentId <= 0) {
+      return res.status(400).json({
         success: false,
-        error: `Utilisateur avec l'ID ${targetAgentId} non trouvé`,
-        details: process.env.NODE_ENV === 'development' ? `ID type: ${typeof targetAgentId}` : undefined
+        error: `ID agent invalide: ${req.query.agent_id}`,
+        details: process.env.NODE_ENV === 'development' ? `ID type: ${typeof req.query.agent_id}` : undefined
       });
     }
-
-    // Use the resolved UUID
-    targetAgentId = userId;
+    
+    console.log('🔍 Récupération permissions pour agent:', {
+      agentId: targetAgentId,
+      month: month,
+      requesterId: requesterId,
+      isPrivileged: isPrivileged
+    });
 
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 500);
 
-    // First, check if the table exists
-    const { data: tableInfo, error: tableError } = await supabaseClient
-      .rpc('table_exists', { table_name: 'permission_days' });
-
-    if (tableError || !tableInfo) {
-      console.warn('Table permission_days non trouvée, retour d\'un tableau vide');
-      return res.json({ success: true, data: [] });
-    }
-
-    // Get the table columns to determine the schema
-    const { data: columns, error: columnsError } = await supabaseClient
-      .rpc('get_columns', { table_name: 'permission_days' });
-
-    if (columnsError) {
-      console.error('Erreur lors de la récupération des colonnes:', columnsError);
-      return res.status(500).json({ success: false, error: 'Erreur de configuration de la base de données' });
-    }
-
-    const hasDaysColumn = columns.some(col => col.column_name === 'days');
-    const hasStartDateColumn = columns.some(col => col.column_name === 'start_date');
-
-    // Build the base query
-    let query = supabaseClient
-      .from('permission_days')
-      .select('*')
-      .eq('user_id', targetAgentId);
-
-    // Only order by start_date if the column exists
-    if (hasStartDateColumn) {
-      query = query.order('start_date', { ascending: false });
-    } else {
-      query = query.order('created_at', { ascending: false });
-    }
-
-    // Apply month filter if provided
+    // Utiliser la table 'permissions' au lieu de 'permission_days'
+    // La table permissions a les colonnes: id, agent_id, start_date, end_date, status, reason, etc.
+    
+    // Calculer les dates de début et fin du mois si month est fourni
+    let startDate = null;
+    let endDate = null;
     if (month) {
-      query = query.eq('month', month);
+      const [year, monthNum] = month.split('-').map(Number);
+      startDate = new Date(Date.UTC(year, monthNum - 1, 1));
+      endDate = new Date(Date.UTC(year, monthNum, 0, 23, 59, 59, 999));
     }
+
+    // Build the base query - utiliser la table 'permissions'
+    // La table permissions utilise agent_id (bigint) pas user_id (UUID)
+    let query = supabaseClient
+      .from('permissions')
+      .select('id, agent_id, start_date, end_date, status, reason, created_at, updated_at, supervisor_id')
+      .eq('agent_id', targetAgentId) // Utiliser directement l'ID numérique
+      .eq('status', 'approved'); // Seulement les permissions approuvées
+
+    // Filtrer par mois si fourni (permissions qui chevauchent le mois)
+    if (startDate && endDate) {
+      const startIso = startDate.toISOString().split('T')[0];
+      const endIso = endDate.toISOString().split('T')[0];
+      // Une permission chevauche le mois si: start_date <= mois_fin ET end_date >= mois_début
+      query = query.lte('start_date', endIso).gte('end_date', startIso);
+    }
+
+    query = query.order('start_date', { ascending: false }).limit(limit);
+
+    console.log('🔍 Requête Supabase permissions:', {
+      agentId: targetAgentId,
+      month: month,
+      startDate: startDate ? startDate.toISOString().split('T')[0] : null,
+      endDate: endDate ? endDate.toISOString().split('T')[0] : null
+    });
 
     const { data, error } = await query;
+    
+    console.log('📋 Résultat requête permissions:', {
+      error: error ? error.message : null,
+      count: data?.length || 0,
+      hasData: !!data
+    });
 
     if (error) {
-      console.error('Error fetching permission days:', error);
+      console.error('❌ Erreur lors de la récupération des permissions:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        agentId: targetAgentId,
+        month: month
+      });
+      
       if (isMissingTable(error)) {
         // If table doesn't exist, return empty array
-        return res.json({ success: true, data: [] });
+        console.warn('⚠️ Table permissions non trouvée');
+        return res.json({ success: true, permission_days: [], total_days: 0, count: 0 });
       }
-      throw error;
+      
+      // Retourner une erreur plus descriptive au lieu de throw
+      return res.status(500).json({
+        success: false,
+        error: 'Erreur lors de la récupération des permissions',
+        details: process.env.NODE_ENV === 'development' ? {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        } : undefined
+      });
     }
 
-    // Transform and validate data
-    const transformedData = [];
+    // Calculer le nombre total de jours de permission pour le mois
+    let totalDays = 0;
+    const permissionDays = [];
 
-    for (const item of data || []) {
-      try {
-        // Ensure we have all required fields
-        const record = {
-          id: item.id,
-          user_id: item.user_id,
-          month: item.month || null,
-          days: item.days ? parseInt(item.days, 10) : null,
-          start_date: item.start_date || null,
-          end_date: item.end_date || null,
-          reason: item.reason || null,
-          status: item.status || 'pending',
-          created_at: item.created_at || new Date().toISOString(),
-          updated_at: item.updated_at || new Date().toISOString(),
-          created_by: item.created_by || null,
-          approved_by: item.approved_by || null
-        };
+    if (startDate && endDate) {
+      const startIso = startDate.toISOString().split('T')[0];
+      const endIso = endDate.toISOString().split('T')[0];
 
-        // Ensure we have valid dates and calculated fields
-        const validatedRecord = ensureDateRange(record);
-        transformedData.push(validatedRecord);
-      } catch (err) {
-        console.error('Error processing permission day record:', err);
-        // Skip invalid records
-        continue;
+      for (const perm of data || []) {
+        if (!perm.start_date || !perm.end_date) continue;
+
+        const permStart = new Date(perm.start_date);
+        const permEnd = new Date(perm.end_date);
+
+        // Calculer l'intersection avec le mois
+        const effectiveStart = permStart < startDate ? startDate : permStart;
+        const effectiveEnd = permEnd > endDate ? endDate : permEnd;
+
+        if (effectiveStart <= effectiveEnd) {
+          // Calculer le nombre de jours ouvrés uniquement (exclure dimanches et samedis)
+          let days = 0;
+          const current = new Date(effectiveStart);
+          const endDate = new Date(effectiveEnd);
+          
+          // S'assurer que les dates sont en UTC pour la cohérence
+          current.setUTCHours(0, 0, 0, 0);
+          endDate.setUTCHours(23, 59, 59, 999);
+          
+          while (current <= endDate) {
+            const dayOfWeek = current.getUTCDay();
+            // Compter uniquement les jours ouvrés (lundi=1 à vendredi=5)
+            if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+              days++;
+            }
+            current.setUTCDate(current.getUTCDate() + 1);
+          }
+          
+          if (days > 0) {
+            totalDays += days;
+            permissionDays.push({
+              id: perm.id,
+              agent_id: perm.agent_id,
+              start_date: perm.start_date,
+              end_date: perm.end_date,
+              days: days,
+              reason: perm.reason || null,
+              status: perm.status,
+              created_at: perm.created_at,
+              updated_at: perm.updated_at
+            });
+          }
+        }
+      }
+    } else {
+      // Si pas de mois spécifié, retourner toutes les permissions avec leurs jours calculés
+      for (const perm of data || []) {
+        if (!perm.start_date || !perm.end_date) continue;
+        const permStart = new Date(perm.start_date);
+        const permEnd = new Date(perm.end_date);
+        
+        // Calculer le nombre de jours ouvrés uniquement (exclure dimanches et samedis)
+        let days = 0;
+        const current = new Date(permStart);
+        const endDate = new Date(permEnd);
+        
+        // S'assurer que les dates sont en UTC pour la cohérence
+        current.setUTCHours(0, 0, 0, 0);
+        endDate.setUTCHours(23, 59, 59, 999);
+        
+        while (current <= endDate) {
+          const dayOfWeek = current.getUTCDay();
+          // Compter uniquement les jours ouvrés (lundi=1 à vendredi=5)
+          if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+            days++;
+          }
+          current.setUTCDate(current.getUTCDate() + 1);
+        }
+        
+        if (days > 0) {
+          totalDays += days;
+          permissionDays.push({
+            id: perm.id,
+            agent_id: perm.agent_id,
+            start_date: perm.start_date,
+            end_date: perm.end_date,
+            days: days,
+            reason: perm.reason || null,
+            status: perm.status,
+            created_at: perm.created_at,
+            updated_at: perm.updated_at
+          });
+        }
       }
     }
+
+    console.log('✅ Permissions récupérées:', {
+      agentId: targetAgentId,
+      month: month,
+      totalPermissions: data?.length || 0,
+      totalDays: totalDays,
+      permissionDays: permissionDays.length
+    });
 
     res.json({
       success: true,
-      data: transformedData,
-      count: transformedData.length
+      permission_days: permissionDays,
+      total_days: totalDays,
+      count: permissionDays.length
     });
   } catch (error) {
     console.error('Error in GET /api/permission-days:', error);
@@ -6218,6 +6444,18 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
         expectedFormat: 'YYYY-MM'
       });
     }
+    
+    // Validation du mois pour empêcher les permissions dans le passé
+    if (month) {
+      const [year, monthNum] = month.split('-').map(Number);
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth() + 1; // getMonth() retourne 0-11
+      
+      if (year < currentYear || (year === currentYear && monthNum < currentMonth)) {
+        return sendError(400, 'Impossible de créer une permission pour un mois ou une année antérieure à la date actuelle');
+      }
+    }
 
     // Si le mois est fourni mais pas la date de début, utiliser le premier jour du mois
     if (month && !startDate) {
@@ -6230,6 +6468,27 @@ app.post('/api/permission-days', authenticateToken, async (req, res) => {
       log('📅 Aucune date fournie, utilisation de la date du jour', { startDate, endDate });
     }
 
+    // Validation des dates pour empêcher les permissions dans le passé
+    if (startDate) {
+      const startDateObj = new Date(startDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (isNaN(startDateObj.getTime())) {
+        return sendError(400, `Date de début invalide: ${startDate}`);
+      }
+      
+      // Empêcher les permissions dans le passé (mois/année antérieur)
+      const startYear = startDateObj.getFullYear();
+      const startMonth = startDateObj.getMonth();
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth();
+      
+      if (startYear < currentYear || (startYear === currentYear && startMonth < currentMonth)) {
+        return sendError(400, 'Impossible de créer une permission pour un mois ou une année antérieure à la date actuelle');
+      }
+    }
+    
     // Si le nombre de jours est fourni mais pas la date de fin, la calculer
     if (startDate && days && !endDate) {
       try {
@@ -6664,6 +6923,28 @@ app.put('/api/permission-days/:id', authenticateToken, async (req, res) => {
       const startDate = start_date || updatePayload.start_date || new Date().toISOString().split('T')[0];
       let endDate = end_date || updatePayload.end_date || startDate;
 
+      // Validation des dates pour empêcher les permissions dans le passé
+      const startDateObj = new Date(startDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (isNaN(startDateObj.getTime())) {
+        return res.status(400).json({ success: false, error: `Date de début invalide: ${startDate}` });
+      }
+      
+      // Empêcher les permissions dans le passé (mois/année antérieur)
+      const startYear = startDateObj.getFullYear();
+      const startMonth = startDateObj.getMonth();
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth();
+      
+      if (startYear < currentYear || (startYear === currentYear && startMonth < currentMonth)) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Impossible de modifier une permission pour un mois ou une année antérieure à la date actuelle' 
+        });
+      }
+
       // If days is provided but end_date is not, calculate end_date
       if (days !== undefined && !end_date) {
         const date = new Date(startDate);
@@ -6698,6 +6979,20 @@ app.put('/api/permission-days/:id', authenticateToken, async (req, res) => {
         if (!effectiveMonth) {
           return res.status(400).json({ success: false, error: 'Format de mois invalide' });
         }
+        
+        // Validation du mois pour empêcher les permissions dans le passé
+        const [year, monthNum] = effectiveMonth.split('-').map(Number);
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth() + 1; // getMonth() retourne 0-11
+        
+        if (year < currentYear || (year === currentYear && monthNum < currentMonth)) {
+          return res.status(400).json({ 
+            success: false, 
+            error: 'Impossible de modifier une permission pour un mois ou une année antérieure à la date actuelle' 
+          });
+        }
+        
         updatePayload.month = effectiveMonth;
       }
 
@@ -7859,7 +8154,7 @@ app.get('/api/admin/agents', async (req, res) => {
         userId = decoded && decoded.id ? Number(decoded.id) : null;
       }
     } catch { }
-    const isPrivileged = role === 'admin' || role === 'superviseur' || role === 'supervisor';
+    const isPrivileged = role === 'admin' || role === 'superadmin' || role === 'superviseur' || role === 'supervisor';
 
     if (isPrivileged) {
       const { data: agents, error } = await supabaseClient
@@ -8592,7 +8887,7 @@ app.get('/api/missions/:id/checkins', authenticateToken, async (req, res) => {
     // Vérifier accès: admin/superviseur ou mission appartenant à l'utilisateur
     let allowed = false;
     try {
-      if (req.user && (req.user.role === 'admin' || req.user.role === 'supervisor' || req.user.role === 'superviseur')) {
+      if (req.user && (req.user.role === 'admin' || req.user.role === 'superadmin' || req.user.role === 'supervisor' || req.user.role === 'superviseur')) {
         allowed = true;
         console.log(`✅ Accès autorisé pour ${req.user.role}`);
       } else {
@@ -8657,7 +8952,7 @@ app.post('/api/missions/:id/distance', authenticateToken, async (req, res) => {
         .eq('id', missionId)
         .single();
       if (mission && mission.agent_id) {
-        allowed = (mission.agent_id === req.user.id) || req.user.role === 'admin' || req.user.role === 'superviseur' || req.user.role === 'supervisor';
+        allowed = (mission.agent_id === req.user.id) || req.user.role === 'admin' || req.user.role === 'superadmin' || req.user.role === 'superviseur' || req.user.role === 'supervisor';
       }
     } catch { }
     if (!allowed) return res.status(403).json({ success: false, message: 'Accès refusé' });
@@ -9016,7 +9311,7 @@ app.post('/api/presence/end', upload.single('photo'), async (req, res) => {
           .eq('id', targetMissionId)
           .single();
         const isOwner = m && m.agent_id === userId;
-        const isPrivileged = req.user && (req.user.role === 'admin' || req.user.role === 'supervisor');
+        const isPrivileged = req.user && (req.user.role === 'admin' || req.user.role === 'superadmin' || req.user.role === 'supervisor');
         updateByIdOnly = Boolean(isOwner || isPrivileged);
       } catch { }
     }
@@ -9127,7 +9422,7 @@ app.post('/api/missions/:id/complete', authenticateToken, async (req, res) => {
     if (!mission) return res.status(404).json({ success: false, message: 'Mission non trouvée' });
 
     const isOwner = mission.agent_id === req.user.id;
-    const isAdmin = req.user.role === 'admin' || req.user.role === 'superviseur' || req.user.role === 'supervisor';
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin' || req.user.role === 'superviseur' || req.user.role === 'supervisor';
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Accès refusé' });
@@ -11172,7 +11467,7 @@ app.post('/api/presence-validations', authenticateToken, async (req, res) => {
       distance_from_reference_m,
       tolerance_meters: user.tolerance_radius_meters || 500,
       within_tolerance,
-      validated_by: req.user.role === 'admin' || req.user.role === 'superviseur' ? userId : null,
+      validated_by: req.user.role === 'admin' || req.user.role === 'superadmin' || req.user.role === 'superviseur' ? userId : null,
       validation_reason: validation_reason || null,
       validation_notes: validation_notes || null,
       validation_method,
@@ -11210,8 +11505,8 @@ app.post('/api/presence-validations', authenticateToken, async (req, res) => {
 // Endpoint pour synchroniser les validations vers presences (admin seulement)
 app.post('/api/sync/presences', authenticateToken, async (req, res) => {
   try {
-    // Vérifier que l'utilisateur est admin
-    if (!req.user || req.user.role !== 'admin') {
+    // Vérifier que l'utilisateur est admin ou superadmin
+    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'superadmin')) {
       return res.status(403).json({ success: false, message: 'Accès refusé - Admin seulement' });
     }
 
@@ -11482,7 +11777,7 @@ app.post('/api/activities/observation', authenticateToken, async (req, res) => {
     }
 
     // Vérifier que l'utilisateur peut modifier cette activité (soit son activité, soit admin/superviseur)
-    if (userId !== agentId && req.user?.role !== 'admin' && req.user?.role !== 'supervisor') {
+    if (userId !== agentId && req.user?.role !== 'admin' && req.user?.role !== 'superadmin' && req.user?.role !== 'supervisor') {
       return res.status(403).json({
         success: false,
         error: 'Non autorisé à modifier cette activité'

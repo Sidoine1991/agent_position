@@ -422,19 +422,17 @@ function summarizeZones(missions = [], checkins = []) {
 }
 
 function summarizeActivities(planifications = [], checkins = []) {
-  const list = (planifications || []).map(plan => {
-    return {
-      id: plan.id,
-      date: plan.date,
-      description: plan.description_activite || plan.activity_name || plan.description || 'Activité non spécifiée',
-      result: plan.resultat_journee || plan.status || 'planifie',
-      observations: plan.observations || plan.result_details || '',
-      project: plan.project_name || plan.project || null,
-      planned_hours: plan.planned_hours || plan.estimated_hours || null,
-      planned_start_time: plan.planned_start_time || null,
-      planned_end_time: plan.planned_end_time || null
-    };
-  });
+  const list = (planifications || []).map(plan => ({
+    id: plan.id,
+    date: plan.date,
+    description: plan.description_activite || plan.activity_name || plan.description || 'Activité non spécifiée',
+    result: plan.resultat_journee || plan.status || 'planifie',
+    observations: plan.observations || plan.result_details || '',
+    project: plan.project_name || plan.project || null,
+    planned_hours: plan.planned_hours || plan.estimated_hours || null,
+    planned_start_time: plan.planned_start_time || null,
+    planned_end_time: plan.planned_end_time || null
+  }));
 
   // Calculer les jours planifiés (jours distincts avec des planifications)
   const plannedDaysSet = new Set();
@@ -1130,24 +1128,261 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
 
     console.log('🔍 Recherche permissions pour:', {
       agentId,
+      agentIdType: typeof agentId,
+      agentIdNumber: Number(agentId),
       month: monthContext.value,
       startDate: startIso,
-      endDate: endIso
+      endDate: endIso,
+      start: start.toISOString(),
+      end: end.toISOString()
     });
 
     // Récupérer les permissions approuvées qui chevauchent le mois
     // Une permission chevauche le mois si: start_date <= mois_fin ET end_date >= mois_début
-    const { data, error } = await supabaseClient
+    // Utiliser agent_id (pas user_id) car la table permissions utilise agent_id
+    // Le statut dans la table est 'approved' (pas 'approuvé')
+    let data = [];
+    let error = null;
+    
+    console.log('🔍 Recherche permissions avec critères:', {
+      agentId: Number(agentId),
+      status: 'approved',
+      startDate: startIso,
+      endDate: endIso,
+      condition: `start_date <= ${endIso} AND end_date >= ${startIso}`
+    });
+    
+    // D'abord, récupérer TOUTES les permissions de l'agent (sans filtre) pour vérifier
+    const allAgentPermsResult = await supabaseClient
       .from('permissions')
-      .select('start_date, end_date, status, reason')
-      .eq('agent_id', agentId)
+      .select('id, start_date, end_date, status, agent_id, reason')
+      .eq('agent_id', Number(agentId));
+    
+    console.log('📋 TOUTES les permissions de l\'agent (sans filtre):', {
+      agentId: Number(agentId),
+      count: allAgentPermsResult.data?.length || 0,
+      error: allAgentPermsResult.error?.message || null,
+      permissions: allAgentPermsResult.data?.map(p => ({
+        id: p.id,
+        agent_id: p.agent_id,
+        start: p.start_date,
+        end: p.end_date,
+        status: p.status
+      })) || []
+    });
+    
+    // Essayer d'abord avec 'approved' (statut exact dans la table)
+    let result = await supabaseClient
+      .from('permissions')
+      .select('id, start_date, end_date, status, agent_id, reason')
+      .eq('agent_id', Number(agentId))
       .eq('status', 'approved')
       .lte('start_date', endIso)
       .gte('end_date', startIso);
+    
+    console.log('📋 Résultat requête permissions:', {
+      error: result.error,
+      count: result.data?.length || 0,
+      data: result.data
+    });
+    
+    if (result.error) {
+      console.error('❌ Erreur avec statut "approved":', result.error);
+      error = result.error;
+    } else {
+      data = result.data || [];
+      console.log(`✅ ${data.length} permissions trouvées avec statut "approved"`);
+    }
+    
+    // Si aucune permission trouvée, essayer sans filtre de statut pour voir toutes les permissions
+    if (data.length === 0) {
+      console.log('🔍 Aucune permission avec statut "approved", recherche de toutes les permissions...');
+      
+      result = await supabaseClient
+        .from('permissions')
+        .select('id, start_date, end_date, status, agent_id, reason')
+        .eq('agent_id', Number(agentId))
+        .lte('start_date', endIso)
+        .gte('end_date', startIso);
+      
+      if (!result.error && result.data) {
+        console.log(`📋 ${result.data.length} permissions trouvées (tous statuts):`, result.data.map(p => ({
+          id: p.id,
+          start: p.start_date,
+          end: p.end_date,
+          status: p.status
+        })));
+        
+        // Filtrer manuellement pour les permissions approuvées
+        data = result.data.filter(p => p.status === 'approved');
+        console.log(`✅ ${data.length} permissions approuvées après filtrage`);
+      }
+    }
+    
+    // Si toujours rien, récupérer TOUTES les permissions de l'agent (sans filtre de date) pour debug
+    if (data.length === 0) {
+      console.log('🔍 Aucune permission approuvée trouvée, récupération de TOUTES les permissions de l\'agent pour debug...');
+      
+      // D'abord, récupérer toutes les permissions de l'agent (sans filtre de date)
+      const allPermsResult = await supabaseClient
+        .from('permissions')
+        .select('id, start_date, end_date, status, agent_id, reason')
+        .eq('agent_id', Number(agentId));
+      
+      console.log('📋 TOUTES les permissions de l\'agent (sans filtre de date):', {
+        agentId: Number(agentId),
+        count: allPermsResult.data?.length || 0,
+        error: allPermsResult.error?.message || null,
+        permissions: allPermsResult.data?.map(p => ({
+          id: p.id,
+          agent_id: p.agent_id,
+          start: p.start_date,
+          end: p.end_date,
+          status: p.status,
+          reason: p.reason
+        })) || []
+      });
+      
+      // Ensuite, vérifier celles qui chevauchent le mois
+      if (!allPermsResult.error && allPermsResult.data) {
+        const overlappingPerms = allPermsResult.data.filter(p => {
+          const pStart = new Date(p.start_date);
+          const pEnd = new Date(p.end_date);
+          return pStart <= end && pEnd >= start;
+        });
+        
+        console.log('📋 Permissions qui chevauchent le mois:', {
+          count: overlappingPerms.length,
+          permissions: overlappingPerms.map(p => ({
+            id: p.id,
+            agent_id: p.agent_id,
+            start: p.start_date,
+            end: p.end_date,
+            status: p.status,
+            monthStart: startIso,
+            monthEnd: endIso
+          }))
+        });
+        
+        // Si on trouve des permissions qui chevauchent mais qui n'ont pas été trouvées par la requête
+        if (overlappingPerms.length > 0 && data.length === 0) {
+          console.warn('⚠️ PROBLÈME: Des permissions chevauchent le mois mais n\'ont pas été trouvées par la requête Supabase!');
+          console.warn('⚠️ Utilisation des permissions trouvées manuellement comme fallback');
+          // Utiliser ces permissions comme fallback
+          data = overlappingPerms;
+        }
+      }
+    }
+    
+    // Si toujours rien trouvé, utiliser toutes les permissions de l'agent trouvées au début
+    if (data.length === 0 && allAgentPermsResult.data && allAgentPermsResult.data.length > 0) {
+      console.warn('⚠️ Aucune permission trouvée avec les filtres Supabase, vérification manuelle des chevauchements...');
+      const manualOverlap = allAgentPermsResult.data.filter(p => {
+        // Vérifier le statut
+        const status = String(p.status || '').toLowerCase().trim();
+        const isApproved = ['approved', 'approuvé', 'approuvée', 'accepté', 'acceptée'].includes(status);
+        if (!isApproved) {
+          console.log(`⚠️ Permission ignorée (statut non approuvé):`, {
+            id: p.id,
+            status: p.status,
+            start: p.start_date,
+            end: p.end_date
+          });
+          return false;
+        }
+        
+        // Vérifier le chevauchement avec le mois
+        const pStart = new Date(p.start_date);
+        const pEnd = new Date(p.end_date);
+        
+        // S'assurer que les dates sont valides
+        if (isNaN(pStart.getTime()) || isNaN(pEnd.getTime())) {
+          console.warn(`⚠️ Dates invalides dans permission:`, p);
+          return false;
+        }
+        
+        // Vérifier le chevauchement: start_date <= mois_fin ET end_date >= mois_début
+        const overlaps = pStart <= end && pEnd >= start;
+        
+        console.log(`🔍 Vérification chevauchement permission ${p.id}:`, {
+          permission: { start: p.start_date, end: p.end_date },
+          month: { start: startIso, end: endIso },
+          pStart: pStart.toISOString(),
+          pEnd: pEnd.toISOString(),
+          monthEnd: end.toISOString(),
+          monthStart: start.toISOString(),
+          condition1: `${pStart.toISOString()} <= ${end.toISOString()} = ${pStart <= end}`,
+          condition2: `${pEnd.toISOString()} >= ${start.toISOString()} = ${pEnd >= start}`,
+          overlaps: overlaps
+        });
+        
+        return overlaps;
+      });
+      
+      if (manualOverlap.length > 0) {
+        console.warn(`✅ Trouvé ${manualOverlap.length} permissions approuvées qui chevauchent le mois (calcul manuel)`);
+        data = manualOverlap;
+      } else {
+        console.warn(`⚠️ Aucune permission approuvée ne chevauche le mois ${monthContext.value}`);
+        console.warn(`📋 Permissions disponibles pour l'agent ${agentId}:`, allAgentPermsResult.data.map(p => {
+          const pStart = new Date(p.start_date);
+          const pEnd = new Date(p.end_date);
+          const requestedYear = parseInt(monthContext.value.split('-')[0]);
+          const requestedMonth = parseInt(monthContext.value.split('-')[1]);
+          const pYear = pStart.getFullYear();
+          const pMonth = pStart.getMonth() + 1;
+          
+          return {
+            id: p.id,
+            start: p.start_date,
+            end: p.end_date,
+            status: p.status,
+            year: pYear,
+            month: pMonth,
+            requestedYear: requestedYear,
+            requestedMonth: requestedMonth,
+            sameMonth: pMonth === requestedMonth,
+            sameYear: pYear === requestedYear,
+            overlaps: pStart <= end && pEnd >= start,
+            reason: p.reason
+          };
+        }));
+        
+        // Vérifier s'il y a des permissions pour le même mois mais année différente
+        const requestedYear = parseInt(monthContext.value.split('-')[0]);
+        const requestedMonth = parseInt(monthContext.value.split('-')[1]);
+        const sameMonthPerms = allAgentPermsResult.data.filter(p => {
+          const pStart = new Date(p.start_date);
+          const pYear = pStart.getFullYear();
+          const pMonth = pStart.getMonth() + 1;
+          const status = String(p.status || '').toLowerCase().trim();
+          const isApproved = ['approved', 'approuvé', 'approuvée', 'accepté', 'acceptée'].includes(status);
+          return pMonth === requestedMonth && isApproved;
+        });
+        
+        if (sameMonthPerms.length > 0) {
+          console.warn(`⚠️ ATTENTION: ${sameMonthPerms.length} permission(s) trouvée(s) pour le mois ${requestedMonth} mais année différente (${sameMonthPerms[0].start_date.split('-')[0]} au lieu de ${requestedYear}):`, sameMonthPerms.map(p => ({
+            id: p.id,
+            start: p.start_date,
+            end: p.end_date,
+            year: new Date(p.start_date).getFullYear(),
+            requestedYear: requestedYear
+          })));
+        }
+      }
+    }
+    
+    console.log('🔍 Requête permissions:', {
+      agentId: Number(agentId),
+      startDate: startIso,
+      endDate: endIso,
+      queryResult: data?.length || 0,
+      permissionsFound: data
+    });
 
-    if (error) {
+    if (error && data.length === 0) {
       console.error('❌ Erreur Supabase lors de la récupération des permissions:', error);
-      throw error;
+      // Ne pas throw pour permettre de continuer avec data = []
     }
 
     console.log('📋 Permissions trouvées:', {
@@ -1155,35 +1390,117 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
       permissions: data
     });
 
+    // Filtrer pour ne garder que les permissions approuvées (avec différentes variantes)
+    // Le statut dans la table est 'approved' (pas 'approuvé')
+    const approvedStatuses = ['approved', 'approuvé', 'approuvée', 'accepté', 'acceptée'];
+    const approvedPermissions = (data || []).filter(perm => {
+      const status = String(perm.status || '').toLowerCase().trim();
+      const isApproved = approvedStatuses.includes(status);
+      if (!isApproved) {
+        console.log(`⚠️ Permission non approuvée ignorée:`, {
+          id: perm.id,
+          status: perm.status,
+          agent_id: perm.agent_id,
+          start: perm.start_date,
+          end: perm.end_date
+        });
+      }
+      return isApproved;
+    });
+    
+    console.log('📋 Permissions filtrées (approuvées uniquement):', {
+      totalFound: data?.length || 0,
+      approvedCount: approvedPermissions.length,
+      approvedPermissions: approvedPermissions.map(p => ({
+        id: p.id,
+        agent_id: p.agent_id,
+        start: p.start_date,
+        end: p.end_date,
+        status: p.status
+      }))
+    });
+    
+    // Si aucune permission approuvée trouvée mais qu'il y a des permissions, logger pour debug
+    if (approvedPermissions.length === 0 && data && data.length > 0) {
+      console.warn('⚠️ Aucune permission approuvée trouvée parmi les permissions récupérées:', {
+        totalPermissions: data.length,
+        statuses: [...new Set(data.map(p => p.status))],
+        samplePermissions: data.slice(0, 3).map(p => ({
+          id: p.id,
+          agent_id: p.agent_id,
+          status: p.status,
+          start: p.start_date,
+          end: p.end_date
+        }))
+      });
+    }
+
     let totalDays = 0;
     const details = [];
 
-    (data || []).forEach(perm => {
+    approvedPermissions.forEach(perm => {
       const permStart = new Date(perm.start_date);
       const permEnd = new Date(perm.end_date);
+
+      // Vérifier que les dates sont valides
+      if (isNaN(permStart.getTime()) || isNaN(permEnd.getTime())) {
+        console.warn('⚠️ Date invalide dans permission:', perm);
+        return;
+      }
 
       // Calculer l'intersection avec le mois courant
       const effectiveStart = permStart < start ? start : permStart;
       const effectiveEnd = permEnd > end ? end : permEnd;
 
       if (effectiveStart <= effectiveEnd) {
-        // Calculer le nombre de jours (inclusif)
-        const diffTime = Math.abs(effectiveEnd - effectiveStart);
-        const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        // Calculer le nombre de jours ouvrés uniquement (exclure dimanches et samedis)
+        // Utiliser la même logique que countWorkingDays
+        let days = 0;
+        const current = new Date(effectiveStart);
+        const endDate = new Date(effectiveEnd);
+        
+        // S'assurer que les dates sont en UTC pour la cohérence
+        current.setUTCHours(0, 0, 0, 0);
+        endDate.setUTCHours(23, 59, 59, 999);
+        
+        while (current <= endDate) {
+          const dayOfWeek = current.getUTCDay();
+          // Compter uniquement les jours ouvrés (lundi=1 à vendredi=5)
+          if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+            days++;
+          }
+          current.setUTCDate(current.getUTCDate() + 1);
+        }
 
-        console.log('📅 Permission calculée:', {
+        console.log('📅 Permission calculée (jours ouvrés uniquement):', {
+          permissionId: perm.id,
+          agentId: perm.agent_id,
           original: { start: perm.start_date, end: perm.end_date },
           effective: { start: effectiveStart.toISOString().split('T')[0], end: effectiveEnd.toISOString().split('T')[0] },
-          days
+          days: days,
+          totalCalendarDays: Math.ceil((effectiveEnd.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
         });
 
-        totalDays += days;
-        details.push({
+        if (days > 0) {
+          totalDays += days;
+          details.push({
+            id: perm.id,
+            start: perm.start_date,
+            end: perm.end_date,
+            days: days,
+            reason: perm.reason || null,
+            status: perm.status
+          });
+        } else {
+          console.warn('⚠️ Permission avec 0 jour ouvré calculé:', perm);
+        }
+      } else {
+        console.log('ℹ️ Permission hors période:', {
+          permissionId: perm.id,
           start: perm.start_date,
           end: perm.end_date,
-          days: days,
-          status: perm.status,
-          reason: perm.reason || null
+          monthStart: startIso,
+          monthEnd: endIso
         });
       }
     });
@@ -1436,9 +1753,11 @@ async function buildAgentMonthlyReport({
       throw createHttpError(400, 'agentId invalide');
     }
 
-    if (!privileged.includes(normalizedRole) && targetAgentId !== requesterId) {
-      throw createHttpError(403, 'Accès refusé pour ce rapport');
-    }
+    // Permettre à tous les utilisateurs authentifiés d'accéder aux rapports de tous les agents
+    // Plus de restriction basée sur le rôle - tous les utilisateurs peuvent voir tous les rapports
+    // if (!privileged.includes(normalizedRole) && targetAgentId !== requesterId) {
+    //   throw createHttpError(403, 'Accès refusé pour ce rapport');
+    // }
 
     const monthContext = buildMonthContext(monthValue);
 
@@ -1851,46 +2170,62 @@ async function buildAgentMonthlyReport({
       presenceSummary = null;
     }
 
-    // Récupérer les jours permissionnaires avec gestion d'erreur (fallback si report_presence_view indisponible)
-    let permissionDays = presenceSummary?.permissionDays ?? 0;
+    // Récupérer les jours permissionnaires - TOUJOURS récupérer depuis la table permissions
+    // pour avoir les données les plus à jour, même si presenceSummary existe
+    let permissionDays = 0;
     let permissionsData = { days: 0, details: [] };
-
-    if (!presenceSummary) {
-      // Aucun récapitulatif pré-calculé: utiliser uniquement la table permissions
-      try {
-        permissionsData = await fetchMonthlyPermissions(supabaseClient, targetAgentId, monthContext);
-        console.log('✅ Permissions récupérées (fallback):', {
-          agentId: targetAgentId,
-          month: monthContext.value,
-          days: permissionsData.days,
-          detailsCount: permissionsData.details?.length || 0
-        });
-      } catch (error) {
-        console.warn('Erreur lors de la récupération des jours permissionnaires (fallback):', error.message || error);
+    
+    console.log('🔍 Début récupération permissions:', {
+      agentId: targetAgentId,
+      month: monthContext.value,
+      startIso: monthContext.startIso,
+      endIso: monthContext.endIso
+    });
+    
+    try {
+      permissionsData = await fetchMonthlyPermissions(supabaseClient, targetAgentId, monthContext);
+      permissionDays = permissionsData.days || 0;
+      
+      console.log('✅ Permissions récupérées:', {
+        agentId: targetAgentId,
+        month: monthContext.value,
+        days: permissionDays,
+        detailsCount: permissionsData.details?.length || 0,
+        details: permissionsData.details
+      });
+      
+      // Si presenceSummary existe mais que les permissions récupérées sont différentes, utiliser les permissions récupérées
+      if (presenceSummary && presenceSummary.permissionDays !== undefined) {
+        const summaryPermissionDays = presenceSummary.permissionDays || 0;
+        if (permissionDays !== summaryPermissionDays) {
+          console.log(`⚠️ Différence détectée entre permissions (summary: ${summaryPermissionDays}, récupérées: ${permissionDays}). Utilisation des permissions récupérées.`);
+        }
+      }
+      
+      // FORCER l'utilisation des permissions récupérées même si elles sont à 0 (pour debug)
+      if (permissionDays === 0 && permissionsData.details && permissionsData.details.length > 0) {
+        console.warn('⚠️ permissionDays est 0 mais des détails existent, recalcul...');
+        permissionDays = permissionsData.details.reduce((sum, d) => sum + (d.days || 0), 0);
+        console.log(`✅ Recalcul: ${permissionDays} jours`);
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des jours permissionnaires:', error.message || error);
+      console.error('Stack:', error.stack);
+      // Fallback: utiliser presenceSummary si disponible
+      if (presenceSummary && presenceSummary.permissionDays !== undefined) {
+        permissionDays = presenceSummary.permissionDays || 0;
+        console.log(`⚠️ Utilisation des permissions depuis presenceSummary: ${permissionDays} jours`);
+      } else {
+        permissionDays = 0;
         permissionsData = { days: 0, details: [] };
       }
-      permissionDays = permissionsData.days;
-    } else {
-      // presenceSummary existe (via report_presence_view) mais peut ne pas compter correctement les permissions.
-      // On récupère toujours les permissions détaillées et on fusionne.
-      try {
-        permissionsData = await fetchMonthlyPermissions(supabaseClient, targetAgentId, monthContext);
-        console.log('✅ Détails permissions récupérés:', {
-          agentId: targetAgentId,
-          month: monthContext.value,
-          days: permissionsData.days,
-          detailsCount: permissionsData.details?.length || 0
-        });
-
-        // Si la table permissions indique plus de jours que le résumé, on prend le maximum
-        if (typeof permissionsData.days === 'number') {
-          permissionDays = Math.max(permissionDays || 0, permissionsData.days);
-        }
-      } catch (error) {
-        console.warn('Erreur lors de la récupération des détails permissions:', error.message || error);
-        permissionsData = { days: permissionDays, details: [] };
-      }
     }
+    
+    console.log('📊 Permissions finales avant intégration:', {
+      permissionDays,
+      detailsCount: permissionsData.details?.length || 0,
+      details: permissionsData.details
+    });
 
     // Récupérer les MISSIONS de l'agent pour calculer le temps terrain
     // Utiliser le format date (YYYY-MM-DD) pour le filtrage car date_start peut être un champ date
@@ -1922,27 +2257,150 @@ async function buildAgentMonthlyReport({
       missionsData = [];
     }
 
-    // Récupérer jusqu'à 3 photos de terrain depuis presence_validations pour enrichir le rapport
+    // Récupérer une photo de terrain depuis presence_validations pour enrichir le rapport
+    // IMPORTANT: Toujours filtrer par user_id pour s'assurer que la photo appartient à l'agent concerné
     let fieldPhoto = null;
-    let fieldPhotos = [];
     try {
-      const { data: validationPhotos, error: validationError } = await supabaseClient
+      console.log('📸 Recherche photo de terrain pour agent:', {
+        agentId: targetAgentId,
+        month: monthContext.value,
+        startDate: monthContext.startIso,
+        endDate: monthContext.endIso
+      });
+      
+      // D'abord essayer pour le mois donné - TOUJOURS filtrer par user_id
+      let validationPhotos = null;
+      
+      const { data: photosCurrentMonth, error: errorCurrentMonth } = await supabaseClient
         .from('presence_validations')
-        .select('photo_url, checkin_timestamp, checkin_location_name')
-        .eq('user_id', targetAgentId)
+        .select('photo_url, checkin_timestamp, checkin_location_name, user_id')
+        .eq('user_id', targetAgentId) // FILTRE CRITIQUE: s'assurer que c'est bien l'agent concerné
         .gte('checkin_timestamp', monthContext.startIso)
         .lte('checkin_timestamp', monthContext.endIso)
         .not('photo_url', 'is', null)
         .order('checkin_timestamp', { ascending: false })
-        .limit(3);
+        .limit(1);
 
-      if (!validationError && Array.isArray(validationPhotos) && validationPhotos.length > 0) {
-        fieldPhotos = validationPhotos.map(p => ({
-          url: p.photo_url,
+      console.log('📸 Résultat recherche photo mois courant:', {
+        count: photosCurrentMonth?.length || 0,
+        error: errorCurrentMonth?.message || null,
+        agentId: targetAgentId,
+        photos: photosCurrentMonth?.map(p => ({
+          user_id: p.user_id,
           date: p.checkin_timestamp,
-          location: p.checkin_location_name || null
-        }));
-        fieldPhoto = fieldPhotos[0] || null;
+          hasPhoto: !!p.photo_url
+        })) || []
+      });
+
+      if (!errorCurrentMonth && Array.isArray(photosCurrentMonth) && photosCurrentMonth.length > 0) {
+        // Vérifier que la photo appartient bien à l'agent concerné
+        const photo = photosCurrentMonth[0];
+        if (photo.user_id && String(photo.user_id) !== String(targetAgentId)) {
+          console.warn('⚠️ ATTENTION: Photo trouvée mais user_id ne correspond pas!', {
+            photoUserId: photo.user_id,
+            targetAgentId: targetAgentId,
+            photoDate: photo.checkin_timestamp
+          });
+          validationPhotos = null; // Ne pas utiliser cette photo
+        } else {
+          validationPhotos = photosCurrentMonth;
+          console.log('✅ Photo trouvée pour le mois courant (agent vérifié)');
+        }
+      } else {
+        // Fallback: chercher dans les 6 derniers mois - TOUJOURS filtrer par user_id
+        console.log('⚠️ Aucune photo pour le mois courant, recherche dans les mois précédents...');
+        const fallbackStartDate = new Date(monthContext.start);
+        fallbackStartDate.setMonth(fallbackStartDate.getMonth() - 6); // 6 mois en arrière
+        
+        const { data: photosOtherMonths, error: errorOtherMonths } = await supabaseClient
+          .from('presence_validations')
+          .select('photo_url, checkin_timestamp, checkin_location_name, user_id')
+          .eq('user_id', targetAgentId) // FILTRE CRITIQUE: s'assurer que c'est bien l'agent concerné
+          .gte('checkin_timestamp', fallbackStartDate.toISOString())
+          .lt('checkin_timestamp', monthContext.startIso) // Avant le mois courant
+          .not('photo_url', 'is', null)
+          .order('checkin_timestamp', { ascending: false })
+          .limit(1);
+
+        console.log('📸 Résultat recherche photo autres mois:', {
+          count: photosOtherMonths?.length || 0,
+          error: errorOtherMonths?.message || null,
+          agentId: targetAgentId
+        });
+
+        if (!errorOtherMonths && Array.isArray(photosOtherMonths) && photosOtherMonths.length > 0) {
+          // Vérifier que la photo appartient bien à l'agent concerné
+          const photo = photosOtherMonths[0];
+          if (photo.user_id && String(photo.user_id) !== String(targetAgentId)) {
+            console.warn('⚠️ ATTENTION: Photo trouvée mais user_id ne correspond pas!', {
+              photoUserId: photo.user_id,
+              targetAgentId: targetAgentId,
+              photoDate: photo.checkin_timestamp
+            });
+            validationPhotos = null; // Ne pas utiliser cette photo
+          } else {
+            validationPhotos = photosOtherMonths;
+            console.log(`✅ Photo trouvée dans un mois précédent (${photosOtherMonths[0].checkin_timestamp}) - agent vérifié`);
+          }
+        } else {
+          // Dernier fallback: chercher n'importe quelle photo de l'agent - TOUJOURS filtrer par user_id
+          console.log('⚠️ Aucune photo dans les 6 derniers mois, recherche de toute photo disponible pour cet agent...');
+          const { data: photosAny, error: errorAny } = await supabaseClient
+            .from('presence_validations')
+            .select('photo_url, checkin_timestamp, checkin_location_name, user_id')
+            .eq('user_id', targetAgentId) // FILTRE CRITIQUE: s'assurer que c'est bien l'agent concerné
+            .not('photo_url', 'is', null)
+            .order('checkin_timestamp', { ascending: false })
+            .limit(1);
+
+          console.log('📸 Résultat recherche photo toute période:', {
+            count: photosAny?.length || 0,
+            error: errorAny?.message || null,
+            agentId: targetAgentId
+          });
+
+          if (!errorAny && Array.isArray(photosAny) && photosAny.length > 0) {
+            // Vérifier que la photo appartient bien à l'agent concerné
+            const photo = photosAny[0];
+            if (photo.user_id && String(photo.user_id) !== String(targetAgentId)) {
+              console.warn('⚠️ ATTENTION: Photo trouvée mais user_id ne correspond pas!', {
+                photoUserId: photo.user_id,
+                targetAgentId: targetAgentId,
+                photoDate: photo.checkin_timestamp
+              });
+              validationPhotos = null; // Ne pas utiliser cette photo
+            } else {
+              validationPhotos = photosAny;
+              console.log(`✅ Photo trouvée (toute période): ${photosAny[0].checkin_timestamp} - agent vérifié`);
+            }
+          }
+        }
+      }
+
+      if (validationPhotos && validationPhotos.length > 0) {
+        const p = validationPhotos[0];
+        // Double vérification avant d'assigner la photo
+        if (p.user_id && String(p.user_id) === String(targetAgentId)) {
+          fieldPhoto = {
+            url: p.photo_url,
+            date: p.checkin_timestamp,
+            location: p.checkin_location_name || null
+          };
+          console.log('✅ Photo de terrain assignée:', {
+            agentId: targetAgentId,
+            photoUserId: p.user_id,
+            date: p.checkin_timestamp,
+            url: p.photo_url ? 'présente' : 'absente'
+          });
+        } else {
+          console.warn('⚠️ Photo ignorée car user_id ne correspond pas:', {
+            photoUserId: p.user_id,
+            targetAgentId: targetAgentId
+          });
+          fieldPhoto = null;
+        }
+      } else {
+        console.log('ℹ️ Aucune photo trouvée pour cet agent');
       }
     } catch (photoError) {
       console.warn('Erreur lors de la récupération des photos terrain (presence_validations):', photoError.message || photoError);
@@ -1989,14 +2447,29 @@ async function buildAgentMonthlyReport({
       }
       // Ajouter les jours permissionnaires au résumé de présence (quelle que soit la source)
       presence.permissionDays = permissionDays || 0;
+      // Ajouter aussi les détails des permissions pour l'affichage dans le rapport
+      presence.permissionDetails = permissionsData.details || [];
       console.log('📊 Résumé de présence calculé:', {
         totalCheckins: presence.totalCheckins,
         workedDays: presence.workedDays,
         permissionDays: presence.permissionDays,
+        permissionDetails: presence.permissionDetails,
+        permissionDetailsCount: presence.permissionDetails.length,
         fieldTimeHours: presence.fieldTimeHours,
         avgFieldTimePerDay: presence.avgFieldTimePerDay,
         missionsCount: presence.missionsCount
       });
+      
+      // Log de confirmation pour le débogage
+      if (permissionDays > 0) {
+        console.log('✅ Jours permissionnaires intégrés dans le rapport:', {
+          totalDays: permissionDays,
+          detailsCount: permissionsData.details?.length || 0,
+          details: permissionsData.details
+        });
+      } else {
+        console.warn('⚠️ Aucun jour permissionnaire trouvé pour cet agent ce mois-ci');
+      }
 
       // Harmoniser le classement de projet avec les métriques de présence de l'agent audité
       // IMPORTANT: Utiliser TOUJOURS les valeurs de presence pour l'agent filtré, même si elles sont > 0
@@ -2066,6 +2539,118 @@ async function buildAgentMonthlyReport({
 
     try {
       photos = summarizePhotos(checkinsData || []);
+      
+      // Si aucune photo trouvée pour le mois donné, chercher dans d'autres mois (fallback)
+      if (photos.length === 0) {
+        console.log('⚠️ Aucune photo trouvée pour le mois courant, recherche dans les mois précédents...');
+        
+        try {
+          // Chercher des photos dans les 6 derniers mois
+          const fallbackStartDate = new Date(monthContext.start);
+          fallbackStartDate.setMonth(fallbackStartDate.getMonth() - 6);
+          
+          // Récupérer des checkins avec photos des mois précédents
+          const { data: fallbackCheckins, error: fallbackError } = await supabaseClient
+            .from('presence_validations')
+            .select('id, user_id, checkin_timestamp, checkin_lat, checkin_lng, checkin_location_name, photo_url, notes')
+            .eq('user_id', targetAgentId)
+            .gte('checkin_timestamp', fallbackStartDate.toISOString())
+            .lt('checkin_timestamp', monthContext.startIso)
+            .not('photo_url', 'is', null)
+            .order('checkin_timestamp', { ascending: false })
+            .limit(20); // Limiter à 20 photos pour ne pas surcharger
+          
+          if (!fallbackError && Array.isArray(fallbackCheckins) && fallbackCheckins.length > 0) {
+            // Vérifier que toutes les photos appartiennent bien à l'agent concerné
+            const validCheckins = fallbackCheckins.filter(c => {
+              const isValid = c.user_id && String(c.user_id) === String(targetAgentId);
+              if (!isValid) {
+                console.warn('⚠️ Photo de fallback ignorée (user_id ne correspond pas):', {
+                  photoUserId: c.user_id,
+                  targetAgentId: targetAgentId,
+                  date: c.checkin_timestamp
+                });
+              }
+              return isValid;
+            });
+            
+            if (validCheckins.length > 0) {
+              // Formater les checkins pour summarizePhotos
+              const formattedFallbackCheckins = validCheckins.map(c => ({
+                photo_url: c.photo_url,
+                checkin_timestamp: c.checkin_timestamp,
+                checkin_location_name: c.checkin_location_name,
+                checkin_lat: c.checkin_lat,
+                checkin_lng: c.checkin_lng,
+                created_at: c.checkin_timestamp,
+                notes: c.notes,
+                note: c.notes
+              }));
+
+              photos = summarizePhotos(formattedFallbackCheckins);
+              console.log(`✅ ${photos.length} photos trouvées dans les mois précédents (agent vérifié)`);
+            } else {
+              console.warn('⚠️ Aucune photo valide trouvée dans les mois précédents après vérification');
+            }
+          } else {
+            // Dernier fallback: chercher n'importe quelle photo de l'agent - TOUJOURS filtrer par user_id
+            console.log('⚠️ Aucune photo dans les 6 derniers mois, recherche de toute photo disponible pour cet agent...');
+            const { data: anyCheckins, error: anyError } = await supabaseClient
+              .from('presence_validations')
+              .select('id, user_id, checkin_timestamp, checkin_lat, checkin_lng, checkin_location_name, photo_url, notes')
+              .eq('user_id', targetAgentId) // FILTRE CRITIQUE: s'assurer que c'est bien l'agent concerné
+              .not('photo_url', 'is', null)
+              .order('checkin_timestamp', { ascending: false })
+              .limit(20);
+
+            console.log('📸 Résultat recherche photos toute période:', {
+              count: anyCheckins?.length || 0,
+              error: anyError?.message || null,
+              agentId: targetAgentId,
+              photos: anyCheckins?.map(c => ({
+                user_id: c.user_id,
+                date: c.checkin_timestamp,
+                hasPhoto: !!c.photo_url
+              })) || []
+            });
+
+            if (!anyError && Array.isArray(anyCheckins) && anyCheckins.length > 0) {
+              // Vérifier que toutes les photos appartiennent bien à l'agent concerné
+              const validCheckins = anyCheckins.filter(c => {
+                const isValid = c.user_id && String(c.user_id) === String(targetAgentId);
+                if (!isValid) {
+                  console.warn('⚠️ Photo ignorée (user_id ne correspond pas):', {
+                    photoUserId: c.user_id,
+                    targetAgentId: targetAgentId,
+                    date: c.checkin_timestamp
+                  });
+                }
+                return isValid;
+              });
+              
+              if (validCheckins.length > 0) {
+                const formattedAnyCheckins = validCheckins.map(c => ({
+                  photo_url: c.photo_url,
+                  checkin_timestamp: c.checkin_timestamp,
+                  checkin_location_name: c.checkin_location_name,
+                  checkin_lat: c.checkin_lat,
+                  checkin_lng: c.checkin_lng,
+                  created_at: c.checkin_timestamp,
+                  notes: c.notes,
+                  note: c.notes
+                }));
+
+                photos = summarizePhotos(formattedAnyCheckins);
+                console.log(`✅ ${photos.length} photos trouvées (toute période) - agent vérifié`);
+              } else {
+                console.warn('⚠️ Aucune photo valide trouvée après vérification');
+              }
+            }
+          }
+        } catch (fallbackError) {
+          console.warn('Erreur lors de la récupération des photos de fallback:', fallbackError.message || fallbackError);
+        }
+      }
     } catch (error) {
       console.warn('Erreur lors du résumé des photos:', error.message || error);
       photos = [];
@@ -2141,7 +2726,10 @@ async function buildAgentMonthlyReport({
       planificationsCount: planificationsData?.length || 0,
       goalsCount: goalsData?.length || 0,
       presenceRate: presence?.presenceRate,
-      activitiesTotal: activities?.total || 0
+      activitiesTotal: activities?.total || 0,
+      permissionDays: presence?.permissionDays || 0,
+      permissionDetailsCount: permissionsData?.details?.length || 0,
+      permissionDetails: permissionsData?.details
     });
 
     return {
@@ -2161,7 +2749,6 @@ async function buildAgentMonthlyReport({
       locations,
       photos,
       fieldPhoto,
-      fieldPhotos,
       projectRanking,
       fieldTimeHours: presence.fieldTimeHours || 0,
       dailyMissions: presence.dailyMissions || [],  // Nouveau : détail quotidien

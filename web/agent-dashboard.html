@@ -1232,7 +1232,7 @@
      * Met à jour la liste déroulante des projets avec les projets uniques des agents
      * @param {Array} agentList - Liste des agents avec leurs projets
      */
-    function populateProjectFilterOptions(agentList = []) {
+    async function populateProjectFilterOptions(agentList = []) {
       console.log('🔄 Mise à jour de la liste des projets...', agentList);
       const select = document.getElementById('report-project-select');
       if (!select) {
@@ -1250,7 +1250,7 @@
         console.log(`📋 Nombre d'agents à traiter: ${agentList.length}`);
 
         // Récupérer tous les projets uniques, triés par ordre alphabétique
-        const projects = [];
+        const projects = new Set();
 
         // Extraire les projets de chaque agent
         agentList.forEach((agent, index) => {
@@ -1267,21 +1267,137 @@
             ''
           ).trim();
 
-          console.log(`  Agent ${index} (ID=${agent.id}): project_name="${agent.project_name}", project="${agent.project}", projectName formaté="${projectName}"`);
-
           if (projectName &&
             projectName !== 'Projet non attribué' &&
             projectName !== 'Non attribué' &&
-            !projects.includes(projectName)) {
-            projects.push(projectName);
-            console.log(`  ✅ Projet ajouté: "${projectName}"`);
+            projectName !== '') {
+            projects.add(projectName);
+            console.log(`  ✅ Projet ajouté depuis agent ${index}: "${projectName}"`);
           }
         });
 
+        // Charger TOUS les projets depuis plusieurs sources
+        try {
+          const token = localStorage.getItem('jwt');
+          
+          // 1. Charger depuis l'API /api/projects
+          console.log('📡 Chargement des projets depuis l\'API /api/projects...');
+          try {
+            const projectsResponse = await fetch('/api/projects', {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'Cache-Control': 'no-cache'
+              },
+              cache: 'no-store'
+            });
+
+            if (projectsResponse.ok) {
+              const projectsData = await projectsResponse.json();
+              const apiProjects = Array.isArray(projectsData) ? projectsData : 
+                                (projectsData.items || projectsData.projects || projectsData.data || []);
+              
+              apiProjects.forEach(project => {
+                if (project) {
+                  const projectName = (project.name || project.project_name || String(project)).trim();
+                  if (projectName && projectName !== 'Projet non attribué' && projectName !== 'Non attribué' && projectName !== '') {
+                    projects.add(projectName);
+                    console.log(`  ✅ Projet ajouté depuis API /api/projects: "${projectName}"`);
+                  }
+                }
+              });
+              console.log(`✅ ${apiProjects.length} projets chargés depuis /api/projects`);
+            }
+          } catch (apiError) {
+            console.warn('⚠️ Erreur lors du chargement depuis /api/projects:', apiError);
+          }
+          
+          // 2. Charger TOUS les agents pour extraire TOUS leurs projets
+          console.log('📡 Chargement de TOUS les agents pour extraire leurs projets...');
+          try {
+            const allAgentsResponse = await fetch('/api/admin/agents', {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'Cache-Control': 'no-cache'
+              },
+              cache: 'no-store'
+            });
+
+            if (allAgentsResponse.ok) {
+              const allAgentsData = await allAgentsResponse.json();
+              const allAgents = Array.isArray(allAgentsData) ? allAgentsData : 
+                               (allAgentsData.agents || allAgentsData.items || allAgentsData.data || []);
+              
+              console.log(`📦 ${allAgents.length} agents chargés pour extraction des projets`);
+              
+              allAgents.forEach(agent => {
+                if (agent) {
+                  // Extraire le projet de l'agent
+                  const agentProject = formatProjectDisplay(
+                    agent.project_name || agent.project || ''
+                  ).trim();
+                  
+                  if (agentProject && 
+                      agentProject !== 'Projet non attribué' && 
+                      agentProject !== 'Non attribué' && 
+                      agentProject !== '') {
+                    projects.add(agentProject);
+                  }
+                }
+              });
+              
+              console.log(`✅ Projets extraits de ${allAgents.length} agents`);
+            } else {
+              // Fallback: utiliser /api/agents
+              console.log('⚠️ /api/admin/agents échoué, tentative avec /api/agents...');
+              const agentsResponse = await fetch('/api/agents', {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                  'Cache-Control': 'no-cache'
+                },
+                cache: 'no-store'
+              });
+              
+              if (agentsResponse.ok) {
+                const agentsData = await agentsResponse.json();
+                const agentsArray = Array.isArray(agentsData) ? agentsData : 
+                                   (agentsData.agents || agentsData.items || agentsData.data || []);
+                
+                agentsArray.forEach(agent => {
+                  if (agent) {
+                    const agentProject = formatProjectDisplay(
+                      agent.project_name || agent.project || ''
+                    ).trim();
+                    
+                    if (agentProject && 
+                        agentProject !== 'Projet non attribué' && 
+                        agentProject !== 'Non attribué' && 
+                        agentProject !== '') {
+                      projects.add(agentProject);
+                    }
+                  }
+                });
+                
+                console.log(`✅ Projets extraits de ${agentsArray.length} agents (via /api/agents)`);
+              }
+            }
+          } catch (agentsError) {
+            console.warn('⚠️ Erreur lors du chargement des agents pour extraction des projets:', agentsError);
+          }
+          
+        } catch (apiError) {
+          console.warn('⚠️ Erreur générale lors du chargement des projets:', apiError);
+          // Continuer avec les projets des agents seulement
+        }
+
         // Trier les projets par ordre alphabétique
-        const sortedProjects = [...projects].sort((a, b) =>
+        const sortedProjects = Array.from(projects).sort((a, b) =>
           a.localeCompare(b, 'fr', { sensitivity: 'base' })
         );
+        
+        console.log(`📊 Total projets uniques trouvés: ${sortedProjects.length}`, sortedProjects);
 
         // Ajouter l'option par défaut
         const options = ['<option value="">Tous les projets</option>'];
@@ -1653,16 +1769,26 @@
         const totalDays = Number(result.total_days) || 0;
         const permissionDays = Array.isArray(result.permission_days) ? result.permission_days : [];
         
-        console.log('✅ Jours de permission récupérés:', {
+        console.log('✅ Jours de permission récupérés depuis API:', {
           totalDays,
           count: result.count || 0,
           permissionsCount: permissionDays.length,
-          permissions: permissionDays
+          permissions: permissionDays,
+          resultKeys: Object.keys(result),
+          fullResult: result
         });
+        
+        // Si totalDays est 0 mais qu'il y a des permissions, calculer depuis les records
+        let calculatedDays = totalDays;
+        if (calculatedDays === 0 && permissionDays.length > 0) {
+          calculatedDays = permissionDays.reduce((sum, p) => sum + (Number(p.days) || 0), 0);
+          console.log(`⚠️ total_days est 0 mais ${permissionDays.length} permissions trouvées, calcul depuis records: ${calculatedDays}`);
+        }
         
         // Retourner un objet avec le nombre total de jours de permission
         return {
-          days: totalDays,
+          days: calculatedDays,
+          totalDays: calculatedDays,
           records: permissionDays
         };
       } catch (error) {
@@ -3518,21 +3644,8 @@ Commence ton analyse maintenant.`;
           project_name: formatProjectDisplay(user?.project_name || user?.project || 'Projet non attribué')
         };
 
-        // Si l'utilisateur n'est ni admin ni superviseur, il ne peut voir que son propre profil
-        if (!isAdmin && !isSupervisor) {
-          console.log('Utilisateur standard, chargement du profil utilisateur uniquement');
-          dashboardAgents = [currentUserEntry];
-          dashboardAgentId = String(currentUserId);
-          dashboardSelectedAgent = currentUserEntry;
-          select.innerHTML = `<option value="${currentUserId}">Moi</option>`;
-          select.value = currentUserId;
-
-          populateProjectFilterOptions(dashboardAgents);
-          syncProjectSelectWithAgent(currentUserEntry, { force: true });
-          return;
-        }
-
-        console.log('Chargement de la liste complète des utilisateurs...');
+        // Charger TOUS les utilisateurs pour que tout le monde puisse choisir
+        console.log('Chargement de la liste complète des utilisateurs (TOUS les utilisateurs)...');
 
         // Récupérer tous les utilisateurs (agents et superviseurs)
         const token = localStorage.getItem('jwt');
@@ -3546,8 +3659,9 @@ Commence ton analyse maintenant.`;
         let agents = [];
 
         try {
-          console.log('📡 Envoi de la requête à /api/agents...');
-          const response = await fetch('/api/agents', {
+          // Essayer d'abord /api/admin/agents avec une limite élevée pour charger TOUS les agents
+          console.log('📡 Envoi de la requête à /api/admin/agents pour charger TOUS les agents...');
+          let response = await fetch('/api/admin/agents?limit=10000', {
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`,
@@ -3557,7 +3671,37 @@ Commence ton analyse maintenant.`;
             cache: 'no-store'
           });
 
-          console.log(`📥 Réponse reçue: status=${response.status}, ok=${response.ok}`);
+          console.log(`📥 Réponse /api/admin/agents: status=${response.status}, ok=${response.ok}`);
+
+          // Si /api/admin/agents échoue, essayer /api/agents avec limite élevée
+          if (!response.ok && response.status !== 401 && response.status !== 403) {
+            console.log('⚠️ /api/admin/agents échoué, tentative avec /api/agents...');
+            response = await fetch('/api/agents?limit=10000', {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+              },
+              cache: 'no-store'
+            });
+            console.log(`📥 Réponse /api/agents: status=${response.status}, ok=${response.ok}`);
+          }
+          
+          // Si toujours pas de réponse, essayer /api/users avec limite élevée
+          if (!response.ok && response.status !== 401 && response.status !== 403) {
+            console.log('⚠️ /api/agents échoué, tentative avec /api/users...');
+            response = await fetch('/api/users?limit=10000', {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+              },
+              cache: 'no-store'
+            });
+            console.log(`📥 Réponse /api/users: status=${response.status}, ok=${response.ok}`);
+          }
 
           if (!response.ok) {
             const errorText = await response.text();
@@ -3573,19 +3717,39 @@ Commence ton analyse maintenant.`;
           }
 
           const responseData = await response.json();
-          console.log(`📦 API Response: ${responseData?.length || 0} utilisateurs récupérés`);
-          console.log('📋 Données brutes:', responseData);
-
-          if (!Array.isArray(responseData)) {
-            console.error('❌ Expected an array of agents but got:', typeof responseData, responseData);
-            throw new Error('Format de réponse inattendu du serveur');
+          
+          // Gérer différents formats de réponse
+          let agentsArray = [];
+          if (Array.isArray(responseData)) {
+            agentsArray = responseData;
+            console.log('✅ Format: Array direct');
+          } else if (responseData.success && responseData.data && Array.isArray(responseData.data)) {
+            // Format: { success: true, data: [...] } - utilisé par /api/admin/agents
+            agentsArray = responseData.data;
+            console.log('✅ Format: { success: true, data: [...] }');
+          } else if (responseData.data && Array.isArray(responseData.data)) {
+            agentsArray = responseData.data;
+            console.log('✅ Format: { data: [...] }');
+          } else if (responseData.agents && Array.isArray(responseData.agents)) {
+            agentsArray = responseData.agents;
+            console.log('✅ Format: { agents: [...] }');
+          } else if (responseData.items && Array.isArray(responseData.items)) {
+            agentsArray = responseData.items;
+            console.log('✅ Format: { items: [...] }');
+          } else {
+            console.warn('⚠️ Format de réponse inattendu:', responseData);
+          }
+          
+          console.log(`📦 API Response: ${agentsArray.length} utilisateurs récupérés`);
+          if (agentsArray.length > 0) {
+            console.log('📋 Exemples d\'utilisateurs:', agentsArray.slice(0, 3).map(a => ({ id: a.id, name: a.name, role: a.role, email: a.email })));
           }
 
-          if (responseData.length > 0) {
-            console.log(`👤 Premier agent reçu:`, responseData[0]);
+          if (agentsArray.length > 0) {
+            console.log(`👤 Premier agent reçu:`, agentsArray[0]);
           }
 
-          agents = responseData;
+          agents = agentsArray;
 
         } catch (error) {
           console.error('Erreur lors de la récupération des agents:', error);
@@ -3623,33 +3787,20 @@ Commence ton analyse maintenant.`;
           agents = [currentUserEntry];
         }
 
-        // Filtrer les utilisateurs selon le rôle de l'utilisateur connecté
-        let filteredAgents = [];
-
-        if (isAdmin) {
-          // Les administrateurs voient tout le monde
-          filteredAgents = [...agents];
-        } else if (isSupervisor) {
-          // Les superviseurs voient les agents et eux-mêmes
-          filteredAgents = agents.filter(a =>
-            (a.role === 'agent' || a.role === 'superviseur' || a.role === 'supervisor') ||
-            a.id === currentUserId
-          );
-
-          // S'assurer que le superviseur se voit lui-même
-          if (!filteredAgents.some(a => a.id === currentUserId)) {
-            filteredAgents.push({
-              ...currentUserEntry,
-              id: Number(currentUserEntry.id)
-            });
-          }
-        } else {
-          // Les utilisateurs normaux ne voient qu'eux-mêmes
-          filteredAgents = [{
-            ...currentUserEntry,
-            id: Number(currentUserEntry.id)
-          }];
-        }
+        // Ne PAS filtrer - afficher TOUS les utilisateurs pour que tout le monde puisse choisir
+        // L'utilisateur peut choisir n'importe quel utilisateur, pas seulement ceux de son rôle
+        let filteredAgents = [...agents];
+        
+        // Compter les rôles pour le debug
+        const roleCounts = {
+          agent: filteredAgents.filter(a => (a.role || '').toLowerCase() === 'agent' || !a.role).length,
+          superviseur: filteredAgents.filter(a => ['superviseur', 'supervisor'].includes((a.role || '').toLowerCase())).length,
+          admin: filteredAgents.filter(a => ['admin', 'administrateur'].includes((a.role || '').toLowerCase())).length
+        };
+        
+        console.log(`✅ Affichage de TOUS les ${filteredAgents.length} utilisateurs (sans restriction de rôle)`);
+        console.log(`📊 Répartition par rôle:`, roleCounts);
+        console.log(`📋 Liste complète:`, filteredAgents.map(a => ({ id: a.id, name: a.name, role: a.role, email: a.email })));
 
         // S'assurer que les ID sont des nombres
         filteredAgents = filteredAgents.map(agent => ({
@@ -3691,7 +3842,7 @@ Commence ton analyse maintenant.`;
         const currentUser = filteredAgents.find(a => a.id === currentUserId) || currentUserEntry;
         options.push(`<option value="${currentUserId}">Moi${isAdmin ? ' (Admin)' : isSupervisor ? ' (Superviseur)' : ''}</option>`);
 
-        // Ajouter les autres utilisateurs
+        // Ajouter TOUS les autres utilisateurs (agents et superviseurs)
         filteredAgents.forEach(agent => {
           if (agent.id !== currentUserId) {
             // Construire le nom de l'agent
@@ -3705,16 +3856,26 @@ Commence ton analyse maintenant.`;
               name = agent.email || `Utilisateur ${agent.id}`;
             }
 
+            // Déterminer le suffixe de rôle
+            const role = (agent.role || '').toLowerCase();
             let roleSuffix = '';
-            if (agent.role === 'admin') {
+            if (role === 'admin' || role === 'administrateur') {
               roleSuffix = ' (Admin)';
-            } else if (agent.role === 'superviseur' || agent.role === 'supervisor') {
+            } else if (role === 'superviseur' || role === 'supervisor') {
               roleSuffix = ' (Superviseur)';
+            } else if (role === 'agent' || role === '' || !role) {
+              // Les agents peuvent avoir leur projet affiché
+              const projectName = agent.project_name || agent.project;
+              if (projectName && projectName.trim() && projectName !== 'Projet non attribué') {
+                roleSuffix = ` (${formatProjectDisplay(projectName)})`;
+              }
             }
 
             options.push(`<option value="${agent.id}">${name}${roleSuffix}</option>`);
           }
         });
+        
+        console.log(`📝 ${options.length} options générées pour le select agent (incluant "Moi")`);
 
         // Mettre à jour le select
         select.innerHTML = options.join('\n');
@@ -3729,7 +3890,7 @@ Commence ton analyse maintenant.`;
         console.log(`👤 Utilisateur sélectionné par défaut: ID=${currentUserId}, Name="${currentUser.name}"`);
 
         // Mettre à jour les filtres de projet
-        populateProjectFilterOptions(dashboardAgents);
+        await populateProjectFilterOptions(dashboardAgents);
         syncProjectSelectWithAgent(currentUser, { force: true });
 
         console.log(`✅ Liste des utilisateurs mise à jour avec ${filteredAgents.length} entrées`);
@@ -3758,7 +3919,7 @@ Commence ton analyse maintenant.`;
           dashboardAgentId = String(userId);
           dashboardSelectedAgent = dashboardAgents[0];
 
-          populateProjectFilterOptions(dashboardAgents);
+          await populateProjectFilterOptions(dashboardAgents);
           syncProjectSelectWithAgent(dashboardSelectedAgent, { force: true });
         } catch (e) {
           console.error('❌ Erreur lors de la récupération de l\'utilisateur courant:', e);
@@ -4093,28 +4254,71 @@ Commence ton analyse maintenant.`;
             console.warn('⚠️ Aucun projet identifié pour le classement');
           }
 
-          // Ne plus écraser systématiquement les jours permissionnaires calculés côté backend.
-          // Utiliser /api/permission-days uniquement comme override si une valeur stricte > 0 est définie.
+          // Les permissions sont déjà calculées côté backend dans le rapport
+          // Vérifier d'abord si le rapport contient déjà des permissions
+          if (report.presence && report.presence.permissionDays !== undefined) {
+            console.log('✅ Permissions déjà présentes dans le rapport backend:', report.presence.permissionDays);
+          }
+          
+          // Essayer de compléter avec l'API si disponible (optionnel)
           try {
-            console.log('🔍 Récupération des jours de permission pour:', { 
+            console.log('🔍 Tentative de récupération complémentaire des jours de permission via API:', { 
               agentId: resolvedAgentId, 
               month: monthRange.value 
             });
             const permissionRecord = await fetchPermissionDaysRecord(resolvedAgentId, monthRange.value);
             console.log('📊 Réponse de fetchPermissionDaysRecord:', permissionRecord);
-            if (permissionRecord && typeof permissionRecord.days === 'number' && permissionRecord.days > 0) {
+            
+            // Vérifier plusieurs formats de réponse
+            let permissionDaysValue = 0;
+            if (permissionRecord) {
+              if (typeof permissionRecord.days === 'number' && permissionRecord.days > 0) {
+                permissionDaysValue = permissionRecord.days;
+              } else if (permissionRecord.totalDays && typeof permissionRecord.totalDays === 'number') {
+                permissionDaysValue = permissionRecord.totalDays;
+              } else if (permissionRecord.records && Array.isArray(permissionRecord.records)) {
+                // Calculer depuis les records si disponible
+                permissionDaysValue = permissionRecord.records.reduce((sum, r) => sum + (r.days || 0), 0);
+              }
+            }
+            
+            if (permissionDaysValue > 0) {
               report.presence = report.presence || {};
+              // Utiliser la valeur la plus élevée entre backend et API
               report.presence.permissionDays = Math.max(
                 Number(report.presence.permissionDays || 0),
-                Number(permissionRecord.days)
+                permissionDaysValue
               );
-              console.log('✅ Jours de permission définis:', report.presence.permissionDays);
+              console.log('✅ Jours de permission mis à jour depuis API:', report.presence.permissionDays);
             } else {
-              console.warn('⚠️ Aucun jour de permission trouvé ou réponse invalide');
+              // Pas d'erreur si l'API ne retourne rien - le backend devrait déjà avoir les données
+              console.log('ℹ️ API ne retourne pas de permissions supplémentaires, utilisation des données backend');
             }
           } catch (permissionError) {
-            console.warn('Erreur jours permissionnaires (rapport):', permissionError);
+            // Ne pas bloquer si l'API échoue - le backend devrait déjà avoir les données
+            console.warn('⚠️ Erreur API permission-days (non bloquant):', permissionError.message || permissionError);
           }
+          
+          // S'assurer que les permissions sont bien présentes dans le rapport
+          if (!report.presence) {
+            report.presence = {};
+          }
+          
+          // Si toujours 0, vérifier les détails des permissions
+          if (!report.presence.permissionDays || report.presence.permissionDays === 0) {
+            if (report.presence.permissionDetails && Array.isArray(report.presence.permissionDetails)) {
+              const calculatedDays = report.presence.permissionDetails.reduce((sum, p) => sum + (p.days || 0), 0);
+              if (calculatedDays > 0) {
+                report.presence.permissionDays = calculatedDays;
+                console.log('✅ Jours de permission calculés depuis permissionDetails:', calculatedDays);
+              }
+            }
+          }
+          
+          console.log('📊 État final des permissions dans le rapport:', {
+            permissionDays: report.presence.permissionDays,
+            permissionDetails: report.presence.permissionDetails?.length || 0
+          });
         } catch (dataError) {
           console.warn('Erreur données mensuelles locales:', dataError);
         } finally {
@@ -5047,6 +5251,31 @@ Commence ton analyse maintenant.`;
       } = report;
 
       const presenceData = presenceInput || {};
+      
+      // S'assurer que permissionDays est bien récupéré depuis le rapport
+      // Vérifier plusieurs sources pour les permissions
+      if (!presenceData.permissionDays || presenceData.permissionDays === 0) {
+        // Essayer depuis report.presence directement
+        if (report.presence && report.presence.permissionDays) {
+          presenceData.permissionDays = report.presence.permissionDays;
+          console.log('✅ permissionDays récupéré depuis report.presence:', presenceData.permissionDays);
+        }
+        // Essayer depuis les détails des permissions
+        if (report.presence && report.presence.permissionDetails && Array.isArray(report.presence.permissionDetails)) {
+          const totalDaysFromDetails = report.presence.permissionDetails.reduce((sum, p) => sum + (p.days || 0), 0);
+          if (totalDaysFromDetails > 0) {
+            presenceData.permissionDays = totalDaysFromDetails;
+            console.log('✅ permissionDays calculé depuis permissionDetails:', presenceData.permissionDays);
+          }
+        }
+      }
+      
+      console.log('📊 presenceData final:', {
+        permissionDays: presenceData.permissionDays,
+        workedDays: presenceData.workedDays,
+        workingDays: presenceData.workingDays,
+        totalCheckins: presenceData.totalCheckins
+      });
       const activitiesData = activitiesInput || {};
       const breakdownList = Array.isArray(activitiesData.breakdown) ? activitiesData.breakdown : [];
       const activityList = Array.isArray(activitiesData.list) ? activitiesData.list : [];

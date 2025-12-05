@@ -1006,21 +1006,22 @@ module.exports = async (req, res) => {
             });
           }
           
-          // Vérifier que l'utilisateur a le droit d'accéder à ce rapport
-          const isAdmin = req.user?.role === 'admin' || req.user?.role === 'superviseur';
-          const isOwnReport = String(req.user?.id) === String(agentId);
-          
-          if (!isAdmin && !isOwnReport) {
-            console.error('Erreur: Accès non autorisé', { 
-              userId: req.user?.id, 
-              agentId,
-              role: req.user?.role 
-            });
-            return res.status(403).json({ 
-              success: false, 
-              error: 'Accès non autorisé à ce rapport' 
-            });
-          }
+          // Permettre à tous les utilisateurs authentifiés d'accéder aux rapports de tous les agents
+          // Plus de restriction basée sur le rôle - tous les utilisateurs peuvent voir tous les rapports
+          // const isAdmin = req.user?.role === 'admin' || req.user?.role === 'superviseur';
+          // const isOwnReport = String(req.user?.id) === String(agentId);
+          // 
+          // if (!isAdmin && !isOwnReport) {
+          //   console.error('Erreur: Accès non autorisé', { 
+          //     userId: req.user?.id, 
+          //     agentId,
+          //     role: req.user?.role 
+          //   });
+          //   return res.status(403).json({ 
+          //     success: false, 
+          //     error: 'Accès non autorisé à ce rapport' 
+          //   });
+          // }
           
           console.log('Récupération des données du rapport...');
           

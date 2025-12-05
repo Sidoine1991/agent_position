@@ -870,8 +870,6 @@ window.applyFilters = function applyFilters() {
     });
   }
 
-<<<<<<< HEAD
-=======
   // Filtrer par nom de superviseur (recherche texte)
   if (supervisorNameFilter && Array.isArray(supervisorsCache) && supervisorsCache.length) {
     filtered = filtered.filter(perm => {
