@@ -26,6 +26,23 @@ Développée pour répondre aux besoins spécifiques du secteur agricole bénino
 - **Gestion des absences** avec enregistrement automatique
 - **Jours permissionnaires** avec suivi des congés et autorisations
 
+### 📝 Suivi d'Activité Agent
+- **Suivi détaillé des activités** quotidiennes des agents
+- **Tableau d'évaluation** avec filtres avancés (projet, agent, superviseur, statut)
+- **Statistiques par agent** : activités réalisées, en cours, non réalisées
+- **Suivi de suivi** avec vue consolidée par projet et par agent
+- **Gestion des résultats** : réalisé, partiellement réalisé, non réalisé, en cours
+- **Filtrage multi-critères** pour une analyse précise
+- **Export des données** d'activité pour reporting
+
+### 💬 Système de Messagerie
+- **Messagerie interne** en temps réel entre agents, superviseurs et administrateurs
+- **Notifications** sonores et visuelles pour les nouveaux messages
+- **Historique des conversations** avec recherche
+- **Envoi de messages** individuels et de groupe
+- **Indicateurs de lecture** et statuts de livraison
+- **Interface intuitive** avec navigation circulaire
+
 ### 📊 Tableaux de Bord
 - **Vue d'ensemble** des activités en cours
 - **Statistiques** de présence et de productivité
@@ -33,6 +50,46 @@ Développée pour répondre aux besoins spécifiques du secteur agricole bénino
 - **Alertes** en temps réel
 - **Classement des agents** par performance
 - **Synthèse mensuelle** avec indicateurs clés
+- **Tableau de bord agent** personnalisé avec statistiques individuelles
+- **Tableau de bord superviseur** avec vue d'équipe
+
+### 🌍 Synthèse Globale
+- **Vue consolidée** de tous les projets et agents
+- **Indicateurs clés de performance** (KPI) globaux
+- **Analyse comparative** entre projets et périodes
+- **Tendances** et évolutions sur plusieurs mois
+- **Cartographie globale** des interventions
+- **Rapports synthétiques** par département, commune, arrondissement
+
+### 📑 Rapports Enrichis
+- **Rapports détaillés** avec graphiques et visualisations
+- **Export multi-formats** : PDF, Excel, CSV
+- **Filtres avancés** : période, agent, projet, statut
+- **Rapports personnalisables** selon les besoins
+- **Analyses statistiques** approfondies
+- **Comparaisons** entre périodes et agents
+
+### 📈 Analytics et Insights
+- **Analyses prédictives** basées sur les données historiques
+- **Détection de tendances** et anomalies
+- **Tableaux de bord analytiques** interactifs
+- **Métriques de performance** avancées
+- **Visualisations** de données (graphiques, cartes, tableaux)
+
+### 🗓️ Planification Avancée
+- **Planification des activités** par agent et par projet
+- **Calendrier interactif** avec vue mensuelle, hebdomadaire et quotidienne
+- **Gestion des permissions** et jours de congé
+- **Affectation des missions** avec validation
+- **Suivi de la réalisation** des activités planifiées
+- **Alertes** pour les activités non réalisées
+
+### 📋 Résumé de Projet
+- **Vue détaillée par projet** avec statistiques spécifiques
+- **Liste des agents** affectés au projet
+- **Activités du projet** avec statuts et résultats
+- **Indicateurs de performance** par projet
+- **Historique** des activités du projet
 
 ### 🔄 Synchronisation et Performance
 - **Mode hors-ligne** avec synchronisation automatique
@@ -41,6 +98,7 @@ Développée pour répondre aux besoins spécifiques du secteur agricole bénino
 - **API** pour intégration avec d'autres systèmes
 - **Optimisation des performances** avec mise en cache intelligente
 - **Synchronisation différentielle** pour économiser la bande passante
+- **Service Worker** pour fonctionnement offline
 
 ## 🛠️ Installation et Configuration
 
@@ -96,6 +154,9 @@ Développée pour répondre aux besoins spécifiques du secteur agricole bénino
 - **Consultation** de l'historique et du planning
 - **Demande de permissions** et suivi des congés
 - **Tableau de bord personnel** avec statistiques
+- **Suivi d'activité** avec saisie des résultats de journée
+- **Messagerie** pour communiquer avec l'équipe
+- **Planification** des activités à venir
 
 ### 🔹 Superviseurs
 - **Suivi en temps réel** des équipes
@@ -104,12 +165,20 @@ Développée pour répondre aux besoins spécifiques du secteur agricole bénino
 - **Génération de rapports** d'activité
 - **Tableaux de bord** par équipe et par projet
 - **Alertes** sur les écarts de présence
+- **Suivi d'activité** détaillé avec filtres avancés
+- **Messagerie** pour coordonner les équipes
+- **Synthèse globale** pour vue d'ensemble
+- **Analytics** pour analyses approfondies
 
 ### Administrateurs
 - **Configuration** du système
 - **Gestion des utilisateurs** et des droits
 - **Supervision** des données
 - **Maintenance** de l'application
+- **Accès complet** à tous les tableaux de bord et rapports
+- **Gestion des projets** et affectations
+- **Configuration avancée** des paramètres système
+- **Analytics** et insights complets
 
 ## Documentation Technique
 
@@ -123,13 +192,53 @@ Développée pour répondre aux besoins spécifiques du secteur agricole bénino
 
 ### API REST
 Les endpoints principaux sont :
+
+#### Authentification
 - `POST /api/auth/login` - Authentification
+- `POST /api/auth/register` - Inscription
+- `POST /api/auth/logout` - Déconnexion
+- `GET /api/auth/me` - Informations utilisateur actuel
+
+#### Présence
 - `GET /api/presence` - Récupérer les présences
 - `POST /api/presence` - Enregistrer une présence
-- `GET /api/reports` - Générer des rapports
-- `GET /api/permission-days` - Gérer les jours de permission
 - `POST /api/presence/mark-absent` - Marquer une absence
 - `GET /api/presence/check-today` - Vérifier la présence du jour
+- `GET /api/presence/agent/:id` - Présences d'un agent spécifique
+
+#### Activités
+- `GET /api/activities` - Récupérer les activités
+- `POST /api/activities` - Créer une activité
+- `PUT /api/activities/:id` - Mettre à jour une activité
+- `DELETE /api/activities/:id` - Supprimer une activité
+- `GET /api/activities/stats` - Statistiques d'activités
+
+#### Rapports et Analytics
+- `GET /api/reports` - Générer des rapports
+- `GET /api/reports/daily` - Rapport quotidien
+- `GET /api/reports/weekly` - Rapport hebdomadaire
+- `GET /api/reports/monthly` - Rapport mensuel
+- `GET /api/analytics/presence` - Analytics de présence
+- `GET /api/analytics/missions` - Analytics de missions
+- `GET /api/analytics/performance` - Analytics de performance
+
+#### Permissions
+- `GET /api/permission-days` - Gérer les jours de permission
+- `POST /api/permission-days` - Créer une demande de permission
+- `PUT /api/permission-days/:id` - Mettre à jour une permission
+
+#### Messagerie
+- `GET /api/messages` - Récupérer les messages
+- `POST /api/messages` - Envoyer un message
+- `GET /api/messages/conversations` - Liste des conversations
+- `PUT /api/messages/:id/read` - Marquer un message comme lu
+
+#### Utilisateurs et Agents
+- `GET /api/agents` - Liste des agents
+- `POST /api/agents` - Créer un agent
+- `PUT /api/agents/:id` - Mettre à jour un agent
+- `DELETE /api/agents/:id` - Supprimer un agent
+- `GET /api/projects` - Liste des projets
 
 ### Variables d'environnement
 | Variable | Description |
@@ -203,7 +312,18 @@ Si les emails ne sont pas reçus :
 
 ## 🆕 Dernières Mises à Jour
 
-### Novembre 2025
+### Décembre 2024
+- **Nouveau module de suivi d'activité** avec tableau d'évaluation complet
+- **Système de messagerie interne** en temps réel
+- **Synthèse globale** avec vue consolidée de tous les projets
+- **Rapports enrichis** avec visualisations avancées
+- **Analytics et insights** pour analyses prédictives
+- **Résumé de projet** avec statistiques détaillées
+- **Planification avancée** avec calendrier interactif
+- **Navigation circulaire** améliorée pour une meilleure UX
+- **Corrections de bugs** et optimisations de performance
+
+### Novembre 2024
 - **Nouveau système de rapports mensuels** avec indicateurs clés
 - **Gestion des permissions et absences** améliorée
 - **Optimisation des performances** pour les connexions lentes
@@ -211,7 +331,7 @@ Si les emails ne sont pas reçus :
 - **Synchronisation** plus fiable en mode hors ligne
 - **Sécurité** renforcée avec authentification à deux facteurs
 
-### Octobre 2025
+### Octobre 2024
 - Intégration avec les services de cartographie
 - Amélioration de la gestion des photos de présence
 - Optimisation pour les réseaux mobiles
@@ -265,15 +385,23 @@ Pour toute question ou assistance :
 - **Sélectionnez un contact** dans la liste pour démarrer une conversation
 - **Envoyez des messages** pour coordonner vos activités
 - **Consultez l'historique** de vos conversations
-- Recevez des **notifications** pour les nouveaux messages
+- Recevez des **notifications** sonores et visuelles pour les nouveaux messages
+- **Indicateurs de lecture** pour savoir si vos messages ont été lus
 
-#### 3. Choisir votre zone d'intervention
+#### 3. Suivre vos activités
+- Allez dans **"Suivi Activité"** pour accéder au module de suivi
+- **Consultez vos activités** planifiées et réalisées
+- **Saisissez les résultats** de vos journées (réalisé, partiellement réalisé, non réalisé)
+- **Filtrez par projet** ou par période pour une vue ciblée
+- **Consultez vos statistiques** personnelles d'activité
+
+#### 4. Choisir votre zone d'intervention
 - **Département** : Sélectionnez votre département
 - **Commune** : Choisissez votre commune
 - **Arrondissement** : Sélectionnez l'arrondissement
 - **Village** : Choisissez le village où vous travaillez
 
-#### 4. Marquer votre présence
+#### 5. Marquer votre présence
 
 ##### Début de journée
 1. Cliquez sur **"Marquer présence (début)"**
@@ -294,7 +422,7 @@ Pour toute question ou assistance :
 3. Ajoutez un résumé de votre journée
 4. Cliquez sur **"Confirmer"**
 
-#### 5. Consulter votre historique
+#### 6. Consulter votre historique
 - Allez dans **"Profil"** pour voir vos statistiques
 - Consultez le **calendrier** pour voir vos jours de présence
 - Vérifiez vos **missions** dans l'historique
@@ -329,12 +457,27 @@ Pour toute question ou assistance :
 - Les **marqueurs colorés** indiquent les différents agents
 - **Filtrez par date** pour voir l'historique
 
-#### 5. Générer des rapports
+#### 5. Suivre les activités des agents
+- Allez dans **"Suivi Activité"**
+- **Filtrez par projet**, agent, superviseur ou statut
+- **Consultez les statistiques** détaillées par agent
+- **Visualisez les activités** réalisées, en cours et non réalisées
+- **Exportez les données** pour analyse approfondie
+
+#### 6. Générer des rapports
 - Allez dans **"Rapports"**
 - Choisissez la **période** (aujourd'hui, cette semaine, ce mois)
 - Sélectionnez un **agent** ou tous les agents
 - Cliquez sur **"Générer le rapport"**
 - **Exportez** en Excel ou PDF
+- **Rapports enrichis** avec graphiques et visualisations
+
+#### 7. Consulter la synthèse globale
+- Allez dans **"Synthèse Globale"**
+- **Vue d'ensemble** de tous les projets et agents
+- **Indicateurs clés** de performance globaux
+- **Analyses comparatives** entre périodes
+- **Cartographie globale** des interventions
 
 ![Rapport de présence](Media/screenshot_app/rapport_presence.png)
 
@@ -468,17 +611,27 @@ Vous maîtrisez maintenant le système Presence CCRB. Ce système vous permet de
 2. **Choisissez votre zone** d'intervention
 3. **Marquez votre présence** au début et à la fin
 4. **Ajoutez des photos** et notes si nécessaire
+5. **Saisissez vos activités** et résultats dans le suivi d'activité
+6. **Communiquez** avec votre équipe via la messagerie
+7. **Consultez votre planning** et planifiez vos activités
 
 ### Pour les superviseurs
 1. **Connectez-vous** avec un compte superviseur
 2. **Gérez vos agents** dans la section Agents
 3. **Suivez en temps réel** sur la carte
 4. **Générez des rapports** selon vos besoins
+5. **Suivez les activités** de vos agents avec filtres avancés
+6. **Communiquez** avec vos équipes via la messagerie
+7. **Consultez la synthèse globale** pour une vue d'ensemble
+8. **Analysez les performances** avec les analytics
 
 ### Pour les administrateurs
 1. **Configurez le système** dans Administration
 2. **Gérez les unités** administratives
 3. **Supervisez** l'ensemble des opérations
+4. **Accédez à tous les modules** : rapports, analytics, synthèse globale
+5. **Gérez les projets** et affectations
+6. **Configurez les paramètres** avancés du système
 
 ---
 

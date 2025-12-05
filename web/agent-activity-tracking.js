@@ -1,4 +1,4 @@
-(function() {
+(function () {
   const apiBase = '/api';
   let activities = [];
   let projects = [];
@@ -9,7 +9,7 @@
   let currentUserId = null;
   let currentUserProject = null;
   let cachedActivityData = null; // Cache pour les données d'activités
-  
+
   const normalizeProjectName = (name) => (name || '').toString().trim().toLowerCase();
   const formatProjectName = (name) => {
     const trimmed = (name || '').toString().trim();
@@ -49,7 +49,7 @@
 
     return [];
   };
-  
+
   // Constantes pour l'authentification (déclarées au début)
   const DEFAULT_TOKEN_CANDIDATES = ['jwt', 'access_token', 'token', 'sb-access-token', 'sb:token'];
 
@@ -80,12 +80,12 @@
    */
   async function loadActivityFollowUp() {
     const tbody = document.getElementById('activity-follow-up-body');
-    
+
     if (!tbody) {
       console.warn('Element activity-follow-up-body not found');
       return;
     }
-    
+
     // Afficher le chargement
     tbody.innerHTML = `
       <tr>
@@ -96,20 +96,20 @@
         </td>
       </tr>
     `;
-    
+
     try {
       // Utiliser les mêmes données que le tableau d'évaluation
       // Si les activités ne sont pas encore chargées, les charger d'abord
       if (activities.length === 0) {
         await loadActivities();
       }
-      
+
       // Attendre un peu pour s'assurer que les activités sont chargées
       await new Promise(resolve => setTimeout(resolve, 100));
-      
+
       // Afficher les données dans le tableau de suivi
       displayActivityFollowUp(activities);
-      
+
     } catch (error) {
       console.error('Erreur lors du chargement du suivi des activités:', error);
       tbody.innerHTML = `
@@ -131,22 +131,22 @@
   function displayActivityFollowUp(rawActivities) {
     const tbody = document.getElementById('activity-follow-up-body');
     const projectFilter = document.getElementById('activity-project-filter');
-    
+
     if (!tbody) return;
-    
+
     // Obtenir tous les agents du projet sélectionné
     const selectedProject = projectFilter ? projectFilter.value : null;
     const normalizedSelectedProject = normalizeProjectName(selectedProject);
-    const projectAgents = selectedProject ? 
-      agents.filter(agent => normalizeProjectName(agent.project_name) === normalizedSelectedProject) : 
+    const projectAgents = selectedProject ?
+      agents.filter(agent => normalizeProjectName(agent.project_name) === normalizedSelectedProject) :
       agents;
-    
+
     console.log('📊 Agents du projet:', {
       selectedProject,
       totalAgents: projectAgents.length,
       agentsWithActivities: rawActivities ? rawActivities.length : 0
     });
-    
+
     if (!projectAgents || projectAgents.length === 0) {
       tbody.innerHTML = `
         <tr>
@@ -160,17 +160,17 @@
       `;
       return;
     }
-    
+
     // Grouper les activités par agent et calculer les statistiques
     const agentsStats = new Map();
-    
+
     // Initialiser tous les agents du projet avec des statistiques vides
     projectAgents.forEach(agent => {
       const agentName = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
       const projectDisplayName = formatProjectName(selectedProject || agent.project_name);
       const normalizedProject = normalizeProjectName(projectDisplayName);
       const agentKey = `${agentName}|${normalizedProject}`;
-      
+
       agentsStats.set(agentKey, {
         agent_name: agentName,
         agent_id: agent.id,
@@ -187,7 +187,7 @@
         last_activity_date: null
       });
     });
-    
+
     // Traiter les activités existantes
     if (rawActivities && rawActivities.length > 0) {
       rawActivities.forEach(activity => {
@@ -195,7 +195,7 @@
         let agentName = 'Agent inconnu';
         let agentRole = 'agent';
         let projectName = activity.project_name || 'Non spécifié';
-      
+
         // Si l'activité a des informations sur l'agent enrichies
         if (activity.agent) {
           agentName = activity.agent.name || `${activity.agent.first_name || ''} ${activity.agent.last_name || ''}`.trim() || activity.agent.email || `Agent ${activity.agent_id}`;
@@ -210,13 +210,13 @@
             projectName = agent.project_name || activity.project_name || 'Non spécifié';
           }
         }
-        
+
         const projectDisplayName = formatProjectName(projectName);
         const normalizedProject = normalizeProjectName(projectDisplayName);
-        
+
         // Créer une clé unique pour l'agent (nom + projet)
         const agentKey = `${agentName}|${normalizedProject}`;
-        
+
         // Mettre à jour les statistiques si l'agent existe dans notre liste
         if (agentsStats.has(agentKey)) {
           const stats = agentsStats.get(agentKey);
@@ -224,15 +224,15 @@
           stats.normalized_project = normalizedProject;
           stats.total_activities++;
           stats.has_activities = true;
-          
+
           // Mettre à jour la date de dernière activité
           if (activity.date) {
             stats.last_activity_date = activity.date;
           }
-          
+
           // Compter par statut selon la logique spécifiée
           const statut = activity.resultat_journee;
-          
+
           if (statut === 'realise') {
             stats.realized_activities++;
           } else if (statut === 'non_realise') {
@@ -265,7 +265,7 @@
     // Extraire les projets uniques pour le filtre
     const uniqueProjects = [...new Set(Array.from(agentsStats.values()).map(a => a.project_name).filter(p => p))];
     updateProjectFilter(uniqueProjects);
-    
+
     // Filtrer par projet - utiliser le filtre sélectionné
     let filteredStats = Array.from(agentsStats.values());
     if (projectFilter && projectFilter.value) {
@@ -273,7 +273,7 @@
       const normalizedFilterProject = normalizeProjectName(projectFilter.value);
       filteredStats = filteredStats.filter(a => (a.normalized_project || normalizeProjectName(a.project_name)) === normalizedFilterProject);
     }
-    
+
     // Filtrer par agent si un filtre est sélectionné
     const agentFilter = document.getElementById('agent-filter') || document.getElementById('agent-select');
     if (agentFilter && agentFilter.value) {
@@ -283,7 +283,7 @@
         filteredStats = filteredStats.filter(a => a.agent_name === selectedAgentName);
       }
     }
-    
+
     // Filtrer par superviseur si un filtre est sélectionné
     const supervisorFilter = document.getElementById('supervisor-filter');
     if (supervisorFilter && supervisorFilter.value) {
@@ -295,7 +295,7 @@
       });
       filteredStats = filteredStats.filter(a => supervisorAgentNames.includes(a.agent_name));
     }
-    
+
     if (filteredStats.length === 0) {
       tbody.innerHTML = `
         <tr>
@@ -309,31 +309,31 @@
       `;
       return;
     }
-    
+
     // Trier par nom d'agent
     filteredStats.sort((a, b) => a.agent_name.localeCompare(b.agent_name));
-    
+
     const rows = filteredStats.map(stats => {
       // Calculer le taux d'exécution de la planification (TEP)
       const executionRate = calculateExecutionRate(stats.realized_activities, stats.total_activities);
-      
+
       // Déterminer la classe de couleur pour le taux
       const executionRateClass = executionRate >= 80 ? 'text-success' : executionRate >= 60 ? 'text-warning' : 'text-danger';
-      
+
       // Vérification de la cohérence des données
       const sumCategories = stats.realized_activities + stats.not_realized_activities + stats.in_progress_activities + stats.partially_realized_activities;
       const isConsistent = sumCategories === stats.total_activities;
-      
+
       // Vérifier si l'agent a des activités
       const hasNoActivities = !stats.has_activities || stats.total_activities === 0;
-      
+
       // Générer le message pour les agents sans activité
-      const noActivityMessage = hasNoActivities ? 
+      const noActivityMessage = hasNoActivities ?
         `<div class="text-danger">
           <small><strong>Rien n'est planifié</strong></small>
           <br><small>depuis le ${new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</small>
         </div>` : '';
-      
+
       return `
         <tr class="${hasNoActivities ? 'table-danger' : (!isConsistent ? 'table-warning' : '')}">
           <td>
@@ -377,36 +377,36 @@
           </td>
           <td>
             <div class="small">
-              ${stats.not_realized_activities > 0 ? 
-                `<div class="mb-2">
+              ${stats.not_realized_activities > 0 ?
+          `<div class="mb-2">
                   <strong class="text-danger">📋 Activités non réalisées (${stats.not_realized_activities}):</strong>
-                  ${stats.not_realized_list.map(item => 
-                    `<div class="mb-1 ms-2">
+                  ${stats.not_realized_list.map(item =>
+            `<div class="mb-1 ms-2">
                       <div class="text-danger">• ${escapeHtml(item.name || 'N/A')}</div>
                       <div class="text-muted ms-2">📅 ${escapeHtml(item.date || 'N/A')} | 🏢 ${escapeHtml(item.project || 'N/A')}</div>
                     </div>`
-                  ).join('')}
+          ).join('')}
                 </div>` : ''
-              }
-              ${stats.partially_realized_activities > 0 ? 
-                `<div class="text-warning">
+        }
+              ${stats.partially_realized_activities > 0 ?
+          `<div class="text-warning">
                   <strong>⚠️ ${stats.partially_realized_activities} activité(s) partiellement réalisée(s)</strong>
                 </div>` : ''
-              }
-              ${stats.not_realized_activities === 0 && stats.partially_realized_activities === 0 ? 
-                '<span class="text-success">✅ Toutes activités réalisées</span>' : ''
-              }
+        }
+              ${stats.not_realized_activities === 0 && stats.partially_realized_activities === 0 ?
+          '<span class="text-success">✅ Toutes activités réalisées</span>' : ''
+        }
             </div>
           </td>
         </tr>
       `;
     }).join('');
-    
+
     tbody.innerHTML = rows;
-    
+
     // Ajouter la barre d'outils d'export pour le tableau principal
     addExportToolbar('activity-follow-up-body', filteredStats.length);
-    
+
     // Ajouter le tableau récapitulatif avec classement TEP (tous les projets)
     const allStats = Array.from(agentsStats.values());
     displayTEPRanking(allStats);
@@ -418,11 +418,11 @@
   function addExportToolbar(tableId, statsCount) {
     const table = document.querySelector(`#${tableId}`).closest('table');
     if (!table) return;
-    
+
     // Vérifier si la barre d'outils existe déjà
     const existingToolbar = table.parentNode.querySelector('.export-toolbar');
     if (existingToolbar) return;
-    
+
     // Créer la barre d'outils
     const toolbar = document.createElement('div');
     toolbar.className = 'export-toolbar mb-2';
@@ -442,7 +442,7 @@
         </div>
       </div>
     `;
-    
+
     // Insérer avant le tableau
     table.parentNode.insertBefore(toolbar, table);
   }
@@ -453,7 +453,7 @@
   function displayTEPRanking(stats) {
     // Créer une map complète avec tous les agents du projet
     const allAgentsStats = new Map();
-    
+
     // Initialiser avec les statistiques existantes
     stats.forEach(stat => {
       const projectSlug = getStatProjectSlug(stat);
@@ -465,7 +465,7 @@
         has_activities: true
       });
     });
-    
+
     // Ajouter tous les agents sans activité
     agents.forEach(agent => {
       const agentDisplayName = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
@@ -490,32 +490,32 @@
         });
       }
     });
-    
+
     // Convertir en tableau et stocker globalement
     const completeStats = Array.from(allAgentsStats.values());
     window.tepRankingStats = completeStats;
-    
+
     // Trier par TEP décroissant
     const sortedByTEP = [...completeStats].sort((a, b) => {
       const tepA = calculateExecutionRate(a.realized_activities, a.total_activities);
       const tepB = calculateExecutionRate(b.realized_activities, b.total_activities);
       return tepB - tepA; // Décroissant
     });
-    
+
     // Calculer le classement pondéré
     const weightedRanking = calculateWeightedRanking(completeStats);
     const sortedByWeighted = [...weightedRanking].sort((a, b) => b.weighted_score - a.weighted_score);
-    
+
     // Obtenir tous les projets disponibles depuis la variable globale projects
     const availableProjects = [...new Set(projects.map(p => formatProjectName(p.name)))];
-    
+
     console.log('🏆 Initialisation tableau TEP:', {
       totalAgents: completeStats.length,
       availableProjects,
       projectsInStats: [...new Set(completeStats.map(s => s.project_name))],
       agentsWithoutActivities: completeStats.filter(s => !s.has_activities).length
     });
-    
+
     // Créer le HTML du tableau récapitulatif
     const rankingHTML = `
       <div class="card mt-5 border-0 shadow-lg">
@@ -559,9 +559,9 @@
                 </label>
                 <select id="ranking-project-filter" class="form-select form-select-sm">
                   <option value="">Tous les projets</option>
-                  ${availableProjects.map(project => 
-                    `<option value="${escapeHtml(project)}">${escapeHtml(project)}</option>`
-                  ).join('')}
+                  ${availableProjects.map(project =>
+      `<option value="${escapeHtml(project)}">${escapeHtml(project)}</option>`
+    ).join('')}
                 </select>
               </div>
               <div class="col-md-8">
@@ -600,41 +600,41 @@
               </thead>
               <tbody id="ranking-tbody">
                 ${sortedByWeighted.map((stats, index) => {
-                  const tep = calculateExecutionRate(stats.realized_activities, stats.total_activities);
-                  const statsProjectSlug = getStatProjectSlug(stats);
-                  const rank = index + 1;
-                  const rankClass = rank <= 3 ? 'text-warning fw-bold' : '';
-                  const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
-                  
-                  // Trouver le classement TEP pour comparaison
-                  const tepRank = sortedByTEP.findIndex(s => s.agent_name === stats.agent_name && getStatProjectSlug(s) === statsProjectSlug) + 1;
-                  const rankChange = tepRank - rank;
-                  const rankChangeIcon = rankChange > 0 ? '📈' : rankChange < 0 ? '📉' : '➡️';
-                  const rankChangeClass = rankChange > 0 ? 'text-success' : rankChange < 0 ? 'text-danger' : 'text-muted';
-                  
-                  // Déterminer la performance basée sur le score pondéré
-                  let performanceBadge = '';
-                  let performanceClass = '';
-                  const weightedScore = stats.weighted_score || 0;
-                  
-                  if (weightedScore >= 80) {
-                    performanceBadge = '<span class="badge bg-success">Excellent</span>';
-                    performanceClass = 'table-success';
-                  } else if (weightedScore >= 60) {
-                    performanceBadge = '<span class="badge bg-info">Bon</span>';
-                    performanceClass = 'table-info';
-                  } else if (weightedScore >= 40) {
-                    performanceBadge = '<span class="badge bg-warning">Moyen</span>';
-                    performanceClass = 'table-warning';
-                  } else if (weightedScore >= 20) {
-                    performanceBadge = '<span class="badge bg-danger">Faible</span>';
-                    performanceClass = 'table-danger';
-                  } else {
-                    performanceBadge = '<span class="badge bg-secondary">Très faible</span>';
-                    performanceClass = 'table-secondary';
-                  }
-                  
-                  return `
+      const tep = calculateExecutionRate(stats.realized_activities, stats.total_activities);
+      const statsProjectSlug = getStatProjectSlug(stats);
+      const rank = index + 1;
+      const rankClass = rank <= 3 ? 'text-warning fw-bold' : '';
+      const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+
+      // Trouver le classement TEP pour comparaison
+      const tepRank = sortedByTEP.findIndex(s => s.agent_name === stats.agent_name && getStatProjectSlug(s) === statsProjectSlug) + 1;
+      const rankChange = tepRank - rank;
+      const rankChangeIcon = rankChange > 0 ? '📈' : rankChange < 0 ? '📉' : '➡️';
+      const rankChangeClass = rankChange > 0 ? 'text-success' : rankChange < 0 ? 'text-danger' : 'text-muted';
+
+      // Déterminer la performance basée sur le score pondéré
+      let performanceBadge = '';
+      let performanceClass = '';
+      const weightedScore = stats.weighted_score || 0;
+
+      if (weightedScore >= 80) {
+        performanceBadge = '<span class="badge bg-success">Excellent</span>';
+        performanceClass = 'table-success';
+      } else if (weightedScore >= 60) {
+        performanceBadge = '<span class="badge bg-info">Bon</span>';
+        performanceClass = 'table-info';
+      } else if (weightedScore >= 40) {
+        performanceBadge = '<span class="badge bg-warning">Moyen</span>';
+        performanceClass = 'table-warning';
+      } else if (weightedScore >= 20) {
+        performanceBadge = '<span class="badge bg-danger">Faible</span>';
+        performanceClass = 'table-danger';
+      } else {
+        performanceBadge = '<span class="badge bg-secondary">Très faible</span>';
+        performanceClass = 'table-secondary';
+      }
+
+      return `
                     <tr class="${performanceClass}" data-project="${escapeHtml(stats.project_name)}">
                       <td class="text-center">
                         <span class="${rankClass}">${rankIcon} ${rank}</span>
@@ -679,7 +679,7 @@
                       </td>
                     </tr>
                   `;
-                }).join('')}
+    }).join('')}
               </tbody>
             </table>
           </div>
@@ -695,7 +695,7 @@
         </div>
       </div>
     `;
-    
+
     // Ajouter le tableau après le tableau principal
     const mainTable = document.querySelector('#activity-follow-up-body').closest('table');
     if (mainTable) {
@@ -704,15 +704,15 @@
       if (existingRanking) {
         existingRanking.remove();
       }
-      
+
       // Créer un conteneur pour le tableau
       const rankingContainer = document.createElement('div');
       rankingContainer.id = 'tep-ranking-table';
       rankingContainer.innerHTML = rankingHTML;
-      
+
       // Insérer après le tableau principal
       mainTable.parentNode.insertBefore(rankingContainer, mainTable.nextSibling);
-      
+
       // Ajouter l'événement de filtrage pour le classement
       const rankingFilter = document.getElementById('ranking-project-filter');
       if (rankingFilter) {
@@ -733,38 +733,38 @@
     const tbody = document.getElementById('ranking-tbody');
     const countBadge = document.getElementById('ranking-count');
     const summarySpan = document.getElementById('ranking-summary');
-    
+
     if (!filter || !tbody) return;
-    
+
     const selectedProject = filter.value;
     const normalizedSelectedProject = normalizeProjectName(selectedProject);
-    
+
     console.log('🔍 Filtrage tableau TEP:', {
       selectedProject,
       totalStats: allStats.length,
       availableProjects: [...new Set(allStats.map(s => s.project_name))]
     });
-    
+
     // Filtrer les stats
-    const filteredStats = selectedProject ? 
-      allStats.filter(s => getStatProjectSlug(s) === normalizedSelectedProject) : 
+    const filteredStats = selectedProject ?
+      allStats.filter(s => getStatProjectSlug(s) === normalizedSelectedProject) :
       allStats;
-    
+
     console.log('📊 Résultat filtrage:', {
       filteredCount: filteredStats.length,
       filteredProjects: [...new Set(filteredStats.map(s => s.project_name))]
     });
-    
+
     // Retrier selon le mode actuel
     const sortedStats = [...filteredStats].sort((a, b) => {
       const weightedA = a.weighted_score || 0;
       const weightedB = b.weighted_score || 0;
       return weightedB - weightedA;
     });
-    
+
     // Mettre à jour le tableau
     updateRankingTable(sortedStats);
-    
+
     // Mettre à jour les compteurs
     if (countBadge) countBadge.textContent = `${sortedStats.length} agents`;
     if (summarySpan) summarySpan.textContent = `${sortedStats.length} agents classés`;
@@ -777,7 +777,7 @@
     const weightedBtn = document.getElementById('weighted-btn');
     const tepBtn = document.getElementById('tep-btn');
     const allStats = window.tepRankingStats || [];
-    
+
     // Mettre à jour les boutons
     if (mode === 'weighted') {
       weightedBtn.className = 'btn btn-outline-light btn-sm';
@@ -786,15 +786,15 @@
       weightedBtn.className = 'btn btn-outline-secondary btn-sm';
       tepBtn.className = 'btn btn-outline-light btn-sm';
     }
-    
+
     // Filtrer selon le projet sélectionné
     const filter = document.getElementById('ranking-project-filter');
     const selectedProject = filter ? filter.value : '';
     const normalizedSelectedProject = normalizeProjectName(selectedProject);
-    const filteredStats = selectedProject ? 
-      allStats.filter(s => getStatProjectSlug(s) === normalizedSelectedProject) : 
+    const filteredStats = selectedProject ?
+      allStats.filter(s => getStatProjectSlug(s) === normalizedSelectedProject) :
       allStats;
-    
+
     // Trier selon le mode
     let sortedStats;
     if (mode === 'weighted') {
@@ -809,10 +809,10 @@
         return tepB - tepA;
       });
     }
-    
+
     // Mettre à jour le tableau
     updateRankingTable(sortedStats, mode);
-    
+
     console.log(`🔄 Basculement vers mode: ${mode}`, {
       totalAgents: sortedStats.length,
       mode: mode
@@ -825,31 +825,31 @@
   function updateRankingTable(sortedStats, mode = 'weighted') {
     const tbody = document.getElementById('ranking-tbody');
     if (!tbody) return;
-    
+
     // Calculer les classements TEP pour comparaison
     const tepRanking = [...sortedStats].sort((a, b) => {
       const tepA = calculateExecutionRate(a.realized_activities, a.total_activities);
       const tepB = calculateExecutionRate(b.realized_activities, b.total_activities);
       return tepB - tepA;
     });
-    
+
     const rows = sortedStats.map((stats, index) => {
       const tep = calculateExecutionRate(stats.realized_activities, stats.total_activities);
       const statsProjectSlug = getStatProjectSlug(stats);
       const rank = index + 1;
       const rankClass = rank <= 3 ? 'text-warning fw-bold' : '';
       const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
-      
+
       // Trouver le classement TEP pour comparaison
       const tepRank = tepRanking.findIndex(s => s.agent_name === stats.agent_name && getStatProjectSlug(s) === statsProjectSlug) + 1;
       const rankChange = tepRank - rank;
       const rankChangeIcon = rankChange > 0 ? '📈' : rankChange < 0 ? '📉' : '➡️';
       const rankChangeClass = rankChange > 0 ? 'text-success' : rankChange < 0 ? 'text-danger' : 'text-muted';
-      
+
       // Déterminer la performance
       let performanceBadge = '';
       let performanceClass = '';
-      
+
       if (mode === 'weighted') {
         const weightedScore = stats.weighted_score || 0;
         if (weightedScore >= 70) {
@@ -887,7 +887,7 @@
           performanceClass = 'table-secondary';
         }
       }
-      
+
       return `
         <tr class="${performanceClass}" data-project="${escapeHtml(stats.project_name)}">
           <td class="text-center">
@@ -934,7 +934,7 @@
         </tr>
       `;
     }).join('');
-    
+
     tbody.innerHTML = rows;
   }
 
@@ -944,22 +944,22 @@
   function exportTableToHTML(tableElementOrSelector, title, filename) {
     try {
       console.log('Début export HTML pour:', title);
-      
+
       let table;
       if (typeof tableElementOrSelector === 'string') {
         table = document.querySelector(tableElementOrSelector);
       } else {
         table = tableElementOrSelector;
       }
-      
+
       if (!table) {
         console.error('Tableau non trouvé:', tableElementOrSelector);
         showErrorMessage('Tableau non trouvé');
         return;
       }
-      
+
       console.log('Tableau trouvé, génération du HTML...');
-      
+
       // Créer le contenu HTML
       const htmlContent = `
 <!DOCTYPE html>
@@ -1008,14 +1008,14 @@
     <div class="container">
         <div class="header-title">
             <h1><i class="fas fa-chart-line me-2"></i>${title}</h1>
-            <p class="mb-0">Généré le ${new Date().toLocaleDateString('fr-FR', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            })}</p>
+            <p class="mb-0">Généré le ${new Date().toLocaleDateString('fr-FR', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })}</p>
         </div>
         
         ${generateTableHTML(table, title)}
@@ -1045,9 +1045,9 @@
     </script>
 </body>
 </html>`;
-      
+
       console.log('HTML généré, création du blob...');
-      
+
       // Créer un blob et télécharger
       const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);
@@ -1058,7 +1058,7 @@
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       console.log('Export HTML réussi:', filename);
       showSuccessMessage(`Tableau "${title}" exporté avec succès`);
     } catch (error) {
@@ -1073,35 +1073,35 @@
   function generateTableHTML(tableElement, title) {
     try {
       console.log('Génération HTML du tableau:', title);
-      
+
       let tableHTML = '';
-      
+
       // Cloner le tableau pour le manipuler
       const clonedTable = tableElement.cloneNode(true);
-      
+
       // Nettoyer et optimiser le tableau pour l'export
       const rows = clonedTable.querySelectorAll('tr');
       console.log('Nombre de lignes trouvées:', rows.length);
-      
+
       rows.forEach(row => {
         // Supprimer les classes inutiles et les attributs d'événements
         row.removeAttribute('onclick');
         row.removeAttribute('onchange');
-        
+
         // Nettoyer les cellules
         const cells = row.querySelectorAll('td, th');
         cells.forEach(cell => {
           // Supprimer les boutons et inputs
           const buttons = cell.querySelectorAll('button, input, select');
           buttons.forEach(btn => btn.remove());
-          
+
           // Garder le texte important
           if (cell.textContent.trim() === '') {
             cell.innerHTML = '-';
           }
         });
       });
-      
+
       // Créer la carte contenant le tableau
       tableHTML = `
       <div class="card">
@@ -1115,7 +1115,7 @@
         </div>
       </div>
     `;
-      
+
       console.log('HTML du tableau généré avec succès');
       return tableHTML;
     } catch (error) {
@@ -1137,7 +1137,7 @@
     try {
       const monthSelect = document.getElementById('month-select');
       const yearSelect = document.getElementById('activity-year-selector');
-      
+
       if (monthSelect && yearSelect) {
         const month = monthSelect.value;
         const year = yearSelect.value;
@@ -1146,7 +1146,7 @@
           return date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
         }
       }
-      
+
       return new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
     } catch (error) {
       console.error('Erreur dans getCurrentPeriod:', error);
@@ -1165,7 +1165,7 @@
       showErrorMessage('Tableau de suivi non trouvé');
       return;
     }
-    
+
     exportTableToHTML(
       followUpTable,
       'Tableau de Suivi des Activités - Détail par Agent',
@@ -1182,7 +1182,7 @@
       showErrorMessage('Tableau de classement TEP non trouvé');
       return;
     }
-    
+
     // Créer un HTML spécial pour le classement TEP
     const rankingContent = rankingTable.querySelector('table');
     exportTableToHTML(
@@ -1199,20 +1199,20 @@
     try {
       // Créer une copie de tout le contenu de la page
       const pageContent = document.querySelector('.container-fluid') || document.querySelector('main') || document.body;
-      
+
       if (!pageContent) {
         showErrorMessage('Aucun contenu à exporter');
         return;
       }
-      
+
       // Cloner le contenu pour le manipuler
       const clonedContent = pageContent.cloneNode(true);
-      
+
       // Nettoyer le contenu pour l'export
       // Supprimer les boutons d'action non nécessaires
       const actionButtons = clonedContent.querySelectorAll('button[onclick*="export"], .btn-outline-secondary, .btn-light');
       actionButtons.forEach(btn => btn.remove());
-      
+
       // Supprimer les inputs et selects inutiles
       const formControls = clonedContent.querySelectorAll('input, select');
       formControls.forEach(control => {
@@ -1228,7 +1228,7 @@
           control.remove();
         }
       });
-      
+
       // Nettoyer les cellules vides dans les tableaux
       const tableCells = clonedContent.querySelectorAll('td, th');
       tableCells.forEach(cell => {
@@ -1236,7 +1236,7 @@
           cell.textContent = '-';
         }
       });
-      
+
       // Créer le HTML complet avec tout le contenu
       const htmlContent = `
 <!DOCTYPE html>
@@ -1291,7 +1291,7 @@
     </div>
 </body>
 </html>`;
-      
+
       // Télécharger le fichier
       const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);
@@ -1302,7 +1302,7 @@
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       showSuccessMessage('Rapport complet exporté avec succès');
     } catch (error) {
       console.error('Erreur export complet:', error);
@@ -1317,24 +1317,24 @@
     if (!activities || activities.length === 0) {
       return '<span class="text-muted">Aucune</span>';
     }
-    
+
     const maxItems = 3; // Limiter l'affichage à 3 éléments
     const displayItems = activities.slice(0, maxItems);
     const remainingCount = activities.length - maxItems;
-    
+
     const listHtml = displayItems.map(activity => {
       const activityName = activity.name || activity.title || activity.description || activity.description_activite || 'Activité sans nom';
       const activityDate = activity.date ? ` (${formatShortDate(activity.date)})` : '';
       return `<div class="small">• ${escapeHtml(activityName)}${activityDate}</div>`;
     }).join('');
-    
+
     if (remainingCount > 0) {
       return `
         ${listHtml}
         <div class="small text-muted">... et ${remainingCount} autre(s) activité(s)</div>
       `;
     }
-    
+
     return listHtml;
   }
 
@@ -1385,12 +1385,12 @@
   function initializePage() {
     // Vérifier si on est en mode reconnexion
     const isReauth = window.location.search.includes('reauth=true');
-    
+
     // Débogage: afficher tous les tokens trouvés
     console.log('=== DÉBOGAGE AUTHENTIFICATION ===');
     console.log('localStorage keys:', Object.keys(localStorage));
     console.log('sessionStorage keys:', Object.keys(sessionStorage));
-    
+
     // Vérifier l'authentification d'abord
     const token = findToken();
     console.log('Token trouvé:', token ? 'OUI' : 'NON');
@@ -1399,14 +1399,14 @@
       console.log('Token parts:', token.split('.').length);
       console.log('Token preview:', token.substring(0, 50) + '...');
     }
-    
+
     if (!token) {
       console.warn('Aucun token trouvé - affichage du message d\'authentification');
       // Afficher le message d'erreur au lieu de rediriger immédiatement
       showAuthError();
       return;
     }
-    
+
     if (isReauth) {
       console.log('Mode reconnexion: token trouvé, nettoyage de l\'URL...');
       // Nettoyer l'URL pour enlever le paramètre reauth
@@ -1415,23 +1415,23 @@
       // Afficher un message de bienvenue
       showSuccessMessage('Reconnexion réussie ! Vous pouvez continuer à utiliser l\'application.');
     }
-    
+
     console.log('Token trouvé, initialisation de la page...');
-    
+
     // Définir la date d'aujourd'hui par défaut
     const dateInput = document.getElementById('date-select');
     if (dateInput) {
       dateInput.value = currentDate;
     }
-    
+
     // Continuer l'initialisation
     loadUserInfo();
     loadAgents();
     setupEventListeners();
-    
+
     // Vérifier la planification du jour et mettre à jour les boutons
     updatePresenceButtons();
-    
+
     // Charger automatiquement le suivi des activités au chargement
     setTimeout(() => {
       loadActivityFollowUp();
@@ -1446,7 +1446,7 @@
     if (monthSelect) {
       // Initialiser au mois courant
       const now = new Date();
-      const monthValue = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      const monthValue = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       monthSelect.value = monthValue;
       monthSelect.addEventListener('change', () => {
         loadActivities();
@@ -1484,56 +1484,26 @@
       loadActivities();
     });
 
-    // Agent selector (ancien)
-    const agentSelect = document.getElementById('agent-select');
-    if (agentSelect) {
-      agentSelect.addEventListener('change', () => {
-        displayActivities(); // Mettre à jour le tableau d'évaluation
-        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
-        updateStatistics();
-        updateFilterIndicator();
-      });
-    }
-    
-    // Agent filter (nouveau dans la section filtres)
-    const agentFilter = document.getElementById('agent-filter');
-    if (agentFilter) {
-      agentFilter.addEventListener('change', () => {
-        displayActivities(); // Mettre à jour le tableau d'évaluation
-        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
-        updateStatistics();
-        updateFilterIndicator();
-      });
-    }
-    
-    // Supervisor filter
-    const supervisorFilter = document.getElementById('supervisor-filter');
-    if (supervisorFilter) {
-      supervisorFilter.addEventListener('change', () => {
-        displayActivities(); // Mettre à jour le tableau d'évaluation
-        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
-        updateStatistics();
-        updateFilterIndicator();
+    // MODIFIÉ: Supprimer tous les event listeners automatiques des filtres
+    // Les filtres ne s'appliquent plus automatiquement au changement
+    // L'utilisateur doit cliquer sur le bouton "Appliquer les filtres"
+
+    // Bouton "Appliquer les filtres" - applique tous les filtres sélectionnés
+    const applyFiltersBtn = document.getElementById('apply-filters-btn');
+    if (applyFiltersBtn) {
+      applyFiltersBtn.addEventListener('click', () => {
+        console.log('🔍 Application de tous les filtres sélectionnés...');
+        applyAllFiltersManually();
       });
     }
 
-    // Project filter (uniquement pour les admins)
-    const projectFilter = document.getElementById('project-filter');
-    if (projectFilter) {
-      projectFilter.addEventListener('change', () => {
-        displayActivities(); // Mettre à jour le tableau d'évaluation
-        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
-        updateStatistics();
-        updateFilterIndicator();
-      });
-    }
-
-    // Activity project filter (tableau de suivi)
-    const activityProjectFilter = document.getElementById('activity-project-filter');
-    if (activityProjectFilter) {
-      activityProjectFilter.addEventListener('change', () => {
-        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
-      });
+    // Fonction pour appliquer tous les filtres manuellement
+    function applyAllFiltersManually() {
+      console.log('📊 Mise à jour de l\'affichage avec les filtres sélectionnés');
+      displayActivities(); // Mettre à jour le tableau d'évaluation
+      displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
+      updateStatistics();
+      updateFilterIndicator();
     }
 
     // Sync offline data button
@@ -1542,40 +1512,14 @@
       syncOfflineDataBtn.addEventListener('click', async () => {
         await syncOfflineData();
       });
-      
+
       // Vérifier s'il y a des données en attente au chargement
       checkPendingData();
     }
 
-    // Status filter
-    document.getElementById('status-filter').addEventListener('change', () => {
-      displayActivities(); // Mettre à jour le tableau d'évaluation
-      displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
-      updateStatistics();
-      updateFilterIndicator();
-    });
-
-    // Supervisor filter (visible only for admins)
-    const supervisorSelect = document.getElementById('supervisor-filter');
-    if (supervisorSelect) {
-      supervisorSelect.addEventListener('change', () => {
-        displayActivities(); // Mettre à jour le tableau d'évaluation
-        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
-        updateStatistics();
-        updateFilterIndicator();
-      });
-    }
-
-    // Week-of-month filter
-    const weekFilter = document.getElementById('week-filter');
-    if (weekFilter) {
-      weekFilter.addEventListener('change', () => {
-        displayActivities(); // Mettre à jour le tableau d'évaluation
-        displayActivityFollowUp(activities); // Mettre à jour le tableau de suivi
-        updateStatistics();
-        updateFilterIndicator();
-      });
-    }
+    // SUPPRIMÉ: Event listeners automatiques pour les filtres
+    // Les anciens listeners ont été supprimés pour que les filtres ne s'appliquent
+    // que lorsque l'utilisateur clique sur "Appliquer les filtres"
 
     // Add activity row button
     document.getElementById('add-activity-row').addEventListener('click', () => {
@@ -1617,18 +1561,18 @@
       if (res.ok) {
         const data = await res.json();
         const user = data.user;
-        
+
         currentUserId = user.id;
         isAdmin = user.role === 'admin' || user.role === 'super_admin';
-        
+
         // Afficher le nom de l'utilisateur
         displayUserName(user);
-        
+
         // Afficher le projet de l'utilisateur
         displayUserProject(user);
-        
+
         console.log('Utilisateur:', user.email, 'Rôle:', user.role, 'Admin:', isAdmin, 'Projet:', user.project_name);
-        
+
         // Charger les agents si c'est un admin
         if (isAdmin) {
           await loadAgents();
@@ -1638,15 +1582,15 @@
         } else {
           hideAgentFilter();
         }
-        
+
         // Charger le projet de l'agent
         await loadAgentProject(user);
-        
+
         // Pour les agents non-admin, appliquer automatiquement le filtre de leur projet
         if (!isAdmin && user.project_name) {
           applyAgentProjectFilter(user.project_name);
         }
-        
+
         // Charger les activités
         loadActivities();
       } else if (res.status === 401) {
@@ -1673,7 +1617,7 @@
         const res = await fetch(`${apiBase}/admin/agents`, { headers });
         if (res.ok) {
           const payload = await res.json();
-      const list = extractArrayFromResponse(payload, ['agents']);
+          const list = extractArrayFromResponse(payload, ['agents']);
           if (Array.isArray(list) && list.length) {
             // Charger TOUS les utilisateurs (agents ET superviseurs)
             agents = list; // Ne pas filtrer par rôle
@@ -1690,7 +1634,7 @@
           const res = await fetch(`${apiBase}/agents`, { headers });
           if (res.ok) {
             const payload = await res.json();
-        const list = extractArrayFromResponse(payload, ['agents']);
+            const list = extractArrayFromResponse(payload, ['agents']);
             if (Array.isArray(list) && list.length) {
               // Charger TOUS les utilisateurs (agents ET superviseurs)
               agents = list; // Ne pas filtrer par rôle
@@ -1708,7 +1652,7 @@
           const res = await fetch(`${apiBase}/users`, { headers });
           if (res.ok) {
             const payload = await res.json();
-        const list = extractArrayFromResponse(payload, ['users']);
+            const list = extractArrayFromResponse(payload, ['users']);
             if (Array.isArray(list) && list.length) {
               // Charger TOUS les utilisateurs (agents ET superviseurs)
               agents = list; // Ne pas filtrer par rôle
@@ -1725,11 +1669,11 @@
         agents = [];
       }
       console.log('Utilisateurs chargés:', agents.length);
-      
+
       // Remplir les filtres après chargement
-      populateAgentFilter();
-      populateSupervisorFilter();
-      
+      populateAgentFilter(); // Inclut maintenant agents ET superviseurs
+      // populateSupervisorFilter(); // Supprimé - superviseurs inclus dans le filtre agent
+
       // Debug: Compter les agents par projet après chargement principal
       const projectCountsMain = {};
       agents.forEach(agent => {
@@ -1743,7 +1687,7 @@
     }
   }
 
-  // Remplir le filtre des agents
+  // Remplir le filtre des agents (inclut agents ET superviseurs)
   function populateAgentFilter() {
     try {
       // Remplir les deux sélecteurs (agent-select et agent-filter)
@@ -1754,30 +1698,55 @@
 
       if (agentSelects.length === 0) return;
 
-      console.log('👥 Remplissage filtre agents:', agents.length, 'agents disponibles');
-      console.log('   Agents:', agents.map(a => ({ id: a.id, name: a.name, email: a.email })));
+      console.log('👥 Remplissage filtre agents/superviseurs:', agents.length, 'utilisateurs disponibles');
 
-      // Filtrer uniquement les agents (pas les superviseurs)
+      // Séparer les agents et superviseurs
       const agentsOnly = agents.filter(a => {
         const role = (a.role || '').toLowerCase();
         return role === 'agent' || role === '';
       });
 
-      // Vider les sélecteurs sauf l'option par défaut
-      agentSelects.forEach(select => {
-        select.innerHTML = '<option value="">Tous les agents</option>';
-
-        // Ajouter les agents
-        agentsOnly.forEach(agent => {
-          const option = document.createElement('option');
-          option.value = agent.id || agent.email;
-          const displayName = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
-          option.textContent = displayName;
-          select.appendChild(option);
-        });
+      const supervisors = agents.filter(a => {
+        const role = (a.role || '').toLowerCase();
+        return role === 'superviseur' || role === 'supervisor';
       });
 
-      console.log(`✅ Filtre agents rempli avec ${agentsOnly.length} agents`);
+      console.log(`   📊 ${agentsOnly.length} agents, ${supervisors.length} superviseurs`);
+
+      // Vider les sélecteurs et reconstruire avec groupes
+      agentSelects.forEach(select => {
+        select.innerHTML = '<option value="">Tous les utilisateurs</option>';
+
+        // Groupe Superviseurs
+        if (supervisors.length > 0) {
+          const supervisorGroup = document.createElement('optgroup');
+          supervisorGroup.label = '👔 Superviseurs';
+          supervisors.forEach(sup => {
+            const option = document.createElement('option');
+            option.value = sup.id || sup.email;
+            const displayName = sup.name || `${sup.first_name || ''} ${sup.last_name || ''}`.trim() || sup.email;
+            option.textContent = displayName;
+            supervisorGroup.appendChild(option);
+          });
+          select.appendChild(supervisorGroup);
+        }
+
+        // Groupe Agents
+        if (agentsOnly.length > 0) {
+          const agentGroup = document.createElement('optgroup');
+          agentGroup.label = '👤 Agents';
+          agentsOnly.forEach(agent => {
+            const option = document.createElement('option');
+            option.value = agent.id || agent.email;
+            const displayName = agent.name || `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.email;
+            option.textContent = displayName;
+            agentGroup.appendChild(option);
+          });
+          select.appendChild(agentGroup);
+        }
+      });
+
+      console.log(`✅ Filtre rempli avec ${supervisors.length} superviseurs et ${agentsOnly.length} agents`);
     } catch (error) {
       console.error('❌ Erreur remplissage filtre agents:', error);
     }
@@ -1815,7 +1784,7 @@
               }
             });
           }
-        } catch {}
+        } catch { }
 
         supervisors = Array.from(uniqueSupervisors.values());
 
@@ -1828,7 +1797,7 @@
           supervisorSelect.appendChild(opt);
         });
       })();
-    } catch {}
+    } catch { }
   }
 
   // Afficher le filtre par agent
@@ -1862,10 +1831,10 @@
   function displayUserProject(user) {
     // Ne plus bloquer les filtres de projet - laisser les utilisateurs choisir
     const projectName = user.project_name || user.project || 'Projet non spécifié';
-    
+
     // Stocker le projet pour référence si nécessaire
     currentUserProject = projectName;
-    
+
     console.log('Projet utilisateur:', projectName, '- Filtres de projet disponibles pour tous');
   }
 
@@ -1873,17 +1842,17 @@
   async function loadAgentProject(user) {
     try {
       console.log('🔍 Chargement des projets pour tous les utilisateurs...');
-      
+
       // Pour TOUS les utilisateurs (agents, superviseurs, admins), charger tous les projets disponibles
       const headers = await authHeaders();
       const res = await fetch(`${apiBase}/admin/agents`, { headers });
-      
+
       if (res.ok) {
         const data = await res.json();
         const agents = data.data || data.agents || [];
-        
+
         console.log(`📋 ${agents.length} agents chargés depuis la base`);
-        
+
         // Debug: Compter les agents par projet
         const projectCounts = {};
         agents.forEach(agent => {
@@ -1891,7 +1860,7 @@
           projectCounts[project] = (projectCounts[project] || 0) + 1;
         });
         console.log('📊 Répartition des agents par projet:', projectCounts);
-        
+
         // Extraire les projets uniques depuis tous les agents
         const uniqueProjects = new Set();
         agents.forEach(agent => {
@@ -1900,17 +1869,17 @@
             console.log(`   - Agent: ${agent.name || agent.email}, Projet: ${agent.project_name}`);
           }
         });
-        
+
         // Créer la liste des projets
         projects = Array.from(uniqueProjects).map((projectName, index) => ({
           id: index + 1,
           name: projectName,
           status: 'active'
         }));
-        
+
         console.log('✅ Projets chargés depuis la base de données:', projects);
         console.log(`📊 Total: ${projects.length} projets trouvés`);
-        
+
         updateProjectFilter();
         updateActivityProjectFilter();
       } else {
@@ -1942,9 +1911,9 @@
   function updateProjectFilter(uniqueProjects = null) {
     const select = document.getElementById('project-filter');
     if (!select) return;
-    
+
     select.innerHTML = '<option value="">Tous les projets</option>';
-    
+
     if (uniqueProjects) {
       // Utiliser les projets uniques fournis
       uniqueProjects.forEach(projectName => {
@@ -1970,10 +1939,10 @@
   function updateActivityProjectFilter() {
     const projectFilter = document.getElementById('activity-project-filter');
     if (!projectFilter) return;
-    
+
     // Garder seulement l'option "Tous les projets"
     projectFilter.innerHTML = '<option value="">Tous les projets</option>';
-    
+
     // Ajouter les projets uniques triés
     const projectNames = projects.map(p => formatProjectName(p.name)).sort();
     projectNames.forEach(projectName => {
@@ -1989,13 +1958,13 @@
     const projectFilter = document.getElementById('project-filter');
     if (projectFilter && projectName) {
       projectFilter.value = projectName;
-      
+
       // Masquer le filtre projet pour les agents (ils ne voient que leur projet)
       const projectFilterContainer = document.getElementById('project-filter').closest('.col-md-6');
       if (projectFilterContainer) {
         projectFilterContainer.style.display = 'none';
       }
-      
+
       // Afficher le badge du projet de l'agent
       const agentProjectBadge = document.getElementById('agent-project-badge');
       const agentProjectName = document.getElementById('agent-project-name');
@@ -2011,7 +1980,7 @@
     const agentSelect = document.getElementById('agent-select');
     const selectedOption = agentSelect.options[agentSelect.selectedIndex];
     const agentTitle = document.getElementById('agent-title');
-    
+
     if (selectedOption.value) {
       const agentName = selectedOption.textContent;
       agentTitle.textContent = `Suivi d'Activité - ${agentName}`;
@@ -2029,7 +1998,7 @@
         console.error('Element activities-tbody not found');
         return;
       }
-      
+
       tbody.innerHTML = `
         <tr>
           <td colspan="8" class="text-center text-muted py-4">
@@ -2040,7 +2009,7 @@
       `;
 
       const headers = await authHeaders();
-      
+
       // Construire la période: basé sur mois sélectionné (si présent), sinon semaine contenant currentDate
       const monthSelect = document.getElementById('month-select');
       let fromStr, toStr;
@@ -2058,34 +2027,21 @@
         monday.setDate(base.getDate() - diffToMonday);
         const sunday = new Date(monday);
         sunday.setDate(monday.getDate() + 6);
-        fromStr = monday.toISOString().slice(0,10);
-        toStr = sunday.toISOString().slice(0,10);
+        fromStr = monday.toISOString().slice(0, 10);
+        toStr = sunday.toISOString().slice(0, 10);
       }
 
-      // Construire l'URL pour la période hebdomadaire, avec filtre agent si applicable
+      // Construire l'URL pour la période hebdomadaire
+      // MODIFIÉ: Ne plus appliquer automatiquement le filtre agent
       let url = `${apiBase}/planifications?from=${fromStr}&to=${toStr}`;
-      const agentSelect = document.getElementById('agent-select');
-      const selectedAgentId = agentSelect ? agentSelect.value : null;
-      const projectFilterElement = document.getElementById('project-filter');
-      const projectFilterValue = projectFilterElement ? projectFilterElement.value : null;
-      const supervisorFilterValue = (document.getElementById('supervisor-filter') || {}).value || '';
-      
-      // Toujours filtrer par l'agent sélectionné si un agent est sélectionné
-      if (selectedAgentId && selectedAgentId !== 'null' && selectedAgentId !== '') {
-        url += `&agent_id=${selectedAgentId}`;
-      } else if (!isAdmin && currentUserId) {
-        // Pour les agents non-admin, filtrer par leur propre ID si aucun agent n'est sélectionné
-        url += `&agent_id=${currentUserId}`;
-      }
 
-      // Appliquer le filtre projet au niveau API
-      if (projectFilterValue) {
-        // Utiliser le filtre sélectionné par l'utilisateur
-        url += `&project_name=${encodeURIComponent(projectFilterValue)}`;
-      }
-      
+      // Les filtres ne sont plus appliqués automatiquement
+      // L'utilisateur doit sélectionner un filtre et cliquer sur "Appliquer les filtres"
+      console.log('📡 Chargement de toutes les planifications (sans filtre automatique)');
+      console.log('📅 Période:', fromStr, 'à', toStr);
+
       const res = await fetch(url, { headers });
-      
+
       if (res.status === 401) {
         console.warn('Token expiré ou invalide lors du chargement des activités');
         // Afficher un message d'erreur au lieu de rediriger immédiatement
@@ -2106,7 +2062,7 @@
             a.agent = agentMap.get(a.agent_id);
           }
         });
-        
+
         // Appliquer automatiquement le filtre projet si c'est un agent
         if (!isAdmin) {
           // Le filtre est déjà appliqué via currentUserProject, on affiche directement
@@ -2119,7 +2075,7 @@
           updateStatistics();
           updateFilterIndicator();
         }
-        
+
         // Mettre à jour automatiquement le tableau de suivi des activités
         displayActivityFollowUp(activities);
       } else {
@@ -2146,7 +2102,7 @@
   // Afficher les activités dans le tableau
   function displayActivities() {
     const tbody = document.getElementById('activities-tbody');
-    
+
     if (activities.length === 0) {
       tbody.innerHTML = `
         <tr>
@@ -2162,7 +2118,7 @@
     }
 
     const filteredActivities = filterActivities();
-    
+
     // Vérifier si le filtre a retourné des résultats
     if (filteredActivities.length === 0) {
       tbody.innerHTML = `
@@ -2177,10 +2133,10 @@
       `;
       return;
     }
-    
+
     // Regrouper par date pour afficher toutes les journées planifiées de la semaine
-    filteredActivities.sort((a,b) => String(a.date).localeCompare(String(b.date)));
-    
+    filteredActivities.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
     tbody.innerHTML = filteredActivities.map(activity => createActivityRow(activity)).join('');
   }
 
@@ -2209,15 +2165,15 @@
           <select class="form-control" data-field="project_name">
             <option value="">Sélectionner un projet</option>
             ${projects && projects.length > 0 ? projects.map(project => {
-              const projectDisplayName = formatProjectName(project.name);
-              const projectSlug = normalizeProjectName(projectDisplayName);
-              const isSelected = (activityProjectSlug && activityProjectSlug === projectSlug) || 
-                                (activity.project_id == project.id) ||
-                                (activity.isNew && project.id === 1); // Sélectionner le projet de l'agent par défaut pour les nouvelles activités
-              return `<option value="${projectDisplayName}" ${isSelected ? 'selected' : ''}>${projectDisplayName}</option>`;
-            }).join('') : ''}
-            ${activity.project_name && !projects.some(p => normalizeProjectName(p.name) === activityProjectSlug) ? 
-              `<option value="${formatProjectName(activity.project_name)}" selected>${formatProjectName(activity.project_name)}</option>` : ''}
+      const projectDisplayName = formatProjectName(project.name);
+      const projectSlug = normalizeProjectName(projectDisplayName);
+      const isSelected = (activityProjectSlug && activityProjectSlug === projectSlug) ||
+        (activity.project_id == project.id) ||
+        (activity.isNew && project.id === 1); // Sélectionner le projet de l'agent par défaut pour les nouvelles activités
+      return `<option value="${projectDisplayName}" ${isSelected ? 'selected' : ''}>${projectDisplayName}</option>`;
+    }).join('') : ''}
+            ${activity.project_name && !projects.some(p => normalizeProjectName(p.name) === activityProjectSlug) ?
+        `<option value="${formatProjectName(activity.project_name)}" selected>${formatProjectName(activity.project_name)}</option>` : ''}
           </select>
         </td>
         <td>
@@ -2262,10 +2218,10 @@
       observations: '',
       isNew: true
     };
-    
+
     activities.push(newActivity);
     displayActivities();
-    
+
     // Marquer la ligne comme nouvelle
     const newRow = document.querySelector(`tr[data-activity-id="${newActivity.id}"]`);
     if (newRow) {
@@ -2281,7 +2237,7 @@
 
       const activityData = {};
       const inputs = row.querySelectorAll('input, select, textarea');
-      
+
       inputs.forEach(input => {
         const field = input.getAttribute('data-field');
         if (field) {
@@ -2296,7 +2252,7 @@
       Object.assign(activity, activityData);
 
       const headers = await authHeaders();
-      
+
       if (activity.isNew) {
         // Créer une nouvelle activité
         const res = await fetch(`${apiBase}/planifications`, {
@@ -2321,25 +2277,25 @@
         }
       } else {
         // Mettre à jour une activité existante
-      const res = await fetch(`${apiBase}/planifications/result`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({
+        const res = await fetch(`${apiBase}/planifications/result`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({
             date: activityData.date,
             resultat_journee: activityData.resultat_journee,
             observations: activityData.observations
-        })
-      });
+          })
+        });
 
-      if (res.ok) {
+        if (res.ok) {
           row.classList.remove('activity-row-modified');
           row.classList.add('activity-row-saved');
           showSuccessMessage('Activité mise à jour avec succès');
-      } else {
-        throw new Error('Erreur lors de la mise à jour');
+        } else {
+          throw new Error('Erreur lors de la mise à jour');
+        }
       }
-      }
-      
+
       updateStatistics();
     } catch (error) {
       console.error('Erreur sauvegarde activité:', error);
@@ -2359,7 +2315,7 @@
 
       if (!activity.isNew) {
         // Supprimer de la base de données
-      const headers = await authHeaders();
+        const headers = await authHeaders();
         const res = await fetch(`${apiBase}/planifications/${activityId}`, {
           method: 'DELETE',
           headers
@@ -2372,8 +2328,8 @@
 
       // Supprimer de la liste locale
       activities = activities.filter(a => a.id != activityId);
-        displayActivities();
-        updateStatistics();
+      displayActivities();
+      updateStatistics();
       showSuccessMessage('Activité supprimée avec succès');
     } catch (error) {
       console.error('Erreur suppression activité:', error);
@@ -2392,7 +2348,7 @@
       try {
         await saveActivityRow(activityId);
         savedCount++;
-    } catch (error) {
+      } catch (error) {
         errorCount++;
       }
     }
@@ -2408,32 +2364,39 @@
 
   // Filtrer les activités
   function filterActivities() {
+    // Lire les valeurs de tous les filtres depuis les éléments du formulaire
     const projectFilterElement = document.getElementById('project-filter');
-    const projectFilter = projectFilterElement ? projectFilterElement.value : null;
-    const statusFilter = document.getElementById('status-filter').value;
-    const supervisorFilter = (document.getElementById('supervisor-filter') || {}).value || '';
-    const weekFilter = (document.getElementById('week-filter') || {}).value || '';
-    const agentFilter = (document.getElementById('agent-select') || {}).value || '';
+    const projectFilter = projectFilterElement ? projectFilterElement.value : '';
 
-    console.log('🔍 Filtres appliqués:', {
-      agentFilter,
-      projectFilter,
-      statusFilter,
-      supervisorFilter,
-      weekFilter,
+    const statusFilterElement = document.getElementById('status-filter');
+    const statusFilter = statusFilterElement ? statusFilterElement.value : '';
+
+    const supervisorFilterElement = document.getElementById('supervisor-filter');
+    const supervisorFilter = supervisorFilterElement ? supervisorFilterElement.value : '';
+
+    const weekFilterElement = document.getElementById('week-filter');
+    const weekFilter = weekFilterElement ? weekFilterElement.value : '';
+
+    const agentFilterElement = document.getElementById('agent-filter') || document.getElementById('agent-select');
+    const agentFilter = agentFilterElement ? agentFilterElement.value : '';
+
+    console.log('🔍 Filtres lus depuis le formulaire:', {
+      agentFilter: agentFilter || '(tous)',
+      projectFilter: projectFilter || '(tous)',
+      statusFilter: statusFilter || '(tous)',
+      supervisorFilter: supervisorFilter || '(tous)',
+      weekFilter: weekFilter || '(toutes)',
       totalActivities: activities.length
     });
 
     let filtered = activities;
 
-    // Filtrer par agent
+    // Filtrer par agent (si sélectionné)
     if (agentFilter) {
       console.log('👤 Filtrage par agent:', agentFilter);
       filtered = filtered.filter(activity => {
-        const agentId = activity.user_id || activity.agent_id;
-        const match = agentId === agentFilter;
-        console.log(`   Activité ${activity.id}: agentId=${agentId}, match=${match}`);
-        return match;
+        const agentId = String(activity.user_id || activity.agent_id);
+        return agentId === String(agentFilter);
       });
       console.log(`   Résultat: ${filtered.length} activités après filtre agent`);
     }
@@ -2525,16 +2488,16 @@
     // Calculer la progression globale (réalisé + partiellement réalisé)
     const completed = stats.realise + stats.partiellement_realise;
     const globalProgress = Math.round((completed / total) * 100);
-    
+
     // Mettre à jour la barre de progression
     const progressBar = document.getElementById('global-progress-bar');
     const progressText = document.getElementById('global-progress-text');
-    
+
     if (progressBar) {
       progressBar.style.width = globalProgress + '%';
       progressBar.setAttribute('aria-valuenow', globalProgress);
     }
-    
+
     if (progressText) {
       progressText.textContent = globalProgress + '% complété';
     }
@@ -2583,7 +2546,7 @@
       <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     document.body.appendChild(alert);
-    
+
     // Supprimer automatiquement après 3 secondes
     setTimeout(() => {
       if (alert.parentNode) {
@@ -2601,7 +2564,7 @@
       <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     document.body.appendChild(alert);
-    
+
     setTimeout(() => {
       if (alert.parentNode) {
         alert.remove();
@@ -2612,11 +2575,11 @@
   function showAuthError() {
     // Afficher un message d'erreur au lieu de rediriger immédiatement
     console.error('Erreur d\'authentification - token non trouvé ou invalide');
-    
+
     // Afficher un message dans la page
     const activitiesTbody = document.getElementById('activities-tbody');
     const followUpTbody = document.getElementById('activity-follow-up-body');
-    
+
     const errorMessage = `
       <div class="alert alert-warning">
         <h6>⚠️ Problème d'authentification</h6>
@@ -2627,15 +2590,15 @@
         </div>
       </div>
     `;
-    
+
     if (activitiesTbody) {
       activitiesTbody.innerHTML = `<tr><td colspan="8" class="p-3">${errorMessage}</td></tr>`;
     }
-    
+
     if (followUpTbody) {
       followUpTbody.innerHTML = `<tr><td colspan="9" class="p-3">${errorMessage}</td></tr>`;
     }
-    
+
     // Ne plus rediriger automatiquement - laisser l'utilisateur choisir
   }
 
@@ -2649,7 +2612,7 @@
           'Authorization': `Bearer ${findToken()}`
         }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         return data.has_planification;
@@ -2686,16 +2649,16 @@
    */
   async function updatePresenceButtons() {
     const hasPlanification = await checkTodayPlanification();
-    
+
     // Sélectionner tous les boutons de présence
     const presenceButtons = document.querySelectorAll('.presence-start-btn, .presence-end-btn, .checkin-btn');
-    
+
     presenceButtons.forEach(button => {
       if (hasPlanification) {
         // Afficher le bouton si planification existe
         button.style.display = '';
         button.disabled = false;
-        
+
         // Ajouter une indication positive
         if (!button.querySelector('.planification-indicator')) {
           const indicator = document.createElement('span');
@@ -2708,7 +2671,7 @@
         // Masquer ou désactiver le bouton si pas de planification
         button.style.display = 'none';
         button.disabled = true;
-        
+
         // Afficher un message d'information
         const parent = button.parentNode;
         if (parent && !parent.querySelector('.no-planification-message')) {
@@ -2723,7 +2686,7 @@
         }
       }
     });
-    
+
     console.log(`Planification aujourd'hui: ${hasPlanification ? 'Oui' : 'Non'}`);
   }
 
@@ -2745,28 +2708,28 @@
   function calculateWeightedRanking(stats) {
     // Grouper par projet pour trouver le maximum d'activités par projet
     const projectMaxActivities = new Map();
-    
+
     stats.forEach(stat => {
       const project = stat.project_name;
       const currentMax = projectMaxActivities.get(project) || 0;
       projectMaxActivities.set(project, Math.max(currentMax, stat.total_activities));
     });
-    
+
     // Calculer le score pondéré pour chaque agent
     return stats.map(stat => {
       const tep = calculateExecutionRate(stat.realized_activities, stat.total_activities);
       const maxActivitiesInProject = projectMaxActivities.get(stat.project_name) || 1;
-      
+
       // Facteur de volume : pénalise les agents avec très peu d'activités
       // Utilise log pour éviter que les différences extrêmes ne dominent trop
-      const volumeFactor = stat.total_activities > 0 
+      const volumeFactor = stat.total_activities > 0
         ? Math.log(stat.total_activities + 1) / Math.log(maxActivitiesInProject + 1)
         : 0;
-      
+
       // Score pondéré : combine TEP et volume
       // Plus d'activités = plus de poids dans le classement
       const weightedScore = tep * volumeFactor;
-      
+
       return {
         ...stat,
         tep: tep,
@@ -2778,7 +2741,7 @@
   }
 
   // Fonctions d'authentification (reprises de planning.js)
-  
+
   function findToken() {
     console.log('Recherche du token JWT...');
     for (const key of DEFAULT_TOKEN_CANDIDATES) {
@@ -2826,25 +2789,25 @@
 
       // Capturer la zone principale (sans la navbar)
       const mainContent = document.querySelector('.container');
-      
+
       // Forcer le rendu des éléments avant la capture
       const statsSection = mainContent.querySelector('.stats-horizontal');
       const tableSection = mainContent.querySelector('.table-editable');
-      
+
       if (statsSection) {
         statsSection.style.transform = 'translateZ(0)';
         statsSection.style.willChange = 'transform';
       }
-      
+
       if (tableSection) {
         tableSection.style.transform = 'translateZ(0)';
         tableSection.style.willChange = 'transform';
       }
-      
+
       // Calculer les dimensions A3 (en pixels à 300 DPI)
       const A3_WIDTH = 3508; // Largeur A3 en pixels
       const A3_HEIGHT = 4961; // Hauteur A3 en pixels
-      
+
       // Capturer tout le contenu avec dimensions A3
       const canvas = await html2canvas(mainContent, {
         backgroundColor: '#ffffff',
@@ -2859,7 +2822,7 @@
         removeContainer: true,
         foreignObjectRendering: true,
         imageTimeout: 30000, // Timeout augmenté pour les grandes images
-        onclone: function(clonedDoc) {
+        onclone: function (clonedDoc) {
           // Améliorer la qualité des éléments clonés
           const clonedMain = clonedDoc.querySelector('.container');
           if (clonedMain) {
@@ -2867,7 +2830,7 @@
             clonedMain.style.width = A3_WIDTH + 'px';
             clonedMain.style.minHeight = A3_HEIGHT + 'px';
             clonedMain.style.overflow = 'visible';
-            
+
             // Forcer le rendu des éléments flottants
             const statsSection = clonedMain.querySelector('.stats-horizontal');
             if (statsSection) {
@@ -2875,7 +2838,7 @@
               statsSection.style.zIndex = '10';
               statsSection.style.width = '100%';
             }
-            
+
             // Améliorer la qualité du tableau
             const table = clonedMain.querySelector('.table-editable');
             if (table) {
@@ -2884,7 +2847,7 @@
               table.style.backgroundColor = '#ffffff';
               table.style.width = '100%';
             }
-            
+
             // Forcer le rendu des cartes
             const cards = clonedMain.querySelectorAll('.card');
             cards.forEach(card => {
@@ -2894,14 +2857,14 @@
               card.style.width = '100%';
               card.style.marginBottom = '20px';
             });
-            
+
             // Ajuster les colonnes pour le format A3
             const rows = clonedMain.querySelectorAll('.row');
             rows.forEach(row => {
               row.style.width = '100%';
               row.style.marginBottom = '15px';
             });
-            
+
             // Ajuster le tableau pour qu'il s'étende sur toute la largeur
             const tableContainer = clonedMain.querySelector('.table-responsive');
             if (tableContainer) {
@@ -2916,10 +2879,10 @@
       const link = document.createElement('a');
       const today = new Date().toISOString().split('T')[0];
       const filename = `suivi-activite-${today}.png`;
-      
+
       link.download = filename;
       link.href = canvas.toDataURL('image/png');
-      
+
       // Déclencher le téléchargement
       document.body.appendChild(link);
       link.click();
@@ -2933,7 +2896,7 @@
     } catch (error) {
       console.error('Erreur téléchargement image:', error);
       showErrorMessage('Erreur lors du téléchargement de l\'image');
-      
+
       // Restaurer le bouton en cas d'erreur
       const button = document.getElementById('download-activity-image');
       button.innerHTML = '<i class="fas fa-download"></i> Télécharger en image';
@@ -2949,20 +2912,20 @@
     const supervisorFilter = (document.getElementById('supervisor-filter') || {}).value || '';
     const activeFiltersDiv = document.getElementById('active-filters');
     const filterIndicator = document.getElementById('filter-indicator');
-    
+
     // Pour les agents, ne pas afficher l'indicateur de filtres (ils ne voient que leur projet)
     if (!isAdmin) {
       activeFiltersDiv.style.display = 'none';
       return;
     }
-    
+
     const activeFilters = [];
-    
+
     if (projectFilter) {
       const projectName = projects.find(p => p.name === projectFilter)?.name || projectFilter;
       activeFilters.push(`Projet: ${projectName}`);
     }
-    
+
     if (statusFilter) {
       const statusText = getStatusText(statusFilter);
       activeFilters.push(`Statut: ${statusText}`);
@@ -2972,7 +2935,7 @@
       const name = sup ? sup.name : supervisorFilter;
       activeFilters.push(`Superviseur: ${name}`);
     }
-    
+
     if (activeFilters.length > 0) {
       activeFiltersDiv.style.display = 'block';
       filterIndicator.textContent = `Filtres actifs: ${activeFilters.join(', ')}`;
@@ -3027,19 +2990,19 @@
       // Vérifier si l'offline manager est disponible
       if (window.offlineManager) {
         console.log('🔄 Début de la synchronisation des données en attente...');
-        
+
         // Vérifier les données avant synchronisation
         const unsyncedPresence = await window.offlineManager.getOfflineData('presence', { synced: false });
         const unsyncedMissions = await window.offlineManager.getOfflineData('missions', { synced: false });
         const unsyncedCheckins = await window.offlineManager.getOfflineData('checkins', { synced: false });
-        
+
         console.log('📊 Données à synchroniser:', {
           presence: unsyncedPresence.length,
           missions: unsyncedMissions.length,
           checkins: unsyncedCheckins.length,
           total: unsyncedPresence.length + unsyncedMissions.length + unsyncedCheckins.length
         });
-        
+
         // Afficher les détails des checkins à synchroniser
         if (unsyncedCheckins.length > 0) {
           console.log('📍 Checkins à synchroniser:', unsyncedCheckins.map(checkin => ({
@@ -3050,44 +3013,44 @@
             location: checkin.location
           })));
         }
-        
+
         // Lancer la synchronisation
         await window.offlineManager.syncPendingData();
-        
+
         // Attendre un peu pour que la synchronisation se termine
         await new Promise(resolve => setTimeout(resolve, 3000));
-        
+
         // Vérifier les données après synchronisation
         const remainingPresence = await window.offlineManager.getOfflineData('presence', { synced: false });
         const remainingMissions = await window.offlineManager.getOfflineData('missions', { synced: false });
         const remainingCheckins = await window.offlineManager.getOfflineData('checkins', { synced: false });
-        
+
         const totalRemaining = remainingPresence.length + remainingMissions.length + remainingCheckins.length;
-        
+
         console.log('✅ Résultat de la synchronisation:', {
           presenceSynced: unsyncedPresence.length - remainingPresence.length,
           missionsSynced: unsyncedMissions.length - remainingMissions.length,
           checkinsSynced: unsyncedCheckins.length - remainingCheckins.length,
           remaining: totalRemaining
         });
-        
+
         if (totalRemaining === 0) {
           syncBtn.innerHTML = '<i class="fas fa-check me-1"></i>Terminé';
           syncBtn.classList.remove('btn-warning');
           syncBtn.classList.add('btn-success');
-          
+
           // Recharger les activités pour afficher les données synchronisées
           await loadActivities();
           displayActivityFollowUp(activities);
-          
+
           // Message de succès détaillé
           const syncSummary = [];
           if (unsyncedPresence.length > 0) syncSummary.push(`${unsyncedPresence.length} présence(s)`);
           if (unsyncedMissions.length > 0) syncSummary.push(`${unsyncedMissions.length} mission(s)`);
           if (unsyncedCheckins.length > 0) syncSummary.push(`${unsyncedCheckins.length} checkin(s)`);
-          
+
           showSuccessMessage(`Synchronisation réussie ! ${syncSummary.join(', ')} envoyée(s) vers Supabase.`);
-          
+
           setTimeout(() => {
             syncBtn.innerHTML = '<i class="fas fa-sync me-1"></i>Synchroniser';
             syncBtn.classList.remove('btn-success');
@@ -3099,15 +3062,15 @@
           syncBtn.innerHTML = `<i class="fas fa-exclamation-triangle me-1"></i>${totalRemaining} en attente`;
           syncBtn.classList.remove('btn-warning');
           syncBtn.classList.add('btn-info');
-          
+
           // Message d'erreur détaillé
           const errorSummary = [];
           if (remainingPresence.length > 0) errorSummary.push(`${remainingPresence.length} présence(s)`);
           if (remainingMissions.length > 0) errorSummary.push(`${remainingMissions.length} mission(s)`);
           if (remainingCheckins.length > 0) errorSummary.push(`${remainingCheckins.length} checkin(s)`);
-          
+
           showErrorMessage(`${totalRemaining} éléments n'ont pas pu être synchronisés: ${errorSummary.join(', ')}. Vérifiez votre connexion.`);
-          
+
           setTimeout(() => {
             syncBtn.innerHTML = '<i class="fas fa-sync me-1"></i>Synchroniser';
             syncBtn.classList.remove('btn-info');
@@ -3121,14 +3084,14 @@
         syncBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Indisponible';
         syncBtn.classList.remove('btn-warning');
         syncBtn.classList.add('btn-secondary');
-        
+
         setTimeout(() => {
           syncBtn.innerHTML = '<i class="fas fa-sync me-1"></i>Synchroniser';
           syncBtn.classList.remove('btn-secondary');
           syncBtn.classList.add('btn-warning');
           syncBtn.disabled = false;
         }, 2000);
-        
+
         showErrorMessage('Service de synchronisation indisponible');
       }
     } catch (error) {
@@ -3136,7 +3099,7 @@
       syncBtn.innerHTML = '<i class="fas fa-times me-1"></i>Erreur';
       syncBtn.classList.remove('btn-warning');
       syncBtn.classList.add('btn-danger');
-      
+
       setTimeout(() => {
         syncBtn.innerHTML = '<i class="fas fa-sync me-1"></i>Synchroniser';
         syncBtn.classList.remove('btn-danger');
@@ -3144,7 +3107,7 @@
         syncBtn.disabled = false;
         checkPendingData(); // Revérifier après erreur
       }, 2000);
-      
+
       showErrorMessage('Erreur lors de la synchronisation: ' + error.message);
     }
   }
@@ -3158,15 +3121,15 @@
       const unsyncedPresence = await window.offlineManager.getOfflineData('presence', { synced: false });
       const unsyncedMissions = await window.offlineManager.getOfflineData('missions', { synced: false });
       const unsyncedCheckins = await window.offlineManager.getOfflineData('checkins', { synced: false });
-      
+
       const totalUnsynced = unsyncedPresence.length + unsyncedMissions.length + unsyncedCheckins.length;
-      
+
       if (totalUnsynced > 0) {
         // Afficher le nombre d'éléments en attente
         syncBtn.innerHTML = `<i class="fas fa-exclamation-circle me-1"></i>${totalUnsynced} à sync`;
         syncBtn.classList.remove('btn-warning');
         syncBtn.classList.add('btn-danger');
-        
+
         console.log(`📊 ${totalUnsynced} éléments en attente de synchronisation:`, {
           presence: unsyncedPresence.length,
           missions: unsyncedMissions.length,

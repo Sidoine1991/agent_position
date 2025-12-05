@@ -797,13 +797,26 @@ async function api(path, opts = {}) {
   }
   if (!res.ok) {
     const errorText = await res.text();
-    console.error('API error:', errorText);
     
-    // Si erreur 403 avec message "réservé au superadmin", déconnecter et rediriger
+    // Si erreur 403, vérifier si c'est pour analytics (normal pour les agents)
     if (res.status === 403) {
+      const isAnalyticsEndpoint = path.includes('/analytics/');
+      if (isAnalyticsEndpoint) {
+        // Les endpoints analytics sont réservés aux superviseurs/admins
+        // Ignorer silencieusement pour les agents
+        console.debug(`Accès analytics refusé (réservé superviseur/admin): ${path}`);
+        throw new Error(JSON.stringify({ success: false, error: 'Accès refusé', status: 403, silent: true }));
+      }
+      
       try {
         const errorJson = JSON.parse(errorText);
         if (errorJson.error && (errorJson.error.includes('superadmin') || errorJson.error.includes('réservé') || errorJson.error.includes('administrateur requis'))) {
+          // Vérifier si c'est une erreur silencieuse (comme pour analytics)
+          if (errorJson.silent || errorJson.error.includes('superviseur ou administrateur requis')) {
+            console.debug(`Accès refusé (normal pour ce rôle): ${path}`);
+            throw new Error(JSON.stringify({ success: false, error: errorJson.error, status: 403, silent: true }));
+          }
+          
           console.log('❌ Accès refusé (superadmin requis) - Déconnexion et redirection');
           localStorage.removeItem('jwt');
           localStorage.removeItem('userProfile');
@@ -817,7 +830,7 @@ async function api(path, opts = {}) {
         }
       } catch (e) {
         // Si ce n'est pas du JSON, vérifier le texte brut
-        if (errorText.includes('superadmin') || errorText.includes('réservé') || errorText.includes('administrateur requis')) {
+        if (errorText.includes('superadmin') || (errorText.includes('réservé') && !errorText.includes('superviseur'))) {
           console.log('❌ Accès refusé (superadmin requis) - Déconnexion et redirection');
           localStorage.removeItem('jwt');
           localStorage.removeItem('userProfile');
@@ -831,6 +844,8 @@ async function api(path, opts = {}) {
         }
       }
     }
+    
+    console.error('API error:', errorText);
     
     throw new Error(errorText || res.statusText);
   }
@@ -2719,14 +2734,34 @@ async function checkDailyAbsences() {
       const response = await api(`/presence/check-today?email=${encodeURIComponent(email)}`);
 
       if (response.success && !response.has_presence) {
-        // Marquer comme absent pour aujourd'hui
-        await api(`/presence/mark-absent?email=${encodeURIComponent(email)}`, {
-            method: 'POST',
-          body: { date: today.toISOString().split('T')[0] }
-        });
+        // Vérifier le rôle de l'utilisateur avant d'appeler mark-absent
+        // Cet endpoint nécessite des privilèges admin/superviseur
+        const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+        const userRole = (userProfile.role || '').toLowerCase();
+        const isPrivileged = ['admin', 'superviseur', 'supervisor'].includes(userRole);
+        
+        if (isPrivileged) {
+          try {
+            // Marquer comme absent pour aujourd'hui (seulement pour admins/superviseurs)
+            await api(`/presence/mark-absent?email=${encodeURIComponent(email)}`, {
+              method: 'POST',
+              body: { date: today.toISOString().split('T')[0] }
+            });
 
-        // Afficher une notification
-        showNotification('Absence enregistrée', 'Vous n\'avez pas marqué votre présence aujourd\'hui', 'warning');
+            // Afficher une notification
+            showNotification('Absence enregistrée', 'Vous n\'avez pas marqué votre présence aujourd\'hui', 'warning');
+          } catch (markError) {
+            // Ignorer silencieusement les erreurs 403 pour les agents
+            if (markError.message && markError.message.includes('403')) {
+              console.debug('Marquage d\'absence non autorisé pour ce rôle');
+            } else {
+              console.warn('⚠️ Erreur lors du marquage d\'absence:', markError);
+            }
+          }
+        } else {
+          // Pour les agents, juste afficher un avertissement
+          console.debug('Marquage d\'absence automatique réservé aux superviseurs/admins');
+        }
       }
     }
   } catch (e) {

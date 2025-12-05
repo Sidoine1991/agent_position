@@ -865,8 +865,8 @@ async function buildProjectRanking(supabaseClient, targetAgentId, monthContext) 
           .from('checkins')
           .select('id, user_id, start_time, end_time, created_at')
           .eq('user_id', agent.id)
-          .gte('start_time', monthContext.startIso)
-          .lte('start_time', monthContext.endIso)
+          .gte('created_at', monthContext.startIso)
+          .lte('created_at', monthContext.endIso)
           .limit(500);
 
         if (checkinsError) {
@@ -1143,7 +1143,7 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
     // Le statut dans la table est 'approved' (pas 'approuvé')
     let data = [];
     let error = null;
-    
+
     console.log('🔍 Recherche permissions avec critères:', {
       agentId: Number(agentId),
       status: 'approved',
@@ -1151,13 +1151,13 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
       endDate: endIso,
       condition: `start_date <= ${endIso} AND end_date >= ${startIso}`
     });
-    
+
     // D'abord, récupérer TOUTES les permissions de l'agent (sans filtre) pour vérifier
     const allAgentPermsResult = await supabaseClient
       .from('permissions')
       .select('id, start_date, end_date, status, agent_id, reason')
       .eq('agent_id', Number(agentId));
-    
+
     console.log('📋 TOUTES les permissions de l\'agent (sans filtre):', {
       agentId: Number(agentId),
       count: allAgentPermsResult.data?.length || 0,
@@ -1170,7 +1170,7 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
         status: p.status
       })) || []
     });
-    
+
     // Essayer d'abord avec 'approved' (statut exact dans la table)
     let result = await supabaseClient
       .from('permissions')
@@ -1179,13 +1179,13 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
       .eq('status', 'approved')
       .lte('start_date', endIso)
       .gte('end_date', startIso);
-    
+
     console.log('📋 Résultat requête permissions:', {
       error: result.error,
       count: result.data?.length || 0,
       data: result.data
     });
-    
+
     if (result.error) {
       console.error('❌ Erreur avec statut "approved":', result.error);
       error = result.error;
@@ -1193,18 +1193,18 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
       data = result.data || [];
       console.log(`✅ ${data.length} permissions trouvées avec statut "approved"`);
     }
-    
+
     // Si aucune permission trouvée, essayer sans filtre de statut pour voir toutes les permissions
     if (data.length === 0) {
       console.log('🔍 Aucune permission avec statut "approved", recherche de toutes les permissions...');
-      
+
       result = await supabaseClient
         .from('permissions')
         .select('id, start_date, end_date, status, agent_id, reason')
         .eq('agent_id', Number(agentId))
         .lte('start_date', endIso)
         .gte('end_date', startIso);
-      
+
       if (!result.error && result.data) {
         console.log(`📋 ${result.data.length} permissions trouvées (tous statuts):`, result.data.map(p => ({
           id: p.id,
@@ -1212,23 +1212,23 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
           end: p.end_date,
           status: p.status
         })));
-        
+
         // Filtrer manuellement pour les permissions approuvées
         data = result.data.filter(p => p.status === 'approved');
         console.log(`✅ ${data.length} permissions approuvées après filtrage`);
       }
     }
-    
+
     // Si toujours rien, récupérer TOUTES les permissions de l'agent (sans filtre de date) pour debug
     if (data.length === 0) {
       console.log('🔍 Aucune permission approuvée trouvée, récupération de TOUTES les permissions de l\'agent pour debug...');
-      
+
       // D'abord, récupérer toutes les permissions de l'agent (sans filtre de date)
       const allPermsResult = await supabaseClient
         .from('permissions')
         .select('id, start_date, end_date, status, agent_id, reason')
         .eq('agent_id', Number(agentId));
-      
+
       console.log('📋 TOUTES les permissions de l\'agent (sans filtre de date):', {
         agentId: Number(agentId),
         count: allPermsResult.data?.length || 0,
@@ -1242,7 +1242,7 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
           reason: p.reason
         })) || []
       });
-      
+
       // Ensuite, vérifier celles qui chevauchent le mois
       if (!allPermsResult.error && allPermsResult.data) {
         const overlappingPerms = allPermsResult.data.filter(p => {
@@ -1250,7 +1250,7 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
           const pEnd = new Date(p.end_date);
           return pStart <= end && pEnd >= start;
         });
-        
+
         console.log('📋 Permissions qui chevauchent le mois:', {
           count: overlappingPerms.length,
           permissions: overlappingPerms.map(p => ({
@@ -1263,7 +1263,7 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
             monthEnd: endIso
           }))
         });
-        
+
         // Si on trouve des permissions qui chevauchent mais qui n'ont pas été trouvées par la requête
         if (overlappingPerms.length > 0 && data.length === 0) {
           console.warn('⚠️ PROBLÈME: Des permissions chevauchent le mois mais n\'ont pas été trouvées par la requête Supabase!');
@@ -1273,7 +1273,7 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
         }
       }
     }
-    
+
     // Si toujours rien trouvé, utiliser toutes les permissions de l'agent trouvées au début
     if (data.length === 0 && allAgentPermsResult.data && allAgentPermsResult.data.length > 0) {
       console.warn('⚠️ Aucune permission trouvée avec les filtres Supabase, vérification manuelle des chevauchements...');
@@ -1290,20 +1290,20 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
           });
           return false;
         }
-        
+
         // Vérifier le chevauchement avec le mois
         const pStart = new Date(p.start_date);
         const pEnd = new Date(p.end_date);
-        
+
         // S'assurer que les dates sont valides
         if (isNaN(pStart.getTime()) || isNaN(pEnd.getTime())) {
           console.warn(`⚠️ Dates invalides dans permission:`, p);
           return false;
         }
-        
+
         // Vérifier le chevauchement: start_date <= mois_fin ET end_date >= mois_début
         const overlaps = pStart <= end && pEnd >= start;
-        
+
         console.log(`🔍 Vérification chevauchement permission ${p.id}:`, {
           permission: { start: p.start_date, end: p.end_date },
           month: { start: startIso, end: endIso },
@@ -1315,10 +1315,10 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
           condition2: `${pEnd.toISOString()} >= ${start.toISOString()} = ${pEnd >= start}`,
           overlaps: overlaps
         });
-        
+
         return overlaps;
       });
-      
+
       if (manualOverlap.length > 0) {
         console.warn(`✅ Trouvé ${manualOverlap.length} permissions approuvées qui chevauchent le mois (calcul manuel)`);
         data = manualOverlap;
@@ -1331,7 +1331,7 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
           const requestedMonth = parseInt(monthContext.value.split('-')[1]);
           const pYear = pStart.getFullYear();
           const pMonth = pStart.getMonth() + 1;
-          
+
           return {
             id: p.id,
             start: p.start_date,
@@ -1347,7 +1347,7 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
             reason: p.reason
           };
         }));
-        
+
         // Vérifier s'il y a des permissions pour le même mois mais année différente
         const requestedYear = parseInt(monthContext.value.split('-')[0]);
         const requestedMonth = parseInt(monthContext.value.split('-')[1]);
@@ -1359,7 +1359,7 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
           const isApproved = ['approved', 'approuvé', 'approuvée', 'accepté', 'acceptée'].includes(status);
           return pMonth === requestedMonth && isApproved;
         });
-        
+
         if (sameMonthPerms.length > 0) {
           console.warn(`⚠️ ATTENTION: ${sameMonthPerms.length} permission(s) trouvée(s) pour le mois ${requestedMonth} mais année différente (${sameMonthPerms[0].start_date.split('-')[0]} au lieu de ${requestedYear}):`, sameMonthPerms.map(p => ({
             id: p.id,
@@ -1371,7 +1371,7 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
         }
       }
     }
-    
+
     console.log('🔍 Requête permissions:', {
       agentId: Number(agentId),
       startDate: startIso,
@@ -1407,7 +1407,7 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
       }
       return isApproved;
     });
-    
+
     console.log('📋 Permissions filtrées (approuvées uniquement):', {
       totalFound: data?.length || 0,
       approvedCount: approvedPermissions.length,
@@ -1419,7 +1419,7 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
         status: p.status
       }))
     });
-    
+
     // Si aucune permission approuvée trouvée mais qu'il y a des permissions, logger pour debug
     if (approvedPermissions.length === 0 && data && data.length > 0) {
       console.warn('⚠️ Aucune permission approuvée trouvée parmi les permissions récupérées:', {
@@ -1458,11 +1458,11 @@ async function fetchMonthlyPermissions(supabaseClient, agentId, monthContext) {
         let days = 0;
         const current = new Date(effectiveStart);
         const endDate = new Date(effectiveEnd);
-        
+
         // S'assurer que les dates sont en UTC pour la cohérence
         current.setUTCHours(0, 0, 0, 0);
         endDate.setUTCHours(23, 59, 59, 999);
-        
+
         while (current <= endDate) {
           const dayOfWeek = current.getUTCDay();
           // Compter uniquement les jours ouvrés (lundi=1 à vendredi=5)
@@ -1825,29 +1825,24 @@ async function buildAgentMonthlyReport({
         throw new Error(`agentId invalide: ${targetAgentId}`);
       }
 
-      // Essayer d'abord avec user_id direct depuis presence_validations
-      const { data: checkinsByUserId, error: errorByUserId } = await supabaseClient
-        .from('presence_validations')
-        .select('id, user_id, checkin_timestamp, validation_notes as note, checkin_lat as lat, checkin_lng as lon, checkin_location_name as location_name, photo_url, presence_id')
+      // Essayer d'abord avec user_id direct depuis checkins (source brute)
+      // Utiliser checkins comme source de vérité pour la présence (comme dans buildProjectRanking)
+      const { data: checkinsRaw, error: errorCheckins } = await supabaseClient
+        .from('checkins')
+        .select('id, user_id, start_time, end_time, created_at')
         .eq('user_id', targetAgentId)
-        .eq('validation_status', 'validated')  // Seulement les présences validées
-        .gte('checkin_timestamp', monthContext.startIso)
-        .lte('checkin_timestamp', monthContext.endIso)
-        .order('checkin_timestamp', { ascending: true })
+        .gte('created_at', monthContext.startIso)
+        .lte('created_at', monthContext.endIso)
+        .order('created_at', { ascending: true })
         .limit(500);
 
-      if (!errorByUserId && checkinsByUserId) {
-        // Mapper les données pour compatibilité avec le code existant
-        checkinsData = checkinsByUserId.map(pv => ({
-          ...pv,
-          created_at: pv.checkin_timestamp,  // Ajouter created_at pour compatibilité
-          start_time: pv.checkin_timestamp
-        }));
+      if (!errorCheckins && checkinsRaw) {
+        checkinsData = checkinsRaw;
       } else {
-        checkinsError = errorByUserId;
-        console.warn('Erreur récupération presence_validations:', {
-          error: errorByUserId?.message,
-          code: errorByUserId?.code,
+        checkinsError = errorCheckins;
+        console.warn('Erreur récupération checkins:', {
+          error: errorCheckins?.message,
+          code: errorCheckins?.code,
           targetAgentId
         });
       }
@@ -2174,18 +2169,18 @@ async function buildAgentMonthlyReport({
     // pour avoir les données les plus à jour, même si presenceSummary existe
     let permissionDays = 0;
     let permissionsData = { days: 0, details: [] };
-    
+
     console.log('🔍 Début récupération permissions:', {
       agentId: targetAgentId,
       month: monthContext.value,
       startIso: monthContext.startIso,
       endIso: monthContext.endIso
     });
-    
+
     try {
       permissionsData = await fetchMonthlyPermissions(supabaseClient, targetAgentId, monthContext);
       permissionDays = permissionsData.days || 0;
-      
+
       console.log('✅ Permissions récupérées:', {
         agentId: targetAgentId,
         month: monthContext.value,
@@ -2193,7 +2188,7 @@ async function buildAgentMonthlyReport({
         detailsCount: permissionsData.details?.length || 0,
         details: permissionsData.details
       });
-      
+
       // Si presenceSummary existe mais que les permissions récupérées sont différentes, utiliser les permissions récupérées
       if (presenceSummary && presenceSummary.permissionDays !== undefined) {
         const summaryPermissionDays = presenceSummary.permissionDays || 0;
@@ -2201,7 +2196,7 @@ async function buildAgentMonthlyReport({
           console.log(`⚠️ Différence détectée entre permissions (summary: ${summaryPermissionDays}, récupérées: ${permissionDays}). Utilisation des permissions récupérées.`);
         }
       }
-      
+
       // FORCER l'utilisation des permissions récupérées même si elles sont à 0 (pour debug)
       if (permissionDays === 0 && permissionsData.details && permissionsData.details.length > 0) {
         console.warn('⚠️ permissionDays est 0 mais des détails existent, recalcul...');
@@ -2220,7 +2215,7 @@ async function buildAgentMonthlyReport({
         permissionsData = { days: 0, details: [] };
       }
     }
-    
+
     console.log('📊 Permissions finales avant intégration:', {
       permissionDays,
       detailsCount: permissionsData.details?.length || 0,
@@ -2267,10 +2262,10 @@ async function buildAgentMonthlyReport({
         startDate: monthContext.startIso,
         endDate: monthContext.endIso
       });
-      
+
       // D'abord essayer pour le mois donné - TOUJOURS filtrer par user_id
       let validationPhotos = null;
-      
+
       const { data: photosCurrentMonth, error: errorCurrentMonth } = await supabaseClient
         .from('presence_validations')
         .select('photo_url, checkin_timestamp, checkin_location_name, user_id')
@@ -2311,7 +2306,7 @@ async function buildAgentMonthlyReport({
         console.log('⚠️ Aucune photo pour le mois courant, recherche dans les mois précédents...');
         const fallbackStartDate = new Date(monthContext.start);
         fallbackStartDate.setMonth(fallbackStartDate.getMonth() - 6); // 6 mois en arrière
-        
+
         const { data: photosOtherMonths, error: errorOtherMonths } = await supabaseClient
           .from('presence_validations')
           .select('photo_url, checkin_timestamp, checkin_location_name, user_id')
@@ -2459,7 +2454,7 @@ async function buildAgentMonthlyReport({
         avgFieldTimePerDay: presence.avgFieldTimePerDay,
         missionsCount: presence.missionsCount
       });
-      
+
       // Log de confirmation pour le débogage
       if (permissionDays > 0) {
         console.log('✅ Jours permissionnaires intégrés dans le rapport:', {
@@ -2539,16 +2534,16 @@ async function buildAgentMonthlyReport({
 
     try {
       photos = summarizePhotos(checkinsData || []);
-      
+
       // Si aucune photo trouvée pour le mois donné, chercher dans d'autres mois (fallback)
       if (photos.length === 0) {
         console.log('⚠️ Aucune photo trouvée pour le mois courant, recherche dans les mois précédents...');
-        
+
         try {
           // Chercher des photos dans les 6 derniers mois
           const fallbackStartDate = new Date(monthContext.start);
           fallbackStartDate.setMonth(fallbackStartDate.getMonth() - 6);
-          
+
           // Récupérer des checkins avec photos des mois précédents
           const { data: fallbackCheckins, error: fallbackError } = await supabaseClient
             .from('presence_validations')
@@ -2559,7 +2554,7 @@ async function buildAgentMonthlyReport({
             .not('photo_url', 'is', null)
             .order('checkin_timestamp', { ascending: false })
             .limit(20); // Limiter à 20 photos pour ne pas surcharger
-          
+
           if (!fallbackError && Array.isArray(fallbackCheckins) && fallbackCheckins.length > 0) {
             // Vérifier que toutes les photos appartiennent bien à l'agent concerné
             const validCheckins = fallbackCheckins.filter(c => {
@@ -2573,7 +2568,7 @@ async function buildAgentMonthlyReport({
               }
               return isValid;
             });
-            
+
             if (validCheckins.length > 0) {
               // Formater les checkins pour summarizePhotos
               const formattedFallbackCheckins = validCheckins.map(c => ({
@@ -2627,7 +2622,7 @@ async function buildAgentMonthlyReport({
                 }
                 return isValid;
               });
-              
+
               if (validCheckins.length > 0) {
                 const formattedAnyCheckins = validCheckins.map(c => ({
                   photo_url: c.photo_url,
